@@ -1,0 +1,25 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Fiyu: ingest datasets",
+      "type": "shell",
+      "command": "python",
+      "args": [
+        "-m", "fiyu.cli", "ingest", "data/raw",
+        "--db", "data/fiyu.db",
+        "--csv-out", "data/processed/restaurants_scored.csv"
+      ],
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "Fiyu: tests",
+      "type": "shell",
+      "command": "python",
+      "args": ["-m", "pytest"],
+      "group": "test",
+      "problemMatcher": []
+    }
+  ]
+}

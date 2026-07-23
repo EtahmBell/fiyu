@@ -1,0 +1,8 @@
+placeId,title,address,location/lat,location/lng,categoryName,totalScore,reviewsCount,website,permanentlyClosed,temporarilyClosed,isAdvertisement,url,scrapedAt,searchString
+p1,まる福食堂,東京都新宿区1-1,35.691,139.701,Japanese restaurant,4.5,62,,false,false,false,https://maps.example/p1,2026-07-20T00:00:00Z,Shinjuku City
+p2,Sample Famous Ramen,東京都新宿区2-2,35.693,139.705,Ramen restaurant,4.6,2400,https://example.com,false,false,false,https://maps.example/p2,2026-07-20T00:00:00Z,Shinjuku City
+p3,小町とんかつ,東京都杉並区3-3,35.704,139.635,Tonkatsu restaurant,4.3,91,https://instagram.com/komachi,false,false,false,https://maps.example/p3,2026-07-20T00:00:00Z,Suginami City
+p4,Unknown Tiny Cafe,東京都世田谷区4-4,35.658,139.668,Cafe,4.9,3,,false,false,false,https://maps.example/p4,2026-07-20T00:00:00Z,Setagaya City
+p5,Closed Place,東京都台東区5-5,35.712,139.779,Restaurant,4.7,44,,true,false,false,https://maps.example/p5,2026-07-20T00:00:00Z,Taito City
+p6,Starbucks Shinjuku,東京都新宿区6-6,35.690,139.700,Coffee shop,4.3,230,,false,false,false,https://maps.example/p6,2026-07-20T00:00:00Z,Shinjuku City
+p1,まる福食堂,東京都新宿区1-1,35.691,139.701,Japanese restaurant,4.5,68,,false,false,false,https://maps.example/p1,2026-07-21T00:00:00Z,Shinjuku City

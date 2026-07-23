@@ -1,0 +1,17 @@
+{
+  "target_rating": 4.2,
+  "minimum_rating": 3.9,
+  "soft_review_cap": 100,
+  "minimum_review_count": 5,
+  "maximum_review_count": 500,
+  "prior_review_weight": 30,
+  "minimum_peer_group_size": 15,
+  "minimum_candidate_score": 55.0,
+  "quality_weight": 0.45,
+  "underexposure_weight": 0.3,
+  "digital_footprint_weight": 0.1,
+  "confidence_weight": 0.1,
+  "independent_weight": 0.05,
+  "chain_title_threshold": 4,
+  "chain_domain_threshold": 3
+}

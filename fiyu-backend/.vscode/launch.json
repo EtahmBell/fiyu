@@ -1,0 +1,16 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Fiyu API",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": ["fiyu.api:app", "--reload", "--port", "8000"],
+      "jinja": true,
+      "env": {
+        "FIYU_DB_PATH": "${workspaceFolder}/data/fiyu.db"
+      }
+    }
+  ]
+}
