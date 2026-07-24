@@ -34,3 +34,14 @@ data/*.db-*
 *.db-shm
 *.db-wal
 *.db-journal
+
+fiyu-backend/.venv/
+fiyu-backend/.env
+fiyu-backend/.env.*
+!fiyu-backend/.env.example
+fiyu-backend/data/raw/
+fiyu-backend/data/processed/
+fiyu-backend/data/*.db
+fiyu-backend/data/*.db-*
+fiyu-backend/**/__pycache__/
+fiyu-backend/.pytest_cache/

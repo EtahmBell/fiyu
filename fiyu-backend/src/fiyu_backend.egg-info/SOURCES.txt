@@ -6,9 +6,14 @@ src/fiyu/cli.py
 src/fiyu/columns.py
 src/fiyu/config.py
 src/fiyu/database.py
+src/fiyu/google_places.py
 src/fiyu/ingest.py
 src/fiyu/normalize.py
+src/fiyu/public_catalog.py
+src/fiyu/public_cli.py
+src/fiyu/public_score.py
 src/fiyu/readers.py
+src/fiyu/research_worker.py
 src/fiyu/scoring.py
 src/fiyu/utils.py
 src/fiyu_backend.egg-info/PKG-INFO
@@ -19,4 +24,5 @@ src/fiyu_backend.egg-info/requires.txt
 src/fiyu_backend.egg-info/top_level.txt
 tests/test_columns.py
 tests/test_normalize.py
+tests/test_public_score.py
 tests/test_scoring.py

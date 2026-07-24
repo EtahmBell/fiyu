@@ -11,9 +11,12 @@ def test_apify_column_mapping():
         "reviewsCount": "88",
         "categoryName": "Japanese restaurant",
         "categories/0": "Restaurant",
-        "searchString": "Shinjuku City",
+        # Apify commonly stores the query rather than the area here.
+        "searchString": "restaurant",
     }
-    value = raw_record_from_row(row, "x.csv")
+
+    value = raw_record_from_row(row, "Shinjuku_City.csv")
+
     assert value["place_id"] == "abc"
     assert value["rating"] == 4.4
     assert value["review_count"] == 88
