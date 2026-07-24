@@ -163,7 +163,45 @@ GET /restaurants/candidates?min_score=60&limit=50
 GET /restaurants/candidates?area=Shinjuku%20City&simple_rule_only=true
 GET /restaurants/nearby?lat=35.6895&lng=139.6917&radius_km=3&limit=20
 GET /restaurants/nearby?lat=35.6895&lng=139.6917&category=ramen
+GET /public/restaurants?limit=100
+GET /public/restaurants/{place_id}
+GET /public/restaurants/{place_id}/live-details?language_code=en
 ```
+
+The `/public/restaurants` endpoints return only manually published rows and only
+frontend-safe fields. Live details are fetched from Google on request and are not stored.
+
+### Public catalog workflow
+
+```text
+scraped data
+→ internal candidate score
+→ Responses API structured research
+→ deterministic public Fiyu score
+→ manual publication
+→ live Google Places enrichment
+```
+
+Research and score recalculation leave rows unpublished. Review and explicitly change
+publication status with:
+
+```bash
+python -m fiyu.public_cli --db PATH review --limit 20
+python -m fiyu.public_cli --db PATH publish --place-id PLACE_ID
+python -m fiyu.public_cli --db PATH unpublish --place-id PLACE_ID
+```
+
+### Backend environment
+
+Local frontend origins default to `http://localhost:3000` and
+`http://127.0.0.1:3000`. Override them with a comma-separated value:
+
+```text
+FIYU_CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+```
+
+`GOOGLE_PLACES_SERVER_KEY` is backend-only and must never be sent to the frontend.
+Do not commit `.env` files, SQLite databases, scraped datasets, or API keys.
 
 ## Run tests
 

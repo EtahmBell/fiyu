@@ -1,15 +1,13 @@
 from __future__ import annotations
 
 import csv
-from datetime import datetime, timezone
 import json
+from collections.abc import Iterable
+from datetime import UTC, datetime
 from pathlib import Path
-import sqlite3
-from typing import Iterable
 
 from .database import connect
 from .public_score import FiyuEvidence, FiyuScoreResult, InternalSignals, calculate_fiyu_score
-
 
 PUBLIC_SCHEMA = """
 CREATE TABLE IF NOT EXISTS public_restaurants (
@@ -56,7 +54,7 @@ CREATE INDEX IF NOT EXISTS idx_public_research_queue
 
 
 def _utc_now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def ensure_public_schema(db_path: str | Path) -> None:
@@ -372,6 +370,80 @@ def list_public_restaurants(
         item["is_published"] = bool(item.get("is_published"))
         decoded.append(item)
     return decoded
+
+
+def get_public_restaurant(db_path: str | Path, place_id: str) -> dict[str, object] | None:
+    rows = _safe_public_rows(db_path, where="p.is_published = 1 AND p.place_id = ?", parameters=(place_id,), limit=1)
+    return rows[0] if rows else None
+
+
+def list_published_restaurants(
+    db_path: str | Path, *, limit: int = 100
+) -> list[dict[str, object]]:
+    return _safe_public_rows(db_path, where="p.is_published = 1", parameters=(), limit=limit)
+
+
+def _safe_public_rows(
+    db_path: str | Path,
+    *,
+    where: str,
+    parameters: tuple[object, ...],
+    limit: int,
+) -> list[dict[str, object]]:
+    ensure_public_schema(db_path)
+    with connect(db_path) as connection:
+        rows = connection.execute(
+            f"""
+            SELECT p.place_id, p.name_ja, p.name_en, p.primary_category,
+                   r.latitude, r.longitude, r.neighborhood,
+                   p.fiyu_score, p.fiyu_confidence, p.confidence_band,
+                   p.score_band, p.why_fiyu, p.food_tags_json,
+                   p.signature_dishes_json, p.local_signal
+            FROM public_restaurants p
+            LEFT JOIN restaurants r ON r.place_id = p.place_id
+            WHERE {where}
+            ORDER BY p.fiyu_score DESC
+            LIMIT ?
+            """,
+            (*parameters, limit),
+        ).fetchall()
+    results = []
+    for row in rows:
+        item = dict(row)
+        item["local_language_web_signal"] = item.pop("local_signal")
+        for source, target in (
+            ("food_tags_json", "food_tags"),
+            ("signature_dishes_json", "signature_dishes"),
+        ):
+            try:
+                value = json.loads(item.pop(source) or "[]")
+                item[target] = value if isinstance(value, list) else []
+            except json.JSONDecodeError:
+                item[target] = []
+        results.append(item)
+    return results
+
+
+def set_publication_status(db_path: str | Path, place_id: str, *, published: bool) -> None:
+    ensure_public_schema(db_path)
+    with connect(db_path) as connection:
+        cursor = connection.execute(
+            "UPDATE public_restaurants SET is_published = ?, updated_at = ? WHERE place_id = ?",
+            (int(published), _utc_now(), place_id),
+        )
+        if cursor.rowcount == 0:
+            raise ValueError(f"Unknown place_id: {place_id}")
+        connection.commit()
+
+
+def list_review_candidates(db_path: str | Path, *, limit: int = 20) -> list[dict[str, object]]:
+    rows = list_public_restaurants(db_path, published_only=False, limit=limit)
+    fields = (
+        "place_id", "name_ja", "name_en", "candidate_title", "primary_category",
+        "neighborhood", "fiyu_score", "fiyu_confidence", "confidence_band",
+        "score_band", "why_fiyu", "research_status", "verification_status", "is_published",
+    )
+    return [{field: row.get(field) for field in fields} for row in rows]
 
 
 def export_public_csv(

@@ -8,8 +8,10 @@ from .public_catalog import (
     ensure_public_schema,
     export_public_csv,
     list_public_restaurants,
+    list_review_candidates,
     recalculate_from_stored_evidence,
     seed_public_queue,
+    set_publication_status,
 )
 
 
@@ -39,6 +41,13 @@ def _parser() -> argparse.ArgumentParser:
     export = subparsers.add_parser("export", help="Export a spreadsheet-friendly CSV")
     export.add_argument("--output", default="data/processed/public_restaurants.csv")
     export.add_argument("--published-only", action="store_true")
+
+    for command in ("publish", "unpublish"):
+        publication = subparsers.add_parser(command, help=f"Manually {command} a restaurant")
+        publication.add_argument("--place-id", required=True)
+
+    review = subparsers.add_parser("review", help="Show rows awaiting a manual publication decision")
+    review.add_argument("--limit", type=int, default=20)
     return parser
 
 
@@ -88,6 +97,16 @@ def main() -> None:
             published_only=args.published_only,
         )
         print(json.dumps({"exported": count, "path": args.output}, indent=2))
+    elif args.command in ("publish", "unpublish"):
+        try:
+            set_publication_status(
+                db_path, args.place_id, published=args.command == "publish"
+            )
+        except ValueError as exc:
+            raise SystemExit(str(exc)) from exc
+        print(json.dumps({"place_id": args.place_id, "is_published": args.command == "publish"}))
+    elif args.command == "review":
+        print(json.dumps(list_review_candidates(db_path, limit=args.limit), ensure_ascii=False, indent=2))
 
 
 if __name__ == "__main__":

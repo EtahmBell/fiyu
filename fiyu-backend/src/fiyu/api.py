@@ -1,21 +1,33 @@
 from __future__ import annotations
 
-from math import cos, radians
+import logging
 import os
+from math import cos, radians
 from pathlib import Path
 from typing import Annotated
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
 
 from .database import connect, decode_restaurant_row
+from .google_places import (
+    GooglePlacesConfigurationError,
+    GooglePlacesProviderError,
+    GooglePlacesTimeoutError,
+    fetch_live_place_details,
+    normalize_live_place_details,
+)
+from .public_catalog import get_public_restaurant, list_published_restaurants
 from .utils import haversine_km
 
-
 DB_PATH = Path(os.getenv("FIYU_DB_PATH", "data/fiyu.db"))
+logger = logging.getLogger(__name__)
 origins = [
     value.strip()
-    for value in os.getenv("FIYU_CORS_ORIGINS", "http://localhost:3000").split(",")
+    for value in os.getenv(
+        "FIYU_CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000"
+    ).split(",")
     if value.strip()
 ]
 
@@ -29,11 +41,48 @@ app = FastAPI(
 )
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins or ["*"],
+    allow_origins=origins,
     allow_credentials=False,
     allow_methods=["GET"],
     allow_headers=["*"],
 )
+
+
+class PublicRestaurantSummary(BaseModel):
+    place_id: str
+    name_ja: str | None = None
+    name_en: str | None = None
+    primary_category: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    neighborhood: str | None = None
+    fiyu_score: float | None = None
+    fiyu_confidence: float | None = None
+    confidence_band: str | None = None
+    score_band: str | None = None
+    why_fiyu: str | None = None
+    food_tags: list[str] = Field(default_factory=list)
+    signature_dishes: list[str] = Field(default_factory=list)
+    local_language_web_signal: float | None = None
+
+
+class PublicRestaurantDetail(PublicRestaurantSummary):
+    pass
+
+
+class GoogleLiveDetails(BaseModel):
+    place_id: str
+    name: str
+    address: str
+    latitude: float
+    longitude: float
+    rating: float
+    rating_count: int
+    price_level: str | None = None
+    open_now: bool | None = None
+    weekday_hours: list[str] = Field(default_factory=list)
+    google_maps_uri: str | None = None
+    primary_type: str | None = None
 
 
 def _ensure_database() -> None:
@@ -45,6 +94,50 @@ def _ensure_database() -> None:
                 "python -m fiyu.cli ingest data/raw --db data/fiyu.db"
             ),
         )
+
+
+@app.get("/public/restaurants", response_model=list[PublicRestaurantSummary])
+def public_restaurants(
+    limit: Annotated[int, Query(ge=1, le=200)] = 100,
+) -> list[dict[str, object]]:
+    _ensure_database()
+    return list_published_restaurants(DB_PATH, limit=limit)
+
+
+@app.get("/public/restaurants/{place_id}", response_model=PublicRestaurantDetail)
+def public_restaurant_detail(place_id: str) -> dict[str, object]:
+    _ensure_database()
+    restaurant = get_public_restaurant(DB_PATH, place_id)
+    if restaurant is None:
+        raise HTTPException(status_code=404, detail="Restaurant not found")
+    return restaurant
+
+
+@app.get("/public/restaurants/{place_id}/live-details", response_model=GoogleLiveDetails)
+def public_restaurant_live_details(
+    place_id: str,
+    language_code: Annotated[str, Query(pattern="^(en|ja)$")] = "en",
+) -> dict[str, object]:
+    _ensure_database()
+    if get_public_restaurant(DB_PATH, place_id) is None:
+        raise HTTPException(status_code=404, detail="Restaurant not found")
+    try:
+        payload = fetch_live_place_details(place_id, language_code=language_code)
+        return normalize_live_place_details(payload, requested_place_id=place_id)
+    except GooglePlacesConfigurationError:
+        logger.error("Google Places is not configured")
+        raise HTTPException(status_code=503, detail="Live details are unavailable") from None
+    except GooglePlacesTimeoutError:
+        logger.warning("Google Places request timed out for place_id=%s", place_id)
+        raise HTTPException(status_code=504, detail="Live details provider timed out") from None
+    except GooglePlacesProviderError as exc:
+        logger.warning(
+            "Google Places request failed for place_id=%s: %s", place_id, type(exc).__name__
+        )
+        raise HTTPException(status_code=502, detail="Live details provider failed") from None
+    except (TypeError, ValueError):
+        logger.warning("Google Places returned invalid fields for place_id=%s", place_id)
+        raise HTTPException(status_code=502, detail="Live details provider failed") from None
 
 
 @app.get("/health")
