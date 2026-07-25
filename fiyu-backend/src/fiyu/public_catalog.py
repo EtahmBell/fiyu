@@ -257,7 +257,7 @@ def save_research_result(
                 model_name,
                 prompt_version,
                 now,
-                0,
+                1,
                 now,
                 place_id,
             ),
@@ -300,7 +300,7 @@ def recalculate_from_stored_evidence(db_path: str | Path) -> int:
                 SET local_signal = ?, hiddenness_signal = ?, quality_signal = ?,
                     independence_signal = ?, fiyu_score = ?, fiyu_confidence = ?,
                     confidence_band = ?, score_band = ?, score_version = ?,
-                    is_published = ?, updated_at = ?
+                    updated_at = ?
                 WHERE place_id = ?
                 """,
                 (
@@ -313,7 +313,6 @@ def recalculate_from_stored_evidence(db_path: str | Path) -> int:
                     score.confidence_band,
                     score.score_band,
                     score.score_version,
-                    0,
                     _utc_now(),
                     row["place_id"],
                 ),

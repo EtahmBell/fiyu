@@ -53,11 +53,39 @@ def test_publish_and_unpublish(tmp_path):
         set_publication_status(path, "missing", published=True)
 
 
-def test_recalculation_unpublishes(tmp_path):
+def test_recalculation_preserves_publication_status(tmp_path):
     path = _catalog_db(tmp_path)
+
+    # Published restaurants should remain published after recalculation.
     set_publication_status(path, "place-1", published=True)
-    assert recalculate_from_stored_evidence(path) == 1
+
+    recalculate_from_stored_evidence(path)
+
     with connect(path) as connection:
-        assert connection.execute(
-            "SELECT is_published FROM public_restaurants WHERE place_id = 'place-1'"
-        ).fetchone()[0] == 0
+        published = connection.execute(
+            """
+            SELECT is_published
+            FROM public_restaurants
+            WHERE place_id = ?
+            """,
+            ("place-1",),
+        ).fetchone()[0]
+
+    assert published == 1
+
+    # Manually unpublished restaurants should remain unpublished.
+    set_publication_status(path, "place-1", published=False)
+
+    recalculate_from_stored_evidence(path)
+
+    with connect(path) as connection:
+        unpublished = connection.execute(
+            """
+            SELECT is_published
+            FROM public_restaurants
+            WHERE place_id = ?
+            """,
+            ("place-1",),
+        ).fetchone()[0]
+
+    assert unpublished == 0

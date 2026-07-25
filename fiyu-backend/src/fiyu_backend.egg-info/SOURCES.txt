@@ -24,5 +24,7 @@ src/fiyu_backend.egg-info/requires.txt
 src/fiyu_backend.egg-info/top_level.txt
 tests/test_columns.py
 tests/test_normalize.py
+tests/test_public_api.py
+tests/test_public_catalog.py
 tests/test_public_score.py
 tests/test_scoring.py
