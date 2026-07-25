@@ -1,0 +1,122 @@
+@import "tailwindcss";
+
+/*
+ * Fiyu design tokens.
+ *
+ * A single warm, light editorial palette. There is deliberately no dark theme
+ * in this version: the product direction is "warm neutral backgrounds", and a
+ * second theme would double the surface area of every component before the
+ * first screen exists.
+ *
+ * One accent colour only (a muted persimmon), reserved for selection, the score
+ * arc and links. No gradients, no glass.
+ */
+@theme {
+  --color-paper: #f7f3ec;
+  --color-surface: #ffffff;
+  --color-sunken: #f1eadf;
+  --color-hairline: #e4dcd1;
+
+  --color-ink: #14110e;
+  --color-ink-muted: #6b625a;
+  --color-ink-faint: #988e84;
+
+  --color-accent: #a8412a;
+  --color-accent-strong: #8c3421;
+  --color-accent-soft: #f2e4de;
+
+  /* Opening status. Deliberately earthy rather than traffic-light green/red. */
+  --color-status-open: #2c6a45;
+  --color-status-closed: #8a5a3b;
+
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-display: var(--font-instrument-serif), Georgia, "Times New Roman", serif;
+  --font-jp:
+    var(--font-noto-jp), "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo,
+    sans-serif;
+
+  --radius-card: 0.75rem;
+  --radius-chip: 999px;
+}
+
+:root {
+  color-scheme: light;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background-color: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}
+
+/*
+ * Japanese typography.
+ *
+ * Applied by attribute rather than by class, so tagging a run with lang="ja"
+ * is all that is ever needed. `:where()` keeps specificity at zero so component
+ * classes always win.
+ *
+ * - line-break: strict      -- correct kinsoku (no leading small kana / punctuation)
+ * - overflow-wrap: anywhere -- long unbroken kanji runs cannot overflow a card
+ * - palt                    -- proportional spacing; full-width metrics look
+ *                              loose in short UI strings
+ */
+:where([lang="ja"]) {
+  font-family: var(--font-jp);
+  line-break: strict;
+  overflow-wrap: anywhere;
+  font-feature-settings: "palt" 1;
+}
+
+/* Latin runs stay on the Latin stack even inside a Japanese block. */
+:where([lang="en"]) {
+  font-family: var(--font-sans);
+}
+
+::selection {
+  background-color: var(--color-accent-soft);
+  color: var(--color-accent-strong);
+}
+
+/* One consistent focus treatment for every interactive element. */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@keyframes fiyu-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+@keyframes fiyu-sheet-in {
+  from {
+    opacity: 0;
+    transform: translateY(1.5rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
