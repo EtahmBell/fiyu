@@ -4,6 +4,12 @@ import logging
 import os
 from math import cos, radians
 from pathlib import Path
+
+from dotenv import load_dotenv
+
+
+BACKEND_ROOT = Path(__file__).resolve().parents[2]
+load_dotenv(BACKEND_ROOT / ".env")
 from typing import Annotated
 
 from fastapi import FastAPI, HTTPException, Query
