@@ -6,7 +6,7 @@
  * are therefore derived from the route handlers, not from generated types.
  *
  * 503 is overloaded on the backend: it means "database file missing" on the
- * catalog routes, and "Google Places key not configured" on live-details. The
+ * catalog routes, and "Google Places key not configured" on the photo routes. The
  * two are distinguished here by which endpoint was called, because the response
  * body differs only in free-text `detail`.
  */
@@ -18,11 +18,11 @@ export type FiyuErrorKind =
   | "invalid-request"
   /** 503 on a catalog route - backend database is missing. */
   | "backend-unavailable"
-  /** 503 on live-details - Google Places is not configured server-side. */
+  /** 503 on a photo route - Google Places is not configured server-side. */
   | "provider-unconfigured"
-  /** 502 on live-details - Google Places call failed. */
+  /** 502 on a photo route - the Google Places call failed. */
   | "provider-failed"
-  /** 504 on live-details - Google Places timed out (backend waits 10s). */
+  /** 504 on a photo route - Google Places timed out. */
   | "provider-timeout"
   /** The browser reports no network connection. */
   | "offline"
@@ -101,9 +101,15 @@ export function extractDetail(body: unknown): string | undefined {
   return undefined;
 }
 
-/** Whether this endpoint path is the live-details route (affects 503 meaning). */
-function isLiveDetailsEndpoint(endpoint: string): boolean {
-  return endpoint.includes("/live-details");
+/**
+ * Whether this endpoint proxies Google (affects what 502/503/504 mean).
+ *
+ * The photo routes are the only remaining Google-backed endpoints; the
+ * /live-details route was removed from the backend, and the frontend no longer
+ * fetches ratings, hours, price or review counts.
+ */
+function isProviderEndpoint(endpoint: string): boolean {
+  return endpoint.includes("/photo");
 }
 
 export function kindForStatus(status: number, endpoint: string): FiyuErrorKind {
@@ -115,7 +121,7 @@ export function kindForStatus(status: number, endpoint: string): FiyuErrorKind {
     case 502:
       return "provider-failed";
     case 503:
-      return isLiveDetailsEndpoint(endpoint) ? "provider-unconfigured" : "backend-unavailable";
+      return isProviderEndpoint(endpoint) ? "provider-unconfigured" : "backend-unavailable";
     case 504:
       return "provider-timeout";
     default:

@@ -12,13 +12,13 @@ describe("kindForStatus", () => {
   it("distinguishes the two meanings of 503 by endpoint", () => {
     // api.py returns 503 for a missing database on catalog routes...
     expect(kindForStatus(503, paths.restaurant("abc"))).toBe("backend-unavailable");
-    // ...and 503 for an unconfigured Google key on live-details.
-    expect(kindForStatus(503, paths.liveDetails("abc"))).toBe("provider-unconfigured");
+    // ...and 503 for an unconfigured Google key on the photo routes.
+    expect(kindForStatus(503, paths.photos("abc"))).toBe("provider-unconfigured");
   });
 
-  it("maps the live-details provider failures", () => {
-    expect(kindForStatus(502, paths.liveDetails("abc"))).toBe("provider-failed");
-    expect(kindForStatus(504, paths.liveDetails("abc"))).toBe("provider-timeout");
+  it("maps the photo provider failures", () => {
+    expect(kindForStatus(502, paths.photos("abc"))).toBe("provider-failed");
+    expect(kindForStatus(504, paths.photos("abc"))).toBe("provider-timeout");
   });
 
   it("falls back to unknown for unexpected codes", () => {

@@ -1,11 +1,14 @@
 import { getApiBaseUrl } from "@/lib/config/env";
 
 /**
- * URL construction for the three public backend endpoints.
+ * URL construction for the public backend endpoints.
  *
- * Constraints below are taken from the FastAPI route signatures in
- * fiyu-backend/src/fiyu/api.py and are enforced here so that we never send a
- * request the backend will reject with a 422.
+ * Constraints are taken from the FastAPI route signatures in
+ * fiyu-backend/src/fiyu/api.py and enforced here so we never send a request the
+ * backend will reject with a 422.
+ *
+ * The /live-details route was removed from the backend; the frontend no longer
+ * fetches Google ratings, hours, price or review counts anywhere.
  */
 
 /** `limit: Annotated[int, Query(ge=1, le=200)] = 100` */
@@ -13,26 +16,29 @@ export const LIST_LIMIT_MIN = 1;
 export const LIST_LIMIT_MAX = 200;
 export const LIST_LIMIT_DEFAULT = 100;
 
-/** `language_code: Annotated[str, Query(pattern="^(en|ja)$")] = "en"` */
-export const LIVE_DETAILS_LANGUAGES = ["en", "ja"] as const;
-export type LiveDetailsLanguage = (typeof LIVE_DETAILS_LANGUAGES)[number];
+/** `limit: Annotated[int, Query(ge=1, le=10)] = 5` on the photos route. */
+export const PHOTOS_LIMIT_MIN = 1;
+export const PHOTOS_LIMIT_MAX = 10;
+export const PHOTOS_LIMIT_DEFAULT = 5;
 
-function clampLimit(limit: number): number {
-  if (!Number.isFinite(limit)) return LIST_LIMIT_DEFAULT;
-  return Math.min(LIST_LIMIT_MAX, Math.max(LIST_LIMIT_MIN, Math.trunc(limit)));
+function clamp(value: number, min: number, max: number, fallback: number): number {
+  if (!Number.isFinite(value)) return fallback;
+  return Math.min(max, Math.max(min, Math.trunc(value)));
 }
 
-/** Path used for logging and for error classification (503 disambiguation). */
+/** Paths, used for logging and for error classification. */
 export const paths = {
   restaurants: "/public/restaurants",
   restaurant: (placeId: string) => `/public/restaurants/${encodeURIComponent(placeId)}`,
-  liveDetails: (placeId: string) =>
-    `/public/restaurants/${encodeURIComponent(placeId)}/live-details`,
+  photoPreview: (placeId: string) =>
+    `/public/restaurants/${encodeURIComponent(placeId)}/photo-preview`,
+  photos: (placeId: string) => `/public/restaurants/${encodeURIComponent(placeId)}/photos`,
+  locationAnchors: "/public/location-anchors",
 } as const;
 
 export function restaurantsUrl(limit: number = LIST_LIMIT_DEFAULT): string {
   const url = new URL(paths.restaurants, `${getApiBaseUrl()}/`);
-  url.searchParams.set("limit", String(clampLimit(limit)));
+  url.searchParams.set("limit", String(clamp(limit, LIST_LIMIT_MIN, LIST_LIMIT_MAX, LIST_LIMIT_DEFAULT)));
   return url.toString();
 }
 
@@ -40,8 +46,19 @@ export function restaurantUrl(placeId: string): string {
   return `${getApiBaseUrl()}${paths.restaurant(placeId)}`;
 }
 
-export function liveDetailsUrl(placeId: string, language: LiveDetailsLanguage = "en"): string {
-  const url = new URL(`${getApiBaseUrl()}${paths.liveDetails(placeId)}`);
-  url.searchParams.set("language_code", language);
+export function photoPreviewUrl(placeId: string): string {
+  return `${getApiBaseUrl()}${paths.photoPreview(placeId)}`;
+}
+
+export function photosUrl(placeId: string, limit: number = PHOTOS_LIMIT_DEFAULT): string {
+  const url = new URL(`${getApiBaseUrl()}${paths.photos(placeId)}`);
+  url.searchParams.set(
+    "limit",
+    String(clamp(limit, PHOTOS_LIMIT_MIN, PHOTOS_LIMIT_MAX, PHOTOS_LIMIT_DEFAULT)),
+  );
   return url.toString();
+}
+
+export function locationAnchorsUrl(): string {
+  return `${getApiBaseUrl()}${paths.locationAnchors}`;
 }

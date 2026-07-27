@@ -32,6 +32,29 @@ def _parser() -> argparse.ArgumentParser:
     research.add_argument("--model", default=None)
     research.add_argument("--retry-failed", action="store_true")
 
+    localize = subparsers.add_parser(
+        "localize-content", help="Localize stored restaurant names and descriptions"
+    )
+    localize.add_argument("--limit", type=int, default=20)
+    localize.add_argument("--place-id")
+    localize.add_argument("--force", action="store_true")
+    localize.add_argument("--dry-run", action="store_true")
+    localize.add_argument("--model", default=None)
+
+    location_review = subparsers.add_parser(
+        "export-location-review", help="Export published restaurants for location review"
+    )
+    location_review.add_argument("--output", required=True)
+    location_review.add_argument("--limit", type=int, default=20)
+
+    verified = subparsers.add_parser(
+        "import-verified-locations", help="Validate and import reviewed restaurant locations"
+    )
+    verified.add_argument("--input", required=True)
+    verified.add_argument("--dry-run", action="store_true")
+
+    subparsers.add_parser("location-status", help="Report restaurant and anchor verification status")
+
     subparsers.add_parser("recalculate", help="Recalculate scores from stored evidence")
 
     show = subparsers.add_parser("list", help="Print catalog rows as JSON")
@@ -78,6 +101,34 @@ def main() -> None:
         print(json.dumps(result, indent=2))
     elif args.command == "recalculate":
         print(json.dumps({"recalculated": recalculate_from_stored_evidence(db_path)}, indent=2))
+    elif args.command == "localize-content":
+        from .localization_worker import run_localization_batch
+
+        result = run_localization_batch(
+            db_path,
+            limit=args.limit,
+            place_id=args.place_id,
+            force=args.force,
+            dry_run=args.dry_run,
+            model=args.model,
+        )
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+    elif args.command == "export-location-review":
+        from .location_verification import export_location_review
+
+        count = export_location_review(db_path, args.output, limit=args.limit)
+        print(json.dumps({"exported": count, "path": args.output}, indent=2))
+    elif args.command == "import-verified-locations":
+        from .location_verification import import_verified_locations
+
+        result = import_verified_locations(db_path, args.input, dry_run=args.dry_run)
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        if result["validation_failures"]:
+            raise SystemExit(2)
+    elif args.command == "location-status":
+        from .location_verification import location_status
+
+        print(json.dumps(location_status(db_path), indent=2))
     elif args.command == "list":
         print(
             json.dumps(

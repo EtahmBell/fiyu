@@ -4,32 +4,30 @@ import { cn } from "@/lib/utils/cn";
 
 export type StatusTone = "info" | "error" | "warning" | "empty";
 
+/**
+ * Tones are distinguished by a left rule and a light wash rather than by a full
+ * outlined box. Boxed alerts are the most dashboard-looking element in a UI.
+ */
 const TONE_CLASSES: Record<StatusTone, string> = {
-  info: "border-hairline bg-surface",
-  error: "border-accent/30 bg-accent-soft/50",
-  warning: "border-status-closed/30 bg-status-closed/5",
-  empty: "border-hairline border-dashed bg-transparent",
+  info: "border-l-2 border-l-line-strong bg-surface",
+  error: "border-l-2 border-l-lavender-600 bg-lavender-50",
+  warning: "border-l-2 border-l-status-closed bg-status-closed/5",
+  empty: "border-l-2 border-l-line bg-transparent",
 };
 
 export interface StatusMessageProps {
   title: string;
   description?: ReactNode;
-  /** Retry button, link, or similar. */
   action?: ReactNode;
   tone?: StatusTone;
-  /**
-   * Announce to assistive tech when this replaces content after an action.
-   * Leave false for states present on first render.
-   */
+  /** Announce when this replaces content after an action. */
   live?: boolean;
   className?: string;
 }
 
 /**
- * The single surface for loading failures, empty results and provider errors.
- *
- * Every state in the app routes through this component so that copy, spacing
- * and announcement behaviour stay consistent instead of drifting per feature.
+ * The single surface for loading failures, empty results and provider errors,
+ * so copy, spacing and announcement behaviour stay consistent.
  */
 export function StatusMessage({
   title,
@@ -44,15 +42,15 @@ export function StatusMessage({
       role={tone === "error" ? "alert" : "status"}
       aria-live={live ? "polite" : undefined}
       className={cn(
-        "flex flex-col items-start gap-3 rounded-card border p-5 text-left",
+        "flex flex-col items-start gap-4 rounded-r-card py-5 pr-5 pl-5",
         TONE_CLASSES[tone],
         className,
       )}
     >
-      <div className="space-y-1.5">
-        <p className="font-display text-lg leading-tight text-ink">{title}</p>
+      <div className="space-y-2">
+        <p className="font-display text-xl leading-tight text-ink">{title}</p>
         {description && (
-          <div className="text-sm leading-relaxed text-ink-muted">{description}</div>
+          <div className="max-w-prose text-sm leading-relaxed text-ink-muted">{description}</div>
         )}
       </div>
       {action}

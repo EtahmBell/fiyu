@@ -2,12 +2,13 @@ import type { ReactNode } from "react";
 
 import { cn } from "@/lib/utils/cn";
 
-export type BadgeTone = "neutral" | "accent" | "outline" | "open" | "closed" | "quiet";
+export type BadgeTone = "outline" | "lavender" | "open" | "closed" | "quiet";
 
 const TONE_CLASSES: Record<BadgeTone, string> = {
-  neutral: "bg-sunken text-ink-muted",
-  accent: "bg-accent-soft text-accent-strong",
-  outline: "border border-hairline text-ink-muted",
+  // Default tag treatment: a hairline outline, no fill. Filled chips en masse
+  // are what makes a card look like a status dashboard.
+  outline: "border border-line text-ink-muted",
+  lavender: "bg-lavender-50 text-lavender-700",
   open: "bg-status-open/10 text-status-open",
   closed: "bg-status-closed/10 text-status-closed",
   quiet: "text-ink-faint",
@@ -19,18 +20,17 @@ export interface BadgeProps {
   /** Applied to the rendered element; use for language-tagged content. */
   lang?: string;
   className?: string;
-  /** Screen-reader-only expansion when the visible text is abbreviated. */
   title?: string;
 }
 
 /** Small non-interactive label. For interactive filters use `Chip`. */
-export function Badge({ children, tone = "neutral", lang, className, title }: BadgeProps) {
+export function Badge({ children, tone = "outline", lang, className, title }: BadgeProps) {
   return (
     <span
       lang={lang}
       title={title}
       className={cn(
-        "inline-flex items-center gap-1 rounded-chip px-2 py-0.5 text-xs leading-5 font-medium tracking-wide",
+        "inline-flex items-center rounded-chip px-2.5 py-1 text-xs leading-4",
         TONE_CLASSES[tone],
         className,
       )}

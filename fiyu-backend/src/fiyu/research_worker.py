@@ -80,7 +80,15 @@ as unknown, not proof. Never infer customer nationality from language.
 For japanese_review_share, only provide a number when a source or supplied review sample supports it.
 Otherwise return null. Count unique, relevant sources only. Include URLs supporting the evidence.
 Set conflicting_evidence=true when identity, chain status, closure, or location information conflicts.
-The why_fiyu text must be a cautious one- or two-sentence summary grounded in the evidence.
+Content-language requirements:
+- name_ja must preserve the restaurant's official Japanese name.
+- name_en must be a natural English name or readable Hepburn-style romanization.
+- why_fiyu must always be clear, natural English, approximately 1-3 concise sentences, and
+  explain why this exact restaurant fits Fiyu based on the evidence.
+- why_fiyu must not sound machine-translated and must avoid generic marketing language.
+- Japanese restaurant names and proper culinary terms may remain Japanese when appropriate.
+- Preserve food_tags and signature_dishes as generated from the research; do not translate them
+  merely to localize the restaurant content.
 
 Return between 2 and 8 evidence URLs. Every URL must directly support
 the identity, address, cuisine, chain status, signature dishes, local

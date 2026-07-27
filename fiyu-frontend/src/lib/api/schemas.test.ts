@@ -1,24 +1,24 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  googleLiveDetailsSchema,
+  googlePhotoSchema,
+  locationAnchorListSchema,
   parseRestaurantList,
   publicRestaurantListSchema,
   publicRestaurantSchema,
 } from "@/lib/api/schemas";
-import liveDetailsFixture from "@/test/fixtures/live-details.json";
+import anchorsFixture from "@/test/fixtures/location-anchors.json";
+import photoFixture from "@/test/fixtures/photo-preview.json";
 import restaurantsFixture from "@/test/fixtures/restaurants.json";
 
 /**
- * Fixtures are unmodified responses captured from the running backend
- * (GET /public/restaurants?limit=200 and one live-details call). If the backend
+ * Fixtures are unmodified responses captured from the running backend. If the
  * contract changes, these tests are the first thing that should fail.
  */
 
 describe("publicRestaurantListSchema", () => {
   it("accepts the full published catalog as returned by the backend", () => {
-    const result = publicRestaurantListSchema.safeParse(restaurantsFixture);
-    expect(result.success).toBe(true);
+    expect(publicRestaurantListSchema.safeParse(restaurantsFixture).success).toBe(true);
   });
 
   it("captured a non-empty catalog, so the fixture is meaningful", () => {
@@ -28,6 +28,7 @@ describe("publicRestaurantListSchema", () => {
   it("exposes no internal fields the backend forbids", () => {
     const forbidden = [
       "internal_fiyu_score",
+      "why_fiyu",
       "evidence",
       "evidence_json",
       "evidence_urls_json",
@@ -36,6 +37,15 @@ describe("publicRestaurantListSchema", () => {
       "prompt_version",
       "source_restaurant_id",
     ];
+    for (const row of restaurantsFixture as Record<string, unknown>[]) {
+      for (const key of forbidden) {
+        expect(row).not.toHaveProperty(key);
+      }
+    }
+  });
+
+  it("exposes no Google rating, review count, hours or price", () => {
+    const forbidden = ["rating", "rating_count", "user_rating_count", "price_level", "open_now", "weekday_hours"];
     for (const row of restaurantsFixture as Record<string, unknown>[]) {
       for (const key of forbidden) {
         expect(row).not.toHaveProperty(key);
@@ -51,9 +61,22 @@ describe("publicRestaurantSchema", () => {
     const parsed = publicRestaurantSchema.parse(minimal);
     expect(parsed.place_id).toBe("ChIJtest");
     expect(parsed.name_ja).toBeNull();
-    expect(parsed.fiyu_score).toBeNull();
+    expect(parsed.description_en).toBeNull();
     expect(parsed.food_tags).toEqual([]);
     expect(parsed.signature_dishes).toEqual([]);
+  });
+
+  it("defaults map_display_eligible to false rather than true", () => {
+    // Defaulting the other way would plot restaurants the backend never cleared.
+    expect(publicRestaurantSchema.parse(minimal).map_display_eligible).toBe(false);
+  });
+
+  it("defaults community counters to zero and keeps them hidden", () => {
+    const parsed = publicRestaurantSchema.parse(minimal);
+    expect(parsed.community_recommendation_count).toBe(0);
+    expect(parsed.community_positive_count).toBe(0);
+    expect(parsed.community_recommendation_rate).toBeNull();
+    expect(parsed.community_stats_visible).toBe(false);
   });
 
   it("normalises explicit nulls and missing keys to the same shape", () => {
@@ -73,18 +96,14 @@ describe("publicRestaurantSchema", () => {
     expect(publicRestaurantSchema.safeParse({ place_id: "" }).success).toBe(false);
   });
 
-  it("accepts unknown band values so a new backend band cannot break the page", () => {
+  it("accepts unknown band and precision values so a new one cannot break the page", () => {
     const parsed = publicRestaurantSchema.parse({
       place_id: "ChIJtest",
       score_band: "brand_new_band",
-      confidence_band: "unheard_of",
+      location_precision: "rooftop",
     });
     expect(parsed.score_band).toBe("brand_new_band");
-  });
-
-  it("accepts out-of-range scores rather than failing the whole list", () => {
-    const parsed = publicRestaurantSchema.parse({ place_id: "ChIJtest", fiyu_score: 140 });
-    expect(parsed.fiyu_score).toBe(140);
+    expect(parsed.location_precision).toBe("rooftop");
   });
 
   it("rejects a score sent as a string", () => {
@@ -102,13 +121,11 @@ describe("parseRestaurantList", () => {
   });
 
   it("keeps valid rows when one row is malformed", () => {
-    // One bad record must not blank the whole catalog.
-    const payload = [
+    const parsed = parseRestaurantList([
       { place_id: "good-1", fiyu_score: 88 },
       { place_id: "bad", fiyu_score: "not a number" },
       { place_id: "good-2", fiyu_score: 72 },
-    ];
-    const parsed = parseRestaurantList(payload);
+    ]);
     expect(parsed?.restaurants.map((r) => r.place_id)).toEqual(["good-1", "good-2"]);
     expect(parsed?.rejected).toHaveLength(1);
   });
@@ -127,41 +144,84 @@ describe("parseRestaurantList", () => {
   });
 
   it("distinguishes an empty catalog from a malformed one", () => {
-    const empty = parseRestaurantList([]);
-    expect(empty?.restaurants).toEqual([]);
-    expect(empty?.rejected).toEqual([]);
+    expect(parseRestaurantList([])).toEqual({ restaurants: [], rejected: [] });
   });
 
   it("returns null when the payload is not an array at all", () => {
-    // Unrecoverable: the caller must raise invalid-response, not render empty.
     expect(parseRestaurantList({ detail: "Restaurant not found" })).toBeNull();
     expect(parseRestaurantList(null)).toBeNull();
     expect(parseRestaurantList("<html>502</html>")).toBeNull();
   });
 });
 
-describe("googleLiveDetailsSchema", () => {
-  it("accepts a real live-details response", () => {
-    const result = googleLiveDetailsSchema.safeParse(liveDetailsFixture);
-    expect(result.success).toBe(true);
+describe("googlePhotoSchema", () => {
+  it("accepts a real photo-preview response", () => {
+    expect(googlePhotoSchema.safeParse(photoFixture).success).toBe(true);
   });
 
-  it("accepts the backend's zero-coerced 'unknown' values", () => {
-    const parsed = googleLiveDetailsSchema.parse({
-      place_id: "ChIJtest",
-      name: "",
-      address: "",
-      latitude: 0,
-      longitude: 0,
-      rating: 0,
-      rating_count: 0,
-    });
-    expect(parsed.rating_count).toBe(0);
-    expect(parsed.open_now).toBeNull();
-    expect(parsed.weekday_hours).toEqual([]);
+  it("preserves author attribution, which must always be displayed", () => {
+    const parsed = googlePhotoSchema.parse(photoFixture);
+    expect(parsed.author_attributions.length).toBeGreaterThan(0);
+    expect(parsed.author_attributions[0].display_name).toBeTruthy();
+    expect(parsed.author_attributions[0].uri).toBeTruthy();
   });
 
-  it("requires the non-nullable Google fields to be present", () => {
-    expect(googleLiveDetailsSchema.safeParse({ place_id: "ChIJtest" }).success).toBe(false);
+  it("keeps the reporting and source links when the backend returns them", () => {
+    const parsed = googlePhotoSchema.parse(photoFixture);
+    expect(parsed.google_maps_uri).toBeTruthy();
+    expect(parsed.flag_content_uri).toBeTruthy();
+  });
+
+  it("requires a media_url, since a photo without one cannot render", () => {
+    expect(googlePhotoSchema.safeParse({ width: 100, height: 100 }).success).toBe(false);
+    expect(
+      googlePhotoSchema.safeParse({ media_url: "", width: 100, height: 100 }).success,
+    ).toBe(false);
+  });
+
+  it("defaults attribution to an empty list rather than undefined", () => {
+    const parsed = googlePhotoSchema.parse({ media_url: "u", width: 1, height: 1 });
+    expect(parsed.author_attributions).toEqual([]);
+  });
+});
+
+describe("locationAnchorListSchema", () => {
+  it("accepts the live anchors response, which is currently empty", () => {
+    const parsed = locationAnchorListSchema.safeParse(anchorsFixture);
+    expect(parsed.success).toBe(true);
+    // Documents that no anchor is reviewed yet; update when they are imported.
+    expect(anchorsFixture).toEqual([]);
+  });
+
+  it("accepts a reviewed anchor with its approximate-nature qualifier", () => {
+    const parsed = locationAnchorListSchema.parse([
+      {
+        id: "shibuya-station",
+        display_name: "Shibuya Station",
+        area_name: "Shibuya",
+        latitude: 35.658,
+        longitude: 139.7016,
+        precision: "area_anchor",
+        qualifier: "Approximate center of Shibuya",
+      },
+    ]);
+    expect(parsed[0].qualifier).toBe("Approximate center of Shibuya");
+    expect(parsed[0].precision).toBe("area_anchor");
+  });
+
+  it("rejects an anchor without coordinates", () => {
+    expect(
+      locationAnchorListSchema.safeParse([
+        {
+          id: "x",
+          display_name: "X",
+          area_name: "X",
+          latitude: null,
+          longitude: null,
+          precision: "area_anchor",
+          qualifier: "q",
+        },
+      ]).success,
+    ).toBe(false);
   });
 });

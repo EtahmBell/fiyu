@@ -7,9 +7,9 @@ from fiyu import api
 from fiyu.database import SCHEMA, connect
 from fiyu.google_places import (
     GooglePlacesConfigurationError,
+    GooglePlacesNoPhotosError,
     GooglePlacesProviderError,
     GooglePlacesTimeoutError,
-    normalize_live_place_details,
 )
 from fiyu.public_catalog import ensure_public_schema
 
@@ -26,8 +26,9 @@ def public_db(tmp_path, monkeypatch):
             VALUES (?, ?, ?, ?, ?, 4.5, 20)
             """,
             [
-                ("published", "Published", 35.1, 139.1, "Asakusa"),
-                ("hidden", "Hidden", 35.2, 139.2, "Ueno"),
+                ("eligible", "Eligible", 35.1, 139.1, "Asakusa"),
+                ("unknown", "Unknown", 35.2, 139.2, "Ueno"),
+                ("hidden", "Hidden", 35.3, 139.3, "Ginza"),
             ],
         )
         connection.commit()
@@ -36,87 +37,168 @@ def public_db(tmp_path, monkeypatch):
         connection.executemany(
             """
             INSERT INTO public_restaurants
-                (place_id, name_en, food_tags_json, signature_dishes_json,
-                 fiyu_score, fiyu_confidence, local_signal, evidence_json,
-                 evidence_urls_json, research_error, model_name, prompt_version,
-                 is_published, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, 88, 75, '{"secret": true}', '["private"]',
-                    'private error', 'private model', 'private prompt', ?, 'now', 'now')
+                (place_id, name_ja, name_en, why_fiyu, primary_category,
+                 food_tags_json, signature_dishes_json, fiyu_score, score_band,
+                 local_signal, evidence_json, evidence_urls_json, research_error,
+                 model_name, prompt_version, is_published, created_at, updated_at)
+            VALUES (?, ?, ?, ?, 'soba', ?, ?, ?, 'excellent', 75,
+                    '{"secret": true}', '["private"]', 'private error',
+                    'private model', 'private prompt', ?, 'now', 'now')
             """,
             [
-                ("published", "Published", json.dumps(["soba"]), json.dumps(["zaru soba"]), 91, 1),
-                ("hidden", "Hidden", "[]", "[]", 99, 0),
+                (
+                    "eligible", "独立店", "Independent", "An English description.",
+                    json.dumps(["soba"]), json.dumps(["ざる蕎麦"]), 91, 1,
+                ),
+                (
+                    "unknown", "不明", "Unknown", "Another description.",
+                    "[]", "[]", 89, 1,
+                ),
+                (
+                    "hidden", "非公開", "Hidden", "Hidden description.",
+                    "[]", "[]", 99, 0,
+                ),
             ],
+        )
+        connection.execute(
+            """
+            UPDATE public_restaurants
+            SET latitude = 35.11, longitude = 139.11, location_source = 'manual-survey',
+                location_verified_at = '2026-07-01', location_precision = 'exact',
+                map_display_eligible = 1
+            WHERE place_id = 'eligible'
+            """
         )
         connection.commit()
     monkeypatch.setattr(api, "DB_PATH", path)
     return path
 
 
-def test_public_list_only_returns_safe_published_rows(public_db):
+def test_public_contract_uses_only_independently_eligible_coordinates(public_db):
     response = TestClient(api.app).get("/public/restaurants")
     assert response.status_code == 200
-    assert [row["place_id"] for row in response.json()] == ["published"]
-    row = response.json()[0]
-    assert row["food_tags"] == ["soba"]
-    assert row["signature_dishes"] == ["zaru soba"]
+    rows = {row["place_id"]: row for row in response.json()}
+    assert set(rows) == {"eligible", "unknown"}
+    assert rows["eligible"]["latitude"] == 35.11
+    assert rows["eligible"]["location_precision"] == "exact"
+    assert rows["eligible"]["map_display_eligible"] is True
+    assert rows["unknown"]["latitude"] is None
+    assert rows["unknown"]["longitude"] is None
+    assert rows["unknown"]["map_display_eligible"] is False
+    assert rows["eligible"]["description_en"] == "An English description."
+    assert rows["eligible"]["score_type"] == "editorial_research"
+    assert rows["eligible"]["fiyu_score"] == 91
+
+
+def test_google_operational_fields_are_absent_publicly(public_db):
+    row = TestClient(api.app).get("/public/restaurants/eligible").json()
     forbidden = {
-        "internal_fiyu_score", "evidence", "evidence_json", "evidence_urls_json",
-        "research_error", "model_name", "prompt_version", "source_restaurant_id",
+        "rating", "rating_count", "review_count", "open_now", "weekday_hours",
+        "opening_hours", "price_level", "why_fiyu", "fiyu_confidence",
+        "confidence_band", "local_language_web_signal", "evidence",
     }
     assert forbidden.isdisjoint(row)
+    assert TestClient(api.app).get(
+        "/public/restaurants/eligible/live-details"
+    ).status_code == 404
 
 
 def test_public_detail_requires_published_restaurant(public_db):
     client = TestClient(api.app)
-    assert client.get("/public/restaurants/published").status_code == 200
+    assert client.get("/public/restaurants/eligible").status_code == 200
     assert client.get("/public/restaurants/hidden").status_code == 404
-    assert client.get("/public/restaurants/unknown").status_code == 404
 
 
-def test_normalize_google_response_handles_fields_and_defaults():
-    result = normalize_live_place_details(
-        {
-            "id": "abc", "displayName": {"text": "Soba"},
-            "location": {"latitude": 35.0, "longitude": 139.0},
-            "rating": 4.6, "userRatingCount": 42,
-            "currentOpeningHours": {"openNow": True, "weekdayDescriptions": ["Mon: 9-5"]},
-        },
-        requested_place_id="fallback",
-    )
-    assert result["place_id"] == "abc"
-    assert result["name"] == "Soba"
-    assert result["address"] == ""
-    assert result["open_now"] is True
+def test_photo_endpoint_preserves_attribution_without_persisting(public_db, monkeypatch):
+    before = public_db.read_bytes()
+
+    def photos(place_id, *, limit):
+        assert place_id == "eligible"
+        assert limit == 1
+        return [{
+            "media_url": "https://photos.example/fresh",
+            "width": 1200,
+            "height": 800,
+            "google_maps_uri": "https://maps.google.com/source",
+            "flag_content_uri": "https://google.example/flag",
+            "author_attributions": [{
+                "display_name": "Photographer",
+                "uri": "https://author.example",
+                "photo_uri": "https://author.example/photo",
+                "flag_content_uri": "https://author.example/flag",
+            }],
+        }]
+
+    monkeypatch.setattr(api, "get_place_photos", photos)
+    response = TestClient(api.app).get("/public/restaurants/eligible/photo-preview")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["author_attributions"][0]["display_name"] == "Photographer"
+    assert body["google_maps_uri"].startswith("https://maps.google.com")
+    assert "resource_name" not in body
+    assert public_db.read_bytes() == before
 
 
 @pytest.mark.parametrize(
     ("exception", "status"),
     [
-        (GooglePlacesConfigurationError("private configuration details"), 503),
-        (GooglePlacesTimeoutError("private timeout details"), 504),
-        (GooglePlacesProviderError("private provider details"), 502),
+        (GooglePlacesConfigurationError("private"), 503),
+        (GooglePlacesNoPhotosError("private"), 404),
+        (GooglePlacesTimeoutError("private"), 504),
+        (GooglePlacesProviderError("private"), 502),
     ],
 )
-def test_live_details_maps_provider_errors(public_db, monkeypatch, exception, status):
+def test_photo_endpoints_map_controlled_errors(public_db, monkeypatch, exception, status):
     def fail(*args, **kwargs):
         raise exception
 
-    monkeypatch.setattr(api, "fetch_live_place_details", fail)
-    response = TestClient(api.app).get("/public/restaurants/published/live-details")
+    monkeypatch.setattr(api, "get_place_photos", fail)
+    response = TestClient(api.app).get("/public/restaurants/eligible/photos")
     assert response.status_code == status
     assert "private" not in response.text
 
 
-def test_live_details_passes_supported_language(public_db, monkeypatch):
-    seen = {}
-
-    def fetch(place_id, *, language_code):
-        seen["language_code"] = language_code
-        return {"id": place_id}
-
-    monkeypatch.setattr(api, "fetch_live_place_details", fetch)
+def test_location_anchors_are_approximate_and_receive_no_user_location(
+    public_db, monkeypatch
+):
+    monkeypatch.setattr(
+        api,
+        "load_location_anchors",
+        lambda: [{
+            "id": "reviewed-anchor",
+            "display_name": "Reviewed Station",
+            "area_name": "Reviewed",
+            "latitude": 35.0,
+            "longitude": 139.0,
+            "precision": "area_anchor",
+            "qualifier": "Approximate center of Reviewed",
+        }],
+    )
     client = TestClient(api.app)
-    assert client.get("/public/restaurants/published/live-details?language_code=ja").status_code == 200
-    assert seen == {"language_code": "ja"}
-    assert client.get("/public/restaurants/published/live-details?language_code=fr").status_code == 422
+    response = client.get("/public/location-anchors")
+    assert response.status_code == 200
+    assert response.json()[0]["qualifier"].startswith("Approximate center")
+    assert response.json()[0]["precision"] == "area_anchor"
+    assert client.post("/public/location-anchors", json={"latitude": 1}).status_code == 405
+
+
+def test_community_rate_hidden_below_minimum(public_db, monkeypatch):
+    monkeypatch.setenv("FIYU_COMMUNITY_MINIMUM_RESPONSES", "3")
+    with connect(public_db) as connection:
+        connection.executemany(
+            """
+            INSERT INTO community_recommendations
+                (response_id, place_id, user_subject_id, recommends, created_at)
+            VALUES (?, 'eligible', ?, ?, 'now')
+            """,
+            [("r1", "u1", 1), ("r2", "u2", 0)],
+        )
+        connection.commit()
+    client = TestClient(api.app)
+    row = client.get("/public/restaurants/eligible").json()
+    assert row["community_recommendation_count"] == 2
+    assert row["community_recommendation_rate"] is None
+    assert row["community_stats_visible"] is False
+    assert client.post(
+        "/public/restaurants/eligible/community", json={"rate": 1}
+    ).status_code in {404, 405}

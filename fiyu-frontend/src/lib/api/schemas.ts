@@ -1,25 +1,22 @@
 import { z } from "zod";
 
 /**
- * Runtime validation for the three public Fiyu endpoints.
+ * Runtime validation for the public Fiyu endpoints.
  *
- * These schemas mirror the Pydantic models in fiyu-backend/src/fiyu/api.py
- * (PublicRestaurantSummary, PublicRestaurantDetail, GoogleLiveDetails) as of
- * backend version 0.1.0. They are hand-written rather than generated, because
- * the backend's OpenAPI document omits the 404/502/503/504 responses that the
- * route handlers actually emit.
+ * Mirrors the Pydantic models in fiyu-backend/src/fiyu/api.py. Hand-written
+ * rather than generated, because the backend's OpenAPI document omits the
+ * 404/502/503/504 responses its route handlers actually emit.
  *
  * Design rules:
  *  - Every scalar the backend types as `X | None` is normalised to `X | null`,
- *    so components never have to distinguish null from undefined.
- *  - `food_tags` and `signature_dishes` are `list[str]` with a default_factory
- *    on the backend and are never null, but we still default them defensively.
- *  - Numeric fields carry NO range assertions. The backend clamps scores to
- *    0-100, but a future out-of-range value should degrade in the formatter
- *    rather than blow up an entire page of results.
- *  - Band fields are validated as plain strings, not enums. An unrecognised
- *    band must not fail the parse; see parseScoreBand/parseConfidenceBand in
- *    lib/format/score.ts, which narrow known values and return null otherwise.
+ *    so components never distinguish null from undefined.
+ *  - Numeric fields carry NO range assertions. A future out-of-range value
+ *    should degrade in a formatter rather than blank an entire page.
+ *  - Band and precision fields are validated as plain strings, not enums: an
+ *    unrecognised value must not fail the parse. Narrowing happens in
+ *    lib/format/score.ts and lib/geo.
+ *  - No field is translated, rewritten or normalised. Localization is owned by
+ *    the backend; this layer only validates shape.
  */
 
 const nullableString = z
@@ -32,63 +29,112 @@ const nullableNumber = z
   .nullish()
   .transform((value) => value ?? null);
 
-const nullableBoolean = z
-  .boolean()
-  .nullish()
-  .transform((value) => value ?? null);
-
 const stringArray = z
   .array(z.string())
   .nullish()
   .transform((value) => value ?? []);
+
+const boolWithDefault = (fallback: boolean) =>
+  z
+    .boolean()
+    .nullish()
+    .transform((value) => value ?? fallback);
+
+const intWithDefault = (fallback: number) =>
+  z
+    .number()
+    .nullish()
+    .transform((value) => value ?? fallback);
 
 /** GET /public/restaurants item, and GET /public/restaurants/{place_id}. */
 export const publicRestaurantSchema = z.object({
   place_id: z.string().min(1),
   name_ja: nullableString,
   name_en: nullableString,
-  primary_category: nullableString,
+  category: nullableString,
+  /** Public editorial description. Replaced the internal why_fiyu field. */
+  description_en: nullableString,
+
+  /*
+   * Coordinates are gated by the backend: public_catalog.py nulls them
+   * whenever map_display_eligible is false, so an ineligible restaurant can
+   * never carry a position. Treat all three as one unit -- see isMappable().
+   */
   latitude: nullableNumber,
   longitude: nullableNumber,
+  location_precision: nullableString,
+  map_display_eligible: boolWithDefault(false),
+
   neighborhood: nullableString,
   fiyu_score: nullableNumber,
-  fiyu_confidence: nullableNumber,
-  confidence_band: nullableString,
   score_band: nullableString,
-  why_fiyu: nullableString,
+  /** Provenance of the score, e.g. "editorial_research". */
+  score_type: nullableString,
+
   food_tags: stringArray,
   signature_dishes: stringArray,
-  local_language_web_signal: nullableNumber,
+
+  /*
+   * Real community records. All zero today. Never render these as engagement
+   * numbers unless community_stats_visible is true -- the backend owns that
+   * decision, and inventing activity is out of bounds.
+   */
+  community_recommendation_count: intWithDefault(0),
+  community_positive_count: intWithDefault(0),
+  community_recommendation_rate: nullableNumber,
+  community_stats_visible: boolWithDefault(false),
 });
 
 export const publicRestaurantListSchema = z.array(publicRestaurantSchema);
 
+/** One author credit on a Google photo. Attribution must always be displayed. */
+export const photoAttributionSchema = z.object({
+  display_name: nullableString,
+  uri: nullableString,
+  photo_uri: nullableString,
+  flag_content_uri: nullableString,
+});
+
 /**
- * GET /public/restaurants/{place_id}/live-details.
+ * GET /public/restaurants/{place_id}/photo-preview and .../photos.
  *
- * Caution: the backend normaliser (google_places.py:101-113) coerces missing
- * Google values to "" / 0.0 / 0 rather than null. So `rating: 0` and
- * `rating_count: 0` mean "Google did not return a value", NOT "zero reviews".
- * Use isRatingKnown() from lib/format/google.ts instead of truthiness checks.
+ * `media_url` is proxied by the backend; the browser never calls Google Places.
  */
-export const googleLiveDetailsSchema = z.object({
-  place_id: z.string().min(1),
-  name: z.string(),
-  address: z.string(),
+export const googlePhotoSchema = z.object({
+  media_url: z.string().min(1),
+  width: z.number(),
+  height: z.number(),
+  author_attributions: z.array(photoAttributionSchema).nullish().transform((v) => v ?? []),
+  google_maps_uri: nullableString,
+  flag_content_uri: nullableString,
+});
+
+export const googlePhotoListSchema = z.array(googlePhotoSchema);
+
+/**
+ * GET /public/location-anchors.
+ *
+ * Approximate area centres, not user positions. `qualifier` carries the
+ * backend's own wording ("Approximate center of Shibuya") and must be shown
+ * alongside the name so an anchor is never mistaken for a precise location.
+ */
+export const locationAnchorSchema = z.object({
+  id: z.string().min(1),
+  display_name: z.string().min(1),
+  area_name: z.string().min(1),
   latitude: z.number(),
   longitude: z.number(),
-  rating: z.number(),
-  rating_count: z.number(),
-  price_level: nullableString,
-  open_now: nullableBoolean,
-  weekday_hours: stringArray,
-  google_maps_uri: nullableString,
-  primary_type: nullableString,
+  precision: z.string(),
+  qualifier: z.string(),
 });
+
+export const locationAnchorListSchema = z.array(locationAnchorSchema);
 
 export type PublicRestaurant = z.infer<typeof publicRestaurantSchema>;
 export type PublicRestaurantList = z.infer<typeof publicRestaurantListSchema>;
-export type GoogleLiveDetails = z.infer<typeof googleLiveDetailsSchema>;
+export type GooglePhoto = z.infer<typeof googlePhotoSchema>;
+export type PhotoAttribution = z.infer<typeof photoAttributionSchema>;
+export type LocationAnchor = z.infer<typeof locationAnchorSchema>;
 
 /** Compact, log-safe description of why a payload failed validation. */
 export function describeZodIssues(error: z.ZodError): string {
@@ -99,9 +145,7 @@ export function describeZodIssues(error: z.ZodError): string {
 }
 
 export interface RejectedRestaurant {
-  /** Position in the original response, for logging. */
   index: number;
-  /** place_id if it was at least a readable string, else null. */
   placeId: string | null;
   issues: string;
 }
@@ -114,13 +158,11 @@ export interface ParsedRestaurantList {
 /**
  * Validate a catalog response row by row.
  *
- * Using publicRestaurantListSchema directly would reject the entire catalog if
- * a single row were malformed, turning one bad record into a blank page. This
- * keeps every valid row and reports the rest, so the UI can render what it has
- * and disclose what it dropped.
+ * Using the list schema directly would reject the whole catalog if a single row
+ * were malformed, turning one bad record into a blank page. This keeps every
+ * valid row and reports the rest.
  *
- * Returns null if the payload is not an array at all, which is unrecoverable
- * and must surface as an invalid-response error.
+ * Returns null if the payload is not an array, which is unrecoverable.
  */
 export function parseRestaurantList(payload: unknown): ParsedRestaurantList | null {
   if (!Array.isArray(payload)) return null;

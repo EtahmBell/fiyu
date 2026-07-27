@@ -1,12 +1,12 @@
 import { DiscoveryShell } from "@/components/discovery/DiscoveryShell";
-import { MapUnavailable } from "@/components/map/MapUnavailable";
+import { PageIntro, SiteFooter } from "@/components/layout/SiteHeader";
 import { BackendUnavailable } from "@/components/states/BackendUnavailable";
 import { NoPublishedRestaurants } from "@/components/states/EmptyState";
 import { MalformedDataNotice } from "@/components/states/MalformedDataNotice";
 import { fetchRestaurants } from "@/lib/api/client";
 import { type FiyuApiError, isFiyuApiError } from "@/lib/api/errors";
 import type { ParsedRestaurantList } from "@/lib/api/schemas";
-import { isMapConfigured } from "@/lib/config/env";
+import { selectBrowsable } from "@/lib/discovery/filters";
 
 type CatalogResult = ({ ok: true } & ParsedRestaurantList) | { ok: false; error: FiyuApiError };
 
@@ -29,26 +29,16 @@ async function loadCatalog(): Promise<CatalogResult> {
   }
 }
 
-function Catalog({ result }: { result: CatalogResult }) {
-  if (!result.ok) {
-    return <BackendUnavailable error={result.error} />;
-  }
-
-  const { restaurants, rejected } = result;
-
-  if (restaurants.length === 0) {
-    return (
-      <div className="space-y-4">
-        <MalformedDataNotice rejected={rejected} accepted={0} />
-        {rejected.length === 0 && <NoPublishedRestaurants />}
-      </div>
-    );
-  }
-
+/**
+ * Failure and empty states render inside the list column's measure rather than
+ * across the full split, so a single message never stretches to 1400px.
+ */
+function StateColumn({ children }: { children: React.ReactNode }) {
   return (
-    <div className="space-y-4">
-      <MalformedDataNotice rejected={rejected} accepted={restaurants.length} />
-      <DiscoveryShell restaurants={restaurants} />
+    <div className="mx-auto w-full max-w-[38rem] px-5 pb-20 sm:px-8">
+      <PageIntro />
+      {children}
+      <SiteFooter />
     </div>
   );
 }
@@ -56,26 +46,46 @@ function Catalog({ result }: { result: CatalogResult }) {
 export default async function HomePage() {
   const result = await loadCatalog();
 
-  return (
-    <main className="mx-auto grid w-full max-w-6xl flex-1 gap-8 px-5 py-8 sm:px-8 lg:grid-cols-[minmax(0,1fr)_24rem]">
-      <section className="min-w-0">
+  if (!result.ok) {
+    return (
+      <main>
         <h2 className="sr-only">Restaurants</h2>
-        <Catalog result={result} />
-      </section>
+        <StateColumn>
+          <BackendUnavailable error={result.error} />
+        </StateColumn>
+      </main>
+    );
+  }
 
-      <aside className="min-w-0" aria-label="Map">
-        <div className="overflow-hidden rounded-card border border-hairline lg:sticky lg:top-8">
-          {isMapConfigured() ? (
-            <div className="flex min-h-80 items-center justify-center bg-sunken px-6 text-center">
-              <p className="text-sm leading-relaxed text-ink-muted">
-                Browser map key detected. The interactive map is built in Phase 4.
-              </p>
-            </div>
-          ) : (
-            <MapUnavailable reason="missing-key" className="min-h-80" />
-          )}
+  // Withheld rows are filtered here, on the server. Filtering in the client
+  // shell would still serialise every withheld restaurant into the RSC payload
+  // just to drop it in the browser.
+  const { restaurants, withheld } = selectBrowsable(result.restaurants);
+  const { rejected } = result;
+
+  if (restaurants.length === 0) {
+    return (
+      <main>
+        <h2 className="sr-only">Restaurants</h2>
+        <StateColumn>
+          <div className="space-y-4">
+            <MalformedDataNotice rejected={rejected} accepted={0} />
+            {rejected.length === 0 && <NoPublishedRestaurants withheld={withheld} />}
+          </div>
+        </StateColumn>
+      </main>
+    );
+  }
+
+  return (
+    <main>
+      <h2 className="sr-only">Restaurants</h2>
+      {rejected.length > 0 && (
+        <div className="mx-auto w-full max-w-[38rem] px-5 pt-6 sm:px-8">
+          <MalformedDataNotice rejected={rejected} accepted={restaurants.length} />
         </div>
-      </aside>
+      )}
+      <DiscoveryShell restaurants={restaurants} />
     </main>
   );
 }

@@ -2,11 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   MISSING_VALUE,
-  confidenceBandLabel,
-  formatConfidence,
   formatScore,
   normalizeSignal,
-  parseConfidenceBand,
   parseScoreBand,
   scoreBandLabel,
 } from "@/lib/format/score";
@@ -18,21 +15,16 @@ describe("band parsing", () => {
     for (const band of ["exceptional", "strong", "promising", "borderline", "not_recommended"]) {
       expect(parseScoreBand(band)).toBe(band);
     }
-    for (const band of ["high", "moderate", "low", "very_low"]) {
-      expect(parseConfidenceBand(band)).toBe(band);
-    }
   });
 
   it("returns null for unknown or absent bands instead of throwing", () => {
     expect(parseScoreBand("future_band")).toBeNull();
     expect(parseScoreBand(null)).toBeNull();
-    expect(parseConfidenceBand("future_band")).toBeNull();
   });
 
   it("recognises every band present in the real catalog", () => {
     for (const row of restaurantsFixture) {
       expect(parseScoreBand(row.score_band)).not.toBeNull();
-      expect(parseConfidenceBand(row.confidence_band)).not.toBeNull();
     }
   });
 });
@@ -57,19 +49,6 @@ describe("scoreBandLabel", () => {
   });
 });
 
-describe("confidenceBandLabel", () => {
-  it("labels all four bands", () => {
-    expect(confidenceBandLabel("high")).toBe("High confidence");
-    expect(confidenceBandLabel("moderate")).toBe("Moderate confidence");
-    expect(confidenceBandLabel("low")).toBe("Low confidence");
-    expect(confidenceBandLabel("very_low")).toBe("Very low confidence");
-  });
-
-  it("returns null for unknown bands", () => {
-    expect(confidenceBandLabel("unknown")).toBeNull();
-  });
-});
-
 describe("formatScore", () => {
   it("rounds to a whole number for display", () => {
     expect(formatScore(88.39)).toBe("88");
@@ -80,16 +59,6 @@ describe("formatScore", () => {
     expect(formatScore(null)).toBe(MISSING_VALUE);
     expect(formatScore(Number.NaN)).toBe(MISSING_VALUE);
     expect(formatScore(Number.POSITIVE_INFINITY)).toBe(MISSING_VALUE);
-  });
-});
-
-describe("formatConfidence", () => {
-  it("renders a percentage", () => {
-    expect(formatConfidence(72.95)).toBe("73%");
-  });
-
-  it("renders a placeholder when absent", () => {
-    expect(formatConfidence(null)).toBe(MISSING_VALUE);
   });
 });
 

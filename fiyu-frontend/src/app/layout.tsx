@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Instrument_Serif, Inter, Noto_Sans_JP } from "next/font/google";
 
-import { SiteFooter, SiteHeader } from "@/components/layout/SiteHeader";
+import { SiteHeader } from "@/components/layout/SiteHeader";
 
 import "./globals.css";
 
@@ -59,16 +59,15 @@ export default function RootLayout({
       lang="en"
       className={`${inter.variable} ${instrumentSerif.variable} ${notoSansJP.variable} h-full antialiased`}
     >
-      <body className="flex min-h-full flex-col bg-paper text-ink">
+      <body className="flex min-h-full flex-col bg-canvas text-ink">
         {/*
-         * The masthead lives in the layout, outside the page's Suspense
-         * boundary, so it renders once and stays put while the page content
-         * loads. Rendering it in both page.tsx and loading.tsx would emit two
-         * <h1> elements into the prerendered HTML.
+         * The brand bar lives in the layout, outside the page's Suspense
+         * boundary, so it renders once and stays put while content loads.
+         * The section masthead and footer belong to the scrolling list column,
+         * so the page renders those instead.
          */}
         <SiteHeader />
         <div className="flex flex-1 flex-col">{children}</div>
-        <SiteFooter />
       </body>
     </html>
   );

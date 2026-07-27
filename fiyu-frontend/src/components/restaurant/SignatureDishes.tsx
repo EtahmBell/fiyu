@@ -8,8 +8,12 @@ export interface SignatureDishesProps {
 }
 
 /**
- * Signature dishes, rendered as prose rather than as chips so they read as
- * editorial detail and stay visually distinct from the food tags above them.
+ * Signature dishes, rendered exactly as the API returns them.
+ *
+ * Deliberately the quietest content on the card: small, faint, set as a single
+ * run of prose rather than chips, so it supports the recommendation instead of
+ * competing with it. "Signature" is UI copy; the dish names are API content and
+ * are never translated or romanized.
  */
 export function SignatureDishes({ dishes, max, className }: SignatureDishesProps) {
   if (dishes.length === 0) return null;
@@ -18,15 +22,18 @@ export function SignatureDishes({ dishes, max, className }: SignatureDishesProps
   const hidden = dishes.length - visible.length;
 
   return (
-    <p className={cn("text-sm leading-relaxed text-ink-muted", className)}>
-      <span className="text-ink-faint">Signature </span>
+    <p className={cn("text-[0.6875rem] leading-relaxed text-ink-faint", className)}>
+      <span className="tracking-[0.08em] uppercase">Signature</span>
+      <span aria-hidden="true"> · </span>
       {visible.map((dish, index) => (
         <span key={dish}>
-          {index > 0 && <span className="text-ink-faint"> · </span>}
-          <span lang={detectTextLang(dish)}>{dish}</span>
+          {index > 0 && <span aria-hidden="true">, </span>}
+          <span lang={detectTextLang(dish)} className="text-ink-muted">
+            {dish}
+          </span>
         </span>
       ))}
-      {hidden > 0 && <span className="text-ink-faint"> +{hidden}</span>}
+      {hidden > 0 && <span> +{hidden}</span>}
     </p>
   );
 }

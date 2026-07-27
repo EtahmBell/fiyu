@@ -7,18 +7,25 @@ export interface SkeletonProps {
 /**
  * Loading placeholder.
  *
- * aria-hidden by design: the surrounding region should own the loading
- * announcement (aria-busy / a live region), so screen readers hear "loading
- * restaurants" once instead of a list of empty boxes.
+ * aria-hidden by design: the surrounding region owns the loading announcement
+ * (role="status" / aria-busy), so a screen reader hears "loading restaurants"
+ * once rather than a list of empty boxes.
  *
- * The pulse keyframe is disabled by the global prefers-reduced-motion rule.
+ * A slow lateral sweep rather than an opacity pulse -- pulsing blocks read as a
+ * generic template. The sweep is disabled by the global reduced-motion rule,
+ * leaving a plain tinted block.
  */
 export function Skeleton({ className }: SkeletonProps) {
   return (
     <div
       aria-hidden="true"
-      className={cn("rounded bg-sunken", className)}
-      style={{ animation: "fiyu-pulse 1.6s ease-in-out infinite" }}
+      className={cn("rounded bg-subtle", className)}
+      style={{
+        backgroundImage:
+          "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.85) 50%, transparent 100%)",
+        backgroundSize: "200% 100%",
+        animation: "fiyu-shimmer 1.8s var(--ease-fiyu) infinite",
+      }}
     />
   );
 }

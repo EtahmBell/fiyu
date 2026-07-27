@@ -4,14 +4,9 @@ import logging
 import os
 from math import cos, radians
 from pathlib import Path
-
-from dotenv import load_dotenv
-
-
-BACKEND_ROOT = Path(__file__).resolve().parents[2]
-load_dotenv(BACKEND_ROOT / ".env")
 from typing import Annotated
 
+from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -19,14 +14,17 @@ from pydantic import BaseModel, Field
 from .database import connect, decode_restaurant_row
 from .google_places import (
     GooglePlacesConfigurationError,
+    GooglePlacesNoPhotosError,
     GooglePlacesProviderError,
     GooglePlacesTimeoutError,
-    fetch_live_place_details,
-    normalize_live_place_details,
+    get_place_photos,
 )
+from .location_anchors import load_location_anchors
 from .public_catalog import get_public_restaurant, list_published_restaurants
 from .utils import haversine_km
 
+BACKEND_ROOT = Path(__file__).resolve().parents[2]
+load_dotenv(BACKEND_ROOT / ".env")
 DB_PATH = Path(os.getenv("FIYU_DB_PATH", "data/fiyu.db"))
 logger = logging.getLogger(__name__)
 origins = [
@@ -58,37 +56,52 @@ class PublicRestaurantSummary(BaseModel):
     place_id: str
     name_ja: str | None = None
     name_en: str | None = None
-    primary_category: str | None = None
+    category: str | None = None
+    description_en: str | None = None
     latitude: float | None = None
     longitude: float | None = None
     neighborhood: str | None = None
     fiyu_score: float | None = None
-    fiyu_confidence: float | None = None
-    confidence_band: str | None = None
     score_band: str | None = None
-    why_fiyu: str | None = None
+    score_type: str = "editorial_research"
     food_tags: list[str] = Field(default_factory=list)
     signature_dishes: list[str] = Field(default_factory=list)
-    local_language_web_signal: float | None = None
+    location_precision: str | None = None
+    map_display_eligible: bool = False
+    community_recommendation_count: int = 0
+    community_positive_count: int = 0
+    community_recommendation_rate: float | None = None
+    community_stats_visible: bool = False
 
 
 class PublicRestaurantDetail(PublicRestaurantSummary):
     pass
 
 
-class GoogleLiveDetails(BaseModel):
-    place_id: str
-    name: str
-    address: str
+class PhotoAttribution(BaseModel):
+    display_name: str | None = None
+    uri: str | None = None
+    photo_uri: str | None = None
+    flag_content_uri: str | None = None
+
+
+class GooglePhoto(BaseModel):
+    media_url: str
+    width: int
+    height: int
+    author_attributions: list[PhotoAttribution] = Field(default_factory=list)
+    google_maps_uri: str | None = None
+    flag_content_uri: str | None = None
+
+
+class LocationAnchorResponse(BaseModel):
+    id: str
+    display_name: str
+    area_name: str
     latitude: float
     longitude: float
-    rating: float
-    rating_count: int
-    price_level: str | None = None
-    open_now: bool | None = None
-    weekday_hours: list[str] = Field(default_factory=list)
-    google_maps_uri: str | None = None
-    primary_type: str | None = None
+    precision: str
+    qualifier: str
 
 
 def _ensure_database() -> None:
@@ -119,31 +132,45 @@ def public_restaurant_detail(place_id: str) -> dict[str, object]:
     return restaurant
 
 
-@app.get("/public/restaurants/{place_id}/live-details", response_model=GoogleLiveDetails)
-def public_restaurant_live_details(
-    place_id: str,
-    language_code: Annotated[str, Query(pattern="^(en|ja)$")] = "en",
-) -> dict[str, object]:
+def _photos_or_http_error(place_id: str, *, limit: int) -> list[dict[str, object]]:
     _ensure_database()
     if get_public_restaurant(DB_PATH, place_id) is None:
         raise HTTPException(status_code=404, detail="Restaurant not found")
     try:
-        payload = fetch_live_place_details(place_id, language_code=language_code)
-        return normalize_live_place_details(payload, requested_place_id=place_id)
+        return get_place_photos(place_id, limit=limit)
     except GooglePlacesConfigurationError:
         logger.error("Google Places is not configured")
-        raise HTTPException(status_code=503, detail="Live details are unavailable") from None
+        raise HTTPException(status_code=503, detail="Restaurant photos are unavailable") from None
+    except GooglePlacesNoPhotosError:
+        raise HTTPException(status_code=404, detail="Restaurant photos not found") from None
     except GooglePlacesTimeoutError:
-        logger.warning("Google Places request timed out for place_id=%s", place_id)
-        raise HTTPException(status_code=504, detail="Live details provider timed out") from None
+        logger.warning("Google photo request timed out for place_id=%s", place_id)
+        raise HTTPException(status_code=504, detail="Restaurant photo provider timed out") from None
     except GooglePlacesProviderError as exc:
         logger.warning(
-            "Google Places request failed for place_id=%s: %s", place_id, type(exc).__name__
+            "Google photo request failed for place_id=%s: %s", place_id, type(exc).__name__
         )
-        raise HTTPException(status_code=502, detail="Live details provider failed") from None
+        raise HTTPException(status_code=502, detail="Restaurant photo provider failed") from None
     except (TypeError, ValueError):
-        logger.warning("Google Places returned invalid fields for place_id=%s", place_id)
-        raise HTTPException(status_code=502, detail="Live details provider failed") from None
+        logger.warning("Google Places returned invalid photo fields for place_id=%s", place_id)
+        raise HTTPException(status_code=502, detail="Restaurant photo provider failed") from None
+
+
+@app.get("/public/restaurants/{place_id}/photo-preview", response_model=GooglePhoto)
+def public_restaurant_photo_preview(place_id: str) -> dict[str, object]:
+    return _photos_or_http_error(place_id, limit=1)[0]
+
+
+@app.get("/public/restaurants/{place_id}/photos", response_model=list[GooglePhoto])
+def public_restaurant_photos(
+    place_id: str, limit: Annotated[int, Query(ge=1, le=10)] = 5
+) -> list[dict[str, object]]:
+    return _photos_or_http_error(place_id, limit=limit)
+
+
+@app.get("/public/location-anchors", response_model=list[LocationAnchorResponse])
+def public_location_anchors() -> list[dict[str, object]]:
+    return load_location_anchors()
 
 
 @app.get("/health")

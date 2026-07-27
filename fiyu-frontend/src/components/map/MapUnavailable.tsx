@@ -1,75 +1,84 @@
 import { cn } from "@/lib/utils/cn";
 
-export type MapUnavailableReason = "missing-key" | "load-failed" | "no-coordinates";
+export type MapUnavailableReason =
+  /** No restaurant in the current results is map-eligible. */
+  | "no-mapped-restaurants"
+  /** Results exist but none carry verified coordinates yet. */
+  | "coordinates-pending"
+  /** The SVG discovery map has not been built yet (Phase B). */
+  | "not-yet-available";
 
 export interface MapUnavailableProps {
   reason: MapUnavailableReason;
   className?: string;
+  action?: React.ReactNode;
 }
 
 interface Copy {
   title: string;
   body: string;
-  hint?: string;
 }
 
+/**
+ * Copy avoids implying a fault. None of these are errors: the catalog is
+ * curated and coordinates are verified by an operator before a restaurant
+ * becomes map-eligible, so "not mapped yet" is an ordinary state.
+ */
 const COPY: Record<MapUnavailableReason, Copy> = {
-  "missing-key": {
-    title: "Map not configured",
-    body: "Browsing, filtering and restaurant details all work without it.",
-    hint: "NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY",
+  "no-mapped-restaurants": {
+    title: "Nothing to map yet",
+    body: "None of these restaurants have a verified location yet. Browsing and filtering work as normal.",
   },
-  "load-failed": {
-    title: "Map could not load",
-    body: "Google Maps did not respond. The restaurant list is unaffected.",
+  "coordinates-pending": {
+    title: "Locations being verified",
+    body: "Fiyu only maps a restaurant once its coordinates have been independently confirmed.",
   },
-  "no-coordinates": {
-    title: "No mappable restaurants",
-    body: "None of the restaurants matching these filters have coordinates.",
+  "not-yet-available": {
+    title: "Map coming next",
+    body: "The Fiyu discovery map is being built. Browsing and filtering work as normal.",
   },
 };
 
 /**
- * Stand-in for the interactive map.
+ * Placeholder for the map pane.
  *
- * A missing browser key is an expected, supported state, not an error: the app
- * must stay fully usable before anyone provisions a Google Maps key. This
- * renders a composed panel rather than an empty box or a console error.
+ * An unmapped catalog is a supported state rather than a failure, so this
+ * renders a composed panel instead of an empty box. The faint plotted grid
+ * reads as a plan view so the pane looks intentional.
  */
-export function MapUnavailable({ reason, className }: MapUnavailableProps) {
-  const { title, body, hint } = COPY[reason];
+export function MapUnavailable({ reason, className, action }: MapUnavailableProps) {
+  const { title, body } = COPY[reason];
 
   return (
     <div
       role="note"
       className={cn(
-        "relative flex h-full min-h-64 w-full items-center justify-center overflow-hidden bg-sunken",
+        "relative flex h-full min-h-64 w-full items-center justify-center overflow-hidden bg-subtle",
         className,
       )}
     >
-      {/* Restrained grid suggesting a street plan, so the slot reads as a map
-          placeholder rather than a broken image. */}
       <div
         aria-hidden="true"
-        className="absolute inset-0 opacity-[0.18]"
+        className="absolute inset-0 opacity-60"
         style={{
           backgroundImage:
-            "linear-gradient(var(--color-hairline) 1px, transparent 1px), linear-gradient(90deg, var(--color-hairline) 1px, transparent 1px)",
-          backgroundSize: "44px 44px",
+            "linear-gradient(var(--color-line) 1px, transparent 1px), linear-gradient(90deg, var(--color-line) 1px, transparent 1px)",
+          backgroundSize: "72px 72px",
         }}
       />
+      <div
+        aria-hidden="true"
+        className="absolute inset-0"
+        style={{
+          background:
+            "radial-gradient(ellipse at center, transparent 30%, var(--color-subtle) 78%)",
+        }}
+      />
+
       <div className="relative max-w-xs px-6 py-10 text-center">
-        <p className="font-display text-lg text-ink">{title}</p>
-        <p className="mt-1.5 text-sm leading-relaxed text-ink-muted">{body}</p>
-        {hint && (
-          <p className="mt-3 text-xs text-ink-faint">
-            Set{" "}
-            <code className="rounded bg-surface px-1.5 py-0.5 font-mono text-[0.7rem] text-ink-muted">
-              {hint}
-            </code>{" "}
-            in <code className="font-mono text-[0.7rem]">.env.local</code> to enable it.
-          </p>
-        )}
+        <p className="font-display text-xl text-ink">{title}</p>
+        <p className="mt-2 text-sm leading-relaxed text-ink-muted">{body}</p>
+        {action && <div className="mt-5 flex justify-center">{action}</div>}
       </div>
     </div>
   );

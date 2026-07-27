@@ -15,15 +15,8 @@ export const SCORE_BANDS = [
 ] as const;
 export type ScoreBand = (typeof SCORE_BANDS)[number];
 
-export const CONFIDENCE_BANDS = ["high", "moderate", "low", "very_low"] as const;
-export type ConfidenceBand = (typeof CONFIDENCE_BANDS)[number];
-
 export function parseScoreBand(value: string | null): ScoreBand | null {
   return SCORE_BANDS.includes(value as ScoreBand) ? (value as ScoreBand) : null;
-}
-
-export function parseConfidenceBand(value: string | null): ConfidenceBand | null {
-  return CONFIDENCE_BANDS.includes(value as ConfidenceBand) ? (value as ConfidenceBand) : null;
 }
 
 /**
@@ -34,8 +27,8 @@ export function parseConfidenceBand(value: string | null): ConfidenceBand | null
  * three currently-published restaurants in that band. Publishing is a manual
  * operator decision (public_cli publish), so stamping "Not recommended" on a
  * row the operator chose to feature would misrepresent that decision. The
- * numeric score and confidence are still shown in full -- only the chip is
- * suppressed. Nothing is hidden or rewritten.
+ * numeric score is still shown in full -- only the chip is suppressed. Nothing
+ * is hidden or rewritten.
  */
 const SCORE_BAND_LABELS: Record<ScoreBand, string | null> = {
   exceptional: "Exceptional",
@@ -45,22 +38,10 @@ const SCORE_BAND_LABELS: Record<ScoreBand, string | null> = {
   not_recommended: null,
 };
 
-const CONFIDENCE_BAND_LABELS: Record<ConfidenceBand, string> = {
-  high: "High confidence",
-  moderate: "Moderate confidence",
-  low: "Low confidence",
-  very_low: "Very low confidence",
-};
-
 /** Short chip label for a score band, or null when no chip should render. */
 export function scoreBandLabel(value: string | null): string | null {
   const band = parseScoreBand(value);
   return band ? SCORE_BAND_LABELS[band] : null;
-}
-
-export function confidenceBandLabel(value: string | null): string | null {
-  const band = parseConfidenceBand(value);
-  return band ? CONFIDENCE_BAND_LABELS[band] : null;
 }
 
 /** Placeholder shown wherever a numeric field is absent. */
@@ -73,12 +54,6 @@ export const MISSING_VALUE = "—";
 export function formatScore(score: number | null): string {
   if (score === null || !Number.isFinite(score)) return MISSING_VALUE;
   return String(Math.round(score));
-}
-
-/** Confidence percentage for display, e.g. "73%". */
-export function formatConfidence(confidence: number | null): string {
-  if (confidence === null || !Number.isFinite(confidence)) return MISSING_VALUE;
-  return `${Math.round(confidence)}%`;
 }
 
 /**

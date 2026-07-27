@@ -10,9 +10,15 @@ export interface TagListProps {
 }
 
 /**
- * Food tags. Each tag is language-detected individually because a single
- * restaurant's tags can mix scripts (the backend has no language marker), and
- * an untagged Japanese run breaks incorrectly at the end of a line.
+ * Food tags, rendered exactly as the API returns them.
+ *
+ * Outlined rather than filled: a row of filled chips is the single most
+ * dashboard-looking element on a card. No translation, romanization or
+ * relabelling happens here -- localization is the backend's responsibility, so
+ * 江戸前寿司 and おまかせ display verbatim.
+ *
+ * `detectTextLang` only chooses a `lang` attribute so Japanese gets the right
+ * font and kinsoku line-breaking. It never alters the string.
  */
 export function TagList({ tags, max, className }: TagListProps) {
   if (tags.length === 0) return null;
@@ -21,10 +27,10 @@ export function TagList({ tags, max, className }: TagListProps) {
   const hidden = tags.length - visible.length;
 
   return (
-    <ul className={cn("flex flex-wrap gap-1.5", className)}>
+    <ul className={cn("flex flex-wrap items-center gap-1.5", className)}>
       {visible.map((tag) => (
         <li key={tag}>
-          <Badge tone="neutral" lang={detectTextLang(tag)}>
+          <Badge tone="outline" lang={detectTextLang(tag)}>
             {tag}
           </Badge>
         </li>

@@ -2,32 +2,40 @@ import { describe, expect, it } from "vitest";
 
 import type { PublicRestaurant } from "@/lib/api/schemas";
 import { publicRestaurantSchema } from "@/lib/api/schemas";
+import { selectBrowsable } from "@/lib/discovery/filters";
 import {
-  MODE_BLEND,
+  DEFAULT_MODE,
+  DISCOVERY_MODES,
   fiyuRankingAdapter,
-  hasCoordinates,
+  getMode,
+  isModeAvailable,
   rankByMode,
 } from "@/lib/discovery/ranking";
 import restaurantsFixture from "@/test/fixtures/restaurants.json";
 
-/**
- * Synthetic rows are used here to isolate ranking behaviour from whatever the
- * live catalog happens to contain today. Real fixture data is exercised
- * separately at the bottom of this file.
- */
-function makeRestaurant(overrides: Partial<PublicRestaurant> & { place_id: string }) {
+function make(overrides: Partial<PublicRestaurant> & { place_id: string }) {
   return publicRestaurantSchema.parse(overrides);
 }
 
-const hiddenButLowScore = makeRestaurant({
-  place_id: "hidden",
-  fiyu_score: 60,
-  local_language_web_signal: 95,
-});
-const visibleButHighScore = makeRestaurant({
-  place_id: "picked",
-  fiyu_score: 95,
-  local_language_web_signal: 60,
+describe("discovery modes", () => {
+  it("exposes Local and Trending, in that order", () => {
+    expect(DISCOVERY_MODES.map((m) => m.id)).toEqual(["local", "trending"]);
+    expect(DISCOVERY_MODES.map((m) => m.label)).toEqual(["Local", "Trending"]);
+  });
+
+  it("defaults to Local, because Trending would render empty", () => {
+    expect(DEFAULT_MODE).toBe("local");
+    expect(isModeAvailable(DEFAULT_MODE)).toBe(true);
+  });
+
+  it("marks Trending unavailable until a data source exists", () => {
+    expect(isModeAvailable("trending")).toBe(false);
+  });
+
+  it("throws on an unknown mode rather than silently ranking wrong", () => {
+    // @ts-expect-error deliberately invalid mode
+    expect(() => getMode("popular")).toThrow();
+  });
 });
 
 describe("fiyuRankingAdapter", () => {
@@ -35,177 +43,116 @@ describe("fiyuRankingAdapter", () => {
     expect(fiyuRankingAdapter.popularityAvailable).toBe(false);
   });
 
-  it("returns null popularity for every restaurant, including complete ones", () => {
-    // Guards against a future edit quietly substituting fiyu_score as a proxy.
+  it("returns null popularity for every restaurant in the real catalog", () => {
+    // Guards against a future edit substituting fiyu_score, or reading the
+    // community_* counters, as a popularity proxy.
     for (const row of restaurantsFixture) {
       expect(fiyuRankingAdapter.popularity(publicRestaurantSchema.parse(row))).toBeNull();
     }
   });
 
-  it("derives hiddenness from local_language_web_signal", () => {
-    expect(fiyuRankingAdapter.hiddenness(hiddenButLowScore)).toBeCloseTo(0.95);
+  it("returns null popularity even if community counters were populated", () => {
+    const withCommunity = make({
+      place_id: "a",
+      community_recommendation_count: 42,
+      community_positive_count: 40,
+      community_recommendation_rate: 0.95,
+      community_stats_visible: true,
+    });
+    expect(fiyuRankingAdapter.popularity(withCommunity)).toBeNull();
   });
 
   it("derives pick strength from fiyu_score", () => {
-    expect(fiyuRankingAdapter.pickStrength(visibleButHighScore)).toBeCloseTo(0.95);
+    expect(fiyuRankingAdapter.pickStrength(make({ place_id: "a", fiyu_score: 95 }))).toBeCloseTo(
+      0.95,
+    );
   });
 
-  it("returns null for both signals when the fields are absent", () => {
-    const bare = makeRestaurant({ place_id: "bare" });
-    expect(fiyuRankingAdapter.hiddenness(bare)).toBeNull();
-    expect(fiyuRankingAdapter.pickStrength(bare)).toBeNull();
+  it("returns null pick strength when the score is absent", () => {
+    expect(fiyuRankingAdapter.pickStrength(make({ place_id: "bare" }))).toBeNull();
   });
 });
 
-describe("ranking by mode", () => {
-  const catalog = [visibleButHighScore, hiddenButLowScore];
+describe("Local mode", () => {
+  const catalog = [
+    make({ place_id: "low", fiyu_score: 60 }),
+    make({ place_id: "high", fiyu_score: 95 }),
+  ];
 
-  it("puts the highest Fiyu score first for top picks", () => {
-    expect(rankByMode(catalog, "top-picks").map((r) => r.place_id)).toEqual([
-      "picked",
-      "hidden",
-    ]);
-  });
-
-  it("puts the least exposed first for hidden gems", () => {
-    expect(rankByMode(catalog, "hidden-gems").map((r) => r.place_id)).toEqual([
-      "hidden",
-      "picked",
-    ]);
-  });
-
-  it("produces genuinely different orders for the two modes", () => {
-    const picks = rankByMode(catalog, "top-picks").map((r) => r.place_id);
-    const gems = rankByMode(catalog, "hidden-gems").map((r) => r.place_id);
-    expect(picks).not.toEqual(gems);
+  it("ranks by fiyu_score, highest first", () => {
+    expect(rankByMode(catalog, "local").map((r) => r.place_id)).toEqual(["high", "low"]);
   });
 
   it("does not mutate the input array", () => {
     const input = [...catalog];
-    rankByMode(input, "hidden-gems");
-    expect(input.map((r) => r.place_id)).toEqual(["picked", "hidden"]);
+    rankByMode(input, "local");
+    expect(input.map((r) => r.place_id)).toEqual(["low", "high"]);
   });
 
   it("is stable and deterministic when scores tie", () => {
     const tied = [
-      makeRestaurant({ place_id: "zzz", fiyu_score: 80, local_language_web_signal: 80 }),
-      makeRestaurant({ place_id: "aaa", fiyu_score: 80, local_language_web_signal: 80 }),
+      make({ place_id: "zzz", fiyu_score: 80 }),
+      make({ place_id: "aaa", fiyu_score: 80 }),
     ];
     // Tiebreak on place_id keeps server and client render order identical.
-    expect(rankByMode(tied, "top-picks").map((r) => r.place_id)).toEqual(["aaa", "zzz"]);
-    expect(rankByMode([...tied].reverse(), "top-picks").map((r) => r.place_id)).toEqual([
+    expect(rankByMode(tied, "local").map((r) => r.place_id)).toEqual(["aaa", "zzz"]);
+    expect(rankByMode([...tied].reverse(), "local").map((r) => r.place_id)).toEqual([
       "aaa",
       "zzz",
     ]);
   });
 
-  it("sorts restaurants with no signals last instead of treating them as zero", () => {
-    const withGap = [
-      makeRestaurant({ place_id: "none" }),
-      makeRestaurant({ place_id: "low", fiyu_score: 1, local_language_web_signal: 1 }),
-    ];
-    expect(rankByMode(withGap, "top-picks").map((r) => r.place_id)).toEqual(["low", "none"]);
-  });
-
-  it("falls back to the available signal when one is missing", () => {
-    const partial = [
-      makeRestaurant({ place_id: "score-only", fiyu_score: 90 }),
-      makeRestaurant({ place_id: "signal-only", local_language_web_signal: 10 }),
-    ];
-    // Ranked by hidden gems, the score-only row still beats a weak signal
-    // rather than being dropped for lacking local_language_web_signal.
-    expect(rankByMode(partial, "hidden-gems").map((r) => r.place_id)).toEqual([
-      "score-only",
-      "signal-only",
-    ]);
-  });
-
-  it("clamps out-of-range blend values", () => {
-    const catalogCopy = [...catalog];
-    expect(fiyuRankingAdapter.rank(catalogCopy, 5).map((r) => r.place_id)).toEqual(
-      rankByMode(catalogCopy, "top-picks").map((r) => r.place_id),
-    );
-    expect(fiyuRankingAdapter.rank(catalogCopy, -5).map((r) => r.place_id)).toEqual(
-      rankByMode(catalogCopy, "hidden-gems").map((r) => r.place_id),
-    );
+  it("sorts restaurants with no score last instead of treating them as zero", () => {
+    const withGap = [make({ place_id: "none" }), make({ place_id: "low", fiyu_score: 1 })];
+    expect(rankByMode(withGap, "local").map((r) => r.place_id)).toEqual(["low", "none"]);
   });
 
   it("handles an empty catalog", () => {
-    expect(rankByMode([], "top-picks")).toEqual([]);
-  });
-
-  it("blends continuously between the two ends", () => {
-    // The midpoint must be a real blend, not a snap to either extreme.
-    const midpoint = fiyuRankingAdapter.rank(catalog, 0.5).map((r) => r.place_id);
-    expect(midpoint).toHaveLength(2);
-    expect(new Set(midpoint)).toEqual(new Set(["picked", "hidden"]));
+    expect(rankByMode([], "local")).toEqual([]);
   });
 });
 
-describe("ranking against the real catalog", () => {
-  const catalog = restaurantsFixture.map((row) => publicRestaurantSchema.parse(row));
+describe("Trending mode", () => {
+  const catalog = [
+    make({ place_id: "a", fiyu_score: 90 }),
+    make({ place_id: "b", fiyu_score: 60 }),
+  ];
 
-  it("preserves every restaurant in both modes", () => {
-    for (const mode of ["top-picks", "hidden-gems"] as const) {
-      expect(rankByMode(catalog, mode)).toHaveLength(catalog.length);
-    }
+  it("returns nothing, because no trending data source exists", () => {
+    expect(rankByMode(catalog, "trending")).toEqual([]);
   });
 
-  it("orders top picks by descending fiyu_score, matching the backend order", () => {
-    const scores = rankByMode(catalog, "top-picks").map((r) => r.fiyu_score ?? 0);
+  it("does not fall back to the Fiyu score ordering", () => {
+    // The empty result must be a real absence, not a copy of Local.
+    expect(rankByMode(catalog, "trending")).not.toEqual(rankByMode(catalog, "local"));
+  });
+});
+
+describe("Local against the real catalog", () => {
+  const browsable = selectBrowsable(
+    restaurantsFixture.map((row) => publicRestaurantSchema.parse(row)),
+  ).restaurants;
+
+  it("leads with Hamadayama Jojoen then Atarayo", () => {
+    const top = rankByMode(browsable, "local").slice(0, 2);
+    expect(top[0].name_en).toBe("Hamadayama Jojoen");
+    expect(top[1].name_en).toBe("Atarayo Akihabara");
+  });
+
+  it("orders strictly by descending fiyu_score", () => {
+    const scores = rankByMode(browsable, "local").map((r) => r.fiyu_score ?? 0);
     for (let i = 1; i < scores.length; i += 1) {
       expect(scores[i]).toBeLessThanOrEqual(scores[i - 1]);
     }
   });
 
-  it("orders hidden gems by descending local signal", () => {
-    const signals = rankByMode(catalog, "hidden-gems").map(
-      (r) => r.local_language_web_signal ?? 0,
-    );
-    for (let i = 1; i < signals.length; i += 1) {
-      expect(signals[i]).toBeLessThanOrEqual(signals[i - 1]);
-    }
-  });
-
-  it("actually reorders the real catalog between modes", () => {
-    expect(rankByMode(catalog, "top-picks").map((r) => r.place_id)).not.toEqual(
-      rankByMode(catalog, "hidden-gems").map((r) => r.place_id),
-    );
-  });
-});
-
-describe("MODE_BLEND", () => {
-  it("pins each mode to an end of the 0-1 axis the Phase 6 slider will use", () => {
-    expect(MODE_BLEND["hidden-gems"]).toBe(0);
-    expect(MODE_BLEND["top-picks"]).toBe(1);
-  });
-});
-
-describe("hasCoordinates", () => {
-  it("accepts a mappable restaurant", () => {
-    expect(
-      hasCoordinates(makeRestaurant({ place_id: "a", latitude: 35.6, longitude: 139.7 })),
-    ).toBe(true);
-  });
-
-  it("rejects partial or absent coordinates", () => {
-    expect(hasCoordinates(makeRestaurant({ place_id: "a", latitude: 35.6 }))).toBe(false);
-    expect(hasCoordinates(makeRestaurant({ place_id: "a" }))).toBe(false);
-  });
-
-  it("treats 0 as a real coordinate rather than as missing", () => {
-    expect(hasCoordinates(makeRestaurant({ place_id: "a", latitude: 0, longitude: 0 }))).toBe(
-      true,
+  it("contains no withheld restaurants", () => {
+    expect(rankByMode(browsable, "local").some((r) => r.score_band === "not_recommended")).toBe(
+      false,
     );
   });
 
-  it("confirms every restaurant in the real catalog is mappable", () => {
-    expect(catalogCoordinateGaps()).toBe(0);
+  it("preserves every browsable restaurant", () => {
+    expect(rankByMode(browsable, "local")).toHaveLength(browsable.length);
   });
 });
-
-function catalogCoordinateGaps(): number {
-  return restaurantsFixture
-    .map((row) => publicRestaurantSchema.parse(row))
-    .filter((row) => !hasCoordinates(row)).length;
-}

@@ -69,11 +69,11 @@ export function Slider({
       <div className={cn("relative h-6", disabled && "opacity-40")}>
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-hairline"
+          className="pointer-events-none absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-line-strong"
         />
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute top-1/2 left-0 h-1 -translate-y-1/2 rounded-full bg-accent"
+          className="pointer-events-none absolute top-1/2 left-0 h-1 -translate-y-1/2 rounded-full bg-lavender-600"
           style={{ width: `${percent}%` }}
         />
         <input
@@ -93,10 +93,10 @@ export function Slider({
             "[&::-moz-range-track]:h-1 [&::-moz-range-track]:bg-transparent",
             "[&::-webkit-slider-thumb]:-mt-2 [&::-webkit-slider-thumb]:size-5 [&::-webkit-slider-thumb]:appearance-none",
             "[&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2",
-            "[&::-webkit-slider-thumb]:border-accent [&::-webkit-slider-thumb]:bg-surface",
+            "[&::-webkit-slider-thumb]:border-lavender-600 [&::-webkit-slider-thumb]:bg-surface",
             "[&::-webkit-slider-thumb]:transition-transform [&::-webkit-slider-thumb]:hover:scale-110",
             "[&::-moz-range-thumb]:size-5 [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:rounded-full",
-            "[&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-accent [&::-moz-range-thumb]:bg-surface",
+            "[&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-lavender-600 [&::-moz-range-thumb]:bg-surface",
           )}
         />
       </div>

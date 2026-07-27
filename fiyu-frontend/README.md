@@ -101,11 +101,19 @@ intent rather than on status codes.
 
 ### Design system
 
-One warm light palette, one accent (muted persimmon), three typefaces:
+One warm light palette, one primary (muted lavender), three typefaces:
 Instrument Serif for display, Inter for UI, Noto Sans JP for Japanese. Japanese
 typography is applied by attribute — tagging a run `lang="ja"` is enough to get
 the right font, `line-break: strict` and `palt` spacing. There is no dark theme
 in this version.
+
+### Localization
+
+**The backend owns localization.** The frontend renders restaurant content
+exactly as the API returns it and performs no translation, romanization or
+relabelling. Script detection only selects a `lang` attribute; it never alters
+text. UI copy ("Signature", "Open now", "Show map") is English and lives in the
+components. See `src/test/no-client-translation.test.ts`.
 
 ## Backend limitations
 

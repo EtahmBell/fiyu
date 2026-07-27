@@ -9,7 +9,6 @@ export interface ChipProps {
   /** Toggle state. Exposed to assistive tech via aria-pressed. */
   selected?: boolean;
   onClick?: () => void;
-  /** Result count rendered as a subdued suffix. */
   count?: number;
   disabled?: boolean;
   lang?: string;
@@ -19,9 +18,11 @@ export interface ChipProps {
 /**
  * Interactive filter chip.
  *
- * Uses aria-pressed rather than a checkbox role because filters are toggles
- * within a group, not form inputs, and the pressed state is what a screen
- * reader should announce.
+ * aria-pressed rather than a checkbox role: these are toggles within a group,
+ * not form inputs, and pressed state is what a screen reader should announce.
+ *
+ * min-h-11 guarantees the 44px touch target on mobile, where these sit in a
+ * horizontally scrollable row.
  */
 export function Chip({
   children,
@@ -39,22 +40,20 @@ export function Chip({
       disabled={disabled}
       aria-pressed={selected}
       className={cn(
-        "inline-flex shrink-0 items-center gap-1.5 rounded-chip border px-3 py-1.5 text-sm",
-        "transition-colors duration-150 ease-out",
+        "inline-flex min-h-11 shrink-0 items-center gap-2 rounded-chip border px-4 text-sm",
+        "transition-[background-color,border-color,color,transform] duration-[180ms]",
+        "ease-(--ease-fiyu) active:scale-[0.97]",
         "disabled:cursor-not-allowed disabled:opacity-40",
         selected
-          ? "border-accent bg-accent text-white"
-          : "border-hairline bg-surface text-ink-muted hover:border-ink-faint hover:text-ink",
+          ? "border-lavender-600 bg-lavender-600 font-medium text-white"
+          : "border-line bg-surface text-ink-muted hover:border-line-strong hover:text-ink",
         className,
       )}
     >
       <span lang={lang}>{children}</span>
       {count !== undefined && (
         <span
-          className={cn(
-            "text-xs tabular-nums",
-            selected ? "text-white/70" : "text-ink-faint",
-          )}
+          className={cn("text-xs tabular-nums", selected ? "text-white/75" : "text-ink-faint")}
         >
           {count}
         </span>

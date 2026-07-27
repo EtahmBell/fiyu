@@ -8,18 +8,23 @@ import {
 } from "@/lib/api/errors";
 import {
   LIST_LIMIT_DEFAULT,
-  type LiveDetailsLanguage,
-  liveDetailsUrl,
+  PHOTOS_LIMIT_DEFAULT,
+  locationAnchorsUrl,
   paths,
+  photoPreviewUrl,
+  photosUrl,
   restaurantUrl,
   restaurantsUrl,
 } from "@/lib/api/endpoints";
 import {
-  type GoogleLiveDetails,
+  type GooglePhoto,
+  type LocationAnchor,
   type ParsedRestaurantList,
   type PublicRestaurant,
   describeZodIssues,
-  googleLiveDetailsSchema,
+  googlePhotoListSchema,
+  googlePhotoSchema,
+  locationAnchorListSchema,
   parseRestaurantList,
   publicRestaurantSchema,
 } from "@/lib/api/schemas";
@@ -27,13 +32,16 @@ import {
 /**
  * The only module in the app that performs network I/O against the backend.
  *
- * It runs unchanged in Server Components and in the browser, because
+ * Runs unchanged in Server Components and in the browser, because
  * NEXT_PUBLIC_FIYU_API_URL is available in both. `next.revalidate` is honoured
- * server-side and ignored by the browser's fetch.
+ * server-side and ignored by the browser.
  *
- * Every response is validated with Zod before it reaches a component, and every
- * failure is normalised into a FiyuApiError so the UI can branch on `kind`
+ * Every response is validated with Zod before reaching a component, and every
+ * failure is normalised into a FiyuApiError so the UI branches on `kind`
  * rather than on status codes.
+ *
+ * There is deliberately no live-details call: the backend removed that route,
+ * and Google ratings, hours, price and review counts are not shown anywhere.
  */
 
 export interface RequestOptions {
@@ -42,14 +50,18 @@ export interface RequestOptions {
   revalidate?: number | false;
 }
 
-/** Default catalog cache window. The catalog changes only on manual publish. */
+/** Catalog cache window. The catalog changes only on manual publish. */
 export const CATALOG_REVALIDATE_SECONDS = 300;
 
 /**
- * Fetch and decode a response body, mapping every transport and HTTP failure
- * onto FiyuApiError. Schema validation is left to the caller so that the
- * catalog can validate row by row.
+ * Photo references are short-lived upstream, so they are cached briefly and
+ * never indefinitely. A stale media_url resolves to a broken image.
  */
+export const PHOTO_REVALIDATE_SECONDS = 900;
+
+/** Anchors are operator-curated config and change rarely. */
+export const ANCHOR_REVALIDATE_SECONDS = 3600;
+
 async function requestRaw(
   url: string,
   endpoint: string,
@@ -66,14 +78,10 @@ async function requestRaw(
       ...(revalidate === undefined ? {} : { next: { revalidate } }),
     });
   } catch (cause) {
-    // An abort is a caller-initiated cancellation, not a failure. Let it pass
-    // through so callers can ignore it (e.g. a detail sheet closing mid-flight).
+    // An abort is a caller-initiated cancellation, not a failure.
     if (cause instanceof DOMException && cause.name === "AbortError") throw cause;
     // The raw undici rejection is not attached as `cause`: its nested
-    // TypeError -> ECONNREFUSED chain crashes the Next 16 dev error overlay
-    // ("frame.join is not a function"), which would turn an expected
-    // backend-down state into a 500 during local development. The message is
-    // preserved as `detail`, which is all the UI needs.
+    // TypeError -> ECONNREFUSED chain crashes the Next 16 dev error overlay.
     throw new FiyuApiError({
       kind: kindForNetworkFailure(),
       endpoint,
@@ -82,7 +90,6 @@ async function requestRaw(
   }
 
   if (!response.ok) {
-    // The error body is best-effort: a crashed backend may return HTML.
     let detail: string | undefined;
     try {
       detail = extractDetail(await response.json());
@@ -138,12 +145,9 @@ async function requestJson<TSchema extends z.ZodType>(
 /**
  * The published catalog. Returns every published restaurant in one call --
  * the backend has no pagination, so filtering and ranking happen client-side.
- * Sorted by fiyu_score DESC by the backend.
  *
  * Rows are validated individually: a malformed record is dropped and reported
- * in `rejected` rather than failing the whole catalog. Callers should surface a
- * non-empty `rejected` list to the user instead of silently showing fewer
- * restaurants than the backend published.
+ * in `rejected` rather than failing the whole catalog.
  */
 export async function fetchRestaurants(
   limit: number = LIST_LIMIT_DEFAULT,
@@ -168,11 +172,8 @@ export async function fetchRestaurants(
 }
 
 /**
- * A single published restaurant.
- *
- * Note: the backend's PublicRestaurantDetail is `pass` over
- * PublicRestaurantSummary, so this returns exactly the same fields as a list
- * item. Prefer reusing already-fetched list data where possible.
+ * A single published restaurant. Returns exactly the same fields as a list
+ * item, so prefer reusing already-fetched list data where possible.
  */
 export function fetchRestaurant(
   placeId: string,
@@ -185,23 +186,36 @@ export function fetchRestaurant(
 }
 
 /**
- * Fresh Google Places data for one restaurant.
- *
- * Each call costs one billed, uncached Google Places request on the backend
- * (10s upstream timeout, no server-side caching). Call this ONLY when a user
- * opens a restaurant -- never while rendering a list.
+ * One preview photo for a card. Each call costs a billed Google request on the
+ * backend, so callers must fetch lazily -- as a card nears the viewport, never
+ * for the whole list at once.
  */
-export function fetchLiveDetails(
+export function fetchPhotoPreview(
   placeId: string,
-  language: LiveDetailsLanguage = "en",
   options: RequestOptions = {},
-): Promise<GoogleLiveDetails> {
-  return requestJson(
-    liveDetailsUrl(placeId, language),
-    paths.liveDetails(placeId),
-    googleLiveDetailsSchema,
-    // revalidate: 0 disables caching. Live details are point-in-time (open_now
-    // flips during the day) and must never be served from a stale cache.
-    { revalidate: 0, ...options },
-  );
+): Promise<GooglePhoto> {
+  return requestJson(photoPreviewUrl(placeId), paths.photoPreview(placeId), googlePhotoSchema, {
+    revalidate: PHOTO_REVALIDATE_SECONDS,
+    ...options,
+  });
+}
+
+/** Up to ten photos for a detail view. Call only when the detail opens. */
+export function fetchPhotos(
+  placeId: string,
+  limit: number = PHOTOS_LIMIT_DEFAULT,
+  options: RequestOptions = {},
+): Promise<GooglePhoto[]> {
+  return requestJson(photosUrl(placeId, limit), paths.photos(placeId), googlePhotoListSchema, {
+    revalidate: PHOTO_REVALIDATE_SECONDS,
+    ...options,
+  });
+}
+
+/** Operator-curated approximate area centres. May legitimately be empty. */
+export function fetchLocationAnchors(options: RequestOptions = {}): Promise<LocationAnchor[]> {
+  return requestJson(locationAnchorsUrl(), paths.locationAnchors, locationAnchorListSchema, {
+    revalidate: ANCHOR_REVALIDATE_SECONDS,
+    ...options,
+  });
 }

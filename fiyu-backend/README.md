@@ -165,11 +165,15 @@ GET /restaurants/nearby?lat=35.6895&lng=139.6917&radius_km=3&limit=20
 GET /restaurants/nearby?lat=35.6895&lng=139.6917&category=ramen
 GET /public/restaurants?limit=100
 GET /public/restaurants/{place_id}
-GET /public/restaurants/{place_id}/live-details?language_code=en
+GET /public/location-anchors
+GET /public/restaurants/{place_id}/photo-preview
+GET /public/restaurants/{place_id}/photos?limit=5
 ```
 
 The `/public/restaurants` endpoints return only manually published rows and only
-frontend-safe fields. Live details are fetched from Google on request and are not stored.
+frontend-safe fields. `fiyu_score` is an editorial/research score, not a community rating.
+Google ratings, review counts, prices, opening hours, and other operational details are not
+part of the public contract.
 
 ### Public catalog workflow
 
@@ -179,7 +183,7 @@ scraped data
 → Responses API structured research
 → deterministic public Fiyu score
 → manual publication
-→ live Google Places enrichment
+→ independently verified map location
 ```
 
 Research and score recalculation leave rows unpublished. Review and explicitly change
@@ -190,6 +194,99 @@ python -m fiyu.public_cli --db PATH review --limit 20
 python -m fiyu.public_cli --db PATH publish --place-id PLACE_ID
 python -m fiyu.public_cli --db PATH unpublish --place-id PLACE_ID
 ```
+
+### Restaurant content language
+
+The backend owns restaurant-content localization. `name_ja` preserves the official Japanese
+restaurant name; `name_en` is a natural English name or readable Hepburn-style romanization; and
+`why_fiyu` is concise, natural English explaining why the exact restaurant fits Fiyu. The frontend
+must display this API content as supplied and must not translate restaurant content itself.
+
+Localize completed stored research in batches with:
+
+```bash
+python -m fiyu.public_cli --db PATH localize-content --limit 20
+python -m fiyu.public_cli --db PATH localize-content --place-id PLACE_ID --dry-run
+python -m fiyu.public_cli --db PATH localize-content --limit 20 --force
+```
+
+By default, the command selects completed rows with missing `name_en` or a `why_fiyu` value that is
+not clearly English. It uses only stored `name_ja`, `name_en`, and `why_fiyu`; it does not rerun web
+search or Google Places. `food_tags` and `signature_dishes` are preserved verbatim and are never
+translated merely for localization. Localization also preserves evidence, scores, confidence,
+research status, and publication status.
+
+### Independent discovery-map locations
+
+Coordinates from the original scraped exports have no row-level provider provenance and are not
+eligible for Fiyu's independent SVG map. They remain internal for candidate research. Public map
+coordinates are stored separately and returned only when `map_display_eligible` is true after an
+independent source or manual verification is imported.
+
+Export published restaurants into a review worksheet. Scraped coordinates appear only in the
+`existing_*` columns and are labeled `UNTRUSTED_REFERENCE_ONLY`; verified coordinate fields remain
+blank until a reviewer fills them from independent evidence.
+
+```bash
+python -m fiyu.public_cli --db PATH export-location-review \
+  --output data/location_review.csv --limit 20
+```
+
+Every approved row requires `verified_latitude`, `verified_longitude`, `verification_source`,
+`verification_source_reference`, `verified_at`, `location_precision` (`exact` or `approximate`),
+and reviewer notes when independently confirming a coordinate identical to the untrusted reference.
+Google, scraped, and unknown sources or references are rejected.
+
+Validate the entire worksheet and print per-row results without writing:
+
+```bash
+python -m fiyu.public_cli --db PATH import-verified-locations \
+  --input data/location_review.csv --dry-run
+```
+
+After review, import the same validated file:
+
+```bash
+python -m fiyu.public_cli --db PATH import-verified-locations \
+  --input data/location_review.csv
+```
+
+The import is atomic: any duplicate, swapped coordinate, Tokyo-region violation, missing independent
+source evidence, invalid date, or precision error prevents every write. It updates only verified
+location fields, eligibility, and `updated_at`; scores, descriptions, evidence, research state, and
+publication state are preserved.
+
+Inspect progress with:
+
+```bash
+python -m fiyu.public_cli --db PATH location-status
+```
+
+`src/fiyu/location_anchors.json` is a review-required anchor template. Coordinates are intentionally
+blank rather than invented. A reviewed anchor requires coordinates, independent `source`,
+`source_reference`, `verified_at`, an approximate qualifier, and `reviewed: true`. Only complete,
+valid reviewed entries are exposed by `GET /public/location-anchors`. The endpoint accepts no user
+location, and Fiyu does not store a user's current location for this feature.
+
+### Google Place Photos
+
+Google Places is retained only for photos during the MVP. Photo endpoints fetch fresh resource
+metadata and media URLs on demand using the server-side `GOOGLE_PLACES_SERVER_KEY`; resource names
+and media URLs are never stored. Responses preserve image dimensions, author attribution,
+`googleMapsUri`, and available content-reporting links. Restaurant-list queries never trigger photo
+requests.
+
+Google photos must be displayed separately from the custom SVG map with required Google Maps and
+author attribution. Directions, transit, live hours, phone data, ratings, and review counts are left
+to outbound map applications; Fiyu calls no Directions API and exposes no map API key.
+
+### Community-data integrity
+
+Editorial Fiyu scores and future community recommendations are separate. Community totals and rates
+are derived only from stored, unique user responses in `community_recommendations`; there is no
+public aggregate-seeding endpoint. Visibility defaults off, and the rate remains `null` until the
+response count reaches `FIYU_COMMUNITY_MINIMUM_RESPONSES` (default `5`). Zero responses are therefore
+not presented as a negative rating, and community data never changes `fiyu_score`.
 
 ### Backend environment
 

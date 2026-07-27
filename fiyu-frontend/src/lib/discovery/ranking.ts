@@ -5,110 +5,101 @@ import { normalizeSignal } from "@/lib/format/score";
  * Discovery ranking.
  *
  * ALL ordering logic lives behind this adapter. Components receive an already
- * ranked array and never sort, so the ranking rules can change (or be replaced
- * wholesale) without touching presentation.
+ * ranked array and never sort, so the rules can change without touching
+ * presentation.
  *
- * The axis runs from Hidden Gems to Top Fiyu Picks. Both ends are backed by
- * real fields:
+ * Two modes today:
  *
- *   Hidden Gems     local_language_web_signal -- Japanese-language web
- *                   presence, the backend's proxy for under-exposure.
- *   Top Fiyu Picks  fiyu_score -- Fiyu's own composite editorial score.
+ *   Local     Ranked by fiyu_score -- Fiyu's own editorial score. The curated
+ *             house list.
+ *   Trending  No data source exists, so the mode is marked unavailable and the
+ *             UI shows an empty state. Deliberately NOT approximated from
+ *             fiyu_score or any other field.
  *
- * What this is NOT: a popularity axis. The public catalog exposes no rating,
- * review count or popularity rank of any kind (see docs/LIMITATIONS.md §1), so
- * `popularity()` returns null for every restaurant and `popularityAvailable`
- * is false. Nothing here approximates or infers popularity from other fields.
+ * What this is NOT: a popularity ranking. The catalog exposes community_*
+ * counters but every one is zero and community_stats_visible is false, so
+ * `popularity()` returns null and popularityAvailable is false.
+ *
+ * Note: the previous "hiddenness" pole was backed by local_language_web_signal,
+ * which the backend removed from the public payload. There is no longer a
+ * second axis, so ranking is a single ordered signal rather than a blend.
  */
 
-export type DiscoveryMode = "top-picks" | "hidden-gems";
+export type DiscoveryMode = "local" | "trending";
 
-/**
- * Blend position: 0 = purely Hidden Gems, 1 = purely Top Fiyu Picks.
- * Modelled as a continuous value so the Phase 6 slider needs no adapter change.
- */
-export const MODE_BLEND: Record<DiscoveryMode, number> = {
-  "hidden-gems": 0,
-  "top-picks": 1,
-};
+export interface DiscoveryModeDefinition {
+  id: DiscoveryMode;
+  label: string;
+  description: string;
+  /** False when no data source is wired up for this mode yet. */
+  available: boolean;
+}
 
-export const DISCOVERY_MODES: readonly DiscoveryMode[] = ["top-picks", "hidden-gems"];
+export const DISCOVERY_MODES: readonly DiscoveryModeDefinition[] = [
+  {
+    id: "local",
+    label: "Local",
+    description: "Fiyu's curated list, highest score first.",
+    available: true,
+  },
+  {
+    id: "trending",
+    label: "Trending",
+    description: "Not connected yet.",
+    available: false,
+  },
+];
 
-export const MODE_LABELS: Record<DiscoveryMode, string> = {
-  "top-picks": "Top Fiyu Picks",
-  "hidden-gems": "Hidden Gems",
-};
+/** Local is the default: Trending has no data and would render empty. */
+export const DEFAULT_MODE: DiscoveryMode = "local";
 
-export const MODE_DESCRIPTIONS: Record<DiscoveryMode, string> = {
-  "top-picks": "Highest Fiyu score first.",
-  "hidden-gems": "Strongest Japanese-language web presence first — the least exposed.",
-};
+export function getMode(mode: DiscoveryMode): DiscoveryModeDefinition {
+  const found = DISCOVERY_MODES.find((definition) => definition.id === mode);
+  if (!found) throw new Error(`Unknown discovery mode: ${mode}`);
+  return found;
+}
+
+export function isModeAvailable(mode: DiscoveryMode): boolean {
+  return getMode(mode).available;
+}
 
 export interface DiscoveryRankingAdapter {
   readonly id: string;
   /**
-   * False while the backend exposes no popularity data. Consumers must use
-   * this to decide whether a popularity-labelled control may be shown at all.
+   * False while no real community or popularity data exists. Consumers must
+   * check this before showing any popularity-labelled control.
    */
   readonly popularityAvailable: boolean;
-  /** Under-exposure, 0-1. Null when the backing signal is missing. */
-  hiddenness(restaurant: PublicRestaurant): number | null;
-  /** Fiyu's own score, 0-1. Null when the backing signal is missing. */
+  /** Fiyu's own score, 0-1. Null when the score is missing. */
   pickStrength(restaurant: PublicRestaurant): number | null;
   /** Always null today. Present so a real signal can be dropped in later. */
   popularity(restaurant: PublicRestaurant): number | null;
   /** Ranked copy of the input. Never mutates the argument. */
-  rank(restaurants: readonly PublicRestaurant[], blend: number): PublicRestaurant[];
+  rank(restaurants: readonly PublicRestaurant[]): PublicRestaurant[];
 }
 
-/**
- * Restaurants with neither signal sort last rather than being treated as zero,
- * which would scatter them among genuinely low-scoring entries.
- */
+/** Restaurants with no score sort last rather than being treated as zero. */
 const NO_SIGNAL = -1;
 
-function blendedScore(
-  adapter: Pick<DiscoveryRankingAdapter, "hiddenness" | "pickStrength">,
-  restaurant: PublicRestaurant,
-  blend: number,
-): number {
-  const hidden = adapter.hiddenness(restaurant);
-  const pick = adapter.pickStrength(restaurant);
-
-  if (hidden === null && pick === null) return NO_SIGNAL;
-  // With one signal missing, fall back to the other rather than penalising the
-  // restaurant for incomplete backend data.
-  if (hidden === null) return pick as number;
-  if (pick === null) return hidden;
-
-  return (1 - blend) * hidden + blend * pick;
-}
-
 export const fiyuRankingAdapter: DiscoveryRankingAdapter = {
-  id: "fiyu-hiddenness-v1",
+  id: "fiyu-ranking-v3",
   popularityAvailable: false,
-
-  hiddenness(restaurant) {
-    return normalizeSignal(restaurant.local_language_web_signal);
-  },
 
   pickStrength(restaurant) {
     return normalizeSignal(restaurant.fiyu_score);
   },
 
   popularity() {
-    // No popularity field exists in the public catalog. Returning null is the
-    // honest answer; do not substitute fiyu_score or any other proxy here.
+    // community_* counters are all zero and community_stats_visible is false.
+    // Returning null is the honest answer; never substitute fiyu_score here.
     return null;
   },
 
-  rank(restaurants, blend) {
-    const clamped = Math.min(1, Math.max(0, blend));
-
+  rank(restaurants) {
     return [...restaurants]
       .map((restaurant) => ({
         restaurant,
-        score: blendedScore(this, restaurant, clamped),
+        score: this.pickStrength(restaurant) ?? NO_SIGNAL,
       }))
       .sort((a, b) => {
         if (b.score !== a.score) return b.score - a.score;
@@ -120,17 +111,18 @@ export const fiyuRankingAdapter: DiscoveryRankingAdapter = {
   },
 };
 
+/**
+ * Ranked restaurants for a mode.
+ *
+ * An unavailable mode returns an empty array. Callers must check
+ * `isModeAvailable` first and render that mode's empty state, so "no data
+ * source" is never presented as "no matching restaurants".
+ */
 export function rankByMode(
   restaurants: readonly PublicRestaurant[],
   mode: DiscoveryMode,
   adapter: DiscoveryRankingAdapter = fiyuRankingAdapter,
 ): PublicRestaurant[] {
-  return adapter.rank(restaurants, MODE_BLEND[mode]);
-}
-
-/** Whether a restaurant can be placed on the map (Phase 4). */
-export function hasCoordinates(
-  restaurant: PublicRestaurant,
-): restaurant is PublicRestaurant & { latitude: number; longitude: number } {
-  return restaurant.latitude !== null && restaurant.longitude !== null;
+  if (!getMode(mode).available) return [];
+  return adapter.rank(restaurants);
 }

@@ -1,8 +1,92 @@
-# Proposed backend change: a truthful popularity axis
+# Proposed backend changes
 
-**Status:** proposal only. No backend code has been written or modified.
-`CLAUDE.md` requires approval before backend changes, and this needs a schema
-change, which requires explicit sign-off.
+Two proposals. Both are **proposal only** — no backend code has been written or
+modified. `CLAUDE.md` requires approval before backend changes, and both need a
+schema change.
+
+---
+
+# 1. English `why_fiyu` for an English-speaking audience
+
+> **Superseded — the backend now owns localization.** The frontend renders all
+> restaurant content verbatim and no longer translates anything client-side.
+> Retained for the measurements and the prompt guidance, which still apply to
+> whatever the backend generates.
+
+## Problem
+
+Fiyu's users are primarily English-speaking, but **13 of 19 browsable
+restaurants have a Japanese `why_fiyu`** (~1,660 characters in total). That
+field is the editorial explanation — the thing that makes a card worth reading —
+so for most restaurants the most valuable content is unreadable to the target
+audience.
+
+The research worker (`src/fiyu/research_worker.py`) already generates this field
+with an LLM. `RestaurantResearch` places no language constraint on `why_fiyu`,
+`food_tags` or `signature_dishes`, so the model emits whatever language its
+sources were in. Hence the mix.
+
+## What ships today
+
+Nothing is translated in the frontend. All restaurant content — tags, signature
+dishes, categories and `why_fiyu` — renders exactly as the API returns it, in
+whatever language the backend supplies.
+
+An earlier curated glossary covering tags and dishes was removed so that
+localization has a single owner. Any English the user sees must therefore come
+from the backend.
+
+## Proposed change
+
+Have the research worker emit English alongside the original:
+
+```python
+class RestaurantResearch(BaseModel):
+    ...
+    why_fiyu: str = Field(min_length=1, max_length=600)
+    why_fiyu_en: str = Field(min_length=1, max_length=600)
+```
+
+with a matching `why_fiyu_en` column on `public_restaurants` and on
+`PublicRestaurantSummary`.
+
+### Why at research time rather than at request time
+
+- **Generated once, cached forever.** One extra field on a call the worker
+  already makes, versus a translation API call on every page view.
+- **Reviewable.** The English is stored, so an operator can read and correct it,
+  exactly as they can today with the Japanese.
+- **Higher quality than machine translation.** The model already holds the
+  source evidence, so it writes English prose rather than translating Japanese
+  word-by-word. General-purpose MT is measurably poor on this vocabulary —
+  `おまかせ` becomes "leave it to you", `鳥割烹` becomes "bird cooking".
+- **No new provider, no new key, no per-view cost.**
+
+### Prompt guidance to match the shipped frontend style
+
+Keep Japanese culinary terms romanized rather than translated, since these are
+the words an English-speaking diner recognises and searches for: *omakase*, not
+"chef's selection"; *izakaya*, not "Japanese pub"; *yakitori*, not "grilled
+chicken skewers". Add a short parenthetical gloss on first use for terms outside
+common English usage.
+
+### Scope
+
+- Nullable, so rows researched before the change keep working; the frontend
+  falls back to the Japanese `why_fiyu` when `why_fiyu_en` is absent.
+- Re-running research on the 22 published rows is one batch job.
+- No change to the three endpoints the frontend already calls.
+
+### Tags and dishes
+
+With the glossary removed, `food_tags`, `signature_dishes` and
+`primary_category` display in whatever language the backend stores. If those
+should read as English, they need the same treatment as `why_fiyu` — the
+frontend will not substitute anything.
+
+---
+
+# 2. A truthful popularity axis
 
 ## Problem
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import json
+import os
 from collections.abc import Iterable
 from datetime import UTC, datetime
 from pathlib import Path
@@ -20,6 +21,18 @@ CREATE TABLE IF NOT EXISTS public_restaurants (
     food_tags_json TEXT NOT NULL DEFAULT '[]',
     signature_dishes_json TEXT NOT NULL DEFAULT '[]',
     why_fiyu TEXT,
+
+    latitude REAL,
+    longitude REAL,
+    normalized_address TEXT,
+    location_source TEXT,
+    location_source_reference TEXT,
+    location_verified_at TEXT,
+    location_reviewer_notes TEXT,
+    map_display_eligible INTEGER NOT NULL DEFAULT 0,
+    location_precision TEXT CHECK (
+        location_precision IS NULL OR location_precision IN ('exact', 'approximate', 'area_anchor')
+    ),
 
     local_signal REAL,
     hiddenness_signal REAL,
@@ -50,7 +63,30 @@ CREATE INDEX IF NOT EXISTS idx_public_score
     ON public_restaurants(is_published, fiyu_score DESC);
 CREATE INDEX IF NOT EXISTS idx_public_research_queue
     ON public_restaurants(research_status, updated_at);
+CREATE TABLE IF NOT EXISTS community_recommendations (
+    response_id TEXT PRIMARY KEY,
+    place_id TEXT NOT NULL,
+    user_subject_id TEXT NOT NULL,
+    recommends INTEGER NOT NULL CHECK (recommends IN (0, 1)),
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (place_id) REFERENCES public_restaurants(place_id),
+    UNIQUE (place_id, user_subject_id)
+);
+CREATE INDEX IF NOT EXISTS idx_community_recommendations_place
+    ON community_recommendations(place_id);
 """
+
+PUBLIC_LOCATION_COLUMNS = {
+    "latitude": "REAL",
+    "longitude": "REAL",
+    "normalized_address": "TEXT",
+    "location_source": "TEXT",
+    "location_source_reference": "TEXT",
+    "location_verified_at": "TEXT",
+    "location_reviewer_notes": "TEXT",
+    "map_display_eligible": "INTEGER NOT NULL DEFAULT 0",
+    "location_precision": "TEXT",
+}
 
 
 def _utc_now() -> str:
@@ -60,6 +96,15 @@ def _utc_now() -> str:
 def ensure_public_schema(db_path: str | Path) -> None:
     with connect(db_path) as connection:
         connection.executescript(PUBLIC_SCHEMA)
+        existing = {
+            row["name"]
+            for row in connection.execute("PRAGMA table_info(public_restaurants)").fetchall()
+        }
+        for name, declaration in PUBLIC_LOCATION_COLUMNS.items():
+            if name not in existing:
+                connection.execute(
+                    f"ALTER TABLE public_restaurants ADD COLUMN {name} {declaration}"
+                )
         connection.commit()
 
 
@@ -230,7 +275,6 @@ def save_research_result(
                 model_name = ?,
                 prompt_version = ?,
                 researched_at = ?,
-                is_published = ?,
                 updated_at = ?
             WHERE place_id = ?
             """,
@@ -257,7 +301,6 @@ def save_research_result(
                 model_name,
                 prompt_version,
                 now,
-                1,
                 now,
                 place_id,
             ),
@@ -388,19 +431,28 @@ def _safe_public_rows(
     where: str,
     parameters: tuple[object, ...],
     limit: int,
+    community_minimum: int | None = None,
 ) -> list[dict[str, object]]:
     ensure_public_schema(db_path)
+    if community_minimum is None:
+        community_minimum = max(
+            1, int(os.getenv("FIYU_COMMUNITY_MINIMUM_RESPONSES", "5"))
+        )
     with connect(db_path) as connection:
         rows = connection.execute(
             f"""
             SELECT p.place_id, p.name_ja, p.name_en, p.primary_category,
-                   r.latitude, r.longitude, r.neighborhood,
-                   p.fiyu_score, p.fiyu_confidence, p.confidence_band,
-                   p.score_band, p.why_fiyu, p.food_tags_json,
-                   p.signature_dishes_json, p.local_signal
+                   r.neighborhood, p.fiyu_score, p.score_band, p.why_fiyu,
+                   p.food_tags_json, p.signature_dishes_json,
+                   p.latitude, p.longitude, p.location_precision,
+                   p.map_display_eligible,
+                   COUNT(c.response_id) AS community_recommendation_count,
+                   COALESCE(SUM(c.recommends), 0) AS community_positive_count
             FROM public_restaurants p
             LEFT JOIN restaurants r ON r.place_id = p.place_id
+            LEFT JOIN community_recommendations c ON c.place_id = p.place_id
             WHERE {where}
+            GROUP BY p.place_id
             ORDER BY p.fiyu_score DESC
             LIMIT ?
             """,
@@ -409,7 +461,22 @@ def _safe_public_rows(
     results = []
     for row in rows:
         item = dict(row)
-        item["local_language_web_signal"] = item.pop("local_signal")
+        item["description_en"] = item.pop("why_fiyu")
+        item["category"] = item.pop("primary_category")
+        eligible = bool(item.get("map_display_eligible"))
+        item["map_display_eligible"] = eligible
+        if not eligible:
+            item["latitude"] = None
+            item["longitude"] = None
+            item["location_precision"] = None
+        count = int(item.get("community_recommendation_count") or 0)
+        positive = int(item.get("community_positive_count") or 0)
+        visible = count >= community_minimum
+        item["community_stats_visible"] = visible
+        item["community_recommendation_rate"] = (
+            round(positive / count, 4) if visible and count else None
+        )
+        item["score_type"] = "editorial_research"
         for source, target in (
             ("food_tags_json", "food_tags"),
             ("signature_dishes_json", "signature_dishes"),

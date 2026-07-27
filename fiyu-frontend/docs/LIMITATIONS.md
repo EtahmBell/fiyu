@@ -102,10 +102,42 @@ featured. The numeric score and confidence are still shown in full. See
 for some rows and English for others, within the same response. No per-field
 language field exists.
 
-**Consequence.** A true English/Japanese content toggle is not possible from
-this data. What the frontend does instead is detect the script per string and
-apply the correct `lang` attribute, so font selection, line breaking (`kinsoku`)
-and screen-reader voice are all correct. See `src/lib/format/language.ts`.
+Measured against the live catalog (19 browsable restaurants):
+
+| Field | Japanese |
+| --- | --- |
+| `why_fiyu` | 13 of 19 |
+| `signature_dishes` | 47 of 70 distinct |
+| `food_tags` | 27 of 80 distinct |
+| `primary_category` | 1 of 14 distinct |
+| `name_en` | 0 missing |
+
+**Consequence. Localization is owned by the backend.** The frontend performs no
+translation, romanization, glossing or relabelling of restaurant content. Every
+API string — `food_tags`, `signature_dishes`, `primary_category`,
+`neighborhood`, `why_fiyu`, both name fields — is rendered exactly as returned.
+`江戸前寿司`, `おまかせ`, `鮑` and `沖縄そば` display verbatim.
+
+A client-side glossary was tried and removed. It has not been kept as a
+fallback, because a partial local translation layer competing with backend
+localization produces inconsistent output and hides gaps in the source data.
+`src/test/no-client-translation.test.ts` is a structural guard against it
+returning; `src/components/restaurant/RestaurantCard.test.tsx` asserts
+byte-for-byte rendering.
+
+Two things are deliberately retained, neither of which alters content:
+
+- **Script detection** (`detectTextLang` in `src/lib/format/language.ts`) picks
+  a `lang` attribute so Japanese gets correct font selection, kinsoku line
+  breaking and screen-reader voice. It returns only `"ja"` or `"en"` and never
+  touches the string.
+- **Name pairing** (`resolveNames`) chooses which name is the heading —
+  `name_ja` when present, otherwise `name_en` — and suppresses the second line
+  when both values are identical. It selects between API values; it does not
+  generate one.
+
+A user-facing language toggle remains impossible from this data: there is no
+per-field language marker to switch on.
 
 ## 9. Missing Google values are coerced to zero, not null
 

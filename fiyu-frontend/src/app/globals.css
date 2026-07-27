@@ -3,31 +3,38 @@
 /*
  * Fiyu design tokens.
  *
- * A single warm, light editorial palette. There is deliberately no dark theme
- * in this version: the product direction is "warm neutral backgrounds", and a
- * second theme would double the surface area of every component before the
- * first screen exists.
+ * A warm neutral canvas with a single cool signature: lavender. The contrast
+ * between warm paper and cool accent is the identity -- so lavender is spent
+ * deliberately, on selection, the score mark, pins, focus and primary actions,
+ * and nowhere else.
  *
- * One accent colour only (a muted persimmon), reserved for selection, the score
- * arc and links. No gradients, no glass.
+ * Contrast, measured against WCAG 2.1:
+ *   lavender-500  3.77:1 on white  -> GRAPHICS ONLY (pins, rules, focus rings)
+ *   lavender-600  4.89:1 on white  -> AA for text and for white-on-fill
+ *   lavender-700  6.65:1 on white  -> comfortable for small text
+ *   ink-muted     4.76:1 on canvas -> AA for body text
+ * Never set text in lavender-500, and never fill a button with it.
  */
 @theme {
-  --color-paper: #f7f3ec;
+  --color-canvas: #f7f5f2;
   --color-surface: #ffffff;
-  --color-sunken: #f1eadf;
-  --color-hairline: #e4dcd1;
+  --color-subtle: #f3f0f8;
+  --color-line: #e6e1e9;
+  --color-line-strong: #d8d2dd;
 
-  --color-ink: #14110e;
-  --color-ink-muted: #6b625a;
-  --color-ink-faint: #988e84;
+  --color-ink: #19171d;
+  --color-ink-muted: #706b76;
+  --color-ink-faint: #9a949f;
 
-  --color-accent: #a8412a;
-  --color-accent-strong: #8c3421;
-  --color-accent-soft: #f2e4de;
+  --color-lavender-50: #f5f1ff;
+  --color-lavender-100: #eae2ff;
+  --color-lavender-500: #8b6cf6;
+  --color-lavender-600: #7657e8;
+  --color-lavender-700: #6044c8;
+  --color-plum: #31283d;
 
-  /* Opening status. Deliberately earthy rather than traffic-light green/red. */
   --color-status-open: #2c6a45;
-  --color-status-closed: #8a5a3b;
+  --color-status-closed: #8a7263;
 
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, sans-serif;
   --font-display: var(--font-instrument-serif), Georgia, "Times New Roman", serif;
@@ -35,8 +42,14 @@
     var(--font-noto-jp), "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo,
     sans-serif;
 
-  --radius-card: 0.75rem;
+  --radius-card: 0.875rem;
   --radius-chip: 999px;
+
+  /* Slim brand bar. The desktop split fills the remaining viewport height. */
+  --spacing-header: 3.5rem;
+
+  /* One motion duration, used everywhere. */
+  --ease-fiyu: cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
 :root {
@@ -45,25 +58,26 @@
 
 html {
   -webkit-text-size-adjust: 100%;
+  /* Nothing in this layout may scroll sideways. */
+  overflow-x: hidden;
 }
 
 body {
-  background-color: var(--color-paper);
+  background-color: var(--color-canvas);
   color: var(--color-ink);
   font-family: var(--font-sans);
+  overflow-x: hidden;
 }
 
 /*
  * Japanese typography.
  *
- * Applied by attribute rather than by class, so tagging a run with lang="ja"
- * is all that is ever needed. `:where()` keeps specificity at zero so component
- * classes always win.
+ * Applied by attribute, so tagging a run lang="ja" is all that is ever needed.
+ * :where() keeps specificity at zero so component classes always win.
  *
- * - line-break: strict      -- correct kinsoku (no leading small kana / punctuation)
- * - overflow-wrap: anywhere -- long unbroken kanji runs cannot overflow a card
- * - palt                    -- proportional spacing; full-width metrics look
- *                              loose in short UI strings
+ * line-break: strict      -- correct kinsoku (no leading small kana/punctuation)
+ * overflow-wrap: anywhere -- long kanji runs can never widen a card
+ * palt                    -- proportional spacing; full-width metrics read loose
  */
 :where([lang="ja"]) {
   font-family: var(--font-jp);
@@ -72,21 +86,29 @@ body {
   font-feature-settings: "palt" 1;
 }
 
-/* Latin runs stay on the Latin stack even inside a Japanese block. */
 :where([lang="en"]) {
   font-family: var(--font-sans);
 }
 
-::selection {
-  background-color: var(--color-accent-soft);
-  color: var(--color-accent-strong);
+/* Japanese display type needs slightly more leading than Latin at the same size. */
+:where(h1, h2, h3)[lang="ja"],
+:where(h1, h2, h3) :where([lang="ja"]) {
+  line-height: 1.35;
 }
 
-/* One consistent focus treatment for every interactive element. */
-:where(a, button, input, select, textarea, [tabindex]):focus-visible {
-  outline: 2px solid var(--color-accent);
+::selection {
+  background-color: var(--color-lavender-100);
+  color: var(--color-lavender-700);
+}
+
+/*
+ * One focus treatment everywhere. Lavender-500 is used as a graphic here, not
+ * as text, and the offset keeps it legible against both canvas and surface.
+ */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-lavender-500);
   outline-offset: 2px;
-  border-radius: 4px;
+  border-radius: 6px;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -100,23 +122,30 @@ body {
   }
 }
 
-@keyframes fiyu-pulse {
-  0%,
-  100% {
-    opacity: 1;
+/* Content-shaped skeletons: a slow sweep rather than a blunt opacity pulse. */
+@keyframes fiyu-shimmer {
+  from {
+    background-position: 200% 0;
   }
-  50% {
-    opacity: 0.45;
+  to {
+    background-position: -200% 0;
   }
 }
 
 @keyframes fiyu-sheet-in {
   from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes fiyu-fade-in {
+  from {
     opacity: 0;
-    transform: translateY(1.5rem);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
   }
 }
