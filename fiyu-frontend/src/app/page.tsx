@@ -3,9 +3,9 @@ import { PageIntro, SiteFooter } from "@/components/layout/SiteHeader";
 import { BackendUnavailable } from "@/components/states/BackendUnavailable";
 import { NoPublishedRestaurants } from "@/components/states/EmptyState";
 import { MalformedDataNotice } from "@/components/states/MalformedDataNotice";
-import { fetchRestaurants } from "@/lib/api/client";
+import { fetchLocationAnchors, fetchRestaurants } from "@/lib/api/client";
 import { type FiyuApiError, isFiyuApiError } from "@/lib/api/errors";
-import type { ParsedRestaurantList } from "@/lib/api/schemas";
+import type { LocationAnchor, ParsedRestaurantList } from "@/lib/api/schemas";
 import { selectBrowsable } from "@/lib/discovery/filters";
 
 type CatalogResult = ({ ok: true } & ParsedRestaurantList) | { ok: false; error: FiyuApiError };
@@ -43,8 +43,21 @@ function StateColumn({ children }: { children: React.ReactNode }) {
   );
 }
 
+/**
+ * Area anchors are optional furniture: if they fail to load, the location
+ * control simply offers fewer options. That must never take down the catalog,
+ * so the failure is swallowed rather than propagated.
+ */
+async function loadAreaAnchors(): Promise<LocationAnchor[]> {
+  try {
+    return await fetchLocationAnchors();
+  } catch {
+    return [];
+  }
+}
+
 export default async function HomePage() {
-  const result = await loadCatalog();
+  const [result, areaAnchors] = await Promise.all([loadCatalog(), loadAreaAnchors()]);
 
   if (!result.ok) {
     return (
@@ -85,7 +98,7 @@ export default async function HomePage() {
           <MalformedDataNotice rejected={rejected} accepted={restaurants.length} />
         </div>
       )}
-      <DiscoveryShell restaurants={restaurants} />
+      <DiscoveryShell restaurants={restaurants} areaAnchors={areaAnchors} />
     </main>
   );
 }

@@ -1,0 +1,306 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+
+import { AnchorMarker } from "@/components/map/AnchorMarker";
+import { MapBase } from "@/components/map/MapBase";
+import { MapControls } from "@/components/map/MapControls";
+import { MapMarkers } from "@/components/map/MapMarkers";
+import type { MappableRestaurant } from "@/lib/geo/mappable";
+import type { DiscoveryAnchor } from "@/lib/location/anchor";
+import { type MarkerCluster, clusterMarkers } from "@/lib/map/clustering";
+import { type LatLng, VIEWBOX, project, unproject } from "@/lib/map/projection";
+import {
+  IDENTITY_VIEW,
+  MAX_SCALE,
+  MIN_SCALE,
+  type MapView,
+  clientToViewBox,
+  fitToPoints,
+  panBy,
+  viewBoxToContent,
+  viewsEqual,
+  zoomAt,
+  zoomByStep,
+} from "@/lib/map/viewport";
+import { cn } from "@/lib/utils/cn";
+
+export interface FiyuMapProps {
+  restaurants: MappableRestaurant[];
+  selectedPlaceId: string | null;
+  onSelect: (restaurant: MappableRestaurant) => void;
+  /** Full-screen on mobile. Gestures are only captured in that mode. */
+  interactive?: boolean;
+  /** Starting point for distances, if the user has set one. */
+  anchor?: DiscoveryAnchor | null;
+  /** When true, a tap on the map places or moves the manual pin. */
+  placingPin?: boolean;
+  onPlacePin?: (point: LatLng) => void;
+  className?: string;
+}
+
+/** A drag shorter than this counts as a tap, not a pan. */
+const TAP_SLOP = 6;
+
+/** Wheel delta -> zoom factor. Tuned so a trackpad feels smooth, not jumpy. */
+const WHEEL_SENSITIVITY = 0.0015;
+
+function distanceBetween(a: PointerEvent, b: PointerEvent): number {
+  return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+}
+
+/**
+ * Fiyu's interactive SVG discovery map.
+ *
+ * All pan and zoom state is a single {x, y, k} transform; the maths lives in
+ * lib/map/viewport and is unit-tested there. Because every coordinate is in
+ * viewBox units, resizing the container cannot cause drift -- the browser
+ * rescales the coordinate system and the transform is untouched.
+ *
+ * Pointer Events handle mouse, trackpad and touch through one code path, with
+ * a second active pointer switching to pinch-zoom.
+ */
+export function FiyuMap({
+  restaurants,
+  selectedPlaceId,
+  onSelect,
+  interactive = true,
+  anchor = null,
+  placingPin = false,
+  onPlacePin,
+  className,
+}: FiyuMapProps) {
+  const svgRef = useRef<SVGSVGElement>(null);
+  const [view, setView] = useState<MapView>(IDENTITY_VIEW);
+
+  /** Live pointers, for drag and pinch. */
+  const pointers = useRef(new Map<number, PointerEvent>());
+  const pinchDistance = useRef<number | null>(null);
+  const [dragging, setDragging] = useState(false);
+  /** Where a gesture started, so a tap can be told apart from a pan. */
+  const gestureStart = useRef<{ x: number; y: number } | null>(null);
+
+  const points = useMemo(
+    () => restaurants.map((restaurant) => project({ lat: restaurant.latitude, lng: restaurant.longitude })),
+    [restaurants],
+  );
+
+  const clusters = useMemo(
+    () =>
+      clusterMarkers(
+        restaurants.map((restaurant, index) => ({
+          id: restaurant.place_id,
+          point: points[index],
+          item: restaurant,
+        })),
+        { scale: view.k },
+      ),
+    [restaurants, points, view.k],
+  );
+
+  /**
+   * Auto-fit only when the result set materially changes, never after the user
+   * has taken control -- re-framing under someone mid-pan is disorienting.
+   */
+  const resultKey = restaurants.map((restaurant) => restaurant.place_id).join("|");
+  const lastFitKey = useRef<string | null>(null);
+  const userHasInteracted = useRef(false);
+
+  useEffect(() => {
+    if (lastFitKey.current === resultKey) return;
+    lastFitKey.current = resultKey;
+    userHasInteracted.current = false;
+    setView(points.length > 0 ? fitToPoints(points) : IDENTITY_VIEW);
+    // `points` is derived from the same restaurants as resultKey.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resultKey]);
+
+  const markInteracted = useCallback(() => {
+    userHasInteracted.current = true;
+  }, []);
+
+  const toViewBox = useCallback((clientX: number, clientY: number) => {
+    const rect = svgRef.current?.getBoundingClientRect();
+    if (!rect) return { x: 0, y: 0 };
+    return clientToViewBox(clientX, clientY, rect);
+  }, []);
+
+  /*
+   * Wheel zoom is registered manually because React's onWheel is passive and
+   * cannot preventDefault, which would let the page scroll behind the map.
+   */
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg || !interactive) return;
+
+    const onWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      markInteracted();
+      const factor = Math.exp(-event.deltaY * WHEEL_SENSITIVITY);
+      const focus = clientToViewBox(event.clientX, event.clientY, svg.getBoundingClientRect());
+      setView((current) => zoomAt(current, factor, focus));
+    };
+
+    svg.addEventListener("wheel", onWheel, { passive: false });
+    return () => svg.removeEventListener("wheel", onWheel);
+  }, [interactive, markInteracted]);
+
+  const handlePointerDown = useCallback(
+    (event: React.PointerEvent<SVGSVGElement>) => {
+      if (!interactive) return;
+      // Let marker buttons handle their own activation.
+      if ((event.target as Element).closest('[role="button"]')) return;
+
+      pointers.current.set(event.pointerId, event.nativeEvent);
+      event.currentTarget.setPointerCapture(event.pointerId);
+      if (pointers.current.size === 1) {
+        gestureStart.current = { x: event.clientX, y: event.clientY };
+        setDragging(true);
+      } else {
+        // A second finger turns this into a pinch, never a tap.
+        gestureStart.current = null;
+      }
+    },
+    [interactive],
+  );
+
+  const handlePointerMove = useCallback(
+    (event: React.PointerEvent<SVGSVGElement>) => {
+      if (!interactive) return;
+      const previous = pointers.current.get(event.pointerId);
+      if (!previous) return;
+
+      pointers.current.set(event.pointerId, event.nativeEvent);
+      const active = [...pointers.current.values()];
+
+      if (active.length >= 2) {
+        // Pinch: zoom about the midpoint of the two pointers.
+        setDragging(false);
+        const [a, b] = active;
+        const spread = distanceBetween(a, b);
+        if (pinchDistance.current !== null && pinchDistance.current > 0) {
+          markInteracted();
+          const factor = spread / pinchDistance.current;
+          const focus = toViewBox((a.clientX + b.clientX) / 2, (a.clientY + b.clientY) / 2);
+          setView((current) => zoomAt(current, factor, focus));
+        }
+        pinchDistance.current = spread;
+        return;
+      }
+
+      // Single pointer: drag. Deltas are converted into viewBox units so the
+      // map tracks the cursor exactly at any container size.
+      const from = toViewBox(previous.clientX, previous.clientY);
+      const to = toViewBox(event.clientX, event.clientY);
+      const dx = to.x - from.x;
+      const dy = to.y - from.y;
+      if (dx === 0 && dy === 0) return;
+
+      markInteracted();
+      setView((current) => panBy(current, dx, dy));
+    },
+    [interactive, markInteracted, toViewBox],
+  );
+
+  const endPointer = useCallback(
+    (event: React.PointerEvent<SVGSVGElement>) => {
+      const start = gestureStart.current;
+      pointers.current.delete(event.pointerId);
+      if (pointers.current.size < 2) pinchDistance.current = null;
+      if (pointers.current.size === 0) setDragging(false);
+
+      // A tap in pin-placement mode drops or moves the starting point. The
+      // slop check keeps the end of a pan from placing a pin by accident.
+      if (!placingPin || !onPlacePin || !start || event.type !== "pointerup") return;
+      const travelled = Math.hypot(event.clientX - start.x, event.clientY - start.y);
+      gestureStart.current = null;
+      if (travelled > TAP_SLOP) return;
+
+      const inViewBox = toViewBox(event.clientX, event.clientY);
+      onPlacePin(unproject(viewBoxToContent(inViewBox, view)));
+    },
+    [placingPin, onPlacePin, toViewBox, view],
+  );
+
+  const fitResults = useCallback(() => {
+    markInteracted();
+    setView(points.length > 0 ? fitToPoints(points) : IDENTITY_VIEW);
+  }, [points, markInteracted]);
+
+  const reset = useCallback(() => {
+    markInteracted();
+    setView(IDENTITY_VIEW);
+  }, [markInteracted]);
+
+  const expandCluster = useCallback(
+    (cluster: MarkerCluster<MappableRestaurant>) => {
+      markInteracted();
+      setView(fitToPoints(cluster.members.map((member) => member.point), { padding: 160 }));
+    },
+    [markInteracted],
+  );
+
+  return (
+    <div className={cn("relative h-full w-full overflow-hidden bg-[var(--map-bg)]", className)}>
+      <svg
+        ref={svgRef}
+        viewBox={VIEWBOX}
+        preserveAspectRatio="xMidYMid meet"
+        role="img"
+        aria-label={
+          restaurants.length === 0
+            ? "Map of Tokyo. No restaurants are currently mapped."
+            : `Map of Tokyo showing ${restaurants.length} restaurants.`
+        }
+        className={cn(
+          "h-full w-full",
+          interactive && (placingPin ? "cursor-crosshair" : dragging ? "cursor-grabbing" : "cursor-grab"),
+          // Let the browser scroll the page vertically when the inline map is
+          // not the active surface; capture gestures fully when it is.
+          interactive ? "touch-none" : "touch-pan-y",
+        )}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={endPointer}
+        onPointerCancel={endPointer}
+        onPointerLeave={endPointer}
+      >
+        <g transform={`translate(${view.x} ${view.y}) scale(${view.k})`}>
+          <MapBase scale={view.k} />
+          {anchor && <AnchorMarker anchor={anchor} scale={view.k} />}
+          <MapMarkers
+            clusters={clusters}
+            selectedPlaceId={selectedPlaceId}
+            scale={view.k}
+            onSelect={onSelect}
+            onExpandCluster={expandCluster}
+          />
+        </g>
+      </svg>
+
+      <div className="pointer-events-none absolute inset-0">
+        <MapControls
+          onZoomIn={() => {
+            markInteracted();
+            setView((current) => zoomByStep(current, 1));
+          }}
+          onZoomOut={() => {
+            markInteracted();
+            setView((current) => zoomByStep(current, -1));
+          }}
+          onReset={reset}
+          onFitResults={fitResults}
+          canZoomIn={view.k < MAX_SCALE}
+          canZoomOut={view.k > MIN_SCALE}
+          canFit={points.length > 0}
+        />
+
+        {!viewsEqual(view, IDENTITY_VIEW) && (
+          <p className="absolute bottom-3 left-4 text-[0.625rem] text-[var(--map-label-muted)]">
+            Illustrated map — approximate positions
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}

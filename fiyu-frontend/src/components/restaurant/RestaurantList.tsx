@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 
 import { RestaurantCard } from "@/components/restaurant/RestaurantCard";
 import type { PublicRestaurant } from "@/lib/api/schemas";
+import type { DiscoveryAnchor } from "@/lib/location/anchor";
 
 export interface RestaurantListProps {
   restaurants: PublicRestaurant[];
@@ -14,6 +15,8 @@ export interface RestaurantListProps {
    * so clicking a card never yanks the list out from under the pointer.
    */
   scrollToPlaceId?: string | null;
+  /** Starting point for per-card distances, if the user set one. */
+  anchor?: DiscoveryAnchor | null;
 }
 
 /**
@@ -34,6 +37,7 @@ export function RestaurantList({
   selectedPlaceId,
   onSelect,
   scrollToPlaceId,
+  anchor = null,
 }: RestaurantListProps) {
   const itemRefs = useRef(new Map<string, HTMLLIElement>());
 
@@ -66,6 +70,7 @@ export function RestaurantList({
             restaurant={restaurant}
             selected={restaurant.place_id === selectedPlaceId}
             onSelect={onSelect}
+            anchor={anchor}
           />
         </li>
       ))}

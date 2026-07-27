@@ -54,6 +54,31 @@
 
 :root {
   color-scheme: light;
+
+  /*
+   * Discovery-map palette.
+   *
+   * Kept as plain custom properties rather than @theme colours: these are used
+   * only inside the SVG, where fills are set as attributes rather than Tailwind
+   * classes, so generating utilities for them would be dead CSS.
+   *
+   * The map sits a half-step warmer than the app canvas so it reads as a
+   * distinct surface, with lavender reserved entirely for markers.
+   */
+  --map-bg: #f7f2e9;
+  --map-land: #f4efe7;
+  --map-water: #ded5f5;
+  --map-park: #e7e2d8;
+  --map-boundary: #cfc4db;
+  --map-road-major: #d8cee2;
+  --map-road-minor: #e8e1e9;
+  --map-rail: #cfc4db;
+  --map-label: #51485b;
+  --map-label-muted: #8a8190;
+  --map-marker: #8b6cf6;
+  --map-marker-selected: #3e304f;
+  --map-marker-center: #fff9ef;
+  --map-user-marker: #5a3f78;
 }
 
 html {

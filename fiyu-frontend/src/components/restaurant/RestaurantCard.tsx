@@ -1,11 +1,21 @@
 "use client";
 
+import { OutboundMapActions } from "@/components/restaurant/OutboundMapActions";
+import { RestaurantPhoto } from "@/components/restaurant/RestaurantPhoto";
 import { SignatureDishes } from "@/components/restaurant/SignatureDishes";
 import { TagList } from "@/components/restaurant/TagList";
 import { ScoreMark } from "@/components/ui/ScoreMark";
 import type { PublicRestaurant } from "@/lib/api/schemas";
+import { distanceAccessibleLabel, formatDistance } from "@/lib/geo/distance";
+import { isMappable } from "@/lib/geo/mappable";
+import { editorialLabel } from "@/lib/format/editorialLabels";
 import { detectTextLang, resolveNames } from "@/lib/format/language";
-import { scoreBandLabel } from "@/lib/format/score";
+import {
+  type DiscoveryAnchor,
+  anchorDistanceSuffix,
+  distanceToRestaurant,
+  isApproximateOrigin,
+} from "@/lib/location/anchor";
 import { cn } from "@/lib/utils/cn";
 
 export interface RestaurantCardProps {
@@ -14,6 +24,8 @@ export interface RestaurantCardProps {
   onSelect?: (restaurant: PublicRestaurant) => void;
   /** Compact variant for the mobile map peek sheet. */
   dense?: boolean;
+  /** Starting point for the distance line, if the user set one. */
+  anchor?: DiscoveryAnchor | null;
 }
 
 /** Shown when both name fields are null, so the card never renders headless. */
@@ -22,43 +34,44 @@ const UNNAMED = "Unnamed restaurant";
 /**
  * Restaurant card.
  *
+ * Content order: photo, Japanese name, English name, description, category and
+ * neighbourhood, Fiyu score, then a short tag preview.
+ *
  * Reads as an editorial index entry rather than a dashboard row: no border and
- * no box at rest, sitting directly on the canvas and separated from its
- * neighbours by a hairline. Hover lifts it onto a white surface; selection adds
- * a lavender left rule. The lavender is spent only on the score mark, the band
- * kicker and the selected rule.
+ * no box at rest, separated from its neighbours by a hairline. Hover lifts it
+ * onto a white surface; selection adds a lavender left rule matching the map
+ * pin, so the two surfaces read as one state.
  *
- * Hierarchy, strongest first: restaurant name, then the editorial description,
- * then the score mark.
+ * NEVER RENDERED HERE, and each for a specific reason:
+ *  - the internal why_fiyu field, which the API does not expose;
+ *  - Google ratings, review counts, hours or price, which Fiyu does not show;
+ *  - community counts, which are all zero with community_stats_visible false,
+ *    so displaying them would fabricate engagement;
+ *  - any translation of API content, which the backend owns.
  *
- * Never rendered here: the internal why_fiyu field (not exposed by the API),
- * Google ratings, review counts, hours or price, and any community statistic.
- * The community_* counters are all zero with community_stats_visible false, so
- * showing them would fabricate engagement.
- *
- * Content is strictly what the API returns, rendered verbatim. No photo,
- * rating, price, distance or review count exists in the payload and none is
- * invented. `detectTextLang` only picks a `lang` attribute; it never alters
- * text.
- *
- * Interaction uses the stretched-control pattern: one button, named by the
- * restaurant, whose ::after covers the card. That gives a single tab stop, a
- * correct accessible name and a full-card hit area without nesting
- * interactive elements.
+ * `detectTextLang` only picks a `lang` attribute and never alters text.
  */
 export function RestaurantCard({
   restaurant,
   selected = false,
   onSelect,
   dense = false,
+  anchor = null,
 }: RestaurantCardProps) {
   const names = resolveNames(restaurant);
-  const band = scoreBandLabel(restaurant.score_band);
-  // The public editorial description. The internal why_fiyu field is not
-  // exposed by the API and is never rendered.
+  const label = editorialLabel(restaurant);
   const description = restaurant.description_en;
   const category = restaurant.category;
   const neighborhood = restaurant.neighborhood;
+
+  // Distance needs both an anchor and coordinates the backend has verified.
+  const distance =
+    anchor && isMappable(restaurant)
+      ? formatDistance(distanceToRestaurant(anchor, restaurant), {
+          suffix: anchorDistanceSuffix(anchor),
+          approximateOrigin: isApproximateOrigin(anchor),
+        })
+      : null;
 
   return (
     <article
@@ -66,8 +79,6 @@ export function RestaurantCard({
       className={cn(
         "group relative isolate rounded-card transition-[background-color,box-shadow] duration-200",
         "ease-(--ease-fiyu)",
-        // The focus ring follows the inner button so keyboard users see the
-        // whole card highlighted, not just the name.
         "has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-lavender-500 has-[:focus-visible]:ring-offset-2 has-[:focus-visible]:ring-offset-canvas",
         dense ? "p-4" : "px-4 py-5 sm:px-5",
         selected
@@ -75,8 +86,8 @@ export function RestaurantCard({
           : "hover:bg-surface hover:shadow-[0_1px_2px_rgba(25,23,29,0.04)]",
       )}
     >
-      {/* Selection rule. An accent bar rather than a tinted card: it reads at a
-          glance next to a map pin without washing the whole row in lavender. */}
+      {/* Selection rule: an accent bar rather than a tinted card, so it reads
+          at a glance beside a map pin without washing the row in lavender. */}
       <span
         aria-hidden="true"
         className={cn(
@@ -86,11 +97,19 @@ export function RestaurantCard({
         )}
       />
 
+      {!dense && (
+        <RestaurantPhoto
+          placeId={restaurant.place_id}
+          restaurantName={names.primary?.text ?? UNNAMED}
+          className="mb-4"
+        />
+      )}
+
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
-          {band && (
+          {label && (
             <p className="mb-1.5 text-[0.625rem] font-medium tracking-[0.16em] text-lavender-700 uppercase">
-              {band}
+              {label}
             </p>
           )}
 
@@ -121,14 +140,6 @@ export function RestaurantCard({
               {names.secondary.text}
             </p>
           )}
-
-          {(category || neighborhood) && (
-            <p className="mt-2 text-xs text-ink-faint">
-              {category && <span lang={detectTextLang(category)}>{category}</span>}
-              {category && neighborhood && <span aria-hidden="true"> · </span>}
-              {neighborhood && <span lang={detectTextLang(neighborhood)}>{neighborhood}</span>}
-            </p>
-          )}
         </div>
 
         <ScoreMark score={restaurant.fiyu_score} size={dense ? "sm" : "md"} className="mt-0.5" />
@@ -146,12 +157,32 @@ export function RestaurantCard({
         </p>
       )}
 
+      {(category || neighborhood || distance) && (
+        <p className="mt-3 flex flex-wrap items-center gap-x-2 text-xs text-ink-faint">
+          {category && <span lang={detectTextLang(category)}>{category}</span>}
+          {category && neighborhood && <span aria-hidden="true">·</span>}
+          {neighborhood && <span lang={detectTextLang(neighborhood)}>{neighborhood}</span>}
+          {distance && (
+            <>
+              <span aria-hidden="true">·</span>
+              <span title={distanceAccessibleLabel(distance)} className="text-ink-muted">
+                {distance}
+              </span>
+            </>
+          )}
+        </p>
+      )}
+
       {/* Three tags maximum: beyond that the row reads as metadata soup. */}
-      <TagList tags={restaurant.food_tags} max={3} className="mt-4" />
+      <TagList tags={restaurant.food_tags} max={3} className="mt-3" />
 
       {restaurant.signature_dishes.length > 0 && (
         <SignatureDishes dishes={restaurant.signature_dishes} max={3} className="mt-3" />
       )}
+
+      {/* Renders nothing unless the backend verified this restaurant's
+          coordinates, so it is absent for the whole catalog today. */}
+      <OutboundMapActions restaurant={restaurant} className="mt-3" />
     </article>
   );
 }

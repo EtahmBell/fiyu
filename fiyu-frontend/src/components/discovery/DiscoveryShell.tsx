@@ -5,6 +5,8 @@ import { useCallback, useMemo, useState } from "react";
 import { MapPeekSheet } from "@/components/discovery/MapPeekSheet";
 import { RankingControl } from "@/components/discovery/RankingControl";
 import { PageIntro, SiteFooter } from "@/components/layout/SiteHeader";
+import { LocationControl } from "@/components/location/LocationControl";
+import { FiyuMap } from "@/components/map/FiyuMap";
 import { MapUnavailable } from "@/components/map/MapUnavailable";
 import { RestaurantList } from "@/components/restaurant/RestaurantList";
 import { ModeUnavailable } from "@/components/states/EmptyState";
@@ -17,11 +19,18 @@ import {
   rankByMode,
 } from "@/lib/discovery/ranking";
 import { mappableRestaurants, unmappableCount } from "@/lib/geo/mappable";
+import { useGeolocation } from "@/lib/hooks/useGeolocation";
+import { useIsDesktop } from "@/lib/hooks/useMediaQuery";
+import type { DiscoveryAnchor } from "@/lib/location/anchor";
+import type { LatLng } from "@/lib/map/projection";
+import type { LocationAnchor } from "@/lib/api/schemas";
 import { cn } from "@/lib/utils/cn";
 
 export interface DiscoveryShellProps {
   /** Already filtered to browsable rows by the server component. */
   restaurants: PublicRestaurant[];
+  /** Operator-curated area centres. Empty until anchors are reviewed. */
+  areaAnchors: LocationAnchor[];
 }
 
 /** Which surface the user is looking at. Only meaningful below `lg`. */
@@ -54,11 +63,73 @@ interface Selection {
  * Data arrives already fetched and validated from the server component, so this
  * never touches the network, and ordering is delegated to the ranking adapter.
  */
-export function DiscoveryShell({ restaurants }: DiscoveryShellProps) {
+export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps) {
   const [mode, setMode] = useState<DiscoveryMode>(DEFAULT_MODE);
   const [selection, setSelection] = useState<Selection | null>(null);
   const [view, setView] = useState<MobileView>("list");
   const [sheetExpanded, setSheetExpanded] = useState(false);
+  const isDesktop = useIsDesktop();
+
+  /*
+   * Location anchor. Client-side only: never persisted, never sent to the
+   * backend, and cleared on reload.
+   */
+  const [manualPin, setManualPin] = useState<LatLng | null>(null);
+  const [areaAnchor, setAreaAnchor] = useState<LocationAnchor | null>(null);
+  const [placingPin, setPlacingPin] = useState(false);
+  const geolocation = useGeolocation();
+
+  /*
+   * Precedence is most-explicit-first: a hand-placed pin beats a chosen area,
+   * which beats a GPS fix. Setting one clears the others, so exactly one
+   * anchor can ever be active.
+   */
+  const anchor = useMemo<DiscoveryAnchor | null>(() => {
+    if (manualPin) return { kind: "manual-pin", point: manualPin };
+    if (areaAnchor) {
+      return {
+        kind: "area-anchor",
+        point: { lat: areaAnchor.latitude, lng: areaAnchor.longitude },
+        id: areaAnchor.id,
+        displayName: areaAnchor.display_name,
+        areaName: areaAnchor.area_name,
+        qualifier: areaAnchor.qualifier,
+      };
+    }
+    if (geolocation.state.status === "granted") {
+      return {
+        kind: "current-location",
+        point: geolocation.state.point,
+        accuracyMeters: geolocation.state.accuracyMeters,
+      };
+    }
+    return null;
+  }, [manualPin, areaAnchor, geolocation.state]);
+
+  const clearAnchor = useCallback(() => {
+    setManualPin(null);
+    setAreaAnchor(null);
+    setPlacingPin(false);
+    geolocation.clear();
+  }, [geolocation]);
+
+  const placePin = useCallback((point: LatLng) => {
+    setAreaAnchor(null);
+    setManualPin(point);
+  }, []);
+
+  const chooseArea = useCallback((area: LocationAnchor) => {
+    setManualPin(null);
+    setPlacingPin(false);
+    setAreaAnchor(area);
+  }, []);
+
+  const useCurrentLocation = useCallback(() => {
+    setManualPin(null);
+    setAreaAnchor(null);
+    setPlacingPin(false);
+    geolocation.request();
+  }, [geolocation]);
 
   const available = isModeAvailable(mode);
   const ranked = useMemo(() => rankByMode(restaurants, mode), [restaurants, mode]);
@@ -82,8 +153,10 @@ export function DiscoveryShell({ restaurants }: DiscoveryShellProps) {
     (restaurant: PublicRestaurant) => select(restaurant, "list"),
     [select],
   );
-  // Phase B adds selectFromMap for SVG pin clicks. The "map" SelectionSource
-  // and the list's scroll-into-view behaviour are kept in place for it.
+  const selectFromMap = useCallback(
+    (restaurant: PublicRestaurant) => select(restaurant, "map"),
+    [select],
+  );
 
   const showingMap = view === "map";
 
@@ -101,6 +174,19 @@ export function DiscoveryShell({ restaurants }: DiscoveryShellProps) {
 
           {available ? (
             <>
+              <div className="pb-1">
+                <LocationControl
+                  anchor={anchor}
+                  geolocation={geolocation.state}
+                  areaAnchors={areaAnchors}
+                  placingPin={placingPin}
+                  onUseCurrentLocation={useCurrentLocation}
+                  onChooseArea={chooseArea}
+                  onTogglePlacePin={() => setPlacingPin((on) => !on)}
+                  onClear={clearAnchor}
+                />
+              </div>
+
               <RankingControl mode={mode} onChange={setMode} count={ranked.length} />
 
               <p aria-live="polite" className="sr-only">
@@ -112,6 +198,7 @@ export function DiscoveryShell({ restaurants }: DiscoveryShellProps) {
                 selectedPlaceId={selection?.placeId ?? null}
                 onSelect={selectFromList}
                 scrollToPlaceId={selection?.source === "map" ? selection.placeId : null}
+                anchor={anchor}
               />
 
               {unmappable > 0 && (
@@ -146,15 +233,28 @@ export function DiscoveryShell({ restaurants }: DiscoveryShellProps) {
         )}
       >
         {/*
-         * Phase B replaces this with Fiyu's SVG discovery map. It will receive
-         * `mappable` -- restaurants the backend has verified and marked
-         * eligible -- plus the same selection state the list uses, so cards and
-         * pins stay synchronised.
+         * The map receives only `mappable` restaurants -- those the backend has
+         * verified and marked eligible -- and shares the list's selection
+         * state, so cards and pins stay synchronised.
+         *
+         * With nothing mapped there is no map to interact with, so the
+         * placeholder is shown instead of an empty illustration.
          */}
-        <MapUnavailable
-          reason={mappable.length === 0 ? "no-mapped-restaurants" : "not-yet-available"}
-          className="h-full"
-        />
+        {mappable.length === 0 ? (
+          <MapUnavailable reason="no-mapped-restaurants" className="h-full" />
+        ) : (
+          <FiyuMap
+            restaurants={mappable}
+            selectedPlaceId={selection?.placeId ?? null}
+            onSelect={selectFromMap}
+            // Gestures are captured fully only when the map is the active
+            // surface: full-screen on mobile, always on desktop.
+            interactive={showingMap || isDesktop}
+            anchor={anchor}
+            placingPin={placingPin}
+            onPlacePin={placePin}
+          />
+        )}
       </aside>
 
       {/* Mobile controls, above the map surface. */}
@@ -162,6 +262,7 @@ export function DiscoveryShell({ restaurants }: DiscoveryShellProps) {
         {showingMap && selected && (
           <MapPeekSheet
             restaurant={selected}
+            anchor={anchor}
             expanded={sheetExpanded}
             onToggleExpanded={() => setSheetExpanded((open) => !open)}
             onDismiss={() => {

@@ -2,10 +2,12 @@
 
 import { RestaurantCard } from "@/components/restaurant/RestaurantCard";
 import type { PublicRestaurant } from "@/lib/api/schemas";
+import type { DiscoveryAnchor } from "@/lib/location/anchor";
 import { cn } from "@/lib/utils/cn";
 
 export interface MapPeekSheetProps {
   restaurant: PublicRestaurant;
+  anchor?: DiscoveryAnchor | null;
   expanded: boolean;
   onToggleExpanded: () => void;
   onDismiss: () => void;
@@ -24,6 +26,7 @@ export interface MapPeekSheetProps {
  */
 export function MapPeekSheet({
   restaurant,
+  anchor = null,
   expanded,
   onToggleExpanded,
   onDismiss,
@@ -61,7 +64,7 @@ export function MapPeekSheet({
       </div>
 
       <div className={cn("overflow-y-auto", expanded ? "max-h-[calc(70dvh-2.75rem)]" : "")}>
-        <RestaurantCard restaurant={restaurant} selected dense />
+        <RestaurantCard restaurant={restaurant} selected dense anchor={anchor} />
       </div>
     </div>
   );
