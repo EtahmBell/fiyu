@@ -22,6 +22,16 @@ CREATE TABLE IF NOT EXISTS public_restaurants (
     signature_dishes_json TEXT NOT NULL DEFAULT '[]',
     why_fiyu TEXT,
 
+    discovery_area TEXT,
+    discovery_area_type TEXT,
+    discovery_area_source TEXT,
+    discovery_source_file TEXT,
+    discovery_source_row INTEGER,
+    discovery_areas_json TEXT NOT NULL DEFAULT '[]',
+    multiple_discovery_areas INTEGER NOT NULL DEFAULT 0,
+    discovery_area_conflict INTEGER NOT NULL DEFAULT 0,
+    discovery_area_conflict_reason TEXT,
+
     latitude REAL,
     longitude REAL,
     normalized_address TEXT,
@@ -29,6 +39,16 @@ CREATE TABLE IF NOT EXISTS public_restaurants (
     location_source_reference TEXT,
     location_verified_at TEXT,
     location_reviewer_notes TEXT,
+    location_reviewed_by TEXT,
+    location_reviewed_at TEXT,
+    location_verification_status TEXT NOT NULL DEFAULT 'unknown_provenance',
+    location_match_confidence REAL,
+    location_match_method TEXT,
+    location_verification_method TEXT,
+    location_osm_type TEXT,
+    location_osm_id INTEGER,
+    location_osm_version INTEGER,
+    location_source_checked_at TEXT,
     map_display_eligible INTEGER NOT NULL DEFAULT 0,
     location_precision TEXT CHECK (
         location_precision IS NULL OR location_precision IN ('exact', 'approximate', 'area_anchor')
@@ -74,6 +94,28 @@ CREATE TABLE IF NOT EXISTS community_recommendations (
 );
 CREATE INDEX IF NOT EXISTS idx_community_recommendations_place
     ON community_recommendations(place_id);
+CREATE TABLE IF NOT EXISTS location_match_candidates (
+    place_id TEXT NOT NULL,
+    candidate_rank INTEGER NOT NULL,
+    osm_type TEXT NOT NULL,
+    osm_id INTEGER NOT NULL,
+    osm_version INTEGER,
+    osm_timestamp TEXT,
+    candidate_name TEXT,
+    alternate_names_json TEXT NOT NULL DEFAULT '[]',
+    latitude REAL NOT NULL,
+    longitude REAL NOT NULL,
+    amenity TEXT,
+    cuisine TEXT,
+    address_json TEXT NOT NULL DEFAULT '{}',
+    total_score REAL NOT NULL,
+    score_components_json TEXT NOT NULL DEFAULT '{}',
+    warnings_json TEXT NOT NULL DEFAULT '[]',
+    proposed_decision TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (place_id, candidate_rank),
+    FOREIGN KEY (place_id) REFERENCES public_restaurants(place_id)
+);
 """
 
 PUBLIC_LOCATION_COLUMNS = {
@@ -84,8 +126,30 @@ PUBLIC_LOCATION_COLUMNS = {
     "location_source_reference": "TEXT",
     "location_verified_at": "TEXT",
     "location_reviewer_notes": "TEXT",
+    "location_reviewed_by": "TEXT",
+    "location_reviewed_at": "TEXT",
+    "location_verification_status": "TEXT NOT NULL DEFAULT 'unknown_provenance'",
+    "location_match_confidence": "REAL",
+    "location_match_method": "TEXT",
+    "location_verification_method": "TEXT",
+    "location_osm_type": "TEXT",
+    "location_osm_id": "INTEGER",
+    "location_osm_version": "INTEGER",
+    "location_source_checked_at": "TEXT",
     "map_display_eligible": "INTEGER NOT NULL DEFAULT 0",
     "location_precision": "TEXT",
+}
+
+PUBLIC_DISCOVERY_COLUMNS = {
+    "discovery_area": "TEXT",
+    "discovery_area_type": "TEXT",
+    "discovery_area_source": "TEXT",
+    "discovery_source_file": "TEXT",
+    "discovery_source_row": "INTEGER",
+    "discovery_areas_json": "TEXT NOT NULL DEFAULT '[]'",
+    "multiple_discovery_areas": "INTEGER NOT NULL DEFAULT 0",
+    "discovery_area_conflict": "INTEGER NOT NULL DEFAULT 0",
+    "discovery_area_conflict_reason": "TEXT",
 }
 
 
@@ -100,11 +164,17 @@ def ensure_public_schema(db_path: str | Path) -> None:
             row["name"]
             for row in connection.execute("PRAGMA table_info(public_restaurants)").fetchall()
         }
-        for name, declaration in PUBLIC_LOCATION_COLUMNS.items():
+        for name, declaration in {**PUBLIC_LOCATION_COLUMNS, **PUBLIC_DISCOVERY_COLUMNS}.items():
             if name not in existing:
                 connection.execute(
                     f"ALTER TABLE public_restaurants ADD COLUMN {name} {declaration}"
                 )
+        connection.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_location_match_status
+            ON public_restaurants(location_verification_status, is_published)
+            """
+        )
         connection.commit()
 
 
@@ -444,6 +514,8 @@ def _safe_public_rows(
             SELECT p.place_id, p.name_ja, p.name_en, p.primary_category,
                    r.neighborhood, p.fiyu_score, p.score_band, p.why_fiyu,
                    p.food_tags_json, p.signature_dishes_json,
+                   p.discovery_area, p.discovery_area_type, p.discovery_areas_json,
+                   p.multiple_discovery_areas, p.discovery_area_conflict,
                    p.latitude, p.longitude, p.location_precision,
                    p.map_display_eligible,
                    COUNT(c.response_id) AS community_recommendation_count,
@@ -477,6 +549,13 @@ def _safe_public_rows(
             round(positive / count, 4) if visible and count else None
         )
         item["score_type"] = "editorial_research"
+        try:
+            discovery_areas = json.loads(item.pop("discovery_areas_json") or "[]")
+            item["discovery_areas"] = discovery_areas if isinstance(discovery_areas, list) else []
+        except json.JSONDecodeError:
+            item["discovery_areas"] = []
+        item["discovery_area_conflict"] = bool(item.get("discovery_area_conflict"))
+        item["multiple_discovery_areas"] = bool(item.get("multiple_discovery_areas"))
         for source, target in (
             ("food_tags_json", "food_tags"),
             ("signature_dishes_json", "signature_dishes"),

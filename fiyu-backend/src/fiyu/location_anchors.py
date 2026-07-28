@@ -21,6 +21,8 @@ class LocationAnchor(BaseModel):
     qualifier: str = Field(min_length=1)
     source: str = Field(min_length=1)
     source_reference: str = Field(min_length=1)
+    osm_type: str = Field(pattern="^(node|way|relation)$")
+    osm_id: int = Field(gt=0)
     verified_at: date
     reviewed: bool
 
@@ -46,7 +48,9 @@ def load_location_anchors(path: str | Path | None = None) -> list[dict[str, obje
             continue
         if not (34.8 <= anchor.latitude <= 36.0 and 138.8 <= anchor.longitude <= 140.2):
             continue
-        item = anchor.model_dump(exclude={"reviewed", "source", "source_reference", "verified_at"})
+        item = anchor.model_dump(exclude={
+            "reviewed", "source", "source_reference", "osm_type", "osm_id", "verified_at"
+        })
         anchors.append(item)
     return anchors
 

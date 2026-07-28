@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 
 from .public_catalog import (
@@ -46,6 +47,7 @@ def _parser() -> argparse.ArgumentParser:
     )
     location_review.add_argument("--output", required=True)
     location_review.add_argument("--limit", type=int, default=20)
+    location_review.add_argument("--status")
 
     verified = subparsers.add_parser(
         "import-verified-locations", help="Validate and import reviewed restaurant locations"
@@ -54,6 +56,73 @@ def _parser() -> argparse.ArgumentParser:
     verified.add_argument("--dry-run", action="store_true")
 
     subparsers.add_parser("location-status", help="Report restaurant and anchor verification status")
+
+    osm_index = subparsers.add_parser("build-osm-index", help="Build a local OSM location index")
+    osm_index.add_argument("--pbf", required=True)
+    osm_index.add_argument("--output", required=True)
+    osm_index.add_argument(
+        "--max-suspicious-rate", type=float, default=0.001,
+        help="Hard-fail above this likely-mojibake object rate (default: 0.001)",
+    )
+    osm_index.add_argument(
+        "--diagnostic-detail-limit", type=int, default=50,
+        help="Maximum suspicious values included in the encoding report (default: 50)",
+    )
+
+    resolve_osm = subparsers.add_parser(
+        "resolve-osm-locations", help="Resolve public restaurants against a local OSM index"
+    )
+    resolve_osm.add_argument("--osm-index", required=True)
+    resolve_osm.add_argument("--limit", type=int, default=50)
+    resolve_osm.add_argument("--place-id")
+    resolve_osm.add_argument("--published-only", action=argparse.BooleanOptionalAction, default=True)
+    resolve_osm.add_argument("--force", action="store_true")
+    resolve_osm.add_argument("--dry-run", action="store_true")
+    resolve_osm.add_argument("--output-report")
+    resolve_osm.add_argument("--threshold", type=float, default=80.0)
+    resolve_osm.add_argument("--runner-up-margin", type=float, default=20.0)
+    resolve_osm.add_argument("--anchor-radius-km", type=float, default=3.0)
+
+    osm_review = subparsers.add_parser(
+        "import-location-review", help="Import reviewed OSM candidate decisions"
+    )
+    osm_review.add_argument("--input", required=True)
+    osm_review.add_argument("--dry-run", action="store_true")
+
+    anchor_resolve = subparsers.add_parser(
+        "resolve-osm-anchors", help="Propose area-anchor matches from the local OSM index"
+    )
+    anchor_resolve.add_argument("--osm-index", required=True)
+    anchor_resolve.add_argument(
+        "--anchors", default=str(Path(__file__).with_name("location_anchors.json"))
+    )
+    anchor_resolve.add_argument("--output", required=True)
+
+    audit_discovery = subparsers.add_parser(
+        "audit-discovery-areas", help="Audit original area CSV provenance"
+    )
+    audit_discovery.add_argument("--source-dir", default="data")
+    audit_discovery.add_argument("--public-csv", default="data/processed/public_restaurants.csv")
+    audit_discovery.add_argument("--manifest")
+    audit_discovery.add_argument("--report")
+
+    enrich_discovery = subparsers.add_parser(
+        "enrich-discovery-areas", help="Generate a discovery-area enriched public CSV"
+    )
+    enrich_discovery.add_argument("--source-dir", default="data")
+    enrich_discovery.add_argument("--input", default="data/processed/public_restaurants.csv")
+    enrich_discovery.add_argument(
+        "--output", default="data/processed/public_restaurants_enriched.csv"
+    )
+    enrich_discovery.add_argument("--manifest")
+    enrich_discovery.add_argument("--report")
+
+    import_discovery = subparsers.add_parser(
+        "import-discovery-areas", help="Import only discovery provenance fields"
+    )
+    import_discovery.add_argument("--input", required=True)
+    import_discovery.add_argument("--dry-run", action="store_true")
+    import_discovery.add_argument("--report")
 
     subparsers.add_parser("recalculate", help="Recalculate scores from stored evidence")
 
@@ -75,6 +144,8 @@ def _parser() -> argparse.ArgumentParser:
 
 
 def main() -> None:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
     args = _parser().parse_args()
     db_path = Path(args.db)
 
@@ -114,9 +185,16 @@ def main() -> None:
         )
         print(json.dumps(result, ensure_ascii=False, indent=2))
     elif args.command == "export-location-review":
-        from .location_verification import export_location_review
+        if args.status:
+            from .osm_review import export_osm_location_review
 
-        count = export_location_review(db_path, args.output, limit=args.limit)
+            count = export_osm_location_review(
+                db_path, args.output, status=args.status, limit=args.limit
+            )
+        else:
+            from .location_verification import export_location_review
+
+            count = export_location_review(db_path, args.output, limit=args.limit)
         print(json.dumps({"exported": count, "path": args.output}, indent=2))
     elif args.command == "import-verified-locations":
         from .location_verification import import_verified_locations
@@ -129,6 +207,86 @@ def main() -> None:
         from .location_verification import location_status
 
         print(json.dumps(location_status(db_path), indent=2))
+    elif args.command == "build-osm-index":
+        from .osm_index import OSMEncodingValidationError, build_osm_index
+
+        try:
+            result = build_osm_index(
+                args.pbf,
+                args.output,
+                max_suspicious_rate=args.max_suspicious_rate,
+                diagnostic_detail_limit=args.diagnostic_detail_limit,
+            )
+        except OSMEncodingValidationError as exc:
+            print(json.dumps(exc.report, ensure_ascii=False, indent=2))
+            raise SystemExit(2) from exc
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+    elif args.command == "resolve-osm-locations":
+        from .osm_resolver import resolve_osm_locations
+
+        result = resolve_osm_locations(
+            db_path, args.osm_index, limit=args.limit, place_id=args.place_id,
+            published_only=args.published_only, force=args.force, dry_run=args.dry_run,
+            output_report=args.output_report, threshold=args.threshold,
+            runner_up_margin=args.runner_up_margin, anchor_radius_km=args.anchor_radius_km,
+        )
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+    elif args.command == "import-location-review":
+        from .osm_review import import_osm_location_review
+
+        result = import_osm_location_review(db_path, args.input, dry_run=args.dry_run)
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        if result["validation_failures"]:
+            raise SystemExit(2)
+    elif args.command == "resolve-osm-anchors":
+        from .osm_anchors import resolve_osm_anchors
+
+        result = resolve_osm_anchors(args.osm_index, args.anchors, args.output)
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+    elif args.command == "audit-discovery-areas":
+        from .discovery_areas import MANIFEST_PATH, audit_discovery_areas
+
+        result = audit_discovery_areas(
+            args.source_dir,
+            args.public_csv,
+            manifest_path=args.manifest or MANIFEST_PATH,
+            report_path=args.report,
+        )
+        display = result
+        if args.report:
+            display = {
+                "source_files": len(result["source_files"]),
+                "source_rows": result["source_rows"],
+                "unique_source_place_ids": result["unique_source_place_ids"],
+                "multi_area_place_ids": len(result["multi_area_place_ids"]),
+                "public_rows": result["public_rows"],
+                "public_not_in_sources": len(result["public_not_in_sources"]),
+                "source_place_ids_not_in_public": len(
+                    result["source_place_ids_not_in_public"]
+                ),
+                "report": args.report,
+            }
+        print(json.dumps(display, ensure_ascii=False, indent=2))
+    elif args.command == "enrich-discovery-areas":
+        from .discovery_areas import MANIFEST_PATH, generate_enriched_public_csv
+
+        result = generate_enriched_public_csv(
+            args.source_dir,
+            args.input,
+            args.output,
+            manifest_path=args.manifest or MANIFEST_PATH,
+            report_path=args.report,
+        )
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+    elif args.command == "import-discovery-areas":
+        from .discovery_areas import import_discovery_areas
+
+        result = import_discovery_areas(
+            db_path, args.input, dry_run=args.dry_run, report_path=args.report
+        )
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        if result["validation_failures"]:
+            raise SystemExit(2)
     elif args.command == "list":
         print(
             json.dumps(

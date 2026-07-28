@@ -1,0 +1,1636 @@
+[
+  {
+    "place_id": "ChIJKdddfwDzGGAR1YfPayuwpFo",
+    "status": "unresolved",
+    "candidates": [
+      {
+        "osm_type": "way",
+        "osm_id": 228938543,
+        "osm_version": 3,
+        "osm_timestamp": "2017-11-27 17:06:59+00:00",
+        "name": "浜田家",
+        "alternate_names": [
+          "Hamadaya"
+        ],
+        "latitude": 35.68699541366932,
+        "longitude": 139.78228745665572,
+        "amenity": "restaurant",
+        "cuisine": null,
+        "address": {},
+        "total_score": 19.2,
+        "components": {
+          "exact_japanese_name": 0.0,
+          "exact_alternate_name": 0.0,
+          "exact_english_name": 0.0,
+          "neighborhood_agreement": 0.0,
+          "cuisine_agreement": 0.0,
+          "address_agreement": 0.0,
+          "fuzzy_name": 19.2,
+          "branch_ambiguity_penalty": 0.0,
+          "generic_name_penalty": 0.0,
+          "multiple_candidate_ambiguity_penalty": 0.0
+        },
+        "warnings": [
+          "neighborhood_not_confirmed",
+          "fuzzy_name_only"
+        ]
+      },
+      {
+        "osm_type": "way",
+        "osm_id": 601090753,
+        "osm_version": 1,
+        "osm_timestamp": "2018-06-23 15:16:06+00:00",
+        "name": "浜田屋",
+        "alternate_names": [
+          "Hamadaya"
+        ],
+        "latitude": 36.343747895480625,
+        "longitude": 140.452976564509,
+        "amenity": "fast_food",
+        "cuisine": "noodle",
+        "address": {},
+        "total_score": 19.2,
+        "components": {
+          "exact_japanese_name": 0.0,
+          "exact_alternate_name": 0.0,
+          "exact_english_name": 0.0,
+          "neighborhood_agreement": 0.0,
+          "cuisine_agreement": 0.0,
+          "address_agreement": 0.0,
+          "fuzzy_name": 19.2,
+          "branch_ambiguity_penalty": 0.0,
+          "generic_name_penalty": 0.0,
+          "multiple_candidate_ambiguity_penalty": 0.0
+        },
+        "warnings": [
+          "neighborhood_not_confirmed",
+          "fuzzy_name_only",
+          "outside_tokyo"
+        ]
+      },
+      {
+        "osm_type": "node",
+        "osm_id": 2558224746,
+        "osm_version": 7,
+        "osm_timestamp": "2026-07-14 15:01:27+00:00",
+        "name": "hamama cafe",
+        "alternate_names": [],
+        "latitude": 35.4327012,
+        "longitude": 139.4635205,
+        "amenity": "cafe",
+        "cuisine": null,
+        "address": {},
+        "total_score": 17.143,
+        "components": {
+          "exact_japanese_name": 0.0,
+          "exact_alternate_name": 0.0,
+          "exact_english_name": 0.0,
+          "neighborhood_agreement": 0.0,
+          "cuisine_agreement": 0.0,
+          "address_agreement": 0.0,
+          "fuzzy_name": 17.143,
+          "branch_ambiguity_penalty": 0.0,
+          "generic_name_penalty": 0.0,
+          "multiple_candidate_ambiguity_penalty": 0.0
+        },
+        "warnings": [
+          "neighborhood_not_confirmed",
+          "fuzzy_name_only"
+        ]
+      },
+      {
+        "osm_type": "node",
+        "osm_id": 13377887800,
+        "osm_version": 1,
+        "osm_timestamp": "2025-12-15 10:20:15+00:00",
+        "name": "HALAL WAGYU RAMEN",
+        "alternate_names": [],
+        "latitude": 35.7317275,
+        "longitude": 139.7094206,
+        "amenity": "restaurant",
+        "cuisine": "ramen",
+        "address": {},
+        "total_score": 15.882,
+        "components": {
+          "exact_japanese_name": 0.0,
+          "exact_alternate_name": 0.0,
+          "exact_english_name": 0.0,
+          "neighborhood_agreement": 0.0,
+          "cuisine_agreement": 0.0,
+          "address_agreement": 0.0,
+          "fuzzy_name": 15.882,
+          "branch_ambiguity_penalty": 0.0,
+          "generic_name_penalty": 0.0,
+          "multiple_candidate_ambiguity_penalty": 0.0
+        },
+        "warnings": [
+          "neighborhood_not_confirmed",
+          "fuzzy_name_only"
+        ]
+      },
+      {
+        "osm_type": "node",
+        "osm_id": 6205288815,
+        "osm_version": 1,
+        "osm_timestamp": "2019-01-13 12:16:37+00:00",
+        "name": "HAMASAN",
+        "alternate_names": [],
+        "latitude": 35.6710313,
+        "longitude": 139.6586006,
+        "amenity": "fast_food",
+        "cuisine": null,
+        "address": {},
+        "total_score": 15.0,
+        "components": {
+          "exact_japanese_name": 0.0,
+          "exact_alternate_name": 0.0,
+          "exact_english_name": 0.0,
+          "neighborhood_agreement": 0.0,
+          "cuisine_agreement": 0.0,
+          "address_agreement": 0.0,
+          "fuzzy_name": 15.0,
+          "branch_ambiguity_penalty": 0.0,
+          "generic_name_penalty": 0.0,
+          "multiple_candidate_ambiguity_penalty": 0.0
+        },
+        "warnings": [
+          "neighborhood_not_confirmed",
+          "fuzzy_name_only"
+        ]
+      }
+    ]
+  },
+  {
+    "place_id": "ChIJAZOKBEyPGGARWoSCCwgRm8E",
+    "status": "unresolved",
+    "candidates": [
+      {
+        "osm_type": "node",
+        "osm_id": 6583159386,
+        "osm_version": 3,
+        "osm_timestamp": "2023-03-20 20:12:58+00:00",
+        "name": "ATARAYO食堂",
+        "alternate_names": [],
+        "latitude": 35.4985079,
+        "longitude": 139.6326689,
+        "amenity": "bar",
+        "cuisine": null,
+        "address": {},
+        "total_score": 16.154,
+        "components": {
+          "exact_japanese_name": 0.0,
+          "exact_alternate_name": 0.0,
+          "exact_english_name": 0.0,
+          "neighborhood_agreement": 0.0,
+          "cuisine_agreement": 0.0,
+          "address_agreement": 0.0,
+          "fuzzy_name": 16.154,
+          "branch_ambiguity_penalty": 0.0,
+          "generic_name_penalty": 0.0,
+          "multiple_candidate_ambiguity_penalty": 0.0
+        },
+        "warnings": [
+          "neighborhood_not_confirmed",
+          "fuzzy_name_only"
+        ]
+      },
+      {
+        "osm_type": "node",
+        "osm_id": 7781371985,
+        "osm_version": 1,
+        "osm_timestamp": "2020-08-03 15:25:54+00:00",
+        "name": "atariya",
+        "alternate_names": [],
+        "latitude": 35.4646621,
+        "longitude": 139.5321364,
+        "amenity": "pub",
+        "cuisine": null,
+        "address": {},
+        "total_score": 12.5,
+        "components": {
+          "exact_japanese_name": 0.0,
+          "exact_alternate_name": 0.0,
+          "exact_english_name": 0.0,
+          "neighborhood_agreement": 0.0,
+          "cuisine_agreement": 0.0,
+          "address_agreement": 0.0,
+          "fuzzy_name": 12.5,
+          "branch_ambiguity_penalty": 0.0,
+          "generic_name_penalty": 0.0,
+          "multiple_candidate_ambiguity_penalty": 0.0
+        },
+        "warnings": [
+          "neighborhood_not_confirmed",
+          "fuzzy_name_only"
+        ]
+      },
+      {
+        "osm_type": "node",
+        "osm_id": 8816965964,
+        "osm_version": 1,
+        "osm_timestamp": "2021-06-09 09:55:58+00:00",
+        "name": "ATARIYA",
+        "alternate_names": [],
+        "latitude": 35.3807611,
+        "longitude": 139.9238931,
+        "amenity": "restaurant",
+        "cuisine": "noodle",
+        "address": {},
+        "total_score": 12.5,
+        "components": {
+          "exact_japanese_name": 0.0,
+          "exact_alternate_name": 0.0,
+          "exact_english_name": 0.0,
+          "neighborhood_agreement": 0.0,
+          "cuisine_agreement": 0.0,
+          "address_agreement": 0.0,
+          "fuzzy_name": 12.5,
+          "branch_ambiguity_penalty": 0.0,
+          "generic_name_penalty": 0.0,
+          "multiple_candidate_ambiguity_penalty": 0.0
+        },
+        "warnings": [
+          "neighborhood_not_confirmed",
+          "fuzzy_name_only"
+        ]
+      },
+      {
+        "osm_type": "node",
+        "osm_id": 8772825856,
+        "osm_version": 3,
+        "osm_timestamp": "2023-06-08 07:01:35+00:00",
+        "name": "atelier BASEL",
+        "alternate_names": [],
+        "latitude": 35.623058,
+        "longitude": 139.3759929,
+        "amenity": "cafe",
+        "cuisine": null,
+        "address": {},
+        "total_score": 12.0,
+        "components": {
+          "exact_japanese_name": 0.0,
+          "exact_alternate_name": 0.0,
+          "exact_english_name": 0.0,
+          "neighborhood_agreement": 0.0,
+          "cuisine_agreement": 0.0,
+          "address_agreement": 0.0,
+          "fuzzy_name": 12.0,
+          "branch_ambiguity_penalty": 0.0,
+          "generic_name_penalty": 0.0,
+          "multiple_candidate_ambiguity_penalty": 0.0
+        },
+        "warnings": [
+          "neighborhood_not_confirmed",
+          "fuzzy_name_only"
+        ]
+      },
+      {
+        "osm_type": "node",
+        "osm_id": 6312148801,
+        "osm_version": 3,
+        "osm_timestamp": "2024-06-24 06:47:25+00:00",
+        "name": "atri",
+        "alternate_names": [],
+        "latitude": 35.5480224,
+        "longitude": 139.4436614,
+        "amenity": "restaurant",
+        "cuisine": "italian",
+        "address": {
+          "addr:city": "町田市",
+          "addr:housenumber": "3",
+          "addr:neighbourhood": "1丁目",
+          "addr:postcode": "194-0021"
+        },
+        "total_score": 11.429,
+        "components": {
+          "exact_japanese_name": 0.0,
+          "exact_alternate_name": 0.0,
+          "exact_english_name": 0.0,
+          "neighborhood_agreement": 0.0,
+          "cuisine_agreement": 0.0,
+          "address_agreement": 0.0,
+          "fuzzy_name": 11.429,
+          "branch_ambiguity_penalty": 0.0,
+          "generic_name_penalty": 0.0,
+          "multiple_candidate_ambiguity_penalty": 0.0
+        },
+        "warnings": [
+          "neighborhood_not_confirmed",
+          "fuzzy_name_only"
+        ]
+      }
+    ]
+  },
+  {
+    "place_id": "ChIJt2QEWDmNGGARvJ5tMBSBCqI",
+    "status": "unresolved",
+    "candidates": [
+      {
+        "osm_type": "node",
+        "osm_id": 5029100721,
+        "osm_version": 2,
+        "osm_timestamp": "2021-12-18 16:49:59+00:00",
+        "name": "江戸ッ子寿司",
+        "alternate_names": [
+          "Edokko Sushi"
+        ],
+        "latitude": 35.7777805,
+        "longitude": 140.3161294,
+        "amenity": "restaurant",
+        "cuisine": null,
+        "address": {},
+        "total_score": 16.154,
+        "components": {
+          "exact_japanese_name": 0.0,
+          "exact_alternate_name": 0.0,
+          "exact_english_name": 0.0,
+          "neighborhood_agreement": 0.0,
+          "cuisine_agreement": 0.0,
+          "address_agreement": 0.0,
+          "fuzzy_name": 16.154,
+          "branch_ambiguity_penalty": 0.0,
+          "generic_name_penalty": 0.0,
+          "multiple_candidate_ambiguity_penalty": 0.0
+        },
+        "warnings": [
+          "neighborhood_not_confirmed",
+          "fuzzy_name_only",
+          "outside_tokyo"
+        ]
+      },
+      {
+        "osm_type": "node",
+        "osm_id": 6384929898,
+        "osm_version": 1,
+        "osm_timestamp": "2019-04-05 06:26:14+00:00",
+        "name": "江戸っ子寿司",
+        "alternate_names": [
+          "Edokko sushi"
+        ],
+        "latitude": 35.6490079,
+        "longitude": 139.7204971,
+        "amenity": "restaurant",
+        "cuisine": "japanese",
+        "address": {},
+        "total_score": 16.154,
+        "components": {
+          "exact_japanese_name": 0.0,
+          "exact_alternate_name": 0.0,
+          "exact_english_name": 0.0,
+          "neighborhood_agreement": 0.0,
+          "cuisine_agreement": 0.0,
+          "address_agreement": 0.0,
+          "fuzzy_name": 16.154,
+          "branch_ambiguity_penalty": 0.0,
+          "generic_name_penalty": 0.0,
+          "multiple_candidate_ambiguity_penalty": 0.0
+        },
+        "warnings": [
+          "neighborhood_not_confirmed",
+          "fuzzy_name_only"
+        ]
+      },
+      {
+        "osm_type": "node",
+        "osm_id": 6768848885,
+        "osm_version": 1,
+        "osm_timestamp": "2019-09-03 09:09:02+00:00",
+        "name": "江戸政寿司",
+        "alternate_names": [
+          "Edomasa Sushi"
+        ],
+        "latitude": 35.7957796,
+        "longitude": 139.5863217,
+        "amenity": "restaurant",
+        "cuisine": "japanese;sushi",
+        "address": {},
+        "total_score": 15.556,
+        "components": {
+          "exact_japanese_name": 0.0,
+          "exact_alternate_name": 0.0,
+          "exact_english_name": 0.0,
+          "neighborhood_agreement": 0.0,
+          "cuisine_agreement": 0.0,
+          "address_agreement": 0.0,
+          "fuzzy_name": 15.556,
+          "branch_ambiguity_penalty": 0.0,
+          "generic_name_penalty": 0.0,
+          "multiple_candidate_ambiguity_penalty": 0.0
+        },
+        "warnings": [
+          "neighborhood_not_confirmed",
+          "fuzzy_name_only"
+        ]
+      },
+      {
+        "osm_type": "node",
+        "osm_id": 5340062969,
+        "osm_version": 4,
+        "osm_timestamp": "2018-04-19 01:45:26+00:00",
+        "name": "江戸富士",
+        "alternate_names": [
+          "Edofuji"
+        ],
+        "latitude": 35.7040045,
+        "longitude": 139.7652861,
+        "amenity": "restaurant",
+        "cuisine": "sushi",
+        "address": {},
+        "total_score": 14.286,
+        "components": {
+          "exact_japanese_name": 0.0,
+          "exact_alternate_name": 0.0,
+          "exact_english_name": 0.0,
+          "neighborhood_agreement": 0.0,
+          "cuisine_agreement": 0.0,
+          "address_agreement": 0.0,
+          "fuzzy_name": 14.286,
+          "branch_ambiguity_penalty": 0.0,
+          "generic_name_penalty": 0.0,
+          "multiple_candidate_ambiguity_penalty": 0.0
+        },
+        "warnings": [
+          "neighborhood_not_confirmed",
+          "fuzzy_name_only"
+        ]
+      },
+      {
+        "osm_type": "node",
+        "osm_id": 4424563673,
+        "osm_version": 1,
+        "osm_timestamp": "2016-09-30 06:01:50+00:00",
+        "name": "江戸蕎麦 ほそ川",
+        "alternate_names": [
+          "Hosokawa"
+        ],
+        "latitude": 35.6967131,
+        "longitude": 139.7980232,
+        "amenity": "restaurant",
+        "cuisine": "soba",
+        "address": {},
+        "total_score": 13.636,
+        "components": {
+          "exact_japanese_name": 0.0,
+          "exact_alternate_name": 0.0,
+          "exact_english_name": 0.0,
+          "neighborhood_agreement": 0.0,
+          "cuisine_agreement": 0.0,
+          "address_agreement": 0.0,
+          "fuzzy_name": 13.636,
+          "branch_ambiguity_penalty": 0.0,
+          "generic_name_penalty": 0.0,
+          "multiple_candidate_ambiguity_penalty": 0.0
+        },
+        "warnings": [
+          "neighborhood_not_confirmed",
+          "fuzzy_name_only"
+        ]
+      }
+    ]
+  },
+  {
+    "place_id": "ChIJgcDV1tSPGGAReF32uFUaCb4",
+    "status": "unresolved",
+    "candidates": [
+      {
+        "osm_type": "node",
+        "osm_id": 11011378498,
+        "osm_version": 3,
+        "osm_timestamp": "2025-10-29 03:23:58+00:00",
+        "name": "Okinawan Food",
+        "alternate_names": [],
+        "latitude": 35.6405447,
+        "longitude": 139.6748601,
+        "amenity": "restaurant",
+        "cuisine": "japanese;okinawan",
+        "address": {},
+        "total_score": 16.667,
+        "components": {
+          "exact_japanese_name": 0.0,
+          "exact_alternate_name": 0.0,
+          "exact_english_name": 0.0,
+          "neighborhood_agreement": 0.0,
+          "cuisine_agreement": 0.0,
+          "address_agreement": 0.0,
+          "fuzzy_name": 16.667,
+          "branch_ambiguity_penalty": 0.0,
+          "generic_name_penalty": 0.0,
+          "multiple_candidate_ambiguity_penalty": 0.0
+        },
+        "warnings": [
+          "neighborhood_not_confirmed",
+          "fuzzy_name_only"
+        ]
+      },
+      {
+        "osm_type": "node",
+        "osm_id": 4841206726,
+        "osm_version": 1,
+        "osm_timestamp": "2017-05-08 08:26:08+00:00",
+        "name": "沖縄バル",
+        "alternate_names": [
+          "okinawabar"
+        ],
+        "latitude": 35.565782,
+        "longitude": 139.395974,
+        "amenity": "bar",
+        "cuisine": null,
+        "address": {},
+        "total_score": 16.364,
+        "components": {
+          "exact_japanese_name": 0.0,
+          "exact_alternate_name": 0.0,
+          "exact_english_name": 0.0,
+          "neighborhood_agreement": 0.0,
+          "cuisine_agreement": 0.0,
+          "address_agreement": 0.0,
+          "fuzzy_name": 16.364,
+          "branch_ambiguity_penalty": 0.0,
+          "generic_name_penalty": 0.0,
+          "multiple_candidate_ambiguity_penalty": 0.0
+        },
+        "warnings": [
+          "neighborhood_not_confirmed",
+          "fuzzy_name_only"
+        ]
+      },
+      {
+        "osm_type": "node",
+        "osm_id": 4972046262,
+        "osm_version": 1,
+        "osm_timestamp": "2017-07-15 11:34:36+00:00",
+        "name": "Okinawa bar kagura",
+        "alternate_names": [],
+        "latitude": 35.7022764,
+        "longitude": 139.7405536,
+        "amenity": "bar",
+        "cuisine": null,
+        "address": {},
+        "total_score": 16.098,
+        "components": {
+          "exact_japanese_name": 0.0,
+          "exact_alternate_name": 0.0,
+          "exact_english_name": 0.0,
+          "neighborhood_agreement": 0.0,
+          "cuisine_agreement": 0.0,
+          "address_agreement": 0.0,
+          "fuzzy_name": 16.098,
+          "branch_ambiguity_penalty": 0.0,
+          "generic_name_penalty": 0.0,
+          "multiple_candidate_ambiguity_penalty": 0.0
+        },
+        "warnings": [
+          "neighborhood_not_confirmed",
+          "fuzzy_name_only"
+        ]
+      },
+      {
+        "osm_type": "node",
+        "osm_id": 5450698980,
+        "osm_version": 1,
+        "osm_timestamp": "2018-03-03 11:19:05+00:00",
+        "name": "OKUSAWA FACTORY",
+        "alternate_names": [],
+        "latitude": 35.6021991,
+        "longitude": 139.6721345,
+        "amenity": "cafe",
+        "cuisine": null,
+        "address": {},
+        "total_score": 15.789,
+        "components": {
+          "exact_japanese_name": 0.0,
+          "exact_alternate_name": 0.0,
+          "exact_english_name": 0.0,
+          "neighborhood_agreement": 0.0,
+          "cuisine_agreement": 0.0,
+          "address_agreement": 0.0,
+          "fuzzy_name": 15.789,
+          "branch_ambiguity_penalty": 0.0,
+          "generic_name_penalty": 0.0,
+          "multiple_candidate_ambiguity_penalty": 0.0
+        },
+        "warnings": [
+          "neighborhood_not_confirmed",
+          "fuzzy_name_only"
+        ]
+      },
+      {
+        "osm_type": "node",
+        "osm_id": 5886798297,
+        "osm_version": 2,
+        "osm_timestamp": "2026-06-17 23:08:12+00:00",
+        "name": "沖縄きしみーる",
+        "alternate_names": [
+          "Okinawa Kishimiru"
+        ],
+        "latitude": 35.8611545,
+        "longitude": 139.8585484,
+        "amenity": "restaurant",
+        "cuisine": null,
+        "address": {
+          "addr:city": "三郷市",
+          "addr:housenumber": "15",
+          "addr:neighbourhood": "彦成三丁目",
+          "addr:postcode": "341-0003"
+        },
+        "total_score": 15.0,
+        "components": {
+          "exact_japanese_name": 0.0,
+          "exact_alternate_name": 0.0,
+          "exact_english_name": 0.0,
+          "neighborhood_agreement": 0.0,
+          "cuisine_agreement": 0.0,
+          "address_agreement": 0.0,
+          "fuzzy_name": 15.0,
+          "branch_ambiguity_penalty": 0.0,
+          "generic_name_penalty": 0.0,
+          "multiple_candidate_ambiguity_penalty": 0.0
+        },
+        "warnings": [
+          "neighborhood_not_confirmed",
+          "fuzzy_name_only"
+        ]
+      }
+    ]
+  },
+  {
+    "place_id": "ChIJQQNFIyCSGGAR3TBCyeHPLzc",
+    "status": "unresolved",
+    "candidates": [
+      {
+        "osm_type": "node",
+        "osm_id": 6637051482,
+        "osm_version": 1,
+        "osm_timestamp": "2019-07-22 10:20:58+00:00",
+        "name": "PIZZA HOUSE KEY WEST",
+        "alternate_names": [],
+        "latitude": 35.3044713,
+        "longitude": 139.5236219,
+        "amenity": "restaurant",
+        "cuisine": "pizza",
+        "address": {},
+        "total_score": 30.0,
+        "components": {
+          "exact_japanese_name": 0.0,
+          "exact_alternate_name": 0.0,
+          "exact_english_name": 0.0,
+          "neighborhood_agreement": 0.0,
+          "cuisine_agreement": 10.0,
+          "address_agreement": 0.0,
+          "fuzzy_name": 20.0,
+          "branch_ambiguity_penalty": 0.0,
+          "generic_name_penalty": 0.0,
+          "multiple_candidate_ambiguity_penalty": 0.0
+        },
+        "warnings": [
+          "neighborhood_not_confirmed",
+          "fuzzy_name_only"
+        ]
+      },
+      {
+        "osm_type": "node",
+        "osm_id": 765799886,
+        "osm_version": 6,
+        "osm_timestamp": "2021-07-03 21:49:22+00:00",
+        "name": "ピザハット",
+        "alternate_names": [
+          "Pizza Hut"
+        ],
+        "latitude": 35.6006677,
+        "longitude": 139.5095331,
+        "amenity": "fast_food",
+        "cuisine": "pizza",
+        "address": {},
+        "total_score": 29.286,
+        "components": {
+          "exact_japanese_name": 0.0,
+          "exact_alternate_name": 0.0,
+          "exact_english_name": 0.0,
+          "neighborhood_agreement": 0.0,
+          "cuisine_agreement": 10.0,
+          "address_agreement": 0.0,
+          "fuzzy_name": 19.286,
+          "branch_ambiguity_penalty": 0.0,
+          "generic_name_penalty": 0.0,
+          "multiple_candidate_ambiguity_penalty": 0.0
+        },
+        "warnings": [
+          "neighborhood_not_confirmed",
+          "fuzzy_name_only"
+        ]
+      },
+      {
+        "osm_type": "node",
+        "osm_id": 1808909285,
+        "osm_version": 3,
+        "osm_timestamp": "2025-04-12 14:09:07+00:00",
+        "name": "ピザハット",
+        "alternate_names": [
+          "Pizza Hut"
+        ],
+        "latitude": 35.4010815,
+        "longitude": 139.3140915,
+        "amenity": "fast_food",
+        "cuisine": "pizza",
+        "address": {},
+        "total_score": 29.286,
+        "components": {
+          "exact_japanese_name": 0.0,
+          "exact_alternate_name": 0.0,
+          "exact_english_name": 0.0,
+          "neighborhood_agreement": 0.0,
+          "cuisine_agreement": 10.0,
+          "address_agreement": 0.0,
+          "fuzzy_name": 19.286,
+          "branch_ambiguity_penalty": 0.0,
+          "generic_name_penalty": 0.0,
+          "multiple_candidate_ambiguity_penalty": 0.0
+        },
+        "warnings": [
+          "neighborhood_not_confirmed",
+          "fuzzy_name_only"
+        ]
+      },
+      {
+        "osm_type": "node",
+        "osm_id": 1897663058,
+        "osm_version": 6,
+        "osm_timestamp": "2023-11-27 11:36:16+00:00",
+        "name": "ピザハット",
+        "alternate_names": [
+          "Pizza Hut"
+        ],
+        "latitude": 35.9693235,
+        "longitude": 139.5815147,
+        "amenity": "fast_food",
+        "cuisine": "pizza",
+        "address": {},
+        "total_score": 29.286,
+        "components": {
+          "exact_japanese_name": 0.0,
+          "exact_alternate_name": 0.0,
+          "exact_english_name": 0.0,
+          "neighborhood_agreement": 0.0,
+          "cuisine_agreement": 10.0,
+          "address_agreement": 0.0,
+          "fuzzy_name": 19.286,
+          "branch_ambiguity_penalty": 0.0,
+          "generic_name_penalty": 0.0,
+          "multiple_candidate_ambiguity_penalty": 0.0
+        },
+        "warnings": [
+          "neighborhood_not_confirmed",
+          "fuzzy_name_only"
+        ]
+      },
+      {
+        "osm_type": "node",
+        "osm_id": 1931497644,
+        "osm_version": 5,
+        "osm_timestamp": "2025-11-17 02:56:37+00:00",
+        "name": "ピザハット",
+        "alternate_names": [
+          "Pizza Hut"
+        ],
+        "latitude": 35.6971315,
+        "longitude": 139.9808556,
+        "amenity": "fast_food",
+        "cuisine": "pizza",
+        "address": {},
+        "total_score": 29.286,
+        "components": {
+          "exact_japanese_name": 0.0,
+          "exact_alternate_name": 0.0,
+          "exact_english_name": 0.0,
+          "neighborhood_agreement": 0.0,
+          "cuisine_agreement": 10.0,
+          "address_agreement": 0.0,
+          "fuzzy_name": 19.286,
+          "branch_ambiguity_penalty": 0.0,
+          "generic_name_penalty": 0.0,
+          "multiple_candidate_ambiguity_penalty": 0.0
+        },
+        "warnings": [
+          "neighborhood_not_confirmed",
+          "fuzzy_name_only"
+        ]
+      }
+    ]
+  },
+  {
+    "place_id": "ChIJIY2OeomPGGARzAMEjKdavfQ",
+    "status": "unresolved",
+    "candidates": [
+      {
+        "osm_type": "node",
+        "osm_id": 11034234788,
+        "osm_version": 1,
+        "osm_timestamp": "2023-07-08 14:23:44+00:00",
+        "name": "楽亀",
+        "alternate_names": [
+          "Rakugame"
+        ],
+        "latitude": 35.7224206,
+        "longitude": 139.7870625,
+        "amenity": "fast_food",
+        "cuisine": "japanese",
+        "address": {},
+        "total_score": 25.0,
+        "components": {
+          "exact_japanese_name": 55.0,
+          "exact_alternate_name": 0.0,
+          "exact_english_name": 0.0,
+          "neighborhood_agreement": 0.0,
+          "cuisine_agreement": 0.0,
+          "address_agreement": 0.0,
+          "fuzzy_name": 0.0,
+          "branch_ambiguity_penalty": 0.0,
+          "generic_name_penalty": -30.0,
+          "multiple_candidate_ambiguity_penalty": 0.0
+        },
+        "warnings": [
+          "neighborhood_not_confirmed",
+          "generic_name"
+        ]
+      },
+      {
+        "osm_type": "node",
+        "osm_id": 9123428104,
+        "osm_version": 1,
+        "osm_timestamp": "2021-09-26 04:56:34+00:00",
+        "name": "Rakuya",
+        "alternate_names": [],
+        "latitude": 35.2575531,
+        "longitude": 139.6628379,
+        "amenity": "restaurant",
+        "cuisine": null,
+        "address": {},
+        "total_score": -8.571,
+        "components": {
+          "exact_japanese_name": 0.0,
+          "exact_alternate_name": 0.0,
+          "exact_english_name": 0.0,
+          "neighborhood_agreement": 0.0,
+          "cuisine_agreement": 0.0,
+          "address_agreement": 0.0,
+          "fuzzy_name": 21.429,
+          "branch_ambiguity_penalty": 0.0,
+          "generic_name_penalty": -30.0,
+          "multiple_candidate_ambiguity_penalty": 0.0
+        },
+        "warnings": [
+          "neighborhood_not_confirmed",
+          "fuzzy_name_only",
+          "generic_name"
+        ]
+      },
+      {
+        "osm_type": "node",
+        "osm_id": 13461369163,
+        "osm_version": 1,
+        "osm_timestamp": "2026-01-16 23:18:01+00:00",
+        "name": "RAKU",
+        "alternate_names": [],
+        "latitude": 35.8853031,
+        "longitude": 139.6391126,
+        "amenity": "restaurant",
+        "cuisine": "chinese",
+        "address": {},
+        "total_score": -10.0,
+        "components": {
+          "exact_japanese_name": 0.0,
+          "exact_alternate_name": 0.0,
+          "exact_english_name": 0.0,
+          "neighborhood_agreement": 0.0,
+          "cuisine_agreement": 0.0,
+          "address_agreement": 0.0,
+          "fuzzy_name": 20.0,
+          "branch_ambiguity_penalty": 0.0,
+          "generic_name_penalty": -30.0,
+          "multiple_candidate_ambiguity_penalty": 0.0
+        },
+        "warnings": [
+          "neighborhood_not_confirmed",
+          "fuzzy_name_only",
+          "generic_name"
+        ]
+      },
+      {
+        "osm_type": "node",
+        "osm_id": 8829084232,
+        "osm_version": 1,
+        "osm_timestamp": "2021-06-13 08:01:45+00:00",
+        "name": "Rakuraku",
+        "alternate_names": [
+          "楽楽"
+        ],
+        "latitude": 35.7312393,
+        "longitude": 139.7144383,
+        "amenity": "restaurant",
+        "cuisine": "chinese",
+        "address": {},
+        "total_score": -11.25,
+        "components": {
+          "exact_japanese_name": 0.0,
+          "exact_alternate_name": 0.0,
+          "exact_english_name": 0.0,
+          "neighborhood_agreement": 0.0,
+          "cuisine_agreement": 0.0,
+          "address_agreement": 0.0,
+          "fuzzy_name": 18.75,
+          "branch_ambiguity_penalty": 0.0,
+          "generic_name_penalty": -30.0,
+          "multiple_candidate_ambiguity_penalty": 0.0
+        },
+        "warnings": [
+          "neighborhood_not_confirmed",
+          "fuzzy_name_only",
+          "generic_name"
+        ]
+      },
+      {
+        "osm_type": "node",
+        "osm_id": 1975903746,
+        "osm_version": 2,
+        "osm_timestamp": "2023-10-31 07:36:44+00:00",
+        "name": "Ramen",
+        "alternate_names": [],
+        "latitude": 35.6408006,
+        "longitude": 139.674168,
+        "amenity": "restaurant",
+        "cuisine": "ramen",
+        "address": {},
+        "total_score": -11.538,
+        "components": {
+          "exact_japanese_name": 0.0,
+          "exact_alternate_name": 0.0,
+          "exact_english_name": 0.0,
+          "neighborhood_agreement": 0.0,
+          "cuisine_agreement": 0.0,
+          "address_agreement": 0.0,
+          "fuzzy_name": 18.462,
+          "branch_ambiguity_penalty": 0.0,
+          "generic_name_penalty": -30.0,
+          "multiple_candidate_ambiguity_penalty": 0.0
+        },
+        "warnings": [
+          "neighborhood_not_confirmed",
+          "fuzzy_name_only",
+          "generic_name"
+        ]
+      }
+    ]
+  },
+  {
+    "place_id": "ChIJS0AbdiuJGGARvFcr_eLL3PU",
+    "status": "unresolved",
+    "candidates": [
+      {
+        "osm_type": "node",
+        "osm_id": 4674410191,
+        "osm_version": 2,
+        "osm_timestamp": "2017-02-16 11:53:16+00:00",
+        "name": "寿司富",
+        "alternate_names": [
+          "Sushi Tomi"
+        ],
+        "latitude": 35.6920681,
+        "longitude": 139.7797109,
+        "amenity": "restaurant",
+        "cuisine": "sushi",
+        "address": {},
+        "total_score": 30.769,
+        "components": {
+          "exact_japanese_name": 0.0,
+          "exact_alternate_name": 0.0,
+          "exact_english_name": 0.0,
+          "neighborhood_agreement": 0.0,
+          "cuisine_agreement": 10.0,
+          "address_agreement": 0.0,
+          "fuzzy_name": 20.769,
+          "branch_ambiguity_penalty": 0.0,
+          "generic_name_penalty": 0.0,
+          "multiple_candidate_ambiguity_penalty": 0.0
+        },
+        "warnings": [
+          "neighborhood_not_confirmed",
+          "fuzzy_name_only"
+        ]
+      },
+      {
+        "osm_type": "node",
+        "osm_id": 10740684870,
+        "osm_version": 1,
+        "osm_timestamp": "2023-03-17 07:30:00+00:00",
+        "name": "SUSHI SUMIBI",
+        "alternate_names": [
+          "スシスミビ"
+        ],
+        "latitude": 35.6434366,
+        "longitude": 139.6724741,
+        "amenity": "restaurant",
+        "cuisine": "sushi",
+        "address": {},
+        "total_score": 29.286,
+        "components": {
+          "exact_japanese_name": 0.0,
+          "exact_alternate_name": 0.0,
+          "exact_english_name": 0.0,
+          "neighborhood_agreement": 0.0,
+          "cuisine_agreement": 10.0,
+          "address_agreement": 0.0,
+          "fuzzy_name": 19.286,
+          "branch_ambiguity_penalty": 0.0,
+          "generic_name_penalty": 0.0,
+          "multiple_candidate_ambiguity_penalty": 0.0
+        },
+        "warnings": [
+          "neighborhood_not_confirmed",
+          "fuzzy_name_only"
+        ]
+      },
+      {
+        "osm_type": "node",
+        "osm_id": 11816171740,
+        "osm_version": 2,
+        "osm_timestamp": "2025-08-03 08:05:04+00:00",
+        "name": "寿司割烹 喜成",
+        "alternate_names": [
+          "Sushi Kinari"
+        ],
+        "latitude": 35.693819,
+        "longitude": 139.8127408,
+        "amenity": "restaurant",
+        "cuisine": "sushi",
+        "address": {},
+        "total_score": 29.286,
+        "components": {
+          "exact_japanese_name": 0.0,
+          "exact_alternate_name": 0.0,
+          "exact_english_name": 0.0,
+          "neighborhood_agreement": 0.0,
+          "cuisine_agreement": 10.0,
+          "address_agreement": 0.0,
+          "fuzzy_name": 19.286,
+          "branch_ambiguity_penalty": 0.0,
+          "generic_name_penalty": 0.0,
+          "multiple_candidate_ambiguity_penalty": 0.0
+        },
+        "warnings": [
+          "neighborhood_not_confirmed",
+          "fuzzy_name_only"
+        ]
+      },
+      {
+        "osm_type": "node",
+        "osm_id": 7108869687,
+        "osm_version": 2,
+        "osm_timestamp": "2025-08-31 10:02:05+00:00",
+        "name": "寿司大",
+        "alternate_names": [
+          "Sushi Dai"
+        ],
+        "latitude": 35.6444832,
+        "longitude": 139.7820936,
+        "amenity": "restaurant",
+        "cuisine": "sushi",
+        "address": {},
+        "total_score": 29.2,
+        "components": {
+          "exact_japanese_name": 0.0,
+          "exact_alternate_name": 0.0,
+          "exact_english_name": 0.0,
+          "neighborhood_agreement": 0.0,
+          "cuisine_agreement": 10.0,
+          "address_agreement": 0.0,
+          "fuzzy_name": 19.2,
+          "branch_ambiguity_penalty": 0.0,
+          "generic_name_penalty": 0.0,
+          "multiple_candidate_ambiguity_penalty": 0.0
+        },
+        "warnings": [
+          "neighborhood_not_confirmed",
+          "fuzzy_name_only"
+        ]
+      },
+      {
+        "osm_type": "node",
+        "osm_id": 4200247047,
+        "osm_version": 2,
+        "osm_timestamp": "2025-10-19 09:57:57+00:00",
+        "name": "寿司 元",
+        "alternate_names": [
+          "Sushi Moto"
+        ],
+        "latitude": 35.1419725,
+        "longitude": 139.6255215,
+        "amenity": "restaurant",
+        "cuisine": "sushi",
+        "address": {},
+        "total_score": 28.462,
+        "components": {
+          "exact_japanese_name": 0.0,
+          "exact_alternate_name": 0.0,
+          "exact_english_name": 0.0,
+          "neighborhood_agreement": 0.0,
+          "cuisine_agreement": 10.0,
+          "address_agreement": 0.0,
+          "fuzzy_name": 18.462,
+          "branch_ambiguity_penalty": 0.0,
+          "generic_name_penalty": 0.0,
+          "multiple_candidate_ambiguity_penalty": 0.0
+        },
+        "warnings": [
+          "neighborhood_not_confirmed",
+          "fuzzy_name_only"
+        ]
+      }
+    ]
+  },
+  {
+    "place_id": "ChIJ6d8N8dntGGARoNUj9Kt2QcI",
+    "status": "unresolved",
+    "candidates": [
+      {
+        "osm_type": "node",
+        "osm_id": 1937888309,
+        "osm_version": 2,
+        "osm_timestamp": "2021-01-29 16:22:51+00:00",
+        "name": "Yuzuki",
+        "alternate_names": [],
+        "latitude": 35.6149853,
+        "longitude": 139.539989,
+        "amenity": "pub",
+        "cuisine": null,
+        "address": {},
+        "total_score": 0.0,
+        "components": {
+          "exact_japanese_name": 0.0,
+          "exact_alternate_name": 0.0,
+          "exact_english_name": 0.0,
+          "neighborhood_agreement": 0.0,
+          "cuisine_agreement": 0.0,
+          "address_agreement": 0.0,
+          "fuzzy_name": 0.0,
+          "branch_ambiguity_penalty": 0.0,
+          "generic_name_penalty": 0.0,
+          "multiple_candidate_ambiguity_penalty": 0.0
+        },
+        "warnings": [
+          "neighborhood_not_confirmed",
+          "fuzzy_name_only"
+        ]
+      },
+      {
+        "osm_type": "node",
+        "osm_id": 2131822626,
+        "osm_version": 1,
+        "osm_timestamp": "2013-01-28 04:58:25+00:00",
+        "name": "yuen",
+        "alternate_names": [],
+        "latitude": 35.619478,
+        "longitude": 139.727285,
+        "amenity": "restaurant",
+        "cuisine": "chinese",
+        "address": {},
+        "total_score": 0.0,
+        "components": {
+          "exact_japanese_name": 0.0,
+          "exact_alternate_name": 0.0,
+          "exact_english_name": 0.0,
+          "neighborhood_agreement": 0.0,
+          "cuisine_agreement": 0.0,
+          "address_agreement": 0.0,
+          "fuzzy_name": 0.0,
+          "branch_ambiguity_penalty": 0.0,
+          "generic_name_penalty": 0.0,
+          "multiple_candidate_ambiguity_penalty": 0.0
+        },
+        "warnings": [
+          "neighborhood_not_confirmed",
+          "fuzzy_name_only"
+        ]
+      },
+      {
+        "osm_type": "node",
+        "osm_id": 2319175109,
+        "osm_version": 2,
+        "osm_timestamp": "2016-07-25 23:10:57+00:00",
+        "name": "Yuihan",
+        "alternate_names": [],
+        "latitude": 35.688693,
+        "longitude": 139.995015,
+        "amenity": "restaurant",
+        "cuisine": "italian",
+        "address": {},
+        "total_score": 0.0,
+        "components": {
+          "exact_japanese_name": 0.0,
+          "exact_alternate_name": 0.0,
+          "exact_english_name": 0.0,
+          "neighborhood_agreement": 0.0,
+          "cuisine_agreement": 0.0,
+          "address_agreement": 0.0,
+          "fuzzy_name": 0.0,
+          "branch_ambiguity_penalty": 0.0,
+          "generic_name_penalty": 0.0,
+          "multiple_candidate_ambiguity_penalty": 0.0
+        },
+        "warnings": [
+          "neighborhood_not_confirmed",
+          "fuzzy_name_only"
+        ]
+      },
+      {
+        "osm_type": "node",
+        "osm_id": 5601192772,
+        "osm_version": 1,
+        "osm_timestamp": "2018-05-07 05:06:53+00:00",
+        "name": "yuoo",
+        "alternate_names": [],
+        "latitude": 35.7380403,
+        "longitude": 139.6590532,
+        "amenity": "bar",
+        "cuisine": null,
+        "address": {},
+        "total_score": 0.0,
+        "components": {
+          "exact_japanese_name": 0.0,
+          "exact_alternate_name": 0.0,
+          "exact_english_name": 0.0,
+          "neighborhood_agreement": 0.0,
+          "cuisine_agreement": 0.0,
+          "address_agreement": 0.0,
+          "fuzzy_name": 0.0,
+          "branch_ambiguity_penalty": 0.0,
+          "generic_name_penalty": 0.0,
+          "multiple_candidate_ambiguity_penalty": 0.0
+        },
+        "warnings": [
+          "neighborhood_not_confirmed",
+          "fuzzy_name_only"
+        ]
+      },
+      {
+        "osm_type": "node",
+        "osm_id": 5645336822,
+        "osm_version": 2,
+        "osm_timestamp": "2023-04-13 01:49:40+00:00",
+        "name": "Yu Me one coffee",
+        "alternate_names": [],
+        "latitude": 35.7120342,
+        "longitude": 139.7937638,
+        "amenity": "cafe",
+        "cuisine": null,
+        "address": {},
+        "total_score": 0.0,
+        "components": {
+          "exact_japanese_name": 0.0,
+          "exact_alternate_name": 0.0,
+          "exact_english_name": 0.0,
+          "neighborhood_agreement": 0.0,
+          "cuisine_agreement": 0.0,
+          "address_agreement": 0.0,
+          "fuzzy_name": 0.0,
+          "branch_ambiguity_penalty": 0.0,
+          "generic_name_penalty": 0.0,
+          "multiple_candidate_ambiguity_penalty": 0.0
+        },
+        "warnings": [
+          "neighborhood_not_confirmed",
+          "fuzzy_name_only"
+        ]
+      }
+    ]
+  },
+  {
+    "place_id": "ChIJIxdui16LGGAR6dA-SGEjgjs",
+    "status": "unresolved",
+    "candidates": [
+      {
+        "osm_type": "node",
+        "osm_id": 5007324259,
+        "osm_version": 3,
+        "osm_timestamp": "2017-10-07 15:53:48+00:00",
+        "name": "すし源",
+        "alternate_names": [
+          "Sushi-gen"
+        ],
+        "latitude": 35.7074811,
+        "longitude": 139.7738653,
+        "amenity": "restaurant",
+        "cuisine": "sushi",
+        "address": {},
+        "total_score": 24.706,
+        "components": {
+          "exact_japanese_name": 0.0,
+          "exact_alternate_name": 0.0,
+          "exact_english_name": 0.0,
+          "neighborhood_agreement": 0.0,
+          "cuisine_agreement": 0.0,
+          "address_agreement": 0.0,
+          "fuzzy_name": 24.706,
+          "branch_ambiguity_penalty": 0.0,
+          "generic_name_penalty": 0.0,
+          "multiple_candidate_ambiguity_penalty": 0.0
+        },
+        "warnings": [
+          "neighborhood_not_confirmed",
+          "fuzzy_name_only"
+        ]
+      },
+      {
+        "osm_type": "node",
+        "osm_id": 1231861278,
+        "osm_version": 4,
+        "osm_timestamp": "2016-06-03 13:41:28+00:00",
+        "name": "すし栄",
+        "alternate_names": [
+          "Sushi-Ei"
+        ],
+        "latitude": 35.6951728,
+        "longitude": 139.7705228,
+        "amenity": "restaurant",
+        "cuisine": null,
+        "address": {},
+        "total_score": 22.5,
+        "components": {
+          "exact_japanese_name": 0.0,
+          "exact_alternate_name": 0.0,
+          "exact_english_name": 0.0,
+          "neighborhood_agreement": 0.0,
+          "cuisine_agreement": 0.0,
+          "address_agreement": 0.0,
+          "fuzzy_name": 22.5,
+          "branch_ambiguity_penalty": 0.0,
+          "generic_name_penalty": 0.0,
+          "multiple_candidate_ambiguity_penalty": 0.0
+        },
+        "warnings": [
+          "neighborhood_not_confirmed",
+          "fuzzy_name_only"
+        ]
+      },
+      {
+        "osm_type": "node",
+        "osm_id": 1650479482,
+        "osm_version": 4,
+        "osm_timestamp": "2024-11-11 23:54:20+00:00",
+        "name": "すしざんまい",
+        "alternate_names": [
+          "Sushizanmai"
+        ],
+        "latitude": 35.6611396,
+        "longitude": 139.6966985,
+        "amenity": "restaurant",
+        "cuisine": null,
+        "address": {},
+        "total_score": 22.105,
+        "components": {
+          "exact_japanese_name": 0.0,
+          "exact_alternate_name": 0.0,
+          "exact_english_name": 0.0,
+          "neighborhood_agreement": 0.0,
+          "cuisine_agreement": 0.0,
+          "address_agreement": 0.0,
+          "fuzzy_name": 22.105,
+          "branch_ambiguity_penalty": 0.0,
+          "generic_name_penalty": 0.0,
+          "multiple_candidate_ambiguity_penalty": 0.0
+        },
+        "warnings": [
+          "neighborhood_not_confirmed",
+          "fuzzy_name_only"
+        ]
+      },
+      {
+        "osm_type": "node",
+        "osm_id": 2018089659,
+        "osm_version": 2,
+        "osm_timestamp": "2016-10-19 22:24:30+00:00",
+        "name": "すしざんまい",
+        "alternate_names": [
+          "Sushizanmai"
+        ],
+        "latitude": 35.6693269,
+        "longitude": 139.7601251,
+        "amenity": "restaurant",
+        "cuisine": "sushi",
+        "address": {},
+        "total_score": 22.105,
+        "components": {
+          "exact_japanese_name": 0.0,
+          "exact_alternate_name": 0.0,
+          "exact_english_name": 0.0,
+          "neighborhood_agreement": 0.0,
+          "cuisine_agreement": 0.0,
+          "address_agreement": 0.0,
+          "fuzzy_name": 22.105,
+          "branch_ambiguity_penalty": 0.0,
+          "generic_name_penalty": 0.0,
+          "multiple_candidate_ambiguity_penalty": 0.0
+        },
+        "warnings": [
+          "neighborhood_not_confirmed",
+          "fuzzy_name_only"
+        ]
+      },
+      {
+        "osm_type": "node",
+        "osm_id": 2425448051,
+        "osm_version": 5,
+        "osm_timestamp": "2024-01-19 08:51:15+00:00",
+        "name": "すしざんまい",
+        "alternate_names": [
+          "Sushizanmai"
+        ],
+        "latitude": 35.7047075,
+        "longitude": 139.6495126,
+        "amenity": "restaurant",
+        "cuisine": "sushi",
+        "address": {},
+        "total_score": 22.105,
+        "components": {
+          "exact_japanese_name": 0.0,
+          "exact_alternate_name": 0.0,
+          "exact_english_name": 0.0,
+          "neighborhood_agreement": 0.0,
+          "cuisine_agreement": 0.0,
+          "address_agreement": 0.0,
+          "fuzzy_name": 22.105,
+          "branch_ambiguity_penalty": 0.0,
+          "generic_name_penalty": 0.0,
+          "multiple_candidate_ambiguity_penalty": 0.0
+        },
+        "warnings": [
+          "neighborhood_not_confirmed",
+          "fuzzy_name_only"
+        ]
+      }
+    ]
+  },
+  {
+    "place_id": "ChIJ2WzWhfWPGGARyYQS7SD2tIM",
+    "status": "needs_manual_review",
+    "candidates": [
+      {
+        "osm_type": "node",
+        "osm_id": 9175842396,
+        "osm_version": 1,
+        "osm_timestamp": "2021-10-16 04:10:17+00:00",
+        "name": "金すし",
+        "alternate_names": [],
+        "latitude": 35.724271,
+        "longitude": 139.7959175,
+        "amenity": "restaurant",
+        "cuisine": "sushi",
+        "address": {},
+        "total_score": 55.0,
+        "components": {
+          "exact_japanese_name": 55.0,
+          "exact_alternate_name": 0.0,
+          "exact_english_name": 0.0,
+          "neighborhood_agreement": 0.0,
+          "cuisine_agreement": 0.0,
+          "address_agreement": 0.0,
+          "fuzzy_name": 0.0,
+          "branch_ambiguity_penalty": 0.0,
+          "generic_name_penalty": 0.0,
+          "multiple_candidate_ambiguity_penalty": 0.0
+        },
+        "warnings": [
+          "neighborhood_not_confirmed"
+        ]
+      },
+      {
+        "osm_type": "node",
+        "osm_id": 13233817362,
+        "osm_version": 1,
+        "osm_timestamp": "2025-10-15 01:26:34+00:00",
+        "name": "king & jessie",
+        "alternate_names": [],
+        "latitude": 35.6179412,
+        "longitude": 139.5640093,
+        "amenity": "restaurant",
+        "cuisine": "curry",
+        "address": {
+          "addr:housenumber": "2092",
+          "addr:neighbourhood": "登戸",
+          "addr:suburb": "多摩区"
+        },
+        "total_score": 19.091,
+        "components": {
+          "exact_japanese_name": 0.0,
+          "exact_alternate_name": 0.0,
+          "exact_english_name": 0.0,
+          "neighborhood_agreement": 0.0,
+          "cuisine_agreement": 0.0,
+          "address_agreement": 0.0,
+          "fuzzy_name": 19.091,
+          "branch_ambiguity_penalty": 0.0,
+          "generic_name_penalty": 0.0,
+          "multiple_candidate_ambiguity_penalty": 0.0
+        },
+        "warnings": [
+          "neighborhood_not_confirmed",
+          "fuzzy_name_only"
+        ]
+      },
+      {
+        "osm_type": "node",
+        "osm_id": 13567083894,
+        "osm_version": 1,
+        "osm_timestamp": "2026-02-15 16:44:08+00:00",
+        "name": "Kikusui",
+        "alternate_names": [],
+        "latitude": 35.6700282,
+        "longitude": 139.7635263,
+        "amenity": "cafe",
+        "cuisine": null,
+        "address": {},
+        "total_score": 18.75,
+        "components": {
+          "exact_japanese_name": 0.0,
+          "exact_alternate_name": 0.0,
+          "exact_english_name": 0.0,
+          "neighborhood_agreement": 0.0,
+          "cuisine_agreement": 0.0,
+          "address_agreement": 0.0,
+          "fuzzy_name": 18.75,
+          "branch_ambiguity_penalty": 0.0,
+          "generic_name_penalty": 0.0,
+          "multiple_candidate_ambiguity_penalty": 0.0
+        },
+        "warnings": [
+          "neighborhood_not_confirmed",
+          "fuzzy_name_only"
+        ]
+      },
+      {
+        "osm_type": "node",
+        "osm_id": 2420623862,
+        "osm_version": 1,
+        "osm_timestamp": "2013-08-16 09:51:46+00:00",
+        "name": "Kings Cross",
+        "alternate_names": [],
+        "latitude": 35.723073,
+        "longitude": 139.417723,
+        "amenity": "pub",
+        "cuisine": null,
+        "address": {},
+        "total_score": 18.0,
+        "components": {
+          "exact_japanese_name": 0.0,
+          "exact_alternate_name": 0.0,
+          "exact_english_name": 0.0,
+          "neighborhood_agreement": 0.0,
+          "cuisine_agreement": 0.0,
+          "address_agreement": 0.0,
+          "fuzzy_name": 18.0,
+          "branch_ambiguity_penalty": 0.0,
+          "generic_name_penalty": 0.0,
+          "multiple_candidate_ambiguity_penalty": 0.0
+        },
+        "warnings": [
+          "neighborhood_not_confirmed",
+          "fuzzy_name_only"
+        ]
+      },
+      {
+        "osm_type": "node",
+        "osm_id": 12619981459,
+        "osm_version": 2,
+        "osm_timestamp": "2026-01-04 04:08:55+00:00",
+        "name": "KING PHO",
+        "alternate_names": [],
+        "latitude": 36.0913287,
+        "longitude": 140.1115034,
+        "amenity": "restaurant",
+        "cuisine": "vietnamese",
+        "address": {
+          "addr:city": "つくば市",
+          "addr:housenumber": "7",
+          "addr:neighbourhood": "天久保一丁目"
+        },
+        "total_score": 17.647,
+        "components": {
+          "exact_japanese_name": 0.0,
+          "exact_alternate_name": 0.0,
+          "exact_english_name": 0.0,
+          "neighborhood_agreement": 0.0,
+          "cuisine_agreement": 0.0,
+          "address_agreement": 0.0,
+          "fuzzy_name": 17.647,
+          "branch_ambiguity_penalty": 0.0,
+          "generic_name_penalty": 0.0,
+          "multiple_candidate_ambiguity_penalty": 0.0
+        },
+        "warnings": [
+          "neighborhood_not_confirmed",
+          "fuzzy_name_only",
+          "outside_tokyo"
+        ]
+      }
+    ]
+  }
+]

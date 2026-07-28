@@ -15,6 +15,7 @@ dependencies = [
   "openai>=1.68,<3",
   "pydantic>=2.7,<3",
   "python-dotenv>=1,<2",
+  "osmium>=4,<5",
 ]
 
 [project.optional-dependencies]
@@ -34,7 +35,7 @@ package-dir = {"" = "src"}
 where = ["src"]
 
 [tool.setuptools.package-data]
-fiyu = ["location_anchors.json"]
+fiyu = ["location_anchors.json", "discovery_area_sources.json"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

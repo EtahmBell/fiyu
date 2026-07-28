@@ -231,7 +231,7 @@ def import_verified_locations(
     }
 
 
-def location_status(db_path: str | Path) -> dict[str, int]:
+def location_status(db_path: str | Path) -> dict[str, object]:
     ensure_public_schema(db_path)
     with connect(db_path) as connection:
         row = connection.execute(
@@ -256,6 +256,27 @@ def location_status(db_path: str | Path) -> dict[str, int]:
             """
         ).fetchone()
     anchors = anchor_review_status()
+    with connect(db_path) as connection:
+        status_rows = connection.execute(
+            """
+            SELECT location_verification_status, COUNT(*) AS count
+            FROM public_restaurants WHERE is_published = 1
+            GROUP BY location_verification_status
+            """
+        ).fetchall()
+        precision_rows = connection.execute(
+            """
+            SELECT location_precision, COUNT(*) AS count FROM public_restaurants
+            WHERE map_display_eligible = 1 GROUP BY location_precision
+            """
+        ).fetchall()
+        source_rows = connection.execute(
+            """
+            SELECT location_source, COUNT(*) AS count FROM public_restaurants
+            WHERE map_display_eligible = 1 GROUP BY location_source
+            """
+        ).fetchall()
+    statuses = {str(item["location_verification_status"]): int(item["count"]) for item in status_rows}
     return {
         "published_restaurants": int(row["published"] or 0),
         "map_eligible_restaurants": int(row["eligible"] or 0),
@@ -264,4 +285,16 @@ def location_status(db_path: str | Path) -> dict[str, int]:
         "reviewed_anchors": anchors["reviewed"],
         "unreviewed_anchors": anchors["unreviewed"],
         "validation_failures": int(row["failures"] or 0) + anchors["failures"],
+        "osm_auto_verified_restaurants": statuses.get("osm_auto_verified", 0),
+        "manually_verified_restaurants": statuses.get("manually_verified", 0),
+        "needs_review_restaurants": statuses.get("needs_manual_review", 0),
+        "unresolved_restaurants": statuses.get("unresolved", 0),
+        "precision_distribution": {
+            str(item["location_precision"] or "unknown"): int(item["count"])
+            for item in precision_rows
+        },
+        "source_distribution": {
+            str(item["location_source"] or "unknown"): int(item["count"])
+            for item in source_rows
+        },
     }

@@ -4,6 +4,7 @@ openpyxl<4,>=3.1
 openai<3,>=1.68
 pydantic<3,>=2.7
 python-dotenv<2,>=1
+osmium<5,>=4
 
 [dev]
 pytest<9,>=8

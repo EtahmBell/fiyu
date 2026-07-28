@@ -20,6 +20,7 @@ from .google_places import (
     get_place_photos,
 )
 from .location_anchors import load_location_anchors
+from .osm_index import OSM_ATTRIBUTION
 from .public_catalog import get_public_restaurant, list_published_restaurants
 from .utils import haversine_km
 
@@ -66,6 +67,11 @@ class PublicRestaurantSummary(BaseModel):
     score_type: str = "editorial_research"
     food_tags: list[str] = Field(default_factory=list)
     signature_dishes: list[str] = Field(default_factory=list)
+    discovery_area: str | None = None
+    discovery_area_type: str | None = None
+    discovery_areas: list[dict[str, object]] = Field(default_factory=list)
+    multiple_discovery_areas: bool = False
+    discovery_area_conflict: bool = False
     location_precision: str | None = None
     map_display_eligible: bool = False
     community_recommendation_count: int = 0
@@ -171,6 +177,11 @@ def public_restaurant_photos(
 @app.get("/public/location-anchors", response_model=list[LocationAnchorResponse])
 def public_location_anchors() -> list[dict[str, object]]:
     return load_location_anchors()
+
+
+@app.get("/public/map-config")
+def public_map_config() -> dict[str, str]:
+    return {"attribution": OSM_ATTRIBUTION}
 
 
 @app.get("/health")

@@ -268,6 +268,195 @@ blank rather than invented. A reviewed anchor requires coordinates, independent 
 valid reviewed entries are exposed by `GET /public/location-anchors`. The endpoint accepts no user
 location, and Fiyu does not store a user's current location for this feature.
 
+### Phase 1: local OpenStreetMap resolution
+
+Fiyu resolves only published restaurants against a user-supplied local Kantō OpenStreetMap extract.
+Obtain a current `.osm.pbf` from an OSM extract provider such as Geofabrik, review its terms and
+coverage, and keep it outside version control. Fiyu does not download extracts automatically and
+does not call public Nominatim.
+
+Install the project dependencies before indexing. The `osmium` Python package streams nodes, ways,
+and multipolygon relations and uses disk-backed node-location storage; the application never loads
+the full PBF into its own object list.
+
+Build a separate, replace-safe index:
+
+```bash
+python -m fiyu.public_cli build-osm-index \
+  --pbf PATH_TO_KANTO_OSM_PBF \
+  --output data/osm_kanto_locations.sqlite
+```
+
+The index contains only food-service and station objects, compact matching tags, representative
+points, OSM version/timestamp provenance, and the OSM attribution identifier. Polygon and
+multipolygon POIs use a centroid representative point rather than an arbitrary vertex. The builder
+writes a temporary SQLite file and atomically replaces the destination only after success.
+
+The builder treats Pyosmium tag keys and values as Unicode Python strings and performs no codec
+repair or Latin-1/UTF-8 round-trip. It reports counts for Japanese text, Unicode replacement
+characters, and likely mojibake. Replacement characters always fail the build. A likely-mojibake
+rate above the conservative default of `0.001` (one object per thousand) also fails; isolated
+suspicious source objects below that rate are quarantined with a prominent warning. The threshold
+is configurable with `--max-suspicious-rate`, and report detail is capped with
+`--diagnostic-detail-limit` (default 50). These are index-integrity controls, not resolver matching
+thresholds.
+
+Every build writes `OUTPUT_STEM.encoding-report.json` with UTF-8 object-level diagnostics: the raw
+tag value, code points, matched heuristic, alternate names, Japanese-text status, and any
+diagnostic-only Latin-1/cp1252 interpretation. Diagnostic interpretations never rewrite source
+data. The report also records counts, percentage, quarantine count, and whether the build
+succeeded, warned, or failed. A corrupted index must be rebuilt from the original PBF; records are
+never repaired heuristically.
+
+Indexes built before this validation was added—including `C:\data\osm\fiyu-kanto-index.sqlite`—must
+not be reused. Rebuild them from the original `.osm.pbf`; do not attempt in-place text repair.
+
+Resolve published restaurants without writing first:
+
+```bash
+python -m fiyu.public_cli --db PATH resolve-osm-locations \
+  --osm-index data/osm_kanto_locations.sqlite \
+  --limit 50 --dry-run \
+  --output-report data/osm_resolution_report.json
+```
+
+After inspecting the report, persist conservative exact matches and the ambiguous review queue:
+
+```bash
+python -m fiyu.public_cli --db PATH resolve-osm-locations \
+  --osm-index data/osm_kanto_locations.sqlite --limit 50
+```
+
+Optional resolver controls include `--place-id`, `--force`, `--no-published-only`, `--threshold`,
+and `--runner-up-margin`. Existing Google-derived or unknown coordinates and addresses are never
+used as hints. Fuzzy, generic, branch-ambiguous, multi-candidate, neighborhood-conflicting, or
+out-of-Tokyo results remain map-ineligible.
+
+`--output-report` must end in `.json` or `.csv`. JSON is written as readable UTF-8 with Japanese
+characters unescaped; `.csv` produces actual UTF-8 CSV rather than JSON with a misleading extension.
+
+Export ambiguous OSM candidates:
+
+```bash
+python -m fiyu.public_cli --db PATH export-location-review \
+  --output data/osm_location_review.csv \
+  --status needs_manual_review --limit 100
+```
+
+Set one decision (`approve`, `reject`, or `unresolved`) per restaurant, then validate and import:
+
+```bash
+python -m fiyu.public_cli --db PATH import-location-review \
+  --input data/osm_location_review.csv --dry-run
+
+python -m fiyu.public_cli --db PATH import-location-review \
+  --input data/osm_location_review.csv
+```
+
+Candidate identity, OSM provenance, coordinates, and restaurant identity fields are immutable in
+the review CSV. Imports are atomic and preserve publication, Fiyu scores, research evidence,
+descriptions, tags, dishes, and photo-related data.
+
+Create unreviewed area-anchor proposals from exact station names:
+
+```bash
+python -m fiyu.public_cli resolve-osm-anchors \
+  --osm-index data/osm_kanto_locations.sqlite \
+  --anchors src/fiyu/location_anchors.json \
+  --output data/location_anchor_review.json
+```
+
+Exact station matches are proposals only. A human must validate them, add the verification date,
+and set `reviewed: true`. Only valid reviewed anchors reach the public API.
+
+Inspect resolution state with:
+
+```bash
+python -m fiyu.public_cli --db PATH location-status
+```
+
+Public map attribution is available from `GET /public/map-config` and currently reads
+`Map data © OpenStreetMap contributors`. This is product configuration, not legal advice; OSM type,
+ID, version, timestamp, and source references are retained for attribution and reproducibility.
+
+`fiyu.address_geocoder.AddressGeocoder` is the provider-neutral extension point for a future local
+Digital Agency ABR Geocoder adapter. It accepts only independently verified Japanese addresses and
+can return normalized address, coordinates, address identifiers, precision, warnings, and
+provenance. Phase 1 implements no Google geocoding and no network geocoder.
+
+### Discovery-area provenance
+
+The original `*_Initial.csv` search batches provide discovery provenance, not verified restaurant
+locations. Their Google-derived addresses and coordinates are never imported or used by the OSM
+resolver. The reviewed source mapping lives in `src/fiyu/discovery_area_sources.json`; filename
+semantics are not inferred in application code. Ogibashi is explicitly reviewed as a neighborhood
+rather than silently treated as a ward.
+
+Audit the source files and write a machine-readable report:
+
+```bash
+python -m fiyu.public_cli audit-discovery-areas \
+  --source-dir data \
+  --public-csv data/processed/public_restaurants.csv \
+  --report data/processed/discovery_area_audit.json
+```
+
+Generate a new enriched file without overwriting the existing public export:
+
+```bash
+python -m fiyu.public_cli enrich-discovery-areas \
+  --source-dir data \
+  --input data/processed/public_restaurants.csv \
+  --output data/processed/public_restaurants_enriched.csv \
+  --report data/processed/discovery_area_generation_report.json
+```
+
+Preview and then apply the provenance-only database import:
+
+```bash
+python -m fiyu.public_cli --db data/fiyu.db import-discovery-areas \
+  --input data/processed/public_restaurants_enriched.csv --dry-run \
+  --report data/processed/discovery_area_import_preview.json
+
+python -m fiyu.public_cli --db data/fiyu.db import-discovery-areas \
+  --input data/processed/public_restaurants_enriched.csv \
+  --report data/processed/discovery_area_import_report.json
+```
+
+The import matches only by `place_id` and updates only discovery provenance plus `updated_at`.
+Publication, research, scores, evidence, descriptions, tags, dishes, verified OSM provenance,
+coordinates, and map eligibility are preserved. Multiple source occurrences remain in
+`discovery_areas_json`; no first area is silently selected.
+
+The OSM resolver uses reviewed wards as corroborating geography, and can use independently reviewed
+area anchors within `--anchor-radius-km`. Unanchored neighborhoods are only weak hints. Geography
+alone cannot verify a restaurant, fuzzy-name-only candidates remain unresolved, conflicts block
+automatic verification, and matching thresholds are unchanged. Existing map-eligible locations are
+never rewritten by resolver reruns, including when `--force` is supplied.
+
+The resolver uses both `addr:*` tags and point-in-polygon inference against Tokyo's 23 special-ward
+administrative relations. The index stores boundary OSM IDs, versions, bounding boxes, and complete
+polygon/multipolygon geometry in `osm_ward_boundaries`. Builds must find all 23 wards or they fail
+atomically. Indexes created before ward-boundary support must therefore be rebuilt:
+
+```bash
+python -m fiyu.public_cli build-osm-index \
+  --pbf C:\data\osm\kanto-260726.osm.pbf \
+  --output C:\data\osm\fiyu-kanto-index.sqlite
+```
+
+Resolver reports distinguish exact, strong normalized, and weak fuzzy identity evidence. Multiple
+discovery wards are permitted search hints and are reported with `multiple_discovery_areas`; they
+are not conflicts by themselves. A true conflict requires an explicit reason such as malformed or
+contradictory reviewed provenance. Weak fuzzy matches never become reviewable solely because their
+coordinates fall inside an expected ward. Reports preserve address-tag and spatial ward inference,
+boundary provenance, conflicts, best in-area and global diagnostic candidates, aggregate candidate
+classes, a final resolution reason, and a recommended next action.
+
+`likely_not_represented_in_osm` is a conservative routing category, not a claim that a restaurant
+is absent from OSM. It requires a complete ward-boundary index, no exact or strong candidate in an
+allowed ward, no exact adjacent-ward candidate, and only weak fuzzy candidates remaining.
+
 ### Google Place Photos
 
 Google Places is retained only for photos during the MVP. Photo endpoints fetch fresh resource

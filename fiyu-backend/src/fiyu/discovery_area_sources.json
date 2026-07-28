@@ -1,0 +1,15 @@
+[
+  {"source_file": "Adachi_Initial.csv", "discovery_area": "Adachi", "discovery_area_type": "ward", "reviewed": true},
+  {"source_file": "Chiyoda_Initial.csv", "discovery_area": "Chiyoda", "discovery_area_type": "ward", "reviewed": true},
+  {"source_file": "Chuo_Initial.csv", "discovery_area": "Chuo", "discovery_area_type": "ward", "reviewed": true},
+  {"source_file": "Koto_Initial.csv", "discovery_area": "Koto", "discovery_area_type": "ward", "reviewed": true},
+  {"source_file": "Minato_Initial.csv", "discovery_area": "Minato", "discovery_area_type": "ward", "reviewed": true},
+  {"source_file": "Ogibashi_Initial.csv", "discovery_area": "Ogibashi", "discovery_area_type": "neighborhood", "reviewed": true},
+  {"source_file": "Ota_Initial.csv", "discovery_area": "Ota", "discovery_area_type": "ward", "reviewed": true},
+  {"source_file": "Setagaya_Initial.csv", "discovery_area": "Setagaya", "discovery_area_type": "ward", "reviewed": true},
+  {"source_file": "Shibuya_Initial.csv", "discovery_area": "Shibuya", "discovery_area_type": "ward", "reviewed": true},
+  {"source_file": "Shinjuku_Initial.csv", "discovery_area": "Shinjuku", "discovery_area_type": "ward", "reviewed": true},
+  {"source_file": "Suginami_Initial.csv", "discovery_area": "Suginami", "discovery_area_type": "ward", "reviewed": true},
+  {"source_file": "Taito_Initial.csv", "discovery_area": "Taito", "discovery_area_type": "ward", "reviewed": true},
+  {"source_file": "Toshima_Initial.csv", "discovery_area": "Toshima", "discovery_area_type": "ward", "reviewed": true}
+]

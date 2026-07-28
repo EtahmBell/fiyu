@@ -96,11 +96,19 @@ def test_google_operational_fields_are_absent_publicly(public_db):
         "rating", "rating_count", "review_count", "open_now", "weekday_hours",
         "opening_hours", "price_level", "why_fiyu", "fiyu_confidence",
         "confidence_band", "local_language_web_signal", "evidence",
+        "location_reviewer_notes", "location_match_confidence", "location_match_method",
+        "location_verification_method", "location_osm_id", "location_source_reference",
     }
     assert forbidden.isdisjoint(row)
     assert TestClient(api.app).get(
         "/public/restaurants/eligible/live-details"
     ).status_code == 404
+
+
+def test_public_map_config_exposes_osm_attribution_only():
+    assert TestClient(api.app).get("/public/map-config").json() == {
+        "attribution": "Map data © OpenStreetMap contributors"
+    }
 
 
 def test_public_detail_requires_published_restaurant(public_db):
@@ -110,7 +118,10 @@ def test_public_detail_requires_published_restaurant(public_db):
 
 
 def test_photo_endpoint_preserves_attribution_without_persisting(public_db, monkeypatch):
-    before = public_db.read_bytes()
+    with connect(public_db) as connection:
+        before = dict(connection.execute(
+            "SELECT * FROM public_restaurants WHERE place_id = 'eligible'"
+        ).fetchone())
 
     def photos(place_id, *, limit):
         assert place_id == "eligible"
@@ -136,7 +147,15 @@ def test_photo_endpoint_preserves_attribution_without_persisting(public_db, monk
     assert body["author_attributions"][0]["display_name"] == "Photographer"
     assert body["google_maps_uri"].startswith("https://maps.google.com")
     assert "resource_name" not in body
-    assert public_db.read_bytes() == before
+    with connect(public_db) as connection:
+        after = dict(connection.execute(
+            "SELECT * FROM public_restaurants WHERE place_id = 'eligible'"
+        ).fetchone())
+        columns = {row["name"] for row in connection.execute(
+            "PRAGMA table_info(public_restaurants)"
+        )}
+    assert after == before
+    assert {"photo_resource_name", "photo_media_url"}.isdisjoint(columns)
 
 
 @pytest.mark.parametrize(

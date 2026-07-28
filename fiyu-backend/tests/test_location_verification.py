@@ -189,6 +189,7 @@ def test_only_complete_reviewed_anchors_are_loaded(tmp_path):
         "latitude": 35.68, "longitude": 139.76, "precision": "area_anchor",
         "qualifier": "Approximate center of Reviewed", "source": "municipal dataset",
         "source_reference": "https://city.example/anchor", "verified_at": "2026-07-27",
+        "osm_type": "node", "osm_id": 123,
         "reviewed": True,
     }
     path.write_text(

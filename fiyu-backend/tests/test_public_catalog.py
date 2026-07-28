@@ -78,7 +78,10 @@ def test_existing_public_schema_migrates_without_changing_data(tmp_path):
         columns = {item["name"] for item in connection.execute(
             "PRAGMA table_info(public_restaurants)"
         )}
-    assert {"location_source", "map_display_eligible", "location_precision"} <= columns
+    assert {
+        "location_source", "map_display_eligible", "location_precision",
+        "location_verification_status", "location_osm_type", "location_osm_id",
+    } <= columns
     assert row["fiyu_score"] == 87
     assert row["is_published"] == 1
     assert row["map_display_eligible"] == 0
