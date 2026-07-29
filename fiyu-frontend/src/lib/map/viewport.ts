@@ -1,4 +1,10 @@
-import { type Point, VIEWBOX_HEIGHT, VIEWBOX_WIDTH, project } from "@/lib/map/projection";
+import {
+  type Point,
+  VIEWBOX_HEIGHT,
+  VIEWBOX_WIDTH,
+  project,
+  svgNumber,
+} from "@/lib/map/projection";
 import type { LatLng } from "@/lib/map/projection";
 
 /**
@@ -45,20 +51,57 @@ export function clampScale(k: number): number {
 }
 
 /**
+ * Decimal places kept on the scale factor.
+ *
+ * Finer than SVG_DECIMALS on purpose. `k` is multiplied by every coordinate and
+ * divides every stroke width, and the zoom buttons step by 1.5 / (1/1.5), so 2dp
+ * here would accumulate visible drift over a few zoom-outs. 1e-6 still swamps
+ * the ~1e-16 engine divergence it exists to remove.
+ */
+export const SCALE_DECIMALS = 6;
+
+const SCALE_QUANTUM = 10 ** SCALE_DECIMALS;
+
+function roundScale(k: number): number {
+  return Math.round(k * SCALE_QUANTUM) / SCALE_QUANTUM;
+}
+
+/**
  * Constrain the translation so the content always covers the viewport.
  *
  * At k = 1 the only valid translation is 0, so the map cannot be dragged away
  * and lost. At k > 1 the translation is bounded by the overhang on each axis.
+ *
+ * Every view-producing function in this module funnels through here, so this is
+ * also where view numbers are made deterministic. `k` derives from fitToPoints,
+ * which derives from mercatorY, so it carries the same cross-engine divergence
+ * as a projected coordinate -- and it reaches the DOM both in the transform
+ * string and through every `size(v) = v / scale` division in the map components.
+ * See svgNumber() in projection.ts for why that matters.
+ *
+ * Consequence: a pan smaller than 0.01 viewBox units (~0.01 CSS pixels) now
+ * rounds to no movement. Pointer deltas are at least 1 px, so this is
+ * imperceptible. It also makes viewsEqual() reliable, since it compares with ===.
  */
 export function clampTranslate(view: MapView): MapView {
-  const k = clampScale(view.k);
+  const k = roundScale(clampScale(view.k));
   const minX = VIEWBOX_WIDTH * (1 - k);
   const minY = VIEWBOX_HEIGHT * (1 - k);
 
   const x = Number.isFinite(view.x) ? Math.min(0, Math.max(minX, view.x)) : 0;
   const y = Number.isFinite(view.y) ? Math.min(0, Math.max(minY, view.y)) : 0;
 
-  return { x, y, k };
+  return { x: svgNumber(x), y: svgNumber(y), k };
+}
+
+/**
+ * The `transform` attribute for the map's content group.
+ *
+ * One formatter, so the transform cannot regain full float precision at a call
+ * site. Values arrive pre-rounded from clampTranslate.
+ */
+export function transformFor(view: MapView): string {
+  return `translate(${view.x} ${view.y}) scale(${view.k})`;
 }
 
 /** Convenience: clamp both scale and translation. */

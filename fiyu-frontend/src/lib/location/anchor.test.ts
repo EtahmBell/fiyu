@@ -8,8 +8,8 @@ import {
   anchorDescription,
   anchorDistanceSuffix,
   anchorLabel,
-  distanceToRestaurant,
   isApproximateOrigin,
+  restaurantDistance,
 } from "@/lib/location/anchor";
 
 const CURRENT: DiscoveryAnchor = {
@@ -29,6 +29,11 @@ const AREA: DiscoveryAnchor = {
 
 const PIN: DiscoveryAnchor = { kind: "manual-pin", point: { lat: 35.69, lng: 139.7 } };
 
+/**
+ * A precisely-located restaurant. `distance_sort_eligible` must be stated
+ * explicitly: it defaults to false so that a partial backend response errs
+ * toward hedging rather than claiming a precision it cannot support.
+ */
 function restaurant(lat: number, lng: number): MappableRestaurant {
   const [only] = mappableRestaurants([
     publicRestaurantSchema.parse({
@@ -37,6 +42,7 @@ function restaurant(lat: number, lng: number): MappableRestaurant {
       longitude: lng,
       location_precision: "exact",
       map_display_eligible: true,
+      distance_sort_eligible: true,
     }),
   ]);
   return only;
@@ -96,40 +102,96 @@ describe("isApproximateOrigin", () => {
   });
 });
 
-describe("distanceToRestaurant", () => {
+describe("restaurantDistance", () => {
   it("returns null when no anchor is set", () => {
-    expect(distanceToRestaurant(null, restaurant(35.658, 139.7016))).toBeNull();
+    expect(restaurantDistance(null, restaurant(35.658, 139.7016))).toBeNull();
+  });
+
+  it("returns null for a restaurant with no verified position", () => {
+    const unverified = publicRestaurantSchema.parse({
+      place_id: "x",
+      latitude: 35.658,
+      longitude: 139.7016,
+      map_display_eligible: false,
+    });
+    expect(restaurantDistance(CURRENT, unverified)).toBeNull();
   });
 
   it("measures from the anchor to the restaurant", () => {
-    const meters = distanceToRestaurant(CURRENT, restaurant(35.658, 139.7016));
-    expect(meters).toBeGreaterThan(6300);
-    expect(meters).toBeLessThan(6700);
+    const measured = restaurantDistance(CURRENT, restaurant(35.658, 139.7016));
+    expect(measured?.meters).toBeGreaterThan(6300);
+    expect(measured?.meters).toBeLessThan(6700);
   });
 
   it("is zero when the restaurant sits on the anchor", () => {
-    expect(distanceToRestaurant(AREA, restaurant(AREA.point.lat, AREA.point.lng))).toBe(0);
+    expect(restaurantDistance(AREA, restaurant(AREA.point.lat, AREA.point.lng))?.meters).toBe(0);
+  });
+
+  it("reports a precise measurement between two precise endpoints", () => {
+    expect(restaurantDistance(CURRENT, restaurant(35.658, 139.7016))?.approximate).toBe(false);
+  });
+
+  it("reports approximate when the ORIGIN is an area anchor", () => {
+    expect(restaurantDistance(AREA, restaurant(35.658, 139.7016))?.approximate).toBe(true);
+  });
+
+  /**
+   * The half that was missing: a precise GPS fix measured to a chome centroid
+   * used to render as a flat "310 m from your location".
+   */
+  it("reports approximate when the RESTAURANT is a chome anchor", () => {
+    const chomeAnchored = publicRestaurantSchema.parse({
+      place_id: "chome",
+      latitude: 35.658,
+      longitude: 139.7016,
+      map_display_eligible: true,
+      location_precision: "chome",
+      map_location_approximate: true,
+      distance_sort_eligible: false,
+    });
+    const measured = restaurantDistance(CURRENT, chomeAnchored);
+    expect(measured).not.toBeNull();
+    expect(measured?.approximate).toBe(true);
   });
 });
 
 describe("end-to-end phrasing", () => {
   it("produces the documented area-anchor wording", () => {
-    const meters = distanceToRestaurant(AREA, restaurant(35.6675, 139.7100));
+    const measured = restaurantDistance(AREA, restaurant(35.6675, 139.7100));
     expect(
-      formatDistance(meters, {
+      formatDistance(measured?.meters ?? null, {
         suffix: anchorDistanceSuffix(AREA),
-        approximateOrigin: isApproximateOrigin(AREA),
+        approximate: measured?.approximate ?? false,
       }),
     ).toMatch(/^About \d+(\.\d)? (m|km) from Shibuya$/);
   });
 
   it("produces the documented current-location wording", () => {
-    const meters = distanceToRestaurant(CURRENT, restaurant(35.6819, 139.7680));
+    const measured = restaurantDistance(CURRENT, restaurant(35.6819, 139.7680));
     expect(
-      formatDistance(meters, {
+      formatDistance(measured?.meters ?? null, {
         suffix: anchorDistanceSuffix(CURRENT),
-        approximateOrigin: isApproximateOrigin(CURRENT),
+        approximate: measured?.approximate ?? false,
       }),
     ).toMatch(/^\d+0 m from your location$/);
+  });
+
+  it("hedges and coarsens a precise fix measured to a chome anchor", () => {
+    const chomeAnchored = publicRestaurantSchema.parse({
+      place_id: "chome",
+      latitude: 35.6819,
+      longitude: 139.768,
+      map_display_eligible: true,
+      map_location_approximate: true,
+      distance_sort_eligible: false,
+    });
+    const measured = restaurantDistance(CURRENT, chomeAnchored);
+    const text = formatDistance(measured?.meters ?? null, {
+      suffix: anchorDistanceSuffix(CURRENT),
+      approximate: measured?.approximate ?? false,
+      coarse: measured?.approximate ?? false,
+    });
+    // Hedged, and bucketed to 100 m rather than claiming 10 m precision.
+    expect(text).toMatch(/^About \d+00 m from your location$/);
   });
 });

@@ -14,6 +14,12 @@ import restaurantsFixture from "@/test/fixtures/restaurants.json";
  * never appear.
  */
 
+/**
+ * A precisely-located restaurant. The two eligibility flags are stated
+ * explicitly because both default to false -- the safe answer, so that a partial
+ * backend response hedges a distance and routes directions via a written address
+ * rather than overclaiming.
+ */
 const MAPPABLE = {
   place_id: "mappable",
   name_ja: "浜田山叙々苑",
@@ -22,6 +28,24 @@ const MAPPABLE = {
   longitude: 139.6273512,
   location_precision: "exact",
   map_display_eligible: true,
+  distance_sort_eligible: true,
+  directions_coordinates_eligible: true,
+};
+
+/** A chome-anchored restaurant, as three of the live five are. */
+const APPROXIMATE = {
+  place_id: "approximate",
+  name_ja: "江戸酒場 海",
+  latitude: 35.673682374824864,
+  longitude: 139.71160773428886,
+  location_precision: "chome",
+  map_display_eligible: true,
+  map_location_approximate: true,
+  location_label: "Approximate area",
+  map_anchor_type: "chome",
+  distance_sort_eligible: false,
+  directions_coordinates_eligible: false,
+  external_map_search_query: "東京都渋谷区神宮前2-23-4",
 };
 
 function make(overrides: Record<string, unknown>) {
@@ -120,12 +144,60 @@ describe("outbound map actions", () => {
     expect(screen.queryByRole("link", { name: /Open in/ })).toBeNull();
   });
 
-  it("shows nothing for the real catalog, which has no verified coordinates", () => {
-    for (const row of restaurantsFixture.slice(0, 3)) {
+  it("routes an approximate restaurant via its written address, not its point", () => {
+    render(<RestaurantCard restaurant={make(APPROXIMATE)} />);
+    const google = screen.getByRole("link", { name: "Open in Google Maps" });
+    const apple = screen.getByRole("link", { name: "Open in Apple Maps" });
+
+    expect(new URL(google.getAttribute("href")!).searchParams.get("query")).toBe(
+      "東京都渋谷区神宮前2-23-4",
+    );
+    // Apple gets no position at all rather than a chome centroid.
+    expect(new URL(apple.getAttribute("href")!).searchParams.get("ll")).toBeNull();
+    for (const link of [google, apple]) {
+      expect(link.getAttribute("href")).not.toContain("35.6736");
+    }
+  });
+
+  it("shows nothing for a restaurant with neither a point nor an address", () => {
+    // Most of the catalog: published, but with no verified location at all.
+    const withoutLocation = restaurantsFixture.filter(
+      (row) => !row.map_display_eligible && row.external_map_search_query === null,
+    );
+    expect(withoutLocation.length).toBeGreaterThan(0);
+
+    for (const row of withoutLocation.slice(0, 3)) {
       const { unmount } = render(<RestaurantCard restaurant={publicRestaurantSchema.parse(row)} />);
       expect(screen.queryByRole("link", { name: /Open in/ })).toBeNull();
       unmount();
     }
+  });
+});
+
+describe("approximate location disclosure", () => {
+  it("labels an approximate restaurant with the backend's own wording", () => {
+    render(<RestaurantCard restaurant={make(APPROXIMATE)} />);
+    expect(screen.getByText("Approximate area")).toBeTruthy();
+  });
+
+  it("says nothing of the kind for a precisely-located restaurant", () => {
+    render(<RestaurantCard restaurant={make(MAPPABLE)} />);
+    expect(screen.queryByText(/Approximate/)).toBeNull();
+  });
+
+  it("hedges and coarsens the distance to an approximate restaurant", () => {
+    render(<RestaurantCard restaurant={make(APPROXIMATE)} anchor={CURRENT_LOCATION} />);
+    // Bucketed to 100 m, not 10 m, and hedged despite a precise GPS fix.
+    const shown = screen.getByText(/from your location$/);
+    expect(shown.textContent).toMatch(/^About [\d.]+ (km|m) from your location$/);
+    expect(shown.getAttribute("title")).toMatch(/from an approximate location$/);
+  });
+
+  it("does not hedge the distance to a precisely-located restaurant", () => {
+    render(<RestaurantCard restaurant={make(MAPPABLE)} anchor={CURRENT_LOCATION} />);
+    expect(screen.getByText(/from your location$/).getAttribute("title")).not.toMatch(
+      /approximate/,
+    );
   });
 });
 

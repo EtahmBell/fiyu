@@ -1,4 +1,4 @@
-import type { Point } from "@/lib/map/projection";
+import { type Point, roundPoint } from "@/lib/map/projection";
 
 /**
  * Grid clustering for map markers.
@@ -53,6 +53,10 @@ export function clusterMarkers<T>(
   const order: string[] = [];
 
   for (const input of inputs) {
+    // The one place a float difference could change STRUCTURE (which markers
+    // group together) rather than just a coordinate, if a point sat exactly on a
+    // cell boundary. Bounded in practice: `scale` arrives already rounded from
+    // clampTranslate, and callers project through roundPoint.
     const column = Math.floor(input.point.x / cellSize);
     const row = Math.floor(input.point.y / cellSize);
     const key = `${column}:${row}`;
@@ -73,7 +77,8 @@ export function clusterMarkers<T>(
       // Keyed by the first member so a cluster keeps its identity as
       // neighbours join or leave it.
       id: members.length === 1 ? members[0].id : `cluster:${members[0].id}:${members.length}`,
-      point: { x: sumX / members.length, y: sumY / members.length },
+      // Rounded here because this feeds cx/cy directly in MapMarkers.
+      point: roundPoint({ x: sumX / members.length, y: sumY / members.length }),
       members,
     };
   });

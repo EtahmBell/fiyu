@@ -18,7 +18,7 @@ import {
   isModeAvailable,
   rankByMode,
 } from "@/lib/discovery/ranking";
-import { mappableRestaurants, unmappableCount } from "@/lib/geo/mappable";
+import { mappableRestaurants, outsideMapBounds, unmappableCount } from "@/lib/geo/mappable";
 import { useGeolocation } from "@/lib/hooks/useGeolocation";
 import { useIsDesktop } from "@/lib/hooks/useMediaQuery";
 import type { DiscoveryAnchor } from "@/lib/location/anchor";
@@ -136,6 +136,7 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
 
   const mappable = useMemo(() => mappableRestaurants(ranked), [ranked]);
   const unmappable = useMemo(() => unmappableCount(ranked), [ranked]);
+  const offMap = useMemo(() => outsideMapBounds(ranked), [ranked]);
 
   const selected = useMemo(
     () => ranked.find((restaurant) => restaurant.place_id === selection?.placeId) ?? null,
@@ -206,6 +207,13 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
                   {unmappable} not shown on the map
                 </p>
               )}
+
+              {/* Verified, but beyond the illustrated area, so no pin exists. */}
+              {offMap > 0 && (
+                <p className="px-1 pt-1 text-xs text-ink-faint">
+                  {offMap} outside the mapped area
+                </p>
+              )}
             </>
           ) : (
             <>
@@ -247,8 +255,13 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
             restaurants={mappable}
             selectedPlaceId={selection?.placeId ?? null}
             onSelect={selectFromMap}
+            // Which surface this is. Drives class names, so it must depend only
+            // on React state that is identical on the server and on hydration --
+            // never on a media query. Desktop styling comes from lg: variants.
+            surfaceMode={showingMap ? "fullscreen" : "inline"}
             // Gestures are captured fully only when the map is the active
-            // surface: full-screen on mobile, always on desktop.
+            // surface: full-screen on mobile, always on desktop. Behaviour only,
+            // so reading a media query here is safe.
             interactive={showingMap || isDesktop}
             anchor={anchor}
             placingPin={placingPin}

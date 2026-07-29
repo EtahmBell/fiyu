@@ -6,7 +6,10 @@ import {
   VIEWBOX_WIDTH,
   isWithinBounds,
   mercatorY,
+  metersToViewBoxUnits,
   project,
+  roundPoint,
+  svgNumber,
   toPath,
   unproject,
 } from "@/lib/map/projection";
@@ -66,7 +69,81 @@ describe("project", () => {
   });
 });
 
+describe("svgNumber", () => {
+  /**
+   * The exact pair observed in production. `project()` is left bit-exact on
+   * purpose -- rounding it would break the round-trip invariants asserted below,
+   * which pin placement depends on -- so determinism is enforced here, at the
+   * boundary where a number becomes a rendered string.
+   */
+  it("collapses the observed server/client divergence to one value", () => {
+    const server = 511.42999798943185; // Node
+    const client = 511.4299979894495; // browser
+    expect(server).not.toBe(client);
+    expect(svgNumber(server)).toBe(svgNumber(client));
+    expect(svgNumber(server)).toBe(511.43);
+  });
+
+  it("keeps two decimal places, about 30 cm at Tokyo scale", () => {
+    expect(svgNumber(655.3263888889139)).toBe(655.33);
+    expect(svgNumber(-254.41763846517085)).toBe(-254.42);
+    expect(svgNumber(7.333333333333333)).toBe(7.33);
+  });
+
+  it("leaves an already-short number alone", () => {
+    expect(svgNumber(0)).toBe(0);
+    expect(svgNumber(11)).toBe(11);
+    expect(svgNumber(1.5)).toBe(1.5);
+  });
+
+  it("rounds both axes of a point", () => {
+    expect(roundPoint({ x: 193.83592263556994, y: 472.00662498311686 })).toEqual({
+      x: 193.84,
+      y: 472.01,
+    });
+  });
+
+  it("produces a string with no more than two decimals for every landmark", () => {
+    for (const [name, coordinate] of Object.entries(LANDMARKS)) {
+      const { x, y } = roundPoint(project(coordinate));
+      expect(String(x), name).toMatch(/^-?\d+(\.\d{1,2})?$/);
+      expect(String(y), name).toMatch(/^-?\d+(\.\d{1,2})?$/);
+    }
+  });
+});
+
+describe("metersToViewBoxUnits", () => {
+  it("is zero for no distance", () => {
+    expect(metersToViewBoxUnits(0, 35.68)).toBe(0);
+  });
+
+  it("grows monotonically with distance", () => {
+    const small = metersToViewBoxUnits(50, 35.68);
+    const large = metersToViewBoxUnits(500, 35.68);
+    expect(small).toBeGreaterThan(0);
+    expect(large).toBeGreaterThan(small);
+  });
+
+  it("agrees with the projection it is derived from", () => {
+    // A 1000 m offset in latitude should span the same viewBox distance as
+    // projecting two points 1000 m apart.
+    const lat = 35.68;
+    const degrees = 1000 / 110_574;
+    const projected = Math.abs(
+      project({ lat: lat + degrees / 2, lng: 139.7 }).y -
+        project({ lat: lat - degrees / 2, lng: 139.7 }).y,
+    );
+    expect(metersToViewBoxUnits(1000, lat)).toBeCloseTo(projected, 6);
+  });
+});
+
 describe("unproject", () => {
+  /*
+   * These round-trip invariants are why rounding lives at the render boundary
+   * (svgNumber) and NOT inside project(). Rounding project() to 2dp would fail
+   * both assertions below, and pin placement genuinely needs this precision.
+   * Do not "helpfully" move the rounding here.
+   */
   it("round-trips every landmark to within a millidegree", () => {
     for (const [name, coordinate] of Object.entries(LANDMARKS)) {
       const result = unproject(project(coordinate));

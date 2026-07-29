@@ -9,7 +9,7 @@ import { MapMarkers } from "@/components/map/MapMarkers";
 import type { MappableRestaurant } from "@/lib/geo/mappable";
 import type { DiscoveryAnchor } from "@/lib/location/anchor";
 import { type MarkerCluster, clusterMarkers } from "@/lib/map/clustering";
-import { type LatLng, VIEWBOX, project, unproject } from "@/lib/map/projection";
+import { type LatLng, VIEWBOX, isWithinBounds, project, unproject } from "@/lib/map/projection";
 import {
   IDENTITY_VIEW,
   MAX_SCALE,
@@ -18,6 +18,7 @@ import {
   clientToViewBox,
   fitToPoints,
   panBy,
+  transformFor,
   viewBoxToContent,
   viewsEqual,
   zoomAt,
@@ -29,7 +30,22 @@ export interface FiyuMapProps {
   restaurants: MappableRestaurant[];
   selectedPlaceId: string | null;
   onSelect: (restaurant: MappableRestaurant) => void;
-  /** Full-screen on mobile. Gestures are only captured in that mode. */
+  /**
+   * Which surface the map is mounted on. Drives every class name.
+   *
+   * Deliberately NOT derived from a media query. `useMediaQuery` has to return a
+   * fixed `false` on the server, so feeding it into a className produces markup
+   * that differs between the server render and hydration. Desktop behaviour is
+   * expressed with Tailwind `lg:` variants instead, which live in CSS and are
+   * identical on both sides. Keep it that way.
+   */
+  surfaceMode?: "inline" | "fullscreen";
+  /**
+   * Whether to capture pan, zoom and pinch gestures.
+   *
+   * Behaviour only -- this must never reach rendered markup. Event handlers can
+   * differ between server and client without any hydration consequence.
+   */
   interactive?: boolean;
   /** Starting point for distances, if the user has set one. */
   anchor?: DiscoveryAnchor | null;
@@ -64,6 +80,7 @@ export function FiyuMap({
   restaurants,
   selectedPlaceId,
   onSelect,
+  surfaceMode = "fullscreen",
   interactive = true,
   anchor = null,
   placingPin = false,
@@ -80,29 +97,46 @@ export function FiyuMap({
   /** Where a gesture started, so a tap can be told apart from a pan. */
   const gestureStart = useRef<{ x: number; y: number } | null>(null);
 
-  const points = useMemo(
-    () => restaurants.map((restaurant) => project({ lat: restaurant.latitude, lng: restaurant.longitude })),
+  /*
+   * Only restaurants inside the illustrated area are projected.
+   *
+   * A coordinate outside TOKYO_BOUNDS does not merely clip: it widens
+   * fitToPoints' bounding box, which drags the scale down toward MIN_SCALE and
+   * pushes every legitimate pin into a corner. One bad row would degrade the map
+   * for the whole catalog, and clampTranslate makes the offender unreachable at
+   * k = 1 so there is no way to even see it. DiscoveryShell discloses the count.
+   */
+  const plotted = useMemo(
+    () =>
+      restaurants.filter((restaurant) =>
+        isWithinBounds({ lat: restaurant.latitude, lng: restaurant.longitude }),
+      ),
     [restaurants],
+  );
+
+  const points = useMemo(
+    () => plotted.map((restaurant) => project({ lat: restaurant.latitude, lng: restaurant.longitude })),
+    [plotted],
   );
 
   const clusters = useMemo(
     () =>
       clusterMarkers(
-        restaurants.map((restaurant, index) => ({
+        plotted.map((restaurant, index) => ({
           id: restaurant.place_id,
           point: points[index],
           item: restaurant,
         })),
         { scale: view.k },
       ),
-    [restaurants, points, view.k],
+    [plotted, points, view.k],
   );
 
   /**
    * Auto-fit only when the result set materially changes, never after the user
    * has taken control -- re-framing under someone mid-pan is disorienting.
    */
-  const resultKey = restaurants.map((restaurant) => restaurant.place_id).join("|");
+  const resultKey = plotted.map((restaurant) => restaurant.place_id).join("|");
   const lastFitKey = useRef<string | null>(null);
   const userHasInteracted = useRef(false);
 
@@ -248,16 +282,18 @@ export function FiyuMap({
         preserveAspectRatio="xMidYMid meet"
         role="img"
         aria-label={
-          restaurants.length === 0
+          plotted.length === 0
             ? "Map of Tokyo. No restaurants are currently mapped."
-            : `Map of Tokyo showing ${restaurants.length} restaurants.`
+            : `Map of Tokyo showing ${plotted.length} restaurants.`
         }
         className={cn(
           "h-full w-full",
-          interactive && (placingPin ? "cursor-crosshair" : dragging ? "cursor-grabbing" : "cursor-grab"),
-          // Let the browser scroll the page vertically when the inline map is
-          // not the active surface; capture gestures fully when it is.
-          interactive ? "touch-none" : "touch-pan-y",
+          placingPin ? "cursor-crosshair" : dragging ? "cursor-grabbing" : "lg:cursor-grab",
+          // Let the browser scroll the page vertically while the inline map is
+          // not the active surface; capture gestures fully when it is. Expressed
+          // as a Tailwind variant rather than a media-query hook so the server
+          // and client render the same class list -- see surfaceMode above.
+          surfaceMode === "fullscreen" ? "touch-none" : "touch-pan-y lg:touch-none",
         )}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
@@ -265,7 +301,7 @@ export function FiyuMap({
         onPointerCancel={endPointer}
         onPointerLeave={endPointer}
       >
-        <g transform={`translate(${view.x} ${view.y}) scale(${view.k})`}>
+        <g transform={transformFor(view)}>
           <MapBase scale={view.k} />
           {anchor && <AnchorMarker anchor={anchor} scale={view.k} />}
           <MapMarkers

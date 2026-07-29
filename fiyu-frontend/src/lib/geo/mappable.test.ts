@@ -22,19 +22,54 @@ describe("isMappable", () => {
     expect(isMappable(make(eligible))).toBe(true);
   });
 
-  it("accepts every provenance the backend can emit", () => {
-    for (const precision of ["exact", "approximate", "area_anchor"]) {
-      expect(isMappable(make({ ...eligible, location_precision: precision }))).toBe(true);
+  /**
+   * REGRESSION GUARD. The predecessor of this test asserted that exactly three
+   * precision values were plottable, which is what encoded the one-pin bug: the
+   * backend emits at least nine, across three modules, and the frontend cannot
+   * hold that list correct. Eligibility is the contract; precision is a label.
+   */
+  it("does not gate on the precision string, whatever the backend sends", () => {
+    const precisions = [
+      "exact",
+      "exact_entrance",
+      "building",
+      "parcel_or_street_number",
+      "block",
+      "chome",
+      "neighborhood",
+      "ward",
+      "unknown",
+      "approximate",
+      "area_anchor",
+      "a_value_no_frontend_has_seen_yet",
+      null,
+    ];
+    for (const location_precision of precisions) {
+      expect(isMappable(make({ ...eligible, location_precision }))).toBe(true);
     }
   });
 
   it("rejects a restaurant the backend has not marked eligible", () => {
     expect(isMappable(make({ ...eligible, map_display_eligible: false }))).toBe(false);
+    // Even with a precision value that reads reassuring.
+    expect(
+      isMappable(make({ ...eligible, location_precision: "exact", map_display_eligible: false })),
+    ).toBe(false);
   });
 
-  it("rejects unknown coordinate provenance rather than plotting it", () => {
-    expect(isMappable(make({ ...eligible, location_precision: "guessed" }))).toBe(false);
-    expect(isMappable(make({ ...eligible, location_precision: null }))).toBe(false);
+  it("plots an approximate coordinate, leaving disclosure to the UI", () => {
+    // Coarse is not the same as unverified. Hiding these would drop verified
+    // data; lib/geo/precision.ts is what makes them legible as approximate.
+    expect(
+      isMappable(
+        make({
+          ...eligible,
+          location_precision: "chome",
+          map_location_approximate: true,
+          location_label: "Approximate area",
+        }),
+      ),
+    ).toBe(true);
   });
 
   it("rejects missing coordinates", () => {
@@ -102,13 +137,31 @@ describe("unmappableCount", () => {
 describe("against the live catalog", () => {
   const catalog = restaurantsFixture.map((row) => publicRestaurantSchema.parse(row));
 
-  it("plots nothing today, because no restaurant is map-eligible yet", () => {
-    // Documents the current backend state. When coordinates are imported and
-    // verified this expectation should be updated, not deleted -- it is the
-    // signal that the map has real data to show.
+  /**
+   * CANARY for the one-pin bug. If this drops below five, something upstream has
+   * started discarding verified coordinates again -- check for a new allow-list
+   * before assuming the backend changed.
+   */
+  it("plots all five map-eligible restaurants from the live catalog", () => {
     expect(catalog.length).toBeGreaterThan(0);
-    expect(mappableRestaurants(catalog)).toEqual([]);
-    expect(unmappableCount(catalog)).toBe(catalog.length);
+
+    const plotted = mappableRestaurants(catalog);
+    expect(plotted.map((r) => r.place_id).sort()).toEqual(
+      [
+        "ChIJ2WzWhfWPGGARyYQS7SD2tIM", // 金すし, exact
+        "ChIJAZOKBEyPGGARWoSCCwgRm8E", // あたらよ 秋葉原店, parcel_or_street_number
+        "ChIJGZiCSQCPGGARtJeKu6kiMVo", // 牛たんの檸檬 秋葉原店, chome (withheld from lists by score band)
+        "ChIJKdddfwDzGGAR1YfPayuwpFo", // 浜田山叙々苑, chome
+        "ChIJt2QEWDmNGGARvJ5tMBSBCqI", // 江戸酒場 海, chome
+      ].sort(),
+    );
+    expect(unmappableCount(catalog)).toBe(catalog.length - 5);
+  });
+
+  it("plots the three chome-anchored restaurants, not just the exact ones", () => {
+    const plotted = mappableRestaurants(catalog);
+    expect(plotted.filter((r) => r.map_location_approximate)).toHaveLength(3);
+    expect(plotted.filter((r) => !r.map_location_approximate)).toHaveLength(2);
   });
 
   it("confirms the backend withholds coordinates from ineligible rows", () => {

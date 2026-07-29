@@ -4,18 +4,14 @@ import { OutboundMapActions } from "@/components/restaurant/OutboundMapActions";
 import { RestaurantPhoto } from "@/components/restaurant/RestaurantPhoto";
 import { SignatureDishes } from "@/components/restaurant/SignatureDishes";
 import { TagList } from "@/components/restaurant/TagList";
+import { Badge } from "@/components/ui/Badge";
 import { ScoreMark } from "@/components/ui/ScoreMark";
 import type { PublicRestaurant } from "@/lib/api/schemas";
 import { distanceAccessibleLabel, formatDistance } from "@/lib/geo/distance";
-import { isMappable } from "@/lib/geo/mappable";
+import { locationLabel } from "@/lib/geo/precision";
 import { editorialLabel } from "@/lib/format/editorialLabels";
 import { detectTextLang, resolveNames } from "@/lib/format/language";
-import {
-  type DiscoveryAnchor,
-  anchorDistanceSuffix,
-  distanceToRestaurant,
-  isApproximateOrigin,
-} from "@/lib/location/anchor";
+import { type DiscoveryAnchor, anchorDistanceSuffix, restaurantDistance } from "@/lib/location/anchor";
 import { cn } from "@/lib/utils/cn";
 
 export interface RestaurantCardProps {
@@ -64,14 +60,23 @@ export function RestaurantCard({
   const category = restaurant.category;
   const neighborhood = restaurant.neighborhood;
 
-  // Distance needs both an anchor and coordinates the backend has verified.
+  /*
+   * Distance needs an anchor and coordinates the backend has verified.
+   * restaurantDistance owns the precision policy: it reports whether either
+   * endpoint is an area anchor, and a coarse measurement is bucketed to 100 m
+   * and hedged rather than stated as if it were a door-to-door figure.
+   */
+  const measured = restaurantDistance(anchor, restaurant);
   const distance =
-    anchor && isMappable(restaurant)
-      ? formatDistance(distanceToRestaurant(anchor, restaurant), {
+    anchor === null || measured === null
+      ? null
+      : formatDistance(measured.meters, {
           suffix: anchorDistanceSuffix(anchor),
-          approximateOrigin: isApproximateOrigin(anchor),
-        })
-      : null;
+          approximate: measured.approximate,
+          coarse: measured.approximate,
+        });
+
+  const precisionNote = locationLabel(restaurant);
 
   return (
     <article
@@ -157,19 +162,25 @@ export function RestaurantCard({
         </p>
       )}
 
-      {(category || neighborhood || distance) && (
-        <p className="mt-3 flex flex-wrap items-center gap-x-2 text-xs text-ink-faint">
+      {(category || neighborhood || distance || precisionNote) && (
+        <p className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-faint">
           {category && <span lang={detectTextLang(category)}>{category}</span>}
           {category && neighborhood && <span aria-hidden="true">·</span>}
           {neighborhood && <span lang={detectTextLang(neighborhood)}>{neighborhood}</span>}
           {distance && (
             <>
               <span aria-hidden="true">·</span>
-              <span title={distanceAccessibleLabel(distance)} className="text-ink-muted">
+              <span
+                title={distanceAccessibleLabel(distance, measured?.approximate ?? false)}
+                className="text-ink-muted"
+              >
                 {distance}
               </span>
             </>
           )}
+          {/* The backend's own wording, so a chome anchor is never presented as
+              an exact address. Matches the dashed pin on the map. */}
+          {precisionNote && <Badge tone="outline">{precisionNote}</Badge>}
         </p>
       )}
 
@@ -180,8 +191,8 @@ export function RestaurantCard({
         <SignatureDishes dishes={restaurant.signature_dishes} max={3} className="mt-3" />
       )}
 
-      {/* Renders nothing unless the backend verified this restaurant's
-          coordinates, so it is absent for the whole catalog today. */}
+      {/* Verified coordinates when the backend cleared them for navigation, the
+          verified written address otherwise, nothing when neither exists. */}
       <OutboundMapActions restaurant={restaurant} className="mt-3" />
     </article>
   );

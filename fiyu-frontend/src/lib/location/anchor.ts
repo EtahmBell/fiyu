@@ -1,5 +1,6 @@
+import type { PublicRestaurant } from "@/lib/api/schemas";
 import { haversineMeters } from "@/lib/geo/distance";
-import type { MappableRestaurant } from "@/lib/geo/mappable";
+import { type MappableRestaurant, isMappable } from "@/lib/geo/mappable";
 import type { LatLng } from "@/lib/map/projection";
 
 /**
@@ -98,8 +99,11 @@ export function isApproximateOrigin(anchor: DiscoveryAnchor): boolean {
  * Returns null when there is no anchor. Only mappable restaurants can be passed
  * in, which is enforced by the type: a restaurant the backend has not verified
  * has no coordinates to measure from, and guessing one would be inventing data.
+ *
+ * A raw measurement, with no judgement about whether it is safe to present.
+ * Callers must use restaurantDistance() instead -- see the note there.
  */
-export function distanceToRestaurant(
+function distanceToRestaurant(
   anchor: DiscoveryAnchor | null,
   restaurant: MappableRestaurant,
 ): number | null {
@@ -108,4 +112,43 @@ export function distanceToRestaurant(
     lat: restaurant.latitude,
     lng: restaurant.longitude,
   });
+}
+
+export interface RestaurantDistance {
+  meters: number;
+  /** True when either endpoint is an area anchor rather than a point. */
+  approximate: boolean;
+}
+
+/**
+ * Distance to a restaurant, together with whether it may be stated precisely.
+ *
+ * THE ONE PLACE this policy lives. Measuring is arithmetic; deciding what the
+ * number is allowed to claim is a product rule, and it belongs here rather than
+ * duplicated across every component that shows a distance.
+ *
+ * `approximate` is true when EITHER endpoint is coarse:
+ *  - the origin, per isApproximateOrigin (area anchor, or a poor GPS fix), or
+ *  - the restaurant, per the backend's `distance_sort_eligible`, which is false
+ *    for any chome or block anchor (public_catalog.py:872-874).
+ *
+ * The second half is the one that was missing: a precise GPS fix measured to a
+ * chome centroid used to render as a flat "310 m from your location".
+ *
+ * Returns null when there is no anchor or the restaurant has no verified
+ * position. Never guesses.
+ */
+export function restaurantDistance(
+  anchor: DiscoveryAnchor | null,
+  restaurant: PublicRestaurant,
+): RestaurantDistance | null {
+  if (!anchor || !isMappable(restaurant)) return null;
+
+  const meters = distanceToRestaurant(anchor, restaurant);
+  if (meters === null) return null;
+
+  return {
+    meters,
+    approximate: isApproximateOrigin(anchor) || !restaurant.distance_sort_eligible,
+  };
 }

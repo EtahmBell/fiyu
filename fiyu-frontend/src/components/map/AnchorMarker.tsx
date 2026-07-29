@@ -1,7 +1,7 @@
 "use client";
 
 import { type DiscoveryAnchor, anchorLabel } from "@/lib/location/anchor";
-import { project } from "@/lib/map/projection";
+import { metersToViewBoxUnits, project, roundPoint, svgNumber } from "@/lib/map/projection";
 
 export interface AnchorMarkerProps {
   anchor: DiscoveryAnchor;
@@ -24,14 +24,12 @@ const RADIUS = 9;
  * visibly looks poor rather than claiming a precision it does not have.
  */
 export function AnchorMarker({ anchor, scale, showAccuracy = true }: AnchorMarkerProps) {
-  const { x, y } = project(anchor.point);
-  const size = (value: number) => value / scale;
+  const { x, y } = roundPoint(project(anchor.point));
+  const size = (value: number) => svgNumber(value / scale);
 
   const accuracyRadius =
     showAccuracy && anchor.kind === "current-location" && anchor.accuracyMeters !== null
-      ? // ~111 km per degree of latitude; convert metres to viewBox units via
-        // the same span the projection uses.
-        (anchor.accuracyMeters / 111_320) * (1026 / 0.3)
+      ? svgNumber(metersToViewBoxUnits(anchor.accuracyMeters, anchor.point.lat))
       : null;
 
   return (

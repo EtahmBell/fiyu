@@ -1,5 +1,5 @@
 import { readFileSync, readdirSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { join, sep } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
@@ -147,5 +147,73 @@ describe("no fabricated social proof", () => {
       expect(row.community_recommendation_count).toBe(0);
       expect(row.community_stats_visible).toBe(false);
     }
+  });
+});
+
+describe("distance policy cannot be bypassed", () => {
+  /**
+   * haversineMeters measures; it does not decide whether the result may be
+   * shown. That judgement lives in restaurantDistance (lib/location/anchor.ts),
+   * which consults the backend's distance_sort_eligible so a chome anchor is
+   * never presented as a door-to-door figure.
+   *
+   * A component calling haversineMeters directly would skip that check, so the
+   * rule is enforced here rather than left to prose. If you need a distance,
+   * call restaurantDistance.
+   */
+  it("computes haversine distance only in the two modules that own it", () => {
+    const allowed = [join("lib", "geo", "distance.ts"), join("lib", "location", "anchor.ts")];
+    const offenders = productionFiles.filter((path) => {
+      if (allowed.some((suffix) => path.endsWith(suffix))) return false;
+      return /haversineMeters/.test(stripComments(read(path)));
+    });
+    expect(offenders).toEqual([]);
+  });
+
+  /**
+   * A future distance-ranking mode must filter on distance_sort_eligible. Until
+   * one exists, this pins that no component sorts by distance behind the scenes.
+   */
+  it("ships no distance-based sort outside the ranking module", () => {
+    const offenders = productionFiles.filter((path) => {
+      if (path.endsWith(join("lib", "discovery", "ranking.ts"))) return false;
+      return /\.sort\(\s*\([^)]*\)\s*=>[^;]*(distance|meters)/i.test(stripComments(read(path)));
+    });
+    expect(offenders).toEqual([]);
+  });
+});
+
+describe("SVG geometry is deterministic across engines", () => {
+  /**
+   * Math.log and Math.tan are implementation-defined (ECMAScript §21.3.2), and
+   * project() amplifies a 1-ULP difference ~209x through catastrophic
+   * cancellation. A raw projected float written into an SVG attribute therefore
+   * renders differently on the server and the client, which React reports as a
+   * hydration mismatch.
+   *
+   * Every map component must route numbers through svgNumber/roundPoint, or
+   * receive them already rounded. See svgNumber() in lib/map/projection.ts.
+   */
+  it("divides by scale only through a rounding helper in map components", () => {
+    const mapFiles = productionFiles.filter((path) => {
+      const unix = path.split(sep).join("/");
+      return unix.includes("/components/map/") || unix.includes("/lib/map/");
+    });
+    expect(mapFiles.length).toBeGreaterThan(0);
+
+    const offenders = mapFiles.filter((path) => {
+      const source = stripComments(read(path));
+      // An unwrapped `value / scale` arrow body, e.g. `(v) => v / scale`.
+      return /=>\s*\w+\s*\/\s*scale\b/.test(source);
+    });
+    expect(offenders).toEqual([]);
+  });
+
+  it("builds the content transform only through transformFor", () => {
+    const offenders = productionFiles.filter((path) => {
+      if (path.endsWith(join("lib", "map", "viewport.ts"))) return false;
+      return /translate\(\$\{/.test(stripComments(read(path)));
+    });
+    expect(offenders).toEqual([]);
   });
 });

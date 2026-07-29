@@ -51,8 +51,8 @@ describe("haversineMeters", () => {
 });
 
 describe("formatDistance", () => {
-  const precise = { suffix: "from your location", approximateOrigin: false };
-  const approximate = { suffix: "from Shibuya", approximateOrigin: true };
+  const precise = { suffix: "from your location", approximate: false };
+  const approximate = { suffix: "from Shibuya", approximate: true };
 
   it("reports metres below a kilometre from a precise origin", () => {
     expect(formatDistance(850, precise)).toBe("850 m from your location");
@@ -95,6 +95,25 @@ describe("formatDistance", () => {
       expect(sample).not.toMatch(/walk|min|hour|drive|transit|away/i);
     }
   });
+
+  /*
+   * A chome anchor is nominal to roughly 100-400 m, so 10 m buckets would
+   * overclaim by an order of magnitude on exactly the quantity being hedged.
+   */
+  it("buckets a coarse measurement to 100 m, not 10 m", () => {
+    const coarse = { suffix: "from your location", approximate: true, coarse: true };
+    expect(formatDistance(343, coarse)).toBe("About 300 m from your location");
+    expect(formatDistance(371, coarse)).toBe("About 400 m from your location");
+  });
+
+  it("never reports a coarse distance below its own bucket", () => {
+    const coarse = { suffix: "from your location", approximate: true, coarse: true };
+    expect(formatDistance(12, coarse)).toBe("About 100 m from your location");
+  });
+
+  it("leaves precise measurements at 10 m when coarse is not set", () => {
+    expect(formatDistance(343, precise)).toBe("340 m from your location");
+  });
 });
 
 describe("distanceAccessibleLabel", () => {
@@ -104,7 +123,14 @@ describe("distanceAccessibleLabel", () => {
     );
   });
 
+  it("discloses an approximate endpoint when the measurement is coarse", () => {
+    expect(distanceAccessibleLabel("About 300 m from your location", true)).toBe(
+      "About 300 m from your location, straight-line distance, from an approximate location",
+    );
+  });
+
   it("leaves the unavailable case alone", () => {
     expect(distanceAccessibleLabel("Distance unavailable")).toBe("Distance unavailable");
+    expect(distanceAccessibleLabel("Distance unavailable", true)).toBe("Distance unavailable");
   });
 });

@@ -23,6 +23,15 @@ import { normalizeSignal } from "@/lib/format/score";
  * Note: the previous "hiddenness" pole was backed by local_language_web_signal,
  * which the backend removed from the public payload. There is no longer a
  * second axis, so ranking is a single ordered signal rather than a blend.
+ *
+ * IF A DISTANCE MODE IS EVER ADDED, it must rank only restaurants whose
+ * `distance_sort_eligible` is true. The backend derives that as
+ * `map_display_eligible && !map_location_approximate` (public_catalog.py:872-874),
+ * because three of today's five mapped restaurants are chome anchors -- nominal
+ * to roughly 100-400 m. Ordering "nearest first" on a block centroid would
+ * present a guess as a ranking. Measure with restaurantDistance
+ * (lib/location/anchor.ts), which already carries that gate; a structural guard
+ * in src/test/removals.test.ts keeps haversineMeters out of everywhere else.
  */
 
 export type DiscoveryMode = "local" | "trending";

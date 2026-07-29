@@ -1,5 +1,4 @@
 import type { PublicRestaurant } from "@/lib/api/schemas";
-import { isMappable } from "@/lib/geo/mappable";
 import { outboundMapLinks } from "@/lib/outbound/mapLinks";
 import { cn } from "@/lib/utils/cn";
 
@@ -14,16 +13,19 @@ export interface OutboundMapActionsProps {
  * Fiyu does not do directions, live hours or transit. When someone wants to
  * actually go somewhere, that belongs in the app they already use.
  *
- * Renders nothing unless the restaurant is mappable, so an action can never be
- * built from coordinates the backend has not verified. Today that means these
- * never appear -- which is correct, not a bug.
+ * Which links exist is decided entirely by lib/outbound/mapLinks: verified
+ * coordinates when the backend cleared them for navigation, the verified written
+ * address otherwise, and nothing at all when neither is available. Gating on
+ * isMappable here would have been wrong -- it would hide directions for an
+ * approximately-located restaurant that has a perfectly good written address.
  */
 export function OutboundMapActions({ restaurant, className }: OutboundMapActionsProps) {
-  if (!isMappable(restaurant)) return null;
+  const links = outboundMapLinks(restaurant);
+  if (links.length === 0) return null;
 
   return (
     <ul className={cn("flex flex-wrap gap-x-4 gap-y-1", className)}>
-      {outboundMapLinks(restaurant).map((link) => (
+      {links.map((link) => (
         <li key={link.id}>
           <a
             href={link.href}

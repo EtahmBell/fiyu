@@ -52,6 +52,26 @@ describe("publicRestaurantListSchema", () => {
       }
     }
   });
+
+  /**
+   * LOAD-BEARING. Do not delete as redundant.
+   *
+   * Zod strips unknown keys silently, so a field the backend adds and this
+   * schema omits vanishes with no error, no rejected row and no console
+   * warning. That is exactly how 20 location fields -- including
+   * map_location_approximate, location_label and directions_coordinates_eligible
+   * -- were discarded while the map showed one pin instead of five.
+   *
+   * z.object output has exactly the declared keys, so comparing key sets makes
+   * this bidirectional: it fails if the schema drops a field the backend sends,
+   * AND if the schema declares one the backend has stopped sending.
+   */
+  it("declares exactly the keys the backend sends, dropping and inventing none", () => {
+    for (const row of restaurantsFixture as Record<string, unknown>[]) {
+      const parsed = publicRestaurantSchema.parse(row);
+      expect(Object.keys(parsed).sort()).toEqual(Object.keys(row).sort());
+    }
+  });
 });
 
 describe("publicRestaurantSchema", () => {
@@ -110,6 +130,75 @@ describe("publicRestaurantSchema", () => {
     expect(
       publicRestaurantSchema.safeParse({ place_id: "ChIJtest", fiyu_score: "88.39" }).success,
     ).toBe(false);
+  });
+
+  it("defaults every location gate to the safe answer", () => {
+    const parsed = publicRestaurantSchema.parse(minimal);
+    expect(parsed.map_location_approximate).toBe(false);
+    expect(parsed.distance_sort_eligible).toBe(false);
+    expect(parsed.directions_coordinates_eligible).toBe(false);
+    expect(parsed.location_label).toBeNull();
+    expect(parsed.external_map_search_query).toBeNull();
+    expect(parsed.provenance).toBeNull();
+    expect(parsed.matched_components).toEqual({});
+  });
+
+  it("keeps the OSM provenance attribution, which must be displayed", () => {
+    const parsed = publicRestaurantSchema.parse({
+      place_id: "ChIJtest",
+      provenance: {
+        attribution: "Map data © OpenStreetMap contributors",
+        osm_type: "relation",
+        osm_id: 17294925,
+        // An added key must not fail the parse.
+        future_key: "ignored but preserved",
+      },
+    });
+    expect(parsed.provenance?.attribution).toBe("Map data © OpenStreetMap contributors");
+    expect(parsed.provenance?.osm_id).toBe(17294925);
+  });
+});
+
+describe("backend location derivation", () => {
+  const coordinateRows = (restaurantsFixture as Record<string, unknown>[]).filter(
+    (row) => row.latitude !== null,
+  );
+
+  it("captured the five map-eligible restaurants", () => {
+    expect(coordinateRows).toHaveLength(5);
+  });
+
+  /**
+   * Pins the backend rule at public_catalog.py:872-874. If this breaks, the
+   * frontend's distance and directions gates are reading a field that no longer
+   * means what they assume.
+   */
+  it("derives both eligibility gates from map_location_approximate", () => {
+    for (const row of coordinateRows) {
+      const parsed = publicRestaurantSchema.parse(row);
+      expect(parsed.distance_sort_eligible).toBe(!parsed.map_location_approximate);
+      expect(parsed.directions_coordinates_eligible).toBe(!parsed.map_location_approximate);
+    }
+  });
+
+  it("labels every approximate coordinate and gives it a written address", () => {
+    const approximate = coordinateRows
+      .map((row) => publicRestaurantSchema.parse(row))
+      .filter((row) => row.map_location_approximate);
+
+    expect(approximate).toHaveLength(3);
+    for (const row of approximate) {
+      expect(row.location_label).toBe("Approximate area");
+      // The written address is the only safe basis for directions.
+      expect(row.external_map_search_query).toBeTruthy();
+    }
+  });
+
+  it("serves precision values outside any allow-list the frontend could hold", () => {
+    const precisions = new Set(coordinateRows.map((row) => row.location_precision));
+    // Documents why isMappable() must not gate on this field.
+    expect(precisions).toContain("chome");
+    expect(precisions).toContain("parcel_or_street_number");
   });
 });
 

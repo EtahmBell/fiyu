@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
+import { publicRestaurantSchema } from "@/lib/api/schemas";
+import { mappableRestaurants } from "@/lib/geo/mappable";
 import { BASE_CELL_SIZE, type ClusterInput, clusterMarkers, isCluster } from "@/lib/map/clustering";
+import { project } from "@/lib/map/projection";
+import restaurantsFixture from "@/test/fixtures/restaurants.json";
 
 function input(id: string, x: number, y: number): ClusterInput<string> {
   return { id, point: { x, y }, item: id };
@@ -93,5 +97,59 @@ describe("cluster counts are not a popularity signal", () => {
     expect(clusterMarkers(layoutA)[0].members).toHaveLength(
       clusterMarkers(layoutB)[0].members.length,
     );
+  });
+});
+
+describe("against the live catalog", () => {
+  const catalog = restaurantsFixture.map((row) => publicRestaurantSchema.parse(row));
+  const projected = mappableRestaurants(catalog).map((restaurant) => ({
+    id: restaurant.place_id,
+    point: project({ lat: restaurant.latitude, lng: restaurant.longitude }),
+    item: restaurant,
+  }));
+
+  it("never loses or duplicates a restaurant, at any zoom", () => {
+    // Asserting total membership rather than a mark count: how many marks appear
+    // is incidental layout, but every restaurant must be reachable at every zoom.
+    for (const scale of [1, 1.5, 1.7768514, 2, 2.665, 3, 4]) {
+      const clusters = clusterMarkers(projected, { scale });
+      const ids = clusters.flatMap((cluster) => cluster.members.map((member) => member.id));
+      expect(ids).toHaveLength(projected.length);
+      expect(new Set(ids).size).toBe(projected.length);
+    }
+  });
+
+  /**
+   * あたらよ 秋葉原店 and 牛たんの檸檬 秋葉原店 are ~350 m apart in 神田佐久間町.
+   * They overlap at the initial fit and must stack rather than be drawn on top
+   * of one another, then separate as the map zooms in. Pinned so a future
+   * BASE_CELL_SIZE change that un-stacks an overlapping pair fails loudly.
+   */
+  it("stacks the two Akihabara restaurants at the initial fit and splits them on zoom", () => {
+    const akihabara = ["ChIJAZOKBEyPGGARWoSCCwgRm8E", "ChIJGZiCSQCPGGARtJeKu6kiMVo"];
+
+    const fitted = clusterMarkers(projected, { scale: 1.7768514 });
+    const shared = fitted.find((cluster) => cluster.members.length > 1);
+    expect(shared?.members.map((member) => member.id).sort()).toEqual([...akihabara].sort());
+
+    const zoomed = clusterMarkers(projected, { scale: 2.665 });
+    expect(zoomed.every((cluster) => cluster.members.length === 1)).toBe(true);
+  });
+
+  it("positions a stacked group at its members' centroid, never jittered", () => {
+    const clusters = clusterMarkers(projected, { scale: 1.7768514 });
+    const shared = clusters.find((cluster) => cluster.members.length > 1);
+    const meanX =
+      shared!.members.reduce((total, member) => total + member.point.x, 0) /
+      shared!.members.length;
+    // Rounded to the SVG grid, but derived from the members and nothing else.
+    expect(shared!.point.x).toBeCloseTo(meanX, 1);
+  });
+
+  it("rounds every cluster point for rendering", () => {
+    for (const cluster of clusterMarkers(projected, { scale: 1.7768514 })) {
+      expect(String(cluster.point.x)).toMatch(/^-?\d+(\.\d{1,2})?$/);
+      expect(String(cluster.point.y)).toMatch(/^-?\d+(\.\d{1,2})?$/);
+    }
   });
 });

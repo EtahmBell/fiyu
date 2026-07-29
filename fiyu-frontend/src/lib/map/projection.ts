@@ -49,6 +49,13 @@
  *    approximate or an area anchor.
  *  - The projection is spherical, not ellipsoidal. Over this area the error is
  *    on the order of metres, far below the size of a marker.
+ *
+ * FLOAT DETERMINISM (read before adding a numeric SVG attribute)
+ *
+ * `project()` is NOT safe to interpolate straight into rendered markup. See
+ * svgNumber() below: every number that reaches an SVG attribute must be rounded
+ * first, or server and client render different strings and React reports a
+ * hydration mismatch. project() and unproject() themselves stay bit-exact.
  * ---------------------------------------------------------------------------
  */
 
@@ -107,6 +114,70 @@ export function project({ lat, lng }: LatLng): Point {
   };
 }
 
+/**
+ * Decimal places kept on any number written into an SVG attribute.
+ *
+ * 0.01 viewBox units is about 0.33 m of longitude and 0.29 m of latitude at
+ * Tokyo's scale, and roughly 0.01 CSS pixels on a 1000px-wide map -- visually
+ * lossless, and far finer than the 22-unit marker hit area.
+ */
+export const SVG_DECIMALS = 2;
+
+const SVG_QUANTUM = 10 ** SVG_DECIMALS;
+
+/**
+ * Round a number for rendering, deterministically across JS engines.
+ *
+ * WHY THIS EXISTS -- do not remove as cosmetic tidying.
+ *
+ * ECMAScript (§21.3.2) leaves `Math.log` and `Math.tan` implementation-defined,
+ * so Node and the browser may differ by ~1 ULP for the same input. mercatorY()
+ * uses both, and project() then amplifies that difference roughly 209x through
+ * catastrophic cancellation in `NORTH_Y - mercatorY(lat)`:
+ *
+ *   NORTH_Y             = 0.6703966741762857
+ *   mercatorY(35.6706)  = 0.6671839424980388
+ *   difference          = 0.0032127316782468718   <- ~209x amplification
+ *
+ * Observed on the "Chuo" ward label (basemap.ts, lat 35.6706), rendered raw into
+ * a <text y> attribute:
+ *
+ *   server (Node)     y = 511.42999798943185
+ *   client (browser)  y = 511.4299979894495
+ *
+ * React compares attributes as strings, so those are a hydration mismatch.
+ * Rounding to 2dp collapses a ~1.8e-13 divergence with eleven orders of margin.
+ *
+ * Returns a number, not a fixed-point string: `Math.round`, `*` and `/` are all
+ * exactly specified by IEEE-754, as is Number::toString -- unlike Math.log and
+ * Math.tan. Keeping it numeric also leaves the value usable in arithmetic.
+ */
+export function svgNumber(value: number): number {
+  return Math.round(value * SVG_QUANTUM) / SVG_QUANTUM;
+}
+
+/** svgNumber applied to both axes. Use at every render boundary. */
+export function roundPoint({ x, y }: Point): Point {
+  return { x: svgNumber(x), y: svgNumber(y) };
+}
+
+/**
+ * Approximate viewBox units for a distance in metres, at a given latitude.
+ *
+ * Used for the GPS accuracy ring. Derived from the projection's own constants so
+ * it cannot drift out of step with VIEWBOX_HEIGHT or TOKYO_BOUNDS, and scaled by
+ * the local Mercator derivative rather than treating latitude as linear.
+ */
+export function metersToViewBoxUnits(meters: number, atLat: number): number {
+  const METRES_PER_DEGREE_LAT = 110_574;
+  const degrees = meters / METRES_PER_DEGREE_LAT;
+  // Local vertical scale: viewBox units per degree of latitude, here.
+  const unitsPerDegree =
+    ((mercatorY(atLat + degrees / 2) - mercatorY(atLat - degrees / 2)) / MERCATOR_SPAN) *
+    VIEWBOX_HEIGHT;
+  return degrees === 0 ? 0 : Math.abs(unitsPerDegree);
+}
+
 /** Inverse of project(). Used for click-to-place-a-pin. */
 export function unproject({ x, y }: Point): LatLng {
   const lng = TOKYO_BOUNDS.west + (x / VIEWBOX_WIDTH) * LNG_SPAN;
@@ -128,8 +199,8 @@ export function isWithinBounds({ lat, lng }: LatLng): boolean {
 export function toPath(coordinates: readonly LatLng[], close = false): string {
   if (coordinates.length === 0) return "";
   const commands = coordinates.map((coordinate, index) => {
-    const { x, y } = project(coordinate);
-    return `${index === 0 ? "M" : "L"}${x.toFixed(2)} ${y.toFixed(2)}`;
+    const { x, y } = roundPoint(project(coordinate));
+    return `${index === 0 ? "M" : "L"}${x.toFixed(SVG_DECIMALS)} ${y.toFixed(SVG_DECIMALS)}`;
   });
   return commands.join(" ") + (close ? " Z" : "");
 }

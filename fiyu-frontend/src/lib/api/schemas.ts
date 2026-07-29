@@ -13,8 +13,12 @@ import { z } from "zod";
  *  - Numeric fields carry NO range assertions. A future out-of-range value
  *    should degrade in a formatter rather than blank an entire page.
  *  - Band and precision fields are validated as plain strings, not enums: an
- *    unrecognised value must not fail the parse. Narrowing happens in
- *    lib/format/score.ts and lib/geo.
+ *    unrecognised value must not fail the parse. Score bands are narrowed in
+ *    lib/format/score.ts. `location_precision` is narrowed NOWHERE -- see the
+ *    note on the coordinate block below.
+ *  - Every field the backend sends is declared here. Zod strips unknown keys
+ *    silently, so an omission is invisible at runtime; the key-parity test in
+ *    schemas.test.ts is what keeps this schema honest.
  *  - No field is translated, rewritten or normalised. Localization is owned by
  *    the backend; this layer only validates shape.
  */
@@ -46,6 +50,42 @@ const intWithDefault = (fallback: number) =>
     .nullish()
     .transform((value) => value ?? fallback);
 
+/** Address component maps, e.g. { ward: "杉並区", chome: "3" }. */
+const stringRecord = z
+  .record(z.string(), z.string())
+  .nullish()
+  .transform((value) => value ?? {});
+
+/**
+ * Loosely-typed object arrays, e.g. discovery_areas. The backend controls the
+ * item shape and has changed it before; validating the keys here would fail the
+ * parse on a shape this layer does not actually read.
+ */
+const objectArray = z
+  .array(z.record(z.string(), z.unknown()))
+  .nullish()
+  .transform((value) => value ?? []);
+
+/**
+ * OpenStreetMap provenance for a verified coordinate, built at
+ * public_catalog.py:889-898. `attribution` carries the ODbL credit and must be
+ * displayed wherever the coordinate is.
+ *
+ * Declared as a loose object: the six keys are named so backend drift stays
+ * visible, but an added key must not fail the parse.
+ */
+const locationProvenanceSchema = z
+  .looseObject({
+    attribution: nullableString,
+    osm_type: nullableString,
+    osm_id: nullableNumber,
+    osm_version: nullableNumber,
+    osm_timestamp: nullableString,
+    representative_point_method: nullableString,
+  })
+  .nullish()
+  .transform((value) => value ?? null);
+
 /** GET /public/restaurants item, and GET /public/restaurants/{place_id}. */
 export const publicRestaurantSchema = z.object({
   place_id: z.string().min(1),
@@ -56,14 +96,62 @@ export const publicRestaurantSchema = z.object({
   description_en: nullableString,
 
   /*
-   * Coordinates are gated by the backend: public_catalog.py nulls them
+   * Coordinates are gated by the backend: public_catalog.py:903-911 nulls them
    * whenever map_display_eligible is false, so an ineligible restaurant can
-   * never carry a position. Treat all three as one unit -- see isMappable().
+   * never carry a position. That nulling is the contract isMappable() relies
+   * on -- eligibility, not the precision string, decides what may be plotted.
+   *
+   * location_precision is INFORMATIONAL ONLY and must never gate rendering.
+   * Its vocabulary is owned by the backend and spans at least nine values
+   * across three modules (address_geocoding.py, address_research.py), served
+   * as COALESCE(map_location_precision, location_precision). Live values today
+   * include "exact", "parcel_or_street_number" and "chome". A frontend
+   * allow-list over this field silently hid 3 of 5 pins once already.
+   *
+   * The three booleans below are derived by the backend at
+   * public_catalog.py:866-882 and are the fields to gate on instead:
+   *  - map_location_approximate: the coordinate is an area anchor, not a door.
+   *  - distance_sort_eligible: safe to measure and rank by distance.
+   *  - directions_coordinates_eligible: safe to hand to a maps app as a point.
+   * The last two are both `eligible && !map_location_approximate`, but read
+   * them separately -- they answer different questions and may diverge.
    */
   latitude: nullableNumber,
   longitude: nullableNumber,
   location_precision: nullableString,
   map_display_eligible: boolWithDefault(false),
+  map_location_approximate: boolWithDefault(false),
+  distance_sort_eligible: boolWithDefault(false),
+  directions_coordinates_eligible: boolWithDefault(false),
+
+  /*
+   * Location disclosure. `location_label` carries the backend's own wording
+   * ("Approximate area") and is rendered verbatim, never paraphrased -- the
+   * same rule as LocationAnchor.qualifier below.
+   */
+  location_status: nullableString,
+  location_label: nullableString,
+  map_anchor_type: nullableString,
+  map_anchor_id: nullableString,
+  /** The verified written address, for directions when coordinates are coarse. */
+  external_map_search_query: nullableString,
+
+  verified_core_address: nullableString,
+  core_address_verified: boolWithDefault(false),
+  full_address_verified: boolWithDefault(false),
+
+  /* Which address components the geocoder matched, and which it could not. */
+  matched_components: stringRecord,
+  unmatched_components: stringRecord,
+  provenance: locationProvenanceSchema,
+  source_reference: nullableString,
+
+  /* Editorial sourcing. `discovery_area_conflict` flags contradictory sources. */
+  discovery_area: nullableString,
+  discovery_area_type: nullableString,
+  discovery_areas: objectArray,
+  multiple_discovery_areas: boolWithDefault(false),
+  discovery_area_conflict: boolWithDefault(false),
 
   neighborhood: nullableString,
   fiyu_score: nullableNumber,

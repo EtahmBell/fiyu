@@ -1,5 +1,12 @@
 import { AREA_LABELS, PARKS, RIVERS, TOKYO_BAY, YAMANOTE_LINE } from "@/lib/map/basemap";
-import { VIEWBOX_HEIGHT, VIEWBOX_WIDTH, project, toPath } from "@/lib/map/projection";
+import {
+  VIEWBOX_HEIGHT,
+  VIEWBOX_WIDTH,
+  project,
+  roundPoint,
+  svgNumber,
+  toPath,
+} from "@/lib/map/projection";
 
 /**
  * The illustrated base map.
@@ -12,6 +19,10 @@ import { VIEWBOX_HEIGHT, VIEWBOX_WIDTH, project, toPath } from "@/lib/map/projec
  * Stroke widths are divided by the current scale so lines keep a constant
  * apparent weight as the map zooms; without that, the Yamanote line would grow
  * into a thick band at 4x.
+ *
+ * Every number here goes through svgNumber/roundPoint. The ward labels are where
+ * the projection's cross-engine float divergence was first observed as a
+ * hydration mismatch -- see svgNumber() in lib/map/projection.ts.
  */
 export interface MapBaseProps {
   /** Current map scale, used to keep stroke weights visually constant. */
@@ -19,7 +30,7 @@ export interface MapBaseProps {
 }
 
 export function MapBase({ scale }: MapBaseProps) {
-  const stroke = (width: number) => width / scale;
+  const stroke = (width: number) => svgNumber(width / scale);
 
   return (
     <g aria-hidden="true">
@@ -54,7 +65,7 @@ export function MapBase({ scale }: MapBaseProps) {
       />
 
       {AREA_LABELS.map((label) => {
-        const { x, y } = project(label.at);
+        const { x, y } = roundPoint(project(label.at));
         const primary = label.emphasis === "primary";
         return (
           <text
@@ -64,8 +75,8 @@ export function MapBase({ scale }: MapBaseProps) {
             textAnchor="middle"
             className="select-none"
             fill={primary ? "var(--map-label)" : "var(--map-label-muted)"}
-            fontSize={(primary ? 15 : 13) / scale}
-            letterSpacing={1.2 / scale}
+            fontSize={svgNumber((primary ? 15 : 13) / scale)}
+            letterSpacing={svgNumber(1.2 / scale)}
             style={{ fontFamily: "var(--font-sans)" }}
           >
             {label.text}

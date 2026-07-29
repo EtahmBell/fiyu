@@ -48,10 +48,35 @@ export interface RequestOptions {
   signal?: AbortSignal;
   /** Server-side cache lifetime in seconds. Ignored in the browser. */
   revalidate?: number | false;
+  /** Server-side cache tags, for targeted revalidation. Ignored in the browser. */
+  tags?: string[];
 }
 
-/** Catalog cache window. The catalog changes only on manual publish. */
-export const CATALOG_REVALIDATE_SECONDS = 300;
+/**
+ * Catalog cache window. Zero, deliberately -- not a forgotten default.
+ *
+ * The catalog changes only on manual publish, which is exactly the argument for
+ * not caching it: an operator publishing or geocoding a restaurant is an
+ * unpredictable, human-triggered write, so any fixed interval is a guess that
+ * costs them up to that long staring at a page which does not yet show their
+ * change. This previously sat at 300 s.
+ *
+ * `revalidate: 0` prevents caching (see the bundled Next docs,
+ * 01-app/03-api-reference/04-functions/fetch.md). Do not also pass
+ * `cache: "no-store"`: conflicting options cause BOTH to be ignored.
+ *
+ * Consequence: `/` renders dynamically, reported as `ƒ` rather than `○` by
+ * `next build`. That does not weaken the "build succeeds with the backend
+ * offline" property -- it removes the build-time fetch that could fail.
+ *
+ * The right end state is caching indefinitely and invalidating on publish, via
+ * revalidateTag("catalog") called from the backend's publish command. The tag is
+ * already attached below; only the route and the operator workflow are missing.
+ */
+export const CATALOG_REVALIDATE_SECONDS = 0;
+
+/** Cache tag for the published catalog, for future publish-time invalidation. */
+export const CATALOG_CACHE_TAG = "catalog";
 
 /**
  * Photo references are short-lived upstream, so they are cached briefly and
@@ -67,7 +92,12 @@ async function requestRaw(
   endpoint: string,
   options: RequestOptions = {},
 ): Promise<{ payload: unknown; status: number }> {
-  const { signal, revalidate } = options;
+  const { signal, revalidate, tags } = options;
+
+  const next = {
+    ...(revalidate === undefined ? {} : { revalidate }),
+    ...(tags === undefined ? {} : { tags }),
+  };
 
   let response: Response;
   try {
@@ -75,7 +105,7 @@ async function requestRaw(
       method: "GET",
       headers: { Accept: "application/json" },
       signal,
-      ...(revalidate === undefined ? {} : { next: { revalidate } }),
+      ...(Object.keys(next).length === 0 ? {} : { next }),
     });
   } catch (cause) {
     // An abort is a caller-initiated cancellation, not a failure.
@@ -155,6 +185,7 @@ export async function fetchRestaurants(
 ): Promise<ParsedRestaurantList> {
   const { payload, status } = await requestRaw(restaurantsUrl(limit), paths.restaurants, {
     revalidate: CATALOG_REVALIDATE_SECONDS,
+    tags: [CATALOG_CACHE_TAG],
     ...options,
   });
 
@@ -181,6 +212,7 @@ export function fetchRestaurant(
 ): Promise<PublicRestaurant> {
   return requestJson(restaurantUrl(placeId), paths.restaurant(placeId), publicRestaurantSchema, {
     revalidate: CATALOG_REVALIDATE_SECONDS,
+    tags: [CATALOG_CACHE_TAG],
     ...options,
   });
 }

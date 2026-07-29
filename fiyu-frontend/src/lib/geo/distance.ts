@@ -39,6 +39,9 @@ export function haversineMeters(from: LatLng, to: LatLng): number {
 /** Below this, metres are rounded to 10 m; above it, kilometres to 0.1 km. */
 const KILOMETRE_THRESHOLD = 1000;
 
+/** When either endpoint is coarse, metres are bucketed to 100 m instead of 10. */
+const COARSE_METRE_BUCKET = 100;
+
 export interface DistanceFormatOptions {
   /**
    * How the distance is described, e.g. "from your location". Supplied by the
@@ -46,10 +49,19 @@ export interface DistanceFormatOptions {
    */
   suffix: string;
   /**
-   * True when the origin is itself approximate, such as an area anchor. Forces
-   * the "About" hedge even for short distances.
+   * True when EITHER endpoint is approximate -- an area-anchor or low-accuracy
+   * origin, or a restaurant the backend located to a chome rather than a door.
+   * Forces the "About" hedge even for short distances.
+   *
+   * Named for the measurement, not the origin: it was `approximateOrigin` while
+   * only the origin could be coarse, and that name would now be a lie.
    */
-  approximateOrigin: boolean;
+  approximate: boolean;
+  /**
+   * True when an endpoint is coarse enough that 10 m buckets overclaim. Widens
+   * sub-kilometre rounding to 100 m.
+   */
+  coarse?: boolean;
 }
 
 /**
@@ -58,19 +70,25 @@ export interface DistanceFormatOptions {
  * Precision is deliberately coarse: 10 m below a kilometre, 0.1 km above it.
  * Reporting "847 m" from a GPS fix with 30 m accuracy, or from an area centre,
  * would imply precision that does not exist.
+ *
+ * `coarse` widens that further, to 100 m. The same argument applies with more
+ * force to a chome anchor, which is nominal to roughly 100-400 m: "About 340 m"
+ * would overclaim by an order of magnitude on exactly the quantity the hedge is
+ * meant to disclose.
  */
 export function formatDistance(
   meters: number | null,
-  { suffix, approximateOrigin }: DistanceFormatOptions,
+  { suffix, approximate, coarse = false }: DistanceFormatOptions,
 ): string {
   if (meters === null || !Number.isFinite(meters) || meters < 0) {
     return "Distance unavailable";
   }
 
   if (meters < KILOMETRE_THRESHOLD) {
-    const rounded = Math.max(10, Math.round(meters / 10) * 10);
-    // A precise origin under a kilometre is the one case that needs no hedge.
-    return approximateOrigin ? `About ${rounded} m ${suffix}` : `${rounded} m ${suffix}`;
+    const bucket = coarse ? COARSE_METRE_BUCKET : 10;
+    const rounded = Math.max(bucket, Math.round(meters / bucket) * bucket);
+    // Two precise endpoints under a kilometre is the one case needing no hedge.
+    return approximate ? `About ${rounded} m ${suffix}` : `${rounded} m ${suffix}`;
   }
 
   const km = Math.round(meters / 100) / 10;
@@ -81,7 +99,8 @@ export function formatDistance(
  * Screen-reader text making the nature of the measurement explicit, since the
  * visible string is necessarily short.
  */
-export function distanceAccessibleLabel(visible: string): string {
+export function distanceAccessibleLabel(visible: string, coarse = false): string {
   if (visible === "Distance unavailable") return visible;
-  return `${visible}, straight-line distance`;
+  const base = `${visible}, straight-line distance`;
+  return coarse ? `${base}, from an approximate location` : base;
 }
