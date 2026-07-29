@@ -1,0 +1,55 @@
+{
+  "mode": "plan_only",
+  "eligible_restaurant_count": 1,
+  "requested_limit": 10,
+  "maximum_responses_requests": 1,
+  "requested_maximum_web_actions": 1,
+  "maximum_web_search_actions": 1,
+  "max_search_actions_per_restaurant": 1,
+  "web_action_limit_semantics": "Requested provider max_tool_calls. The backend stops the batch and rejects automatic acceptance if the provider returns more web_search_call actions; already-executed provider actions cannot be retroactively prevented.",
+  "compact_usage_controls": {
+    "compact_research": true,
+    "max_retained_sources": 4,
+    "max_evidence_summary_chars": 160,
+    "max_conflicting_candidates": 3,
+    "max_output_tokens": 4000,
+    "retry_truncated": false
+  },
+  "resolution_report": "C:\\data\\osm\\reports\\osm-after-spatial-wards.json",
+  "skipped_records": {
+    "unpublished": 0,
+    "map_eligible_or_verified_location": 0,
+    "not_likely_missing_from_osm": 0,
+    "already_has_accepted_address": 0,
+    "place_id_mismatch": 49,
+    "duplicate_query_cache": 0
+  },
+  "restaurants": [
+    {
+      "place_id": "ChIJGZiCSQCPGGARtJeKu6kiMVo",
+      "name_ja": "牛たんの檸檬 秋葉原店",
+      "name_en": "Gyutan no Lemon Akihabara",
+      "discovery_areas": [
+        "Chiyoda"
+      ],
+      "fiyu_generated_queries": [
+        "\"牛たんの檸檬 秋葉原店\" Chiyoda 住所"
+      ],
+      "generated_queries": [
+        "\"牛たんの檸檬 秋葉原店\" Chiyoda 住所"
+      ],
+      "cached_queries": [],
+      "skipped_queries": []
+    }
+  ],
+  "usage_totals": {
+    "response_request_count": 0,
+    "web_search_action_count": 0,
+    "input_tokens": 0,
+    "cached_input_tokens": 0,
+    "output_tokens": 0,
+    "reasoning_tokens": 0,
+    "total_tokens": 0
+  },
+  "failures": []
+}

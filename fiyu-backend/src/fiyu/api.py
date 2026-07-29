@@ -73,6 +73,10 @@ class PublicRestaurantSummary(BaseModel):
     multiple_discovery_areas: bool = False
     discovery_area_conflict: bool = False
     location_precision: str | None = None
+    verified_core_address: str | None = None
+    core_address_verified: bool = False
+    full_address_verified: bool = False
+    map_location_approximate: bool = False
     map_display_eligible: bool = False
     community_recommendation_count: int = 0
     community_positive_count: int = 0

@@ -379,10 +379,10 @@ Public map attribution is available from `GET /public/map-config` and currently 
 `Map data © OpenStreetMap contributors`. This is product configuration, not legal advice; OSM type,
 ID, version, timestamp, and source references are retained for attribution and reproducibility.
 
-`fiyu.address_geocoder.AddressGeocoder` is the provider-neutral extension point for a future local
-Digital Agency ABR Geocoder adapter. It accepts only independently verified Japanese addresses and
-can return normalized address, coordinates, address identifiers, precision, warnings, and
-provenance. Phase 1 implements no Google geocoding and no network geocoder.
+`fiyu.address_geocoder.AddressGeocoder` is the provider-neutral extension point for local address
+providers. The MVP provider reads a replace-safe local OpenStreetMap address index; the optional
+Digital Agency ABR adapter remains available but is not required. Neither provider falls back to
+Google geocoding or a network geocoder.
 
 ### Discovery-area provenance
 
@@ -456,6 +456,397 @@ classes, a final resolution reason, and a recommended next action.
 `likely_not_represented_in_osm` is a conservative routing category, not a claim that a restaurant
 is absent from OSM. It requires a complete ward-boundary index, no exact or strong candidate in an
 allowed ward, no exact adjacent-ward candidate, and only weak fuzzy candidates remaining.
+
+### Independent web-address fallback
+
+Fiyu resolves locations in stages: exact independent OSM evidence first, public web-address
+evidence second, independent address geocoding third, and a documented manual tail last. Address
+research answers whether a street address belongs to the exact restaurant. Geocoding answers only
+which coordinates correspond to an already verified Japanese address. Neither operation changes
+the deterministic Fiyu score.
+
+The backend uses the OpenAI Responses API built-in `web_search` tool only from explicit research
+commands. List and detail API requests never initiate paid calls. The existing full restaurant
+research request now returns editorial/scoring evidence and a separate optional `address_evidence`
+object in one structured response. Acceptable combined evidence is persisted through the same
+deterministic validator as standalone discovery, so no second address request is needed. Missing,
+weak, conflicting, or branch-ambiguous combined evidence remains eligible for a later standalone
+fallback after OSM classifies the restaurant as `likely_not_represented_in_osm`.
+
+Address sources are classified by an explicit host/source policy registry:
+
+- Strong: official restaurant sites, demonstrably restaurant-controlled social or reservation
+  pages, direct restaurant confirmation, government/open-data listings, and attributed company
+  press releases. A PR TIMES page is recorded as an attributed third-party-hosted press release;
+  it is not mislabeled as restaurant-controlled submission evidence.
+- Secondary: permitted booking platforms or business directories, established local editorial
+  sources, and independent Japanese blogs. Under the optimistic MVP policy, one matching secondary
+  source can support a provisional address.
+- Lead only: snippets, reposts, unattributed aggregators, weak user-generated content, and unknown
+  sources. Google Maps, Tabelog, and Instagram web-search references are retained as leads but do
+  not independently verify an address.
+
+A source title containing the restaurant name is not sufficient. Tabelog, Google/Maps, Instagram,
+and other restricted platforms are forcibly reclassified as lead-only after model parsing, so a
+model-proposed label cannot bypass policy.
+
+Automatic acceptance keeps the identity, branch, and discovery-area hard blockers, but uses an
+optimistic MVP source policy. Strong evidence can be `verified`; exact identity plus a matching
+secondary source or two agreeing weak sources is `provisional_high`; probable identity or a sole
+qualifying lead-only source is `provisional_medium`. All provisional decisions are labeled and
+retain their reasons. Prefecture, municipality/ward,
+neighborhood, and street/block conflicts are material and block verification. Building, floor,
+suite/unit, room, and entrance-description conflicts are non-material for a discovery-map pin:
+they are retained internally, prevent `full_address_verified`, and are never presented as confirmed.
+When the core agrees, `core_address_verified=true` and `verified_core_address` contains only the
+agreed components. Original source strings remain unchanged in address evidence.
+
+Deterministic comparison applies Unicode NFKC, canonical ASCII/Japanese hyphens, optional-space
+removal, and equivalent Japanese `丁目`/`番`/`番地`/`号` notation. Thus `1-13`, `1丁目13`, and
+`１丁目１３` compare as one street/block value, while genuinely different numbers remain a material
+conflict. Floor comparison likewise treats `1階` as `1F` and `地下1階` as `B1F`. These forms are
+comparison keys only; the stored source display text is never rewritten.
+
+Every source address and conflicting candidate also carries `address_temporality`: `current`,
+`historical`, `future`, or `unknown`. Only explicit wording such as `旧住所`, `移転前`,
+`以前の住所`, an address followed by `から移転`, `現住所`, or `移転先` changes that classification.
+Different addresses alone never imply history. Historical and future addresses remain in the
+internal provenance report but are excluded from active component conflicts. Navigation labels and
+move-explanation sentences are removed from parsed building/floor fields while remaining available
+in `address_text_as_displayed`.
+
+Location precision uses `exact_entrance`, `building`, `parcel_or_street_number`, `block`,
+`neighborhood`, `ward`, or `unknown`. Entrance/building/parcel results can be map eligible. Accepted
+block results can be eligible with `map_location_approximate=true`. Neighborhood and ward results
+do not automatically qualify. Research alone never sets coordinates or `map_display_eligible`.
+
+Schema changes are additive. Initialize or migrate once before using a paid dry run:
+
+```powershell
+python -m fiyu.public_cli --db data\fiyu.db init
+```
+
+The OSM resolver persists `location_resolution_reason` when run without `--dry-run`. Standalone
+address selection includes only published, map-ineligible rows whose persisted reason is
+`likely_not_represented_in_osm`. It excludes ambiguous exact-name candidates, OSM manual-review
+rows, verified locations, unpublished rows, and already accepted addresses. For the first backfill
+from a database created before reason persistence, pass the already-reviewed detailed resolver JSON
+with `--resolution-report`; it supplies reasons read-only and does not import or approve any OSM row.
+
+Plan one restaurant without an API request or database write:
+
+```powershell
+python -m fiyu.public_cli --db data\fiyu.db discover-addresses `
+  --place-id PLACE_ID --limit 1 --web-action-budget 1 --plan-only `
+  --resolution-report C:\data\osm\reports\osm-with-ward-boundaries.json `
+  --output-report data\address-one-plan.json
+```
+
+Make one paid request but persist nothing:
+
+```powershell
+python -m fiyu.public_cli --db data\fiyu.db discover-addresses `
+  --place-id PLACE_ID --limit 1 --web-action-budget 1 --dry-run `
+  --resolution-report C:\data\osm\reports\osm-with-ward-boundaries.json `
+  --output-report data\address-one-paid-preview.json
+```
+
+Plan the initial 19-record population:
+
+```powershell
+python -m fiyu.public_cli --db data\fiyu.db discover-addresses `
+  --limit 19 --web-action-budget 1 --plan-only `
+  --resolution-report C:\data\osm\reports\osm-with-ward-boundaries.json `
+  --output-report data\address-19-plan.json
+```
+
+Run the batch as a paid no-write preview:
+
+```powershell
+python -m fiyu.public_cli --db data\fiyu.db discover-addresses `
+  --limit 19 --web-action-budget 1 --dry-run `
+  --resolution-report C:\data\osm\reports\osm-with-ward-boundaries.json `
+  --output-report data\address-19-paid-preview.json
+```
+
+After reviewing the plan and a paid preview, persist audited runs and evidence by omitting both
+mode flags:
+
+```powershell
+python -m fiyu.public_cli --db data\fiyu.db discover-addresses `
+  --limit 19 --web-action-budget 1 `
+  --resolution-report C:\data\osm\reports\osm-with-ward-boundaries.json `
+  --output-report data\address-19-results.json
+```
+
+`--plan-only` makes no API request and performs no database write. `--dry-run` may make paid
+Responses/web-search calls but performs no database write. A persistent run records the response
+ID, model, Fiyu-generated queries, model-reported queries, actual web actions, cached/skipped
+queries, search-call references, citations, source evidence,
+request count, web-search action count, input/cached/output/reasoning/total tokens, failures, and
+explicit retry count. Core logic stores usage units rather than hard-coded prices. Identical
+standalone query sets are skipped unless `--force` is supplied. SDK automatic retries are disabled
+so every paid request is visible in the audit record. `--web-action-budget` (with the deprecated
+`--max-search-actions` alias) is passed to the provider as `max_tool_calls`. Because the provider
+may still return more `web_search_call` action records than requested, this is documented as a
+requested provider budget rather than an absolute pre-execution guarantee. The backend records
+`limit_reached`/`limit_exceeded`, rejects automatic acceptance, and stops the remaining batch on an
+observed overrun. Actual actions cannot be retroactively prevented.
+
+Compact mode is on by default: low search context, at most four retained sources, 160 characters per
+evidence summary, three conflicts, and 4,000 output tokens. The 4,000-token response budget replaces
+the insufficient 1,800-token default that could truncate the current address schema. Tune these with
+`--max-retained-sources`, `--max-evidence-summary-chars`, `--max-conflicting-candidates`,
+`--max-output-tokens`, and `--no-compact-research` without changing identity checks.
+
+Standalone address research sends a Pydantic-derived strict JSON Schema through Responses API
+`text.format` and then validates the returned text with Pydantic. The backend receives and audits the
+raw Response before parsing: response status, incomplete reason, response IDs, usage, web actions,
+output character count, refusal/provider state, truncation, and a compact parse-error summary remain
+available even when JSON is incomplete. Normal reports never include the raw partial output, and
+incomplete evidence is never persisted.
+
+Truncated responses are not retried by default. `--retry-truncated` permits exactly one retry with a
+deterministically doubled output budget. A retry is allowed only when unused cumulative web-action
+budget remains; both response IDs, both attempts' usage, actual web actions, and `retry_count` are
+reported. Operators should normally rerun explicitly with a larger `--max-output-tokens` value.
+
+Discovery reports retain the backward-compatible `completed`, `failed`, and `persisted` counters,
+and add unambiguous `provider_completed`, `pipeline_accepted`, `pipeline_rejected`,
+`research_records_persisted`, `verified_addresses_persisted`, and
+`unresolved_evidence_persisted` counters.
+
+Saved paid evidence can be re-evaluated after deterministic policy changes without another API,
+web-search, or geocoder call. Preview one restaurant or every restaurant with saved evidence:
+
+```powershell
+python -m fiyu.public_cli --db data\fiyu.db recalculate-address-decisions `
+  --place-id PLACE_ID --dry-run
+
+python -m fiyu.public_cli --db data\fiyu.db recalculate-address-decisions `
+  --all --dry-run
+```
+
+After reviewing the preview, persist the new decisions by omitting `--dry-run`:
+
+```powershell
+python -m fiyu.public_cli --db data\fiyu.db recalculate-address-decisions `
+  --place-id PLACE_ID
+
+python -m fiyu.public_cli --db data\fiyu.db recalculate-address-decisions --all
+```
+
+Recalculation reconstructs the latest saved evidence, reapplies source policy, normalization,
+temporality, component agreement, and acceptance, then appends an `address_decision_audits` row.
+It does not alter the original `address_evidence`, research run, response/usage audit, or search
+attempts. Dry-run opens the existing schema read-only and writes nothing.
+
+Export address candidates that require review:
+
+```powershell
+python -m fiyu.public_cli --db data\fiyu.db export-address-review `
+  --output data\address-review.xlsx --limit 100
+```
+
+`.xlsx` is the recommended review format. Every cell—including place IDs, evidence IDs,
+fingerprints, postal codes, and address components such as `1-13`—is written with Excel's text
+number format so Excel does not silently convert street/block values into dates. UTF-8 BOM CSV is
+still supported, but do not open the CSV by double-clicking it in Excel: import it explicitly and
+set every identifier, fingerprint, postal-code, and address-component column to **Text**.
+
+The exporter selects only the newest address evidence per restaurant and resolves its effective
+decision in this order: a valid manual review decision for that evidence, otherwise the newest
+deterministic recalculation audit, otherwise the original research decision. Manual decisions are
+not silently overridden by later deterministic recalculation; newer research evidence supersedes
+decisions attached to older evidence. By default, only published, map-ineligible records whose
+effective resolution is exactly `address_needs_review` are exported. Verified, rejected, failed,
+not-researched, conflicting, and superseded records are excluded.
+
+Review files show both the original and effective states through `previous_acceptance_status`,
+`current_acceptance_status`, `current_resolution_status`, `current_review_reasons`,
+`latest_decision_at`, and `latest_decision_source`. The component fields, agreed core, conflicts,
+historical/excluded evidence, precision, and approximate flag come from the latest recalculated
+agreement. `effective_decision_fingerprint` binds the file to that exact decision snapshot.
+
+Reviewers may choose `approve_core_location`, `approve_full_address`, `reject`, or `unresolved`
+(`approve` remains a backward-compatible full-address alias). The export shows agreed and disputed
+components, source JSON, proposed precision, approximate status, and whether validated geocoding
+could make the row map eligible. A core approval never forces selection of a disputed building or
+floor. Decisions require reviewer identity and
+a strict `YYYY-MM-DD` date. Imports reject duplicate restaurant decisions and modified/stale
+evidence, preserve append-only decision history, and allow at most one approved address per
+restaurant. Preview and apply with:
+
+```powershell
+python -m fiyu.public_cli --db data\fiyu.db import-address-review `
+  --input data\address-review-reviewed.xlsx --dry-run
+
+python -m fiyu.public_cli --db data\fiyu.db import-address-review `
+  --input data\address-review-reviewed.xlsx
+```
+
+Import re-resolves the latest effective decision and rejects stale evidence or decision
+fingerprints, superseded evidence, records no longer needing review, changed candidate/address
+fields, duplicate restaurants, unknown decisions, and spreadsheet date conversions such as
+`Jan-13` in place of `1-13`. Dry-run performs these checks without applying schema changes or data
+writes. Manual decisions are append-only; importing a review no longer rewrites the original
+research evidence decision.
+
+The MVP address provider is `local-osm-addresses`. Rebuild a separate address-capable index from
+the local Geofabrik PBF; the build is atomic and does not modify the older restaurant index:
+
+```powershell
+python -m fiyu.public_cli build-osm-index `
+  --pbf C:\data\osm\kanto-latest.osm.pbf `
+  --output C:\data\osm\fiyu-kanto-address-index.sqlite
+```
+
+The `osm_addresses` table stores address nodes, addressed entrances, addressed building polygons,
+safe address-interpolation objects, and addressed restaurant POIs. Building coordinates use the
+polygon area centroid, with a mean-point fallback only for degenerate geometry. Linear objects use
+their cumulative-length midpoint. OSM type/ID/version/timestamp, representative-point method,
+source reference, and `Map data © OpenStreetMap contributors` attribution are retained. The old
+index contains some POI `addr:*` tags but does not contain the complete standalone address layer,
+so it must not be used with `local-osm-addresses` until rebuilt.
+
+Japanese address comparison applies Unicode NFKC, compatible dash forms, `丁目`/`番`/`番地`/`号`,
+Arabic and common Japanese numeric forms, optional `東京都`, and exact ward/neighborhood and number
+components. Materially different numbers are never treated as equivalent.
+
+First recalculate saved evidence under the current optimistic MVP policy without any network call:
+
+```powershell
+python -m fiyu.public_cli --db data\fiyu.db recalculate-address-decisions `
+  --all --mvp-policy --dry-run
+
+python -m fiyu.public_cli --db data\fiyu.db recalculate-address-decisions `
+  --all --mvp-policy
+```
+
+Export agreed core addresses only. Disputed building, floor, suite, unit, and entrance fields are
+never included:
+
+```powershell
+python -m fiyu.public_cli --db data\fiyu.db export-geocoding-inputs `
+  --output data\geocoding-inputs.json --limit 100
+```
+
+Geocode one address or the whole file locally without network access:
+
+```powershell
+python -m fiyu.public_cli geocode-address-file `
+  --input data\geocoding-inputs.json `
+  --output data\osm-geocoder-one.json `
+  --provider local-osm-addresses `
+  --osm-index C:\data\osm\fiyu-kanto-address-index.sqlite `
+  --place-id PLACE_ID
+
+python -m fiyu.public_cli geocode-address-file `
+  --input data\geocoding-inputs.json `
+  --output data\osm-geocoder-results.json `
+  --provider local-osm-addresses `
+  --osm-index C:\data\osm\fiyu-kanto-address-index.sqlite `
+  --limit 100
+```
+
+Each output retains the place ID, input fingerprint, raw/normalized address, coordinates,
+prefecture/ward/neighborhood, matched components, match status, precision/approximate flag,
+provider/version, OSM object provenance, source reference, and warnings. `not_found`, `ambiguous`,
+ward mismatch, and address-number mismatch are isolated per record. Use `--dry-run` to print the
+proposed result report without writing the result JSON file.
+
+```json
+[
+  {
+    "raw_address": "東京都台東区谷中1丁目2-3",
+    "normalized_address": "台東区谷中1-2-3",
+    "latitude": 35.727,
+    "longitude": 139.77,
+    "prefecture": "東京都",
+    "municipality_or_ward": "台東区",
+    "neighborhood": "谷中",
+    "matched_components": {"ward": "台東区", "neighborhood": "谷中", "address_number": "1-2-3"},
+    "match_level": "address",
+    "status": "matched_exact",
+    "precision": "exact",
+    "map_location_approximate": false,
+    "provider": "local_osm_addresses",
+    "provider_version": "osm-address-index-v1",
+    "osm_type": "node",
+    "osm_id": 1234,
+    "osm_version": 5,
+    "osm_timestamp": "2026-07-01T00:00:00Z",
+    "source_reference": "https://www.openstreetmap.org/node/1234",
+    "input_fingerprint": "sha256-of-the-exported-address-decision",
+    "place_id": "PUBLIC_PLACE_ID"
+  }
+]
+```
+
+Validate geocoder results without writing, then apply them:
+
+```powershell
+python -m fiyu.public_cli --db data\fiyu.db geocode-verified-addresses `
+  --results data\osm-geocoder-results.json --limit 100 --dry-run
+
+python -m fiyu.public_cli --db data\fiyu.db geocode-verified-addresses `
+  --results data\osm-geocoder-results.json --limit 100
+```
+
+Only the agreed core address is sent to the geocoder. Tokyo bounds, swapped coordinates, current
+input fingerprint, derived precision, core-ward agreement, and provider provenance are checked
+before map eligibility. Exact address nodes, entrances, and addressed buildings are normal pins;
+block results and interpolation spans no wider than 150 meters are approximate pins. Ward,
+municipality, and broad neighborhood centroids are rejected. Verified addresses become
+`location_verified`; high/medium
+provisional addresses become `location_provisional`. Both can set `map_display_eligible=true`.
+Existing verified OSM locations are
+excluded and never overwritten. Public restaurant responses may expose `verified_core_address`,
+coordinates, `location_precision`, and `map_location_approximate`; they never expose disputed
+building/floor data as verified. Restaurants without eligible coordinates continue to appear with
+coordinates suppressed.
+
+The migration is additive: public rows gain location tier/status fields; address evidence
+gains parsed-detail and deterministic agreement fields; verified addresses gain a dedicated
+`geocoding_address`; run/search tables gain requested-budget and query-origin audit fields; geocode
+results gain input fingerprints; and `location_history` retains active, superseded, and removed
+coordinate records. Existing coordinates and publication state are not promoted or rewritten by
+migration.
+
+Corrections are explicit and reversible. Preview and apply a replacement:
+
+```powershell
+python -m fiyu.public_cli --db data\fiyu.db replace-location `
+  --place-id PLACE_ID --latitude 35.0 --longitude 139.0 `
+  --source-reference SOURCE --reason "Corrected restaurant location" `
+  --reviewed-by Ethan --reviewed-at YYYY-MM-DD --dry-run
+
+python -m fiyu.public_cli --db data\fiyu.db replace-location `
+  --place-id PLACE_ID --latitude 35.0 --longitude 139.0 `
+  --source-reference SOURCE --reason "Corrected restaurant location" `
+  --reviewed-by Ethan --reviewed-at YYYY-MM-DD
+```
+
+Remove a pin while keeping the restaurant in list/detail views with `--remove` and no coordinates.
+Existing manual/OSM locations require the additional explicit `--allow-manual-override` flag.
+Previous coordinates are appended to `location_history`, never deleted.
+
+The safe bulk MVP workflow is intentionally composed from separate commands: plan/research with
+`discover-addresses`, recalculate, export geocoding inputs, run local OSM address lookup, dry-run the
+results import, then persist. This keeps request estimates and every write boundary visible;
+it is never run during API requests.
+
+Inspect aggregate address, source, geocoding, failure, and raw usage status with:
+
+```powershell
+python -m fiyu.public_cli --db data\fiyu.db address-resolution-status
+```
+
+The manual tail uses the address-review workflow for evidence-backed raw addresses and the existing
+independent location-review import for direct confirmation, on-site verification, trusted
+contributor evidence, or evidence-backed coordinate corrections. Required reviewer, date, method,
+precision, source reference, and notes prevent provenance-free map eligibility. Google-derived
+addresses and coordinates remain identity hints only and are never independent SVG-map evidence.
 
 ### Google Place Photos
 

@@ -1,0 +1,364 @@
+{
+  "mode": "plan_only",
+  "eligible_restaurant_count": 18,
+  "requested_limit": 19,
+  "maximum_responses_requests": 18,
+  "requested_maximum_web_actions": 36,
+  "maximum_web_search_actions": 36,
+  "max_search_actions_per_restaurant": 2,
+  "web_action_limit_semantics": "Requested provider max_tool_calls. The backend stops the batch and rejects automatic acceptance if the provider returns more web_search_call actions; already-executed provider actions cannot be retroactively prevented.",
+  "compact_usage_controls": {
+    "compact_research": true,
+    "max_retained_sources": 4,
+    "max_evidence_summary_chars": 160,
+    "max_conflicting_candidates": 3,
+    "max_output_tokens": 4000,
+    "retry_truncated": false
+  },
+  "resolution_report": "C:\\data\\osm\\reports\\osm-after-spatial-wards.json",
+  "skipped_records": {
+    "unpublished": 28,
+    "map_eligible_or_verified_location": 1,
+    "not_likely_missing_from_osm": 2,
+    "already_has_accepted_address": 1,
+    "place_id_mismatch": 0,
+    "duplicate_query_cache": 0
+  },
+  "restaurants": [
+    {
+      "place_id": "ChIJKdddfwDzGGAR1YfPayuwpFo",
+      "name_ja": "浜田山叙々苑",
+      "name_en": "Hamadayama Jojoen",
+      "discovery_areas": [
+        "Suginami"
+      ],
+      "fiyu_generated_queries": [
+        "\"浜田山叙々苑\" Suginami 住所",
+        "\"浜田山叙々苑\" Suginami 所在地 店舗情報"
+      ],
+      "generated_queries": [
+        "\"浜田山叙々苑\" Suginami 住所",
+        "\"浜田山叙々苑\" Suginami 所在地 店舗情報"
+      ],
+      "cached_queries": [],
+      "skipped_queries": []
+    },
+    {
+      "place_id": "ChIJAZOKBEyPGGARWoSCCwgRm8E",
+      "name_ja": "あたらよ 秋葉原店",
+      "name_en": "Atarayo Akihabara",
+      "discovery_areas": [
+        "Chiyoda"
+      ],
+      "fiyu_generated_queries": [
+        "\"あたらよ 秋葉原店\" Chiyoda 住所",
+        "\"あたらよ 秋葉原店\" Chiyoda 所在地 店舗情報"
+      ],
+      "generated_queries": [
+        "\"あたらよ 秋葉原店\" Chiyoda 住所",
+        "\"あたらよ 秋葉原店\" Chiyoda 所在地 店舗情報"
+      ],
+      "cached_queries": [],
+      "skipped_queries": []
+    },
+    {
+      "place_id": "ChIJt2QEWDmNGGARvJ5tMBSBCqI",
+      "name_ja": "江戸酒場 海",
+      "name_en": "Edo Sakaba Umi",
+      "discovery_areas": [
+        "Shibuya"
+      ],
+      "fiyu_generated_queries": [
+        "\"江戸酒場 海\" Shibuya 住所",
+        "\"江戸酒場 海\" Shibuya 所在地 店舗情報"
+      ],
+      "generated_queries": [
+        "\"江戸酒場 海\" Shibuya 住所",
+        "\"江戸酒場 海\" Shibuya 所在地 店舗情報"
+      ],
+      "cached_queries": [],
+      "skipped_queries": []
+    },
+    {
+      "place_id": "ChIJgcDV1tSPGGAReF32uFUaCb4",
+      "name_ja": "沖縄そば屋 ちょこっと",
+      "name_en": "Okinawa Sobaya Chokotto",
+      "discovery_areas": [
+        "Taito"
+      ],
+      "fiyu_generated_queries": [
+        "\"沖縄そば屋 ちょこっと\" Taito 住所",
+        "\"沖縄そば屋 ちょこっと\" Taito 所在地 店舗情報"
+      ],
+      "generated_queries": [
+        "\"沖縄そば屋 ちょこっと\" Taito 住所",
+        "\"沖縄そば屋 ちょこっと\" Taito 所在地 店舗情報"
+      ],
+      "cached_queries": [],
+      "skipped_queries": []
+    },
+    {
+      "place_id": "ChIJQQNFIyCSGGAR3TBCyeHPLzc",
+      "name_ja": "ピザハウスタグチ",
+      "name_en": "Pizza House Taguchi",
+      "discovery_areas": [
+        "Adachi"
+      ],
+      "fiyu_generated_queries": [
+        "\"ピザハウスタグチ\" Adachi 住所",
+        "\"ピザハウスタグチ\" Adachi 所在地 店舗情報"
+      ],
+      "generated_queries": [
+        "\"ピザハウスタグチ\" Adachi 住所",
+        "\"ピザハウスタグチ\" Adachi 所在地 店舗情報"
+      ],
+      "cached_queries": [],
+      "skipped_queries": []
+    },
+    {
+      "place_id": "ChIJS0AbdiuJGGARvFcr_eLL3PU",
+      "name_ja": "寿司処 海",
+      "name_en": "Sushi Dokoro Umi",
+      "discovery_areas": [
+        "Chuo"
+      ],
+      "fiyu_generated_queries": [
+        "\"寿司処 海\" Chuo 住所",
+        "\"寿司処 海\" Chuo 所在地 店舗情報"
+      ],
+      "generated_queries": [
+        "\"寿司処 海\" Chuo 住所",
+        "\"寿司処 海\" Chuo 所在地 店舗情報"
+      ],
+      "cached_queries": [],
+      "skipped_queries": []
+    },
+    {
+      "place_id": "ChIJ6d8N8dntGGARoNUj9Kt2QcI",
+      "name_ja": "維摩（ユイマ）",
+      "name_en": "Yuima",
+      "discovery_areas": [
+        "Suginami"
+      ],
+      "fiyu_generated_queries": [
+        "\"維摩（ユイマ）\" Suginami 住所",
+        "\"維摩（ユイマ）\" Suginami 所在地 店舗情報"
+      ],
+      "generated_queries": [
+        "\"維摩（ユイマ）\" Suginami 住所",
+        "\"維摩（ユイマ）\" Suginami 所在地 店舗情報"
+      ],
+      "cached_queries": [],
+      "skipped_queries": []
+    },
+    {
+      "place_id": "ChIJIxdui16LGGAR6dA-SGEjgjs",
+      "name_ja": "すし善",
+      "name_en": "Sushizen",
+      "discovery_areas": [
+        "Shibuya"
+      ],
+      "fiyu_generated_queries": [
+        "\"すし善\" Shibuya 住所",
+        "\"すし善\" Shibuya 所在地 店舗情報"
+      ],
+      "generated_queries": [
+        "\"すし善\" Shibuya 住所",
+        "\"すし善\" Shibuya 所在地 店舗情報"
+      ],
+      "cached_queries": [],
+      "skipped_queries": []
+    },
+    {
+      "place_id": "ChIJB9egl6mNGGARkyq7OUFAfrA",
+      "name_ja": "ずるり 谷中総本店",
+      "name_en": "Zururi Yanaka Sohonten",
+      "discovery_areas": [
+        "Taito"
+      ],
+      "fiyu_generated_queries": [
+        "\"ずるり 谷中総本店\" Taito 住所",
+        "\"ずるり 谷中総本店\" Taito 所在地 店舗情報"
+      ],
+      "generated_queries": [
+        "\"ずるり 谷中総本店\" Taito 住所",
+        "\"ずるり 谷中総本店\" Taito 所在地 店舗情報"
+      ],
+      "cached_queries": [],
+      "skipped_queries": []
+    },
+    {
+      "place_id": "ChIJc3EHNxXzGGAR6IBc9qsLC-g",
+      "name_ja": "串焼 西（くしやきにし）",
+      "name_en": "Kushiyaki Nishi",
+      "discovery_areas": [
+        "Setagaya"
+      ],
+      "fiyu_generated_queries": [
+        "\"串焼 西（くしやきにし）\" Setagaya 住所",
+        "\"串焼 西（くしやきにし）\" Setagaya 所在地 店舗情報"
+      ],
+      "generated_queries": [
+        "\"串焼 西（くしやきにし）\" Setagaya 住所",
+        "\"串焼 西（くしやきにし）\" Setagaya 所在地 店舗情報"
+      ],
+      "cached_queries": [],
+      "skipped_queries": []
+    },
+    {
+      "place_id": "ChIJRR9sB62MGGARDApiYRPtr60",
+      "name_ja": "鮨とみなか",
+      "name_en": "Sushi Tominaka",
+      "discovery_areas": [
+        "Shibuya",
+        "Shinjuku"
+      ],
+      "fiyu_generated_queries": [
+        "\"鮨とみなか\" Shibuya Shinjuku 住所",
+        "\"鮨とみなか\" Shibuya Shinjuku 所在地 店舗情報"
+      ],
+      "generated_queries": [
+        "\"鮨とみなか\" Shibuya Shinjuku 住所",
+        "\"鮨とみなか\" Shibuya Shinjuku 所在地 店舗情報"
+      ],
+      "cached_queries": [],
+      "skipped_queries": []
+    },
+    {
+      "place_id": "ChIJd8cG48-PGGARnTxvxDNI4Kk",
+      "name_ja": "Halal Nikoniko cafe",
+      "name_en": "Halal Nikoniko cafe",
+      "discovery_areas": [
+        "Taito"
+      ],
+      "fiyu_generated_queries": [
+        "\"Halal Nikoniko cafe\" Taito 住所",
+        "\"Halal Nikoniko cafe\" Taito 所在地 店舗情報"
+      ],
+      "generated_queries": [
+        "\"Halal Nikoniko cafe\" Taito 住所",
+        "\"Halal Nikoniko cafe\" Taito 所在地 店舗情報"
+      ],
+      "cached_queries": [],
+      "skipped_queries": []
+    },
+    {
+      "place_id": "ChIJxVBbAoKLGGARUxJedeLj1L4",
+      "name_ja": "ローカルスパイシー シタラ 築地店",
+      "name_en": "Local Spicy SITARA Tsukiji",
+      "discovery_areas": [
+        "Chuo"
+      ],
+      "fiyu_generated_queries": [
+        "\"ローカルスパイシー シタラ 築地店\" Chuo 住所",
+        "\"ローカルスパイシー シタラ 築地店\" Chuo 所在地 店舗情報"
+      ],
+      "generated_queries": [
+        "\"ローカルスパイシー シタラ 築地店\" Chuo 住所",
+        "\"ローカルスパイシー シタラ 築地店\" Chuo 所在地 店舗情報"
+      ],
+      "cached_queries": [],
+      "skipped_queries": []
+    },
+    {
+      "place_id": "ChIJgWuZssOLGGARBbyvRoGJjAg",
+      "name_ja": "鳥はん 麻布十番店",
+      "name_en": "Torihan Azabujuban",
+      "discovery_areas": [
+        "Minato"
+      ],
+      "fiyu_generated_queries": [
+        "\"鳥はん 麻布十番店\" Minato 住所",
+        "\"鳥はん 麻布十番店\" Minato 所在地 店舗情報"
+      ],
+      "generated_queries": [
+        "\"鳥はん 麻布十番店\" Minato 住所",
+        "\"鳥はん 麻布十番店\" Minato 所在地 店舗情報"
+      ],
+      "cached_queries": [],
+      "skipped_queries": []
+    },
+    {
+      "place_id": "ChIJ_WFfC6SNGGARwOzy6HXllds",
+      "name_ja": "マントラ レストロ＆バー",
+      "name_en": "Mantra Restro & Bar",
+      "discovery_areas": [
+        "Shinjuku"
+      ],
+      "fiyu_generated_queries": [
+        "\"マントラ レストロ＆バー\" Shinjuku 住所",
+        "\"マントラ レストロ＆バー\" Shinjuku 所在地 店舗情報"
+      ],
+      "generated_queries": [
+        "\"マントラ レストロ＆バー\" Shinjuku 住所",
+        "\"マントラ レストロ＆バー\" Shinjuku 所在地 店舗情報"
+      ],
+      "cached_queries": [],
+      "skipped_queries": []
+    },
+    {
+      "place_id": "ChIJWeI_aACNGGAR4Fn0N-p0Xnk",
+      "name_ja": "ONDER（オンデル）",
+      "name_en": "ONDER Restaurant & Bar",
+      "discovery_areas": [
+        "Shinjuku"
+      ],
+      "fiyu_generated_queries": [
+        "\"ONDER（オンデル）\" Shinjuku 住所",
+        "\"ONDER（オンデル）\" Shinjuku 所在地 店舗情報"
+      ],
+      "generated_queries": [
+        "\"ONDER（オンデル）\" Shinjuku 住所",
+        "\"ONDER（オンデル）\" Shinjuku 所在地 店舗情報"
+      ],
+      "cached_queries": [],
+      "skipped_queries": []
+    },
+    {
+      "place_id": "ChIJN-jHvN_zGGARDRKD_Aq24WM",
+      "name_ja": "浜田山肉流通センター",
+      "name_en": "Hamadayama Niku Ryutsu Center",
+      "discovery_areas": [
+        "Suginami"
+      ],
+      "fiyu_generated_queries": [
+        "\"浜田山肉流通センター\" Suginami 住所",
+        "\"浜田山肉流通センター\" Suginami 所在地 店舗情報"
+      ],
+      "generated_queries": [
+        "\"浜田山肉流通センター\" Suginami 住所",
+        "\"浜田山肉流通センター\" Suginami 所在地 店舗情報"
+      ],
+      "cached_queries": [],
+      "skipped_queries": []
+    },
+    {
+      "place_id": "ChIJjyTcRJONGGARuYUHobKmB0E",
+      "name_ja": "SUNAO ASIAN DINING 千駄木",
+      "name_en": "SUNAO Sendagi / SUNAO Asian Dining Sendagi",
+      "discovery_areas": [
+        "Taito"
+      ],
+      "fiyu_generated_queries": [
+        "\"SUNAO ASIAN DINING 千駄木\" Taito 住所",
+        "\"SUNAO ASIAN DINING 千駄木\" Taito 所在地 店舗情報"
+      ],
+      "generated_queries": [
+        "\"SUNAO ASIAN DINING 千駄木\" Taito 住所",
+        "\"SUNAO ASIAN DINING 千駄木\" Taito 所在地 店舗情報"
+      ],
+      "cached_queries": [],
+      "skipped_queries": []
+    }
+  ],
+  "usage_totals": {
+    "response_request_count": 0,
+    "web_search_action_count": 0,
+    "input_tokens": 0,
+    "cached_input_tokens": 0,
+    "output_tokens": 0,
+    "reasoning_tokens": 0,
+    "total_tokens": 0
+  },
+  "failures": []
+}

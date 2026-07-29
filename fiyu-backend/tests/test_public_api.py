@@ -105,6 +105,29 @@ def test_google_operational_fields_are_absent_publicly(public_db):
     ).status_code == 404
 
 
+def test_public_core_only_location_omits_disputed_detail(public_db):
+    with connect(public_db) as connection:
+        connection.execute(
+            """
+            UPDATE public_restaurants SET
+                verified_core_address='東京都千代田区神田佐久間町3-38',
+                core_address_verified=1, full_address_verified=0,
+                map_location_precision='block', map_location_approximate=1,
+                unresolved_address_detail='building: A vs B; floor: 1階 vs B1F'
+            WHERE place_id='eligible'
+            """
+        )
+        connection.commit()
+    row = TestClient(api.app).get("/public/restaurants/eligible").json()
+    assert row["verified_core_address"] == "東京都千代田区神田佐久間町3-38"
+    assert row["location_precision"] == "block"
+    assert row["map_location_approximate"] is True
+    assert row["core_address_verified"] is True
+    assert row["full_address_verified"] is False
+    assert "building" not in row and "floor" not in row
+    assert "unresolved_address_detail" not in row
+
+
 def test_public_map_config_exposes_osm_attribution_only():
     assert TestClient(api.app).get("/public/map-config").json() == {
         "attribution": "Map data © OpenStreetMap contributors"

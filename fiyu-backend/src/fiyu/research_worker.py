@@ -8,6 +8,17 @@ from dotenv import load_dotenv
 from openai import OpenAI
 from pydantic import BaseModel, Field
 
+from .address_research import (
+    ADDRESS_RESEARCH_INSTRUCTIONS,
+    DEFAULT_MAX_SEARCH_ACTIONS,
+    AddressResearchResult,
+    combined_address_call,
+    fail_address_run,
+    generate_address_queries,
+    persist_address_call,
+    record_generated_queries,
+    start_address_run,
+)
 from .public_catalog import (
     get_research_queue,
     mark_research_failed,
@@ -16,8 +27,7 @@ from .public_catalog import (
 )
 from .public_score import FiyuEvidence, InternalSignals, calculate_fiyu_score
 
-
-PROMPT_VERSION = "restaurant-research-v1"
+PROMPT_VERSION = "restaurant-research-v2-address-evidence"
 
 
 class RestaurantResearch(BaseModel):
@@ -47,6 +57,7 @@ class RestaurantResearch(BaseModel):
 
     why_fiyu: str = Field(min_length=1, max_length=600)
     evidence_urls: list[str] = Field(default_factory=list, max_length=8)
+    address_evidence: AddressResearchResult | None = None
 
     def to_evidence(self) -> FiyuEvidence:
         return FiyuEvidence(
@@ -73,6 +84,9 @@ SYSTEM_PROMPT = """You research Tokyo restaurants for Fiyu, a hidden-gem discove
 
 Your job is to collect verifiable evidence, not to invent or directly assign a Fiyu score.
 Use the restaurant name, address, coordinates, and Google place ID to avoid mixing up businesses.
+The supplied Google-derived address and coordinates are untrusted identity hints only. They are not
+independent address evidence and must never be copied into address_evidence without a qualifying
+non-Google public source.
 Search Japanese sources as well as English sources. Prefer official restaurant pages, Japanese local
 articles, local blogs, reservation pages, and reputable publications. Treat the absence of evidence
 as unknown, not proof. Never infer customer nationality from language.
@@ -95,10 +109,19 @@ the identity, address, cuisine, chain status, signature dishes, local
 coverage, or tourist coverage of this exact restaurant. Do not include
 generic search results, similarly named businesses, category pages,
 academic papers, or unrelated restaurants.
+
+Address evidence is a separate data domain and must not affect any scoring-evidence field above.
+Collect address evidence during this same request when reliable public sources are available.
+Never return coordinates, verified-location state, or map eligibility. Follow these additional
+address-evidence instructions:
+""" + ADDRESS_RESEARCH_INSTRUCTIONS + """
 """
 
 
 def _restaurant_prompt(candidate: dict[str, object]) -> str:
+    address_queries = generate_address_queries(
+        candidate, max_search_actions=DEFAULT_MAX_SEARCH_ACTIONS
+    )
     return f"""Research this exact restaurant:
 
 Google place ID: {candidate.get('place_id')}
@@ -108,9 +131,33 @@ Neighborhood: {candidate.get('neighborhood')}
 City: {candidate.get('city')}
 Coordinates: {candidate.get('latitude')}, {candidate.get('longitude')}
 Known category: {candidate.get('category') or candidate.get('broad_category')}
+Reviewed discovery areas: {candidate.get('discovery_areas_json') or candidate.get('discovery_area')}
+
+Backend-prepared address queries (preserve these in address_evidence.search_queries_attempted):
+{chr(10).join(f'- {query}' for query in address_queries)}
 
 Return only the requested structured evidence. Use Japanese search terms where useful.
 """
+
+
+def _research_response(
+    candidate: dict[str, object],
+    *,
+    client: OpenAI,
+    model: str,
+) -> object:
+    return client.responses.parse(
+        model=model,
+        reasoning={"effort": "low"},
+        tools=[{"type": "web_search", "search_context_size": "low"}],
+        include=["web_search_call.results"],
+        max_tool_calls=DEFAULT_MAX_SEARCH_ACTIONS,
+        input=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": _restaurant_prompt(candidate)},
+        ],
+        text_format=RestaurantResearch,
+    )
 
 
 def research_candidate(
@@ -119,20 +166,11 @@ def research_candidate(
     client: OpenAI,
     model: str,
 ) -> tuple[RestaurantResearch, set[str]]:
-    response = client.responses.parse(
-        model=model,
-        reasoning={"effort": "low"},
-        tools=[{"type": "web_search", "search_context_size": "low"}],
-        include=["web_search_call.results"],
-        input=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": _restaurant_prompt(candidate)},
-        ],
-        text_format=RestaurantResearch,
-    )
+    response = _research_response(candidate, client=client, model=model)
     parsed = response.output_parsed
     if parsed is None:
         raise RuntimeError("OpenAI returned no parsed research result")
+    parsed = RestaurantResearch.model_validate(parsed)
     urls = {
         url.strip()
         for url in parsed.evidence_urls
@@ -153,16 +191,42 @@ def run_research_batch(
     if not os.getenv("OPENAI_API_KEY"):
         raise RuntimeError("OPENAI_API_KEY is missing. Add it to backend/.env")
 
-    client = OpenAI()
+    client = OpenAI(max_retries=0)
     queue = get_research_queue(db_path, limit=limit, retry_failed=retry_failed)
     completed = 0
     failed = 0
+    address_accepted = 0
+    address_needs_fallback = 0
 
     for candidate in queue:
         place_id = str(candidate["place_id"])
         mark_research_started(db_path, place_id)
+        address_run_id = start_address_run(
+            db_path,
+            place_id=place_id,
+            model=selected_model,
+            forced=False,
+            combined_research=True,
+        )
+        record_generated_queries(
+            db_path,
+            run_id=address_run_id,
+            place_id=place_id,
+            queries=generate_address_queries(
+                candidate, max_search_actions=DEFAULT_MAX_SEARCH_ACTIONS
+            ),
+        )
         try:
-            research, urls = research_candidate(candidate, client=client, model=selected_model)
+            response = _research_response(candidate, client=client, model=selected_model)
+            parsed = getattr(response, "output_parsed", None)
+            if parsed is None:
+                raise RuntimeError("OpenAI returned no parsed research result")
+            research = RestaurantResearch.model_validate(parsed)
+            urls = {
+                url.strip()
+                for url in research.evidence_urls
+                if url.startswith(("http://", "https://"))
+            }
             evidence = research.to_evidence()
             internal = InternalSignals(
                 quality_score=float(candidate.get("quality_score") or 0),
@@ -185,9 +249,38 @@ def run_research_batch(
                 model_name=selected_model,
                 prompt_version=PROMPT_VERSION,
             )
+            try:
+                address_call = combined_address_call(
+                    candidate,
+                    result=research.address_evidence,
+                    response=response,
+                    model=selected_model,
+                )
+                persist_address_call(
+                    db_path,
+                    place_id=place_id,
+                    run_id=address_run_id,
+                    call=address_call,
+                    verified_by="combined_restaurant_research_v2",
+                )
+                if address_call.acceptance.status == "accepted":
+                    address_accepted += 1
+                else:
+                    address_needs_fallback += 1
+            except Exception as address_exc:  # noqa: BLE001 - scoring research is already valid.
+                fail_address_run(db_path, address_run_id, address_exc)
+                address_needs_fallback += 1
             completed += 1
-        except Exception as exc:  # Keep a long batch moving while preserving the error.
+        except Exception as exc:  # noqa: BLE001 - isolate rows and preserve the failure.
+            fail_address_run(db_path, address_run_id, exc)
             mark_research_failed(db_path, place_id, f"{type(exc).__name__}: {exc}")
             failed += 1
 
-    return {"queued": len(queue), "completed": completed, "failed": failed}
+    return {
+        "queued": len(queue),
+        "completed": completed,
+        "failed": failed,
+        "responses_requests": len(queue),
+        "address_accepted": address_accepted,
+        "address_needs_fallback": address_needs_fallback,
+    }

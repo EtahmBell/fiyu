@@ -676,7 +676,7 @@ def resolve_osm_locations(
     index = sqlite3.connect(f"file:{Path(osm_index_path).resolve().as_posix()}?mode=ro", uri=True)
     index.row_factory = sqlite3.Row
     reports = []
-    resolved: list[tuple[dict[str, object], str, list[MatchCandidate]]] = []
+    resolved: list[tuple[dict[str, object], str, str, list[MatchCandidate]]] = []
     reviewed_anchors = load_location_anchors()
     boundary_available = _boundary_inference_available(index)
     try:
@@ -685,7 +685,6 @@ def resolve_osm_locations(
                 restaurant, index, threshold=threshold, runner_up_margin=runner_up_margin,
                 reviewed_anchors=reviewed_anchors, anchor_radius_km=anchor_radius_km,
             )
-            resolved.append((restaurant, status, candidates))
             occurrences = discovery_occurrences(restaurant)
             best_global_candidate = max(
                 candidates,
@@ -701,6 +700,7 @@ def resolve_osm_locations(
                 candidates,
                 boundary_inference_available=boundary_available,
             )
+            resolved.append((restaurant, status, reason, candidates))
             candidate_summary = _candidate_report_summary(candidates)
             reports.append({
                 "place_id": restaurant["place_id"],
@@ -729,7 +729,7 @@ def resolve_osm_locations(
     if not dry_run:
         checked_at = datetime.now(UTC).isoformat()
         with connect(db_path) as connection:
-            for restaurant, status, candidates in resolved:
+            for restaurant, status, reason, candidates in resolved:
                 place = str(restaurant["place_id"])
                 if restaurant.get("map_display_eligible"):
                     continue
@@ -762,14 +762,15 @@ def resolve_osm_locations(
                             location_match_method='deterministic_osm_v2_ward_boundary',
                             location_verification_method='automatic_osm_exact_match',
                             location_osm_type=?, location_osm_id=?, location_osm_version=?,
-                            location_source_checked_at=?, map_display_eligible=1, updated_at=?
+                            location_source_checked_at=?, location_resolution_reason=?,
+                            map_display_eligible=1, updated_at=?
                         WHERE place_id=?
                         """,
                         (
                             winner.latitude, winner.longitude,
                             f"https://www.openstreetmap.org/{winner.osm_type}/{winner.osm_id}", checked_at,
                             status, winner.total_score, winner.osm_type, winner.osm_id,
-                            winner.osm_version, checked_at, checked_at, place,
+                            winner.osm_version, checked_at, reason, checked_at, place,
                         ),
                     )
                 else:
@@ -778,12 +779,13 @@ def resolve_osm_locations(
                         UPDATE public_restaurants SET location_verification_status=?,
                             location_match_confidence=?,
                             location_match_method='deterministic_osm_v2_ward_boundary',
-                            location_source_checked_at=?, map_display_eligible=0, updated_at=?
+                            location_source_checked_at=?, location_resolution_reason=?,
+                            map_display_eligible=0, updated_at=?
                         WHERE place_id=?
                         """,
                         (
                             status, candidates[0].total_score if candidates else None,
-                            checked_at, checked_at, place,
+                            checked_at, reason, checked_at, place,
                         ),
                     )
             connection.commit()

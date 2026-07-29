@@ -1,0 +1,883 @@
+{
+  "mode": "persist",
+  "eligible_restaurant_count": 18,
+  "requested_limit": 3,
+  "maximum_responses_requests": 3,
+  "requested_maximum_web_actions": 6,
+  "maximum_web_search_actions": 6,
+  "max_search_actions_per_restaurant": 2,
+  "web_action_limit_semantics": "Requested provider max_tool_calls. The backend stops the batch and rejects automatic acceptance if the provider returns more web_search_call actions; already-executed provider actions cannot be retroactively prevented.",
+  "compact_usage_controls": {
+    "compact_research": true,
+    "max_retained_sources": 4,
+    "max_evidence_summary_chars": 160,
+    "max_conflicting_candidates": 3,
+    "max_output_tokens": 4000,
+    "retry_truncated": false
+  },
+  "resolution_report": "C:\\data\\osm\\reports\\osm-after-spatial-wards.json",
+  "skipped_records": {
+    "unpublished": 28,
+    "map_eligible_or_verified_location": 1,
+    "not_likely_missing_from_osm": 2,
+    "already_has_accepted_address": 1,
+    "place_id_mismatch": 0,
+    "duplicate_query_cache": 0
+  },
+  "restaurants": [
+    {
+      "place_id": "ChIJKdddfwDzGGAR1YfPayuwpFo",
+      "result": {
+        "identity_status": "probable",
+        "identity_confidence": 0.93,
+        "matched_name": "浜田山叙々苑",
+        "branch_name": null,
+        "address_raw": "東京都杉並区浜田山3-30-5",
+        "postal_code": "168-0065",
+        "prefecture": "東京都",
+        "municipality_or_ward": "杉並区",
+        "neighborhood": "浜田山",
+        "street_or_block": "3-30-5",
+        "building": null,
+        "floor": null,
+        "suite_or_unit": null,
+        "entrance": null,
+        "source_evidence": [
+          {
+            "source_type": "lead_only_restricted_platform",
+            "source_url": "https://tabelog.com/13297842/A1318/A131805/13297842/dtlrvwlst/?type=0",
+            "source_title": "叙々苑 - 浜田山/焼肉",
+            "source_language": "ja",
+            "accessed_at": "2026-07-28",
+            "address_text_as_displayed": "東京都杉並区浜田山3-30-5 大きな地図を見る 周辺のお店を探す このお店は「杉並区浜田山4-14-7」から移転しています。",
+            "postal_code": null,
+            "prefecture": "東京都",
+            "municipality_or_ward": "杉並区",
+            "neighborhood": "浜田山",
+            "street_or_block": "3-30-5",
+            "building": "大きな地図を見る 周辺のお店を探す このお店は「杉並区浜田山4-14-7」から移転しています。",
+            "floor": null,
+            "suite_or_unit": null,
+            "entrance": null,
+            "identity_evidence_summary": "浜田山の叙々苑として掲載され、旧住所からの移転情報と現住所を併記している。",
+            "address_evidence_summary": "現住所を東京都杉並区浜田山3-30-5として表示。",
+            "restaurant_controlled": false,
+            "supports_candidate_address": false,
+            "warnings": [
+              "第三者掲載情報であり、検証用の決定的証拠ではない。",
+              "restricted_platform_lead_only:tabelog.com"
+            ]
+          },
+          {
+            "source_type": "permitted_booking_platform",
+            "source_url": "https://r.gnavi.co.jp/fgy6vd8d0000/map/",
+            "source_title": "叙々苑 地図・アクセス - 楽天ぐるなび",
+            "source_language": "ja",
+            "accessed_at": "2026-07-28",
+            "address_text_as_displayed": "〒168-0065 東京都杉並区浜田山3-30-5",
+            "postal_code": "168-0065",
+            "prefecture": "東京都",
+            "municipality_or_ward": "杉並区",
+            "neighborhood": "浜田山",
+            "street_or_block": "3-30-5",
+            "building": null,
+            "floor": null,
+            "suite_or_unit": null,
+            "entrance": null,
+            "identity_evidence_summary": "叙々苑の浜田山店舗として住所と電話予約情報を掲載。",
+            "address_evidence_summary": "郵便番号付きで東京都杉並区浜田山3-30-5を表示。",
+            "restaurant_controlled": false,
+            "supports_candidate_address": true,
+            "warnings": [
+              "予約プラットフォーム掲載情報。"
+            ]
+          },
+          {
+            "source_type": "permitted_business_directory",
+            "source_url": "https://www.navita.co.jp/s/11029583/",
+            "source_title": "浜田山 叙々苑（東京都杉並区/焼肉）",
+            "source_language": "ja",
+            "accessed_at": "2026-07-28",
+            "address_text_as_displayed": "〒168-0065 東京都杉並区浜田山4-14-7",
+            "postal_code": "168-0065",
+            "prefecture": "東京都",
+            "municipality_or_ward": "杉並区",
+            "neighborhood": "浜田山",
+            "street_or_block": "4-14-7",
+            "building": null,
+            "floor": null,
+            "suite_or_unit": null,
+            "entrance": null,
+            "identity_evidence_summary": "名称「浜田山 叙々苑」、焼肉、杉並区、電話番号が対象店舗と一致する。",
+            "address_evidence_summary": "旧住所として東京都杉並区浜田山4-14-7を表示。",
+            "restaurant_controlled": false,
+            "supports_candidate_address": false,
+            "warnings": [
+              "移転前住所の可能性がある。"
+            ]
+          },
+          {
+            "source_type": "lead_only_restricted_platform",
+            "source_url": "https://www.hotpepper.jp/strJ000144188/map/",
+            "source_title": "叙々苑（浜田山/焼肉・ホルモン）",
+            "source_language": "ja",
+            "accessed_at": "2026-07-28",
+            "address_text_as_displayed": "東京都杉並区浜田山4-14-7",
+            "postal_code": null,
+            "prefecture": "東京都",
+            "municipality_or_ward": "杉並区",
+            "neighborhood": "浜田山",
+            "street_or_block": "4-14-7",
+            "building": null,
+            "floor": null,
+            "suite_or_unit": null,
+            "entrance": null,
+            "identity_evidence_summary": "浜田山の焼肉店「叙々苑」として掲載。",
+            "address_evidence_summary": "東京都杉並区浜田山4-14-7を表示。",
+            "restaurant_controlled": false,
+            "supports_candidate_address": false,
+            "warnings": [
+              "第三者掲載情報で、移転前情報の可能性がある。"
+            ]
+          }
+        ],
+        "conflicting_address_candidates": [
+          {
+            "address_raw": "〒168-0065 東京都杉並区浜田山4-14-7",
+            "source_urls": [
+              "https://www.navita.co.jp/s/11029583/",
+              "https://www.hotpepper.jp/strJ000144188/map/"
+            ],
+            "summary": "複数の第三者情報源が旧住所として浜田山4-14-7を表示。",
+            "postal_code": "168-0065",
+            "prefecture": "東京都",
+            "municipality_or_ward": "杉並区",
+            "neighborhood": "浜田山",
+            "street_or_block": "4-14-7",
+            "building": null,
+            "floor": null,
+            "suite_or_unit": null,
+            "entrance": null
+          }
+        ],
+        "search_queries_attempted": [
+          "\"浜田山叙々苑\" Suginami 住所",
+          "\"浜田山叙々苑\" Suginami 所在地 店舗情報"
+        ],
+        "warnings": [
+          "公式レストラン管理下の住所証拠は確認できなかった。",
+          "現住所と旧住所が併存しているため、移転後住所を現行候補として扱う。"
+        ],
+        "recommended_action": "現行住所は〒168-0065 東京都杉並区浜田山3-30-5を暫定採用し、店舗への直接確認または公式管理ページで確認する。",
+        "research_summary": "浜田山叙々苑の識別は複数の一致情報から probable。第三者情報では現住所として浜田山3-30-5、旧住所として浜田山4-14-7が確認された。"
+      },
+      "acceptance": {
+        "status": "conflicting",
+        "resolution_status": "address_conflicting",
+        "reasons": [
+          "material_component_conflict:street_or_block"
+        ]
+      },
+      "generated_queries": [
+        "\"浜田山叙々苑\" Suginami 住所",
+        "\"浜田山叙々苑\" Suginami 所在地 店舗情報"
+      ],
+      "component_agreement": {
+        "prefecture_agreement": "agrees",
+        "municipality_or_ward_agreement": "agrees",
+        "neighborhood_agreement": "agrees",
+        "street_or_block_agreement": "conflicts",
+        "building_agreement": "single_source",
+        "floor_agreement": "missing",
+        "postal_code_agreement": "agrees",
+        "agreed_core_address": null,
+        "conflicting_components": [
+          "street_or_block"
+        ],
+        "non_material_conflicting_components": [],
+        "material_conflicting_components": [
+          "street_or_block"
+        ],
+        "component_values": {
+          "postal_code": [
+            "168-0065"
+          ],
+          "prefecture": [
+            "東京都"
+          ],
+          "municipality_or_ward": [
+            "杉並区"
+          ],
+          "neighborhood": [
+            "浜田山"
+          ],
+          "street_or_block": [
+            "3-30-5",
+            "4-14-7"
+          ],
+          "building": [
+            "大きな地図を見る 周辺のお店を探す このお店は「杉並区浜田山4-14-7」から移転しています。"
+          ],
+          "floor": [],
+          "suite_or_unit": [],
+          "entrance": []
+        },
+        "core_address_verified": false,
+        "full_address_verified": false,
+        "unresolved_address_detail": "Conflicting address components — street_or_block: 3-30-5 vs 4-14-7",
+        "proposed_location_precision": "unknown",
+        "map_location_approximate": false
+      },
+      "query_audit": {
+        "fiyu_generated_queries": [
+          "\"浜田山叙々苑\" Suginami 住所",
+          "\"浜田山叙々苑\" Suginami 所在地 店舗情報"
+        ],
+        "model_requested_queries": [
+          "\"浜田山叙々苑\" Suginami 住所",
+          "\"浜田山叙々苑\" Suginami 所在地 店舗情報"
+        ],
+        "actual_web_search_actions": [
+          {
+            "id": "ws_0cca705aaa8c357f006a68f9f50418819b88491e51fe54537a",
+            "status": "completed",
+            "action_type": "search",
+            "queries": [
+              "\"浜田山叙々苑\" Suginami 住所",
+              "\"浜田山叙々苑\" Suginami 所在地 店舗情報"
+            ],
+            "sources": [],
+            "attempt_index": 1
+          }
+        ],
+        "actual_action_queries": [
+          "\"浜田山叙々苑\" Suginami 住所",
+          "\"浜田山叙々苑\" Suginami 所在地 店舗情報"
+        ],
+        "cached_queries": [],
+        "skipped_queries": [],
+        "configured_action_limit": 2,
+        "actual_action_count": 1,
+        "limit_reached": false,
+        "limit_exceeded": false,
+        "counts_reconcile": true
+      },
+      "usage": {
+        "response_id": "resp_0cca705aaa8c357f006a68f9f4630c819b9ae8c3fe4db837ef",
+        "response_ids": [
+          "resp_0cca705aaa8c357f006a68f9f4630c819b9ae8c3fe4db837ef"
+        ],
+        "model": "gpt-5.6-luna",
+        "response_status": "completed",
+        "incomplete_reason": null,
+        "response_request_count": 1,
+        "web_search_action_count": 1,
+        "requested_web_action_limit": 2,
+        "limit_reached": false,
+        "limit_exceeded": false,
+        "raw_output_character_count": 3706,
+        "output_was_truncated": false,
+        "parse_attempted": true,
+        "parse_error_summary": null,
+        "structured_output_mode": "strict_json_schema",
+        "retry_count": 0,
+        "attempts": [
+          {
+            "response_id": "resp_0cca705aaa8c357f006a68f9f4630c819b9ae8c3fe4db837ef",
+            "response_status": "completed",
+            "incomplete_reason": null,
+            "raw_output_character_count": 3706,
+            "output_was_truncated": false,
+            "parse_attempted": true,
+            "parse_error_summary": null,
+            "structured_output_mode": "strict_json_schema",
+            "response_request_count": 1,
+            "web_search_action_count": 1,
+            "input_tokens": 15349,
+            "cached_input_tokens": 5954,
+            "output_tokens": 1656,
+            "reasoning_tokens": 248,
+            "total_tokens": 17005,
+            "provider_usage": {
+              "input_tokens": 15349,
+              "input_tokens_details": {
+                "cache_write_tokens": 1202,
+                "cached_tokens": 5954
+              },
+              "output_tokens": 1656,
+              "output_tokens_details": {
+                "reasoning_tokens": 248
+              },
+              "total_tokens": 17005
+            }
+          }
+        ],
+        "input_tokens": 15349,
+        "cached_input_tokens": 5954,
+        "output_tokens": 1656,
+        "reasoning_tokens": 248,
+        "total_tokens": 17005
+      },
+      "address_evidence_id": 2
+    },
+    {
+      "place_id": "ChIJAZOKBEyPGGARWoSCCwgRm8E",
+      "result": {
+        "identity_status": "confirmed",
+        "identity_confidence": 0.98,
+        "matched_name": "あたらよ 秋葉原店",
+        "branch_name": "秋葉原店",
+        "address_raw": "〒101-0025 東京都千代田区神田佐久間町1-13",
+        "postal_code": "101-0025",
+        "prefecture": "東京都",
+        "municipality_or_ward": "千代田区",
+        "neighborhood": "神田佐久間町",
+        "street_or_block": "1-13",
+        "building": null,
+        "floor": null,
+        "suite_or_unit": null,
+        "entrance": null,
+        "source_evidence": [
+          {
+            "source_type": "permitted_booking_platform",
+            "source_url": "https://gurunavi.com/en/gj95805/rst/",
+            "source_title": "Atarayo Akihabara - Rakuten GURUNAVI Restaurant Guide",
+            "source_language": "mixed",
+            "accessed_at": "2026-07-28",
+            "address_text_as_displayed": "〒101-0025 東京都千代田区神田佐久間町1-13",
+            "postal_code": "101-0025",
+            "prefecture": "東京都",
+            "municipality_or_ward": "千代田区",
+            "neighborhood": "神田佐久間町",
+            "street_or_block": "1-13",
+            "building": null,
+            "floor": null,
+            "suite_or_unit": null,
+            "entrance": null,
+            "identity_evidence_summary": "Lists the exact Japanese restaurant name あたらよ 秋葉原店 and English name Atarayo Akihabara.",
+            "address_evidence_summary": "Provides the full Japanese address including postal code.",
+            "restaurant_controlled": false,
+            "supports_candidate_address": true,
+            "warnings": []
+          },
+          {
+            "source_type": "established_local_editorial_source",
+            "source_url": "https://www.enjoytokyo.jp/spot/g_gj95805/",
+            "source_title": "あたらよ 秋葉原店",
+            "source_language": "ja",
+            "accessed_at": "2026-07-28",
+            "address_text_as_displayed": "〒101-0025 東京都千代田区神田佐久間町1-13",
+            "postal_code": "101-0025",
+            "prefecture": "東京都",
+            "municipality_or_ward": "千代田区",
+            "neighborhood": "神田佐久間町",
+            "street_or_block": "1-13",
+            "building": null,
+            "floor": null,
+            "suite_or_unit": null,
+            "entrance": null,
+            "identity_evidence_summary": "Names the restaurant あたらよ 秋葉原店 and places it in Akihabara.",
+            "address_evidence_summary": "Lists the same full address and postal code.",
+            "restaurant_controlled": false,
+            "supports_candidate_address": true,
+            "warnings": []
+          },
+          {
+            "source_type": "lead_only_restricted_platform",
+            "source_url": "https://tabelog.com/tokyo/A1310/A131001/13323013/",
+            "source_title": "あたらよ 秋葉原店のご予約 - 秋葉原/居酒屋",
+            "source_language": "ja",
+            "accessed_at": "2026-07-28",
+            "address_text_as_displayed": "東京都千代田区神田佐久間町1-13",
+            "postal_code": null,
+            "prefecture": "東京都",
+            "municipality_or_ward": "千代田区",
+            "neighborhood": "神田佐久間町",
+            "street_or_block": "1-13",
+            "building": null,
+            "floor": null,
+            "suite_or_unit": null,
+            "entrance": null,
+            "identity_evidence_summary": "Exact restaurant name and branch match the requested restaurant.",
+            "address_evidence_summary": "Lists the same address without a postal code.",
+            "restaurant_controlled": false,
+            "supports_candidate_address": false,
+            "warnings": [
+              "Lead-only restricted platform; not treated as independent verification.",
+              "restricted_platform_lead_only:tabelog.com"
+            ]
+          },
+          {
+            "source_type": "lead_only_restricted_platform",
+            "source_url": "https://www.hotpepper.jp/strJ004634463/",
+            "source_title": "あたらよ 秋葉原店",
+            "source_language": "ja",
+            "accessed_at": "2026-07-28",
+            "address_text_as_displayed": "東京都千代田区神田佐久間町１丁目１３",
+            "postal_code": null,
+            "prefecture": "東京都",
+            "municipality_or_ward": "千代田区",
+            "neighborhood": "神田佐久間町",
+            "street_or_block": "１丁目１３",
+            "building": null,
+            "floor": null,
+            "suite_or_unit": null,
+            "entrance": null,
+            "identity_evidence_summary": "Exact restaurant name and Akihabara branch match the requested restaurant.",
+            "address_evidence_summary": "Lists the same location using Japanese丁目 formatting, without postal code.",
+            "restaurant_controlled": false,
+            "supports_candidate_address": true,
+            "warnings": [
+              "Lead-only restricted platform; not treated as independent verification."
+            ]
+          }
+        ],
+        "conflicting_address_candidates": [],
+        "search_queries_attempted": [
+          "\"あたらよ 秋葉原店\" Chiyoda 住所",
+          "\"あたらよ 秋葉原店\" Chiyoda 所在地 店舗情報"
+        ],
+        "warnings": [
+          "No restaurant-controlled official address source was identified in the permitted search results."
+        ],
+        "recommended_action": "Accept the candidate address as confirmed by multiple independent listings; seek direct restaurant-controlled confirmation if required by policy.",
+        "research_summary": "The exact restaurant identity is consistently matched across four sources, all giving 東京都千代田区神田佐久間町1-13; two sources additionally provide postal code 〒101-0025."
+      },
+      "acceptance": {
+        "status": "conflicting",
+        "resolution_status": "address_conflicting",
+        "reasons": [
+          "material_component_conflict:street_or_block"
+        ]
+      },
+      "generated_queries": [
+        "\"あたらよ 秋葉原店\" Chiyoda 住所",
+        "\"あたらよ 秋葉原店\" Chiyoda 所在地 店舗情報"
+      ],
+      "component_agreement": {
+        "prefecture_agreement": "agrees",
+        "municipality_or_ward_agreement": "agrees",
+        "neighborhood_agreement": "agrees",
+        "street_or_block_agreement": "conflicts",
+        "building_agreement": "missing",
+        "floor_agreement": "missing",
+        "postal_code_agreement": "agrees",
+        "agreed_core_address": null,
+        "conflicting_components": [
+          "street_or_block"
+        ],
+        "non_material_conflicting_components": [],
+        "material_conflicting_components": [
+          "street_or_block"
+        ],
+        "component_values": {
+          "postal_code": [
+            "101-0025"
+          ],
+          "prefecture": [
+            "東京都"
+          ],
+          "municipality_or_ward": [
+            "千代田区"
+          ],
+          "neighborhood": [
+            "神田佐久間町"
+          ],
+          "street_or_block": [
+            "1-13",
+            "１丁目１３"
+          ],
+          "building": [],
+          "floor": [],
+          "suite_or_unit": [],
+          "entrance": []
+        },
+        "core_address_verified": false,
+        "full_address_verified": false,
+        "unresolved_address_detail": "Conflicting address components — street_or_block: 1-13 vs １丁目１３",
+        "proposed_location_precision": "unknown",
+        "map_location_approximate": false
+      },
+      "query_audit": {
+        "fiyu_generated_queries": [
+          "\"あたらよ 秋葉原店\" Chiyoda 住所",
+          "\"あたらよ 秋葉原店\" Chiyoda 所在地 店舗情報"
+        ],
+        "model_requested_queries": [
+          "\"あたらよ 秋葉原店\" Chiyoda 住所",
+          "\"あたらよ 秋葉原店\" Chiyoda 所在地 店舗情報"
+        ],
+        "actual_web_search_actions": [
+          {
+            "id": "ws_06107fe49aebfabb006a68fa044030819a9722649ad2009c43",
+            "status": "completed",
+            "action_type": "search",
+            "queries": [
+              "\"あたらよ 秋葉原店\" Chiyoda 住所",
+              "\"あたらよ 秋葉原店\" Chiyoda 所在地 店舗情報"
+            ],
+            "sources": [],
+            "attempt_index": 1
+          }
+        ],
+        "actual_action_queries": [
+          "\"あたらよ 秋葉原店\" Chiyoda 住所",
+          "\"あたらよ 秋葉原店\" Chiyoda 所在地 店舗情報"
+        ],
+        "cached_queries": [],
+        "skipped_queries": [],
+        "configured_action_limit": 2,
+        "actual_action_count": 1,
+        "limit_reached": false,
+        "limit_exceeded": false,
+        "counts_reconcile": true
+      },
+      "usage": {
+        "response_id": "resp_06107fe49aebfabb006a68fa01123c819aa2f9fa72c513aea4",
+        "response_ids": [
+          "resp_06107fe49aebfabb006a68fa01123c819aa2f9fa72c513aea4"
+        ],
+        "model": "gpt-5.6-luna",
+        "response_status": "completed",
+        "incomplete_reason": null,
+        "response_request_count": 1,
+        "web_search_action_count": 1,
+        "requested_web_action_limit": 2,
+        "limit_reached": false,
+        "limit_exceeded": false,
+        "raw_output_character_count": 3900,
+        "output_was_truncated": false,
+        "parse_attempted": true,
+        "parse_error_summary": null,
+        "structured_output_mode": "strict_json_schema",
+        "retry_count": 0,
+        "attempts": [
+          {
+            "response_id": "resp_06107fe49aebfabb006a68fa01123c819aa2f9fa72c513aea4",
+            "response_status": "completed",
+            "incomplete_reason": null,
+            "raw_output_character_count": 3900,
+            "output_was_truncated": false,
+            "parse_attempted": true,
+            "parse_error_summary": null,
+            "structured_output_mode": "strict_json_schema",
+            "response_request_count": 1,
+            "web_search_action_count": 1,
+            "input_tokens": 16038,
+            "cached_input_tokens": 5954,
+            "output_tokens": 1319,
+            "reasoning_tokens": 238,
+            "total_tokens": 17357,
+            "provider_usage": {
+              "input_tokens": 16038,
+              "input_tokens_details": {
+                "cache_write_tokens": 2014,
+                "cached_tokens": 5954
+              },
+              "output_tokens": 1319,
+              "output_tokens_details": {
+                "reasoning_tokens": 238
+              },
+              "total_tokens": 17357
+            }
+          }
+        ],
+        "input_tokens": 16038,
+        "cached_input_tokens": 5954,
+        "output_tokens": 1319,
+        "reasoning_tokens": 238,
+        "total_tokens": 17357
+      },
+      "address_evidence_id": 3
+    },
+    {
+      "place_id": "ChIJt2QEWDmNGGARvJ5tMBSBCqI",
+      "result": {
+        "identity_status": "probable",
+        "identity_confidence": 0.9,
+        "matched_name": "江戸酒場 海",
+        "branch_name": null,
+        "address_raw": "東京都渋谷区神宮前2-23-4",
+        "postal_code": null,
+        "prefecture": "東京都",
+        "municipality_or_ward": "渋谷区",
+        "neighborhood": "神宮前",
+        "street_or_block": "2-23-4",
+        "building": null,
+        "floor": null,
+        "suite_or_unit": null,
+        "entrance": null,
+        "source_evidence": [
+          {
+            "source_type": "unattributed_aggregator",
+            "source_url": "https://hamoni.jp/shop/dPJKeHEUhiMKgmaFdxl5mFgQuQbJ7nOJ",
+            "source_title": "江戸酒場 海 - 予約・店舗情報はこちら | HAMONI",
+            "source_language": "ja",
+            "accessed_at": "2026-07-28",
+            "address_text_as_displayed": "東京都渋谷区神宮前2-23-4",
+            "postal_code": null,
+            "prefecture": "東京都",
+            "municipality_or_ward": "渋谷区",
+            "neighborhood": "神宮前",
+            "street_or_block": "2-23-4",
+            "building": null,
+            "floor": null,
+            "suite_or_unit": null,
+            "entrance": null,
+            "identity_evidence_summary": "Page names the restaurant exactly as 江戸酒場 海.",
+            "address_evidence_summary": "Lists the address verbatim as 東京都渋谷区神宮前2-23-4.",
+            "restaurant_controlled": false,
+            "supports_candidate_address": true,
+            "warnings": [
+              "Third-party directory; not restaurant-controlled."
+            ]
+          },
+          {
+            "source_type": "lead_only_restricted_platform",
+            "source_url": "https://tabelog.com/tokyo/A1306/A130601/13282286/dtlmap/?lid=rstdtl_top_map",
+            "source_title": "地図 : 江戸酒場 海 - 北参道/バー [食べログ]",
+            "source_language": "ja",
+            "accessed_at": "2026-07-28",
+            "address_text_as_displayed": "東京都渋谷区神宮前2-23-4",
+            "postal_code": null,
+            "prefecture": "東京都",
+            "municipality_or_ward": "渋谷区",
+            "neighborhood": "神宮前",
+            "street_or_block": "2-23-4",
+            "building": null,
+            "floor": null,
+            "suite_or_unit": null,
+            "entrance": null,
+            "identity_evidence_summary": "Tabelog page names the restaurant exactly as 江戸酒場 海.",
+            "address_evidence_summary": "Lists the address verbatim as 東京都渋谷区神宮前2-23-4.",
+            "restaurant_controlled": false,
+            "supports_candidate_address": false,
+            "warnings": [
+              "Restricted third-party platform; address accuracy is not guaranteed.",
+              "restricted_platform_lead_only:tabelog.com"
+            ]
+          },
+          {
+            "source_type": "official_restaurant_website",
+            "source_url": "https://www.meiji-park.tokyo/event/112/",
+            "source_title": "オープニングイベント「明治公園祭」",
+            "source_language": "ja",
+            "accessed_at": "2026-07-28",
+            "address_text_as_displayed": null,
+            "postal_code": null,
+            "prefecture": null,
+            "municipality_or_ward": null,
+            "neighborhood": null,
+            "street_or_block": null,
+            "building": null,
+            "floor": null,
+            "suite_or_unit": null,
+            "entrance": null,
+            "identity_evidence_summary": "Official Meiji Park event page lists 江戸酒場 海 as a food-area participant.",
+            "address_evidence_summary": "Does not state the restaurant’s address; identity corroboration only.",
+            "restaurant_controlled": false,
+            "supports_candidate_address": false,
+            "warnings": [
+              "Official venue page, not restaurant-controlled."
+            ]
+          }
+        ],
+        "conflicting_address_candidates": [],
+        "search_queries_attempted": [
+          "\"江戸酒場 海\" 渋谷 住所",
+          "\"江戸酒場 海\" 渋谷 所在地 店舗情報",
+          "\"江戸酒場 海\" \"住所\"",
+          "\"江戸酒場 海\""
+        ],
+        "warnings": [
+          "No restaurant-controlled address source was found.",
+          "The exact address is corroborated only by third-party sources."
+        ],
+        "recommended_action": "Treat 東京都渋谷区神宮前2-23-4 as probable; obtain direct confirmation or a restaurant-controlled listing before marking confirmed.",
+        "research_summary": "The exact restaurant name is corroborated by multiple sources, and two third-party listings independently display the same address: 東京都渋谷区神宮前2-23-4."
+      },
+      "acceptance": {
+        "status": "failed",
+        "resolution_status": "address_research_failed",
+        "reasons": [
+          "provider_web_action_budget_exceeded"
+        ]
+      },
+      "generated_queries": [
+        "\"江戸酒場 海\" Shibuya 住所",
+        "\"江戸酒場 海\" Shibuya 所在地 店舗情報"
+      ],
+      "component_agreement": {
+        "prefecture_agreement": "agrees",
+        "municipality_or_ward_agreement": "agrees",
+        "neighborhood_agreement": "agrees",
+        "street_or_block_agreement": "agrees",
+        "building_agreement": "missing",
+        "floor_agreement": "missing",
+        "postal_code_agreement": "missing",
+        "agreed_core_address": "東京都渋谷区神宮前2-23-4",
+        "conflicting_components": [],
+        "non_material_conflicting_components": [],
+        "material_conflicting_components": [],
+        "component_values": {
+          "postal_code": [],
+          "prefecture": [
+            "東京都"
+          ],
+          "municipality_or_ward": [
+            "渋谷区"
+          ],
+          "neighborhood": [
+            "神宮前"
+          ],
+          "street_or_block": [
+            "2-23-4"
+          ],
+          "building": [],
+          "floor": [],
+          "suite_or_unit": [],
+          "entrance": []
+        },
+        "core_address_verified": true,
+        "full_address_verified": true,
+        "unresolved_address_detail": null,
+        "proposed_location_precision": "parcel_or_street_number",
+        "map_location_approximate": false
+      },
+      "query_audit": {
+        "fiyu_generated_queries": [
+          "\"江戸酒場 海\" Shibuya 住所",
+          "\"江戸酒場 海\" Shibuya 所在地 店舗情報"
+        ],
+        "model_requested_queries": [
+          "\"江戸酒場 海\" 渋谷 住所",
+          "\"江戸酒場 海\" 渋谷 所在地 店舗情報",
+          "\"江戸酒場 海\" \"住所\"",
+          "\"江戸酒場 海\""
+        ],
+        "actual_web_search_actions": [
+          {
+            "id": "ws_0c3434037cef8ac0006a68fa0e61288199ae8349807f52035a",
+            "status": "completed",
+            "action_type": "search",
+            "queries": [
+              "\"江戸酒場 海\" 渋谷 住所",
+              "\"江戸酒場 海\" 渋谷 所在地 店舗情報",
+              "\"江戸酒場 海\" \"住所\"",
+              "\"江戸酒場 海\""
+            ],
+            "sources": [],
+            "attempt_index": 1
+          },
+          {
+            "id": "ws_0c3434037cef8ac0006a68fa11746c819982330d9029bc3c46",
+            "status": "completed",
+            "action_type": "open_page",
+            "queries": [],
+            "sources": [],
+            "attempt_index": 1
+          },
+          {
+            "id": "ws_0c3434037cef8ac0006a68fa13fcf08199a429e3a331508f3d",
+            "status": "searching",
+            "action_type": "open_page",
+            "queries": [],
+            "sources": [],
+            "attempt_index": 1
+          }
+        ],
+        "actual_action_queries": [
+          "\"江戸酒場 海\" 渋谷 住所",
+          "\"江戸酒場 海\" 渋谷 所在地 店舗情報",
+          "\"江戸酒場 海\" \"住所\"",
+          "\"江戸酒場 海\""
+        ],
+        "cached_queries": [],
+        "skipped_queries": [],
+        "configured_action_limit": 2,
+        "actual_action_count": 3,
+        "limit_reached": true,
+        "limit_exceeded": true,
+        "counts_reconcile": true
+      },
+      "usage": {
+        "response_id": "resp_0c3434037cef8ac0006a68fa0d066881998370ccb1d8bcc706",
+        "response_ids": [
+          "resp_0c3434037cef8ac0006a68fa0d066881998370ccb1d8bcc706"
+        ],
+        "model": "gpt-5.6-luna",
+        "response_status": "completed",
+        "incomplete_reason": null,
+        "response_request_count": 1,
+        "web_search_action_count": 3,
+        "requested_web_action_limit": 2,
+        "limit_reached": true,
+        "limit_exceeded": true,
+        "raw_output_character_count": 3128,
+        "output_was_truncated": false,
+        "parse_attempted": true,
+        "parse_error_summary": null,
+        "structured_output_mode": "strict_json_schema",
+        "retry_count": 0,
+        "attempts": [
+          {
+            "response_id": "resp_0c3434037cef8ac0006a68fa0d066881998370ccb1d8bcc706",
+            "response_status": "completed",
+            "incomplete_reason": null,
+            "raw_output_character_count": 3128,
+            "output_was_truncated": false,
+            "parse_attempted": true,
+            "parse_error_summary": null,
+            "structured_output_mode": "strict_json_schema",
+            "response_request_count": 1,
+            "web_search_action_count": 3,
+            "input_tokens": 24451,
+            "cached_input_tokens": 5954,
+            "output_tokens": 1267,
+            "reasoning_tokens": 452,
+            "total_tokens": 25718,
+            "provider_usage": {
+              "input_tokens": 24451,
+              "input_tokens_details": {
+                "cache_write_tokens": 296,
+                "cached_tokens": 5954
+              },
+              "output_tokens": 1267,
+              "output_tokens_details": {
+                "reasoning_tokens": 452
+              },
+              "total_tokens": 25718
+            }
+          }
+        ],
+        "input_tokens": 24451,
+        "cached_input_tokens": 5954,
+        "output_tokens": 1267,
+        "reasoning_tokens": 452,
+        "total_tokens": 25718
+      },
+      "address_evidence_id": 4
+    }
+  ],
+  "usage_totals": {
+    "response_request_count": 3,
+    "web_search_action_count": 5,
+    "input_tokens": 55838,
+    "cached_input_tokens": 17862,
+    "output_tokens": 4242,
+    "reasoning_tokens": 938,
+    "total_tokens": 60080
+  },
+  "failures": [
+    {
+      "place_id": "ChIJt2QEWDmNGGARvJ5tMBSBCqI",
+      "error": "provider_web_action_budget_exceeded",
+      "configured_limit": 2,
+      "actual_actions": 3,
+      "batch_stopped": true
+    }
+  ],
+  "completed": 3,
+  "failed": 1,
+  "persisted": 3
+}

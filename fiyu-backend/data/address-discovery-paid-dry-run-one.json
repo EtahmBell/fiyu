@@ -1,0 +1,184 @@
+{
+  "mode": "dry_run",
+  "eligible_restaurant_count": 1,
+  "requested_limit": 10,
+  "maximum_responses_requests": 1,
+  "maximum_web_search_actions": 1,
+  "max_search_actions_per_restaurant": 1,
+  "resolution_report": "C:\\data\\osm\\reports\\osm-after-spatial-wards.json",
+  "skipped_records": {
+    "unpublished": 0,
+    "map_eligible_or_verified_location": 0,
+    "not_likely_missing_from_osm": 0,
+    "already_has_accepted_address": 0,
+    "place_id_mismatch": 49,
+    "duplicate_query_cache": 0
+  },
+  "restaurants": [
+    {
+      "place_id": "ChIJGZiCSQCPGGARtJeKu6kiMVo",
+      "result": {
+        "identity_status": "confirmed",
+        "identity_confidence": 0.98,
+        "matched_name": "牛たんの檸檬 秋葉原店",
+        "branch_name": "秋葉原店",
+        "address_raw": "東京都千代田区神田佐久間町3-38 大陽ビル1階",
+        "postal_code": "〒101-0025",
+        "prefecture": "東京都",
+        "municipality_or_ward": "千代田区",
+        "neighborhood": "神田佐久間町",
+        "street_or_block": "3-38",
+        "building": "大陽ビル1階",
+        "source_evidence": [
+          {
+            "source_type": "restaurant_submission",
+            "source_url": "https://prtimes.jp/main/html/rd/p/000000022.000143737.html",
+            "source_title": "行列で話題の〖牛たんの檸檬〗が、ついに秋葉原へ！2026年7月15日グランドオープン。ホリエモンが取締役として参画するブランド、国内外8店舗目となる「牛たんの檸檬 秋葉原店」",
+            "source_language": "ja",
+            "accessed_at": "2026-07-28",
+            "address_text_as_displayed": "東京都千代田区神田佐久間町3-38 大陽ビル1階",
+            "identity_evidence_summary": "The press release names the exact restaurant and identifies it as the Akihabara branch of 牛たんの檸檬.",
+            "address_evidence_summary": "The restaurant information section lists the address exactly as 東京都千代田区神田佐久間町3-38 大陽ビル1階.",
+            "restaurant_controlled": false,
+            "supports_candidate_address": true,
+            "warnings": [
+              "Hosted by PR TIMES; the release is attributed to 株式会社 牛たんの檸檬 but is not hosted on the restaurant's own domain."
+            ]
+          },
+          {
+            "source_type": "permitted_booking_platform",
+            "source_url": "https://www.tablecheck.com/ja/beef-lemon-akihabara",
+            "source_title": "牛たんの檸檬　秋葉原店 - TableCheck",
+            "source_language": "ja",
+            "accessed_at": "2026-07-28",
+            "address_text_as_displayed": "〒101-0025 東京都 千代田区 神田佐久間町3-38 第5東ビル B1F",
+            "identity_evidence_summary": "The reservation page names 牛たんの檸檬 秋葉原店 and links to the brand website.",
+            "address_evidence_summary": "The controlled reservation page displays the same street address but a different postal code and building/floor: 第5東ビル B1F.",
+            "restaurant_controlled": true,
+            "supports_candidate_address": false,
+            "warnings": [
+              "Conflicts with the restaurant-submitted address, which states 大陽ビル1階."
+            ]
+          },
+          {
+            "source_type": "permitted_business_directory",
+            "source_url": "https://map.yahoo.co.jp/v3/place/jtrC8D8Kw8M",
+            "source_title": "牛たんの檸檬 秋葉原店 - 千代田区神田佐久間町/飲食店 | Yahoo!マップ",
+            "source_language": "ja",
+            "accessed_at": "2026-07-28",
+            "address_text_as_displayed": "東京都千代田区神田佐久間町 3-38",
+            "identity_evidence_summary": "The directory listing uses the exact restaurant name and identifies the location in Chiyoda-ku.",
+            "address_evidence_summary": "It displays 東京都千代田区神田佐久間町 3-38, supporting the municipality, neighborhood, and street number but not the building or floor.",
+            "restaurant_controlled": false,
+            "supports_candidate_address": true,
+            "warnings": [
+              "Directory listing does not display the building name or floor."
+            ]
+          },
+          {
+            "source_type": "permitted_business_directory",
+            "source_url": "https://tabelog.com/tokyo/A1310/A131001/13324708/dtlrvwlst/B532233871/",
+            "source_title": "『牛たんたっぷりの牛たんカレー』by ジゲンＡＣＥ : 牛たんの檸檬 秋葉原店 - 秋葉原/牛タン [食べログ]",
+            "source_language": "ja",
+            "accessed_at": "2026-07-28",
+            "address_text_as_displayed": "東京都千代田区神田佐久間町3-38 大陽ビル 1F",
+            "identity_evidence_summary": "The page names 牛たんの檸檬 秋葉原店 and lists the restaurant's telephone number and official Instagram account.",
+            "address_evidence_summary": "It displays the same street address and building as the restaurant-submitted source, with spacing and floor notation rendered as 大陽ビル 1F.",
+            "restaurant_controlled": false,
+            "supports_candidate_address": true,
+            "warnings": [
+              "User-generated directory content; the page states that listing accuracy is not guaranteed."
+            ]
+          },
+          {
+            "source_type": "established_local_editorial_source",
+            "source_url": "https://akiba.reload.co.jp/en/articles/gyutan-no-lemon-akihabara-opening-2026/",
+            "source_title": "Thick-Cut Beef Tongue Restaurant Gyutan no Lemon Akihabara to Grand Open on July 15",
+            "source_language": "en",
+            "accessed_at": "2026-07-28",
+            "address_text_as_displayed": "Taiyo Building 1F, 3-38 Kanda Sakumacho, Chiyoda-ku, Tokyo",
+            "identity_evidence_summary": "The article identifies Gyutan no Lemon Akihabara as the restaurant opening at the stated location.",
+            "address_evidence_summary": "It gives the English-rendered address as Taiyo Building 1F, 3-38 Kanda Sakumacho, Chiyoda-ku, Tokyo, corresponding to 大陽ビル1階.",
+            "restaurant_controlled": false,
+            "supports_candidate_address": true,
+            "warnings": [
+              "English translation rather than the Japanese address display."
+            ]
+          },
+          {
+            "source_type": "unattributed_aggregator",
+            "source_url": "https://kaiten-heiten-24.com/gyutan-lemon-akiba/",
+            "source_title": "〖開店〗牛たんの檸檬 秋葉原店",
+            "source_language": "ja",
+            "accessed_at": "2026-07-28",
+            "address_text_as_displayed": "〒101-0025 東京都千代田区神田佐久間町3-38 大陽ビル1階",
+            "identity_evidence_summary": "The opening listing names the exact restaurant and gives matching contact and opening information.",
+            "address_evidence_summary": "It displays the same address as the restaurant-submitted source and supplies postal code 〒101-0025.",
+            "restaurant_controlled": false,
+            "supports_candidate_address": true,
+            "warnings": [
+              "Unattributed third-party opening-information site; postal code is not independently confirmed by the restaurant-submitted address."
+            ]
+          }
+        ],
+        "conflicting_address_candidates": [
+          {
+            "address_raw": "〒101-0025 東京都 千代田区 神田佐久間町3-38 第5東ビル B1F",
+            "source_urls": [
+              "https://www.tablecheck.com/ja/beef-lemon-akihabara"
+            ],
+            "summary": "The restaurant-controlled TableCheck reservation page displays a different building and floor from the restaurant-submitted address. The municipality, neighborhood, and street number match, but the building/floor conflict remains unresolved."
+          }
+        ],
+        "search_queries_attempted": [
+          "\"牛たんの檸檬 秋葉原店\" Chiyoda 住所",
+          "\"牛たんの檸檬 秋葉原店\" 住所",
+          "\"牛たんの檸檬 秋葉原店\" 所在地",
+          "\"牛たんの檸檬 秋葉原店\" アクセス",
+          "site:gyutan-lemon.com/store \"秋葉原\""
+        ],
+        "warnings": [
+          "The primary restaurant-submitted evidence supports 大陽ビル1階.",
+          "A restaurant-controlled reservation page conflicts by displaying 第5東ビル B1F; do not merge these building details.",
+          "The supplied Google Place ID was not used as a search term."
+        ],
+        "recommended_action": "Accept 東京都千代田区神田佐久間町3-38 大陽ビル1階 as the leading address candidate, but obtain direct confirmation from the restaurant because the controlled TableCheck page displays 第5東ビル B1F.",
+        "research_summary": "The exact restaurant identity is confirmed. Multiple sources support 東京都千代田区神田佐久間町3-38, and the restaurant-submitted press release plus independent directory and editorial evidence support 大陽ビル1階. However, the restaurant-controlled TableCheck page lists 第5東ビル B1F, creating an unresolved building/floor conflict."
+      },
+      "acceptance": {
+        "status": "conflicting",
+        "resolution_status": "address_conflicting",
+        "reasons": [
+          "conflicting_address_candidates"
+        ]
+      },
+      "generated_queries": [
+        "\"牛たんの檸檬 秋葉原店\" Chiyoda 住所"
+      ],
+      "usage": {
+        "response_id": "resp_04e47dbe606cda61006a68e9a18e84819aa35820f230895343",
+        "model": "gpt-5.6-luna",
+        "response_request_count": 1,
+        "web_search_action_count": 2,
+        "input_tokens": 15630,
+        "cached_input_tokens": 0,
+        "output_tokens": 2222,
+        "reasoning_tokens": 447,
+        "total_tokens": 17852
+      }
+    }
+  ],
+  "usage_totals": {
+    "response_request_count": 1,
+    "web_search_action_count": 2,
+    "input_tokens": 15630,
+    "cached_input_tokens": 0,
+    "output_tokens": 2222,
+    "reasoning_tokens": 447,
+    "total_tokens": 17852
+  },
+  "failures": [],
+  "completed": 1,
+  "failed": 0,
+  "persisted": 0
+}

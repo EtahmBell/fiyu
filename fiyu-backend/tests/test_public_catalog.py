@@ -81,6 +81,8 @@ def test_existing_public_schema_migrates_without_changing_data(tmp_path):
     assert {
         "location_source", "map_display_eligible", "location_precision",
         "location_verification_status", "location_osm_type", "location_osm_id",
+        "verified_core_address", "core_address_verified", "full_address_verified",
+        "map_location_approximate", "map_location_precision", "unresolved_address_detail",
     } <= columns
     assert row["fiyu_score"] == 87
     assert row["is_published"] == 1

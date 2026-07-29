@@ -42,6 +42,8 @@ CREATE TABLE IF NOT EXISTS public_restaurants (
     location_reviewed_by TEXT,
     location_reviewed_at TEXT,
     location_verification_status TEXT NOT NULL DEFAULT 'unknown_provenance',
+    location_verification_tier TEXT,
+    location_status TEXT,
     location_match_confidence REAL,
     location_match_method TEXT,
     location_verification_method TEXT,
@@ -49,7 +51,14 @@ CREATE TABLE IF NOT EXISTS public_restaurants (
     location_osm_id INTEGER,
     location_osm_version INTEGER,
     location_source_checked_at TEXT,
+    location_resolution_reason TEXT,
     map_display_eligible INTEGER NOT NULL DEFAULT 0,
+    verified_core_address TEXT,
+    core_address_verified INTEGER NOT NULL DEFAULT 0,
+    full_address_verified INTEGER NOT NULL DEFAULT 0,
+    map_location_approximate INTEGER NOT NULL DEFAULT 0,
+    map_location_precision TEXT,
+    unresolved_address_detail TEXT,
     location_precision TEXT CHECK (
         location_precision IS NULL OR location_precision IN ('exact', 'approximate', 'area_anchor')
     ),
@@ -74,6 +83,7 @@ CREATE TABLE IF NOT EXISTS public_restaurants (
     model_name TEXT,
     prompt_version TEXT,
     researched_at TEXT,
+    address_resolution_status TEXT NOT NULL DEFAULT 'address_not_researched',
     is_published INTEGER NOT NULL DEFAULT 0,
 
     created_at TEXT NOT NULL,
@@ -116,6 +126,220 @@ CREATE TABLE IF NOT EXISTS location_match_candidates (
     PRIMARY KEY (place_id, candidate_rank),
     FOREIGN KEY (place_id) REFERENCES public_restaurants(place_id)
 );
+CREATE TABLE IF NOT EXISTS address_research_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    public_restaurant_id TEXT NOT NULL,
+    provider TEXT NOT NULL,
+    model TEXT NOT NULL,
+    response_id TEXT,
+    status TEXT NOT NULL,
+    started_at TEXT NOT NULL,
+    completed_at TEXT,
+    prompt_version TEXT NOT NULL,
+    schema_version TEXT NOT NULL,
+    error TEXT,
+    dry_run INTEGER NOT NULL DEFAULT 0,
+    forced INTEGER NOT NULL DEFAULT 0,
+    combined_research INTEGER NOT NULL DEFAULT 0,
+    response_request_count INTEGER NOT NULL DEFAULT 0,
+    web_search_action_count INTEGER NOT NULL DEFAULT 0,
+    requested_max_web_actions INTEGER NOT NULL DEFAULT 0,
+    web_action_limit_reached INTEGER NOT NULL DEFAULT 0,
+    web_action_limit_exceeded INTEGER NOT NULL DEFAULT 0,
+    input_tokens INTEGER NOT NULL DEFAULT 0,
+    cached_input_tokens INTEGER NOT NULL DEFAULT 0,
+    output_tokens INTEGER NOT NULL DEFAULT 0,
+    reasoning_tokens INTEGER NOT NULL DEFAULT 0,
+    total_tokens INTEGER NOT NULL DEFAULT 0,
+    usage_metadata_json TEXT NOT NULL DEFAULT '{}',
+    retry_count INTEGER NOT NULL DEFAULT 0,
+    FOREIGN KEY (public_restaurant_id) REFERENCES public_restaurants(place_id)
+);
+CREATE INDEX IF NOT EXISTS idx_address_research_runs_restaurant
+    ON address_research_runs(public_restaurant_id, started_at DESC);
+CREATE TABLE IF NOT EXISTS address_search_attempts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    research_run_id INTEGER NOT NULL,
+    public_restaurant_id TEXT NOT NULL,
+    query TEXT NOT NULL,
+    query_fingerprint TEXT NOT NULL,
+    search_action_index INTEGER,
+    search_action_reference TEXT,
+    attempted_at TEXT NOT NULL,
+    result_status TEXT NOT NULL,
+    query_origin TEXT NOT NULL DEFAULT 'fiyu_generated',
+    FOREIGN KEY (research_run_id) REFERENCES address_research_runs(id),
+    FOREIGN KEY (public_restaurant_id) REFERENCES public_restaurants(place_id)
+);
+CREATE INDEX IF NOT EXISTS idx_address_search_attempts_fingerprint
+    ON address_search_attempts(public_restaurant_id, query_fingerprint);
+CREATE TABLE IF NOT EXISTS address_evidence (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    public_restaurant_id TEXT NOT NULL,
+    research_run_id INTEGER,
+    identity_status TEXT NOT NULL,
+    identity_confidence REAL NOT NULL,
+    matched_name TEXT,
+    branch_name TEXT,
+    address_raw TEXT,
+    postal_code TEXT,
+    prefecture TEXT,
+    municipality_or_ward TEXT,
+    neighborhood TEXT,
+    street_or_block TEXT,
+    building TEXT,
+    floor TEXT,
+    suite_or_unit TEXT,
+    entrance TEXT,
+    component_agreement_json TEXT NOT NULL DEFAULT '{}',
+    agreed_core_address TEXT,
+    core_address_verified INTEGER NOT NULL DEFAULT 0,
+    full_address_verified INTEGER NOT NULL DEFAULT 0,
+    unresolved_address_detail TEXT,
+    proposed_location_precision TEXT,
+    map_location_approximate INTEGER NOT NULL DEFAULT 0,
+    source_evidence_json TEXT NOT NULL DEFAULT '[]',
+    conflicting_addresses_json TEXT NOT NULL DEFAULT '[]',
+    search_queries_json TEXT NOT NULL DEFAULT '[]',
+    warnings_json TEXT NOT NULL DEFAULT '[]',
+    recommended_action TEXT,
+    research_summary TEXT,
+    acceptance_status TEXT NOT NULL,
+    acceptance_reasons_json TEXT NOT NULL DEFAULT '[]',
+    evidence_fingerprint TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY (public_restaurant_id) REFERENCES public_restaurants(place_id),
+    FOREIGN KEY (research_run_id) REFERENCES address_research_runs(id)
+);
+CREATE INDEX IF NOT EXISTS idx_address_evidence_restaurant
+    ON address_evidence(public_restaurant_id, acceptance_status, created_at DESC);
+CREATE TABLE IF NOT EXISTS address_decision_audits (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    public_restaurant_id TEXT NOT NULL,
+    address_evidence_id INTEGER NOT NULL,
+    decision_version TEXT NOT NULL,
+    acceptance_status TEXT NOT NULL,
+    resolution_status TEXT NOT NULL,
+    confidence_tier TEXT,
+    acceptance_reasons_json TEXT NOT NULL DEFAULT '[]',
+    component_agreement_json TEXT NOT NULL DEFAULT '{}',
+    temporal_evidence_json TEXT NOT NULL DEFAULT '[]',
+    original_evidence_fingerprint TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (public_restaurant_id) REFERENCES public_restaurants(place_id),
+    FOREIGN KEY (address_evidence_id) REFERENCES address_evidence(id)
+);
+CREATE INDEX IF NOT EXISTS idx_address_decision_audits_restaurant
+    ON address_decision_audits(public_restaurant_id, created_at DESC);
+CREATE TABLE IF NOT EXISTS address_review_decisions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    public_restaurant_id TEXT NOT NULL,
+    address_evidence_id INTEGER NOT NULL,
+    reviewer_decision TEXT NOT NULL,
+    reviewer_notes TEXT,
+    reviewed_by TEXT NOT NULL,
+    reviewed_at TEXT NOT NULL,
+    import_provenance TEXT,
+    evidence_fingerprint TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (public_restaurant_id) REFERENCES public_restaurants(place_id),
+    FOREIGN KEY (address_evidence_id) REFERENCES address_evidence(id)
+);
+CREATE INDEX IF NOT EXISTS idx_address_review_decisions_restaurant
+    ON address_review_decisions(public_restaurant_id, created_at DESC);
+CREATE TABLE IF NOT EXISTS verified_restaurant_addresses (
+    public_restaurant_id TEXT PRIMARY KEY,
+    address_evidence_id INTEGER,
+    address_raw TEXT NOT NULL,
+    postal_code TEXT,
+    prefecture TEXT,
+    municipality_or_ward TEXT,
+    neighborhood TEXT,
+    street_or_block TEXT,
+    building TEXT,
+    floor TEXT,
+    suite_or_unit TEXT,
+    entrance TEXT,
+    verified_core_address TEXT,
+    geocoding_address TEXT,
+    core_address_verified INTEGER NOT NULL DEFAULT 0,
+    full_address_verified INTEGER NOT NULL DEFAULT 0,
+    unresolved_address_detail TEXT,
+    approved_location_precision TEXT,
+    map_location_approximate INTEGER NOT NULL DEFAULT 0,
+    verification_method TEXT NOT NULL,
+    evidence_references_json TEXT NOT NULL DEFAULT '[]',
+    verified_by TEXT NOT NULL,
+    verified_at TEXT NOT NULL,
+    status TEXT NOT NULL,
+    address_confidence_tier TEXT,
+    decision_fingerprint TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY (public_restaurant_id) REFERENCES public_restaurants(place_id),
+    FOREIGN KEY (address_evidence_id) REFERENCES address_evidence(id)
+);
+CREATE TABLE IF NOT EXISTS address_geocode_results (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    public_restaurant_id TEXT NOT NULL,
+    verified_address_id INTEGER,
+    raw_address TEXT NOT NULL,
+    normalized_address TEXT,
+    latitude REAL,
+    longitude REAL,
+    prefecture TEXT,
+    municipality_or_ward TEXT,
+    neighborhood TEXT,
+    match_level TEXT,
+    match_status TEXT,
+    matched_components_json TEXT NOT NULL DEFAULT '{}',
+    precision TEXT,
+    derived_location_precision TEXT,
+    map_location_approximate INTEGER NOT NULL DEFAULT 0,
+    provider TEXT NOT NULL,
+    provider_version TEXT,
+    source_reference TEXT,
+    warnings_json TEXT NOT NULL DEFAULT '[]',
+    validation_status TEXT NOT NULL,
+    validation_reasons_json TEXT NOT NULL DEFAULT '[]',
+    input_fingerprint TEXT,
+    osm_type TEXT,
+    osm_id INTEGER,
+    osm_version INTEGER,
+    osm_timestamp TEXT,
+    representative_point_method TEXT,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (public_restaurant_id) REFERENCES public_restaurants(place_id)
+);
+CREATE INDEX IF NOT EXISTS idx_address_geocode_results_restaurant
+    ON address_geocode_results(public_restaurant_id, created_at DESC);
+CREATE TABLE IF NOT EXISTS location_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    public_restaurant_id TEXT NOT NULL,
+    latitude REAL,
+    longitude REAL,
+    normalized_address TEXT,
+    location_source TEXT,
+    location_source_reference TEXT,
+    location_verification_status TEXT,
+    location_verification_tier TEXT,
+    location_precision TEXT,
+    map_location_approximate INTEGER NOT NULL DEFAULT 0,
+    map_display_eligible INTEGER NOT NULL DEFAULT 0,
+    location_status TEXT NOT NULL,
+    osm_type TEXT,
+    osm_id INTEGER,
+    osm_version INTEGER,
+    osm_timestamp TEXT,
+    change_reason TEXT NOT NULL,
+    reviewed_by TEXT,
+    reviewed_at TEXT,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (public_restaurant_id) REFERENCES public_restaurants(place_id)
+);
+CREATE INDEX IF NOT EXISTS idx_location_history_restaurant
+    ON location_history(public_restaurant_id, created_at DESC);
 """
 
 PUBLIC_LOCATION_COLUMNS = {
@@ -129,6 +353,8 @@ PUBLIC_LOCATION_COLUMNS = {
     "location_reviewed_by": "TEXT",
     "location_reviewed_at": "TEXT",
     "location_verification_status": "TEXT NOT NULL DEFAULT 'unknown_provenance'",
+    "location_verification_tier": "TEXT",
+    "location_status": "TEXT",
     "location_match_confidence": "REAL",
     "location_match_method": "TEXT",
     "location_verification_method": "TEXT",
@@ -136,8 +362,16 @@ PUBLIC_LOCATION_COLUMNS = {
     "location_osm_id": "INTEGER",
     "location_osm_version": "INTEGER",
     "location_source_checked_at": "TEXT",
+    "location_resolution_reason": "TEXT",
     "map_display_eligible": "INTEGER NOT NULL DEFAULT 0",
+    "verified_core_address": "TEXT",
+    "core_address_verified": "INTEGER NOT NULL DEFAULT 0",
+    "full_address_verified": "INTEGER NOT NULL DEFAULT 0",
+    "map_location_approximate": "INTEGER NOT NULL DEFAULT 0",
+    "map_location_precision": "TEXT",
+    "unresolved_address_detail": "TEXT",
     "location_precision": "TEXT",
+    "address_resolution_status": "TEXT NOT NULL DEFAULT 'address_not_researched'",
 }
 
 PUBLIC_DISCOVERY_COLUMNS = {
@@ -150,6 +384,50 @@ PUBLIC_DISCOVERY_COLUMNS = {
     "multiple_discovery_areas": "INTEGER NOT NULL DEFAULT 0",
     "discovery_area_conflict": "INTEGER NOT NULL DEFAULT 0",
     "discovery_area_conflict_reason": "TEXT",
+}
+
+ADDRESS_TABLE_COLUMNS = {
+    "address_research_runs": {
+        "requested_max_web_actions": "INTEGER NOT NULL DEFAULT 0",
+        "web_action_limit_reached": "INTEGER NOT NULL DEFAULT 0",
+        "web_action_limit_exceeded": "INTEGER NOT NULL DEFAULT 0",
+    },
+    "address_search_attempts": {
+        "query_origin": "TEXT NOT NULL DEFAULT 'fiyu_generated'",
+    },
+    "address_evidence": {
+        "floor": "TEXT", "suite_or_unit": "TEXT", "entrance": "TEXT",
+        "component_agreement_json": "TEXT NOT NULL DEFAULT '{}'",
+        "agreed_core_address": "TEXT", "core_address_verified": "INTEGER NOT NULL DEFAULT 0",
+        "full_address_verified": "INTEGER NOT NULL DEFAULT 0",
+        "unresolved_address_detail": "TEXT", "proposed_location_precision": "TEXT",
+        "map_location_approximate": "INTEGER NOT NULL DEFAULT 0",
+    },
+    "verified_restaurant_addresses": {
+        "floor": "TEXT", "suite_or_unit": "TEXT", "entrance": "TEXT",
+        "verified_core_address": "TEXT", "geocoding_address": "TEXT",
+        "core_address_verified": "INTEGER NOT NULL DEFAULT 0",
+        "full_address_verified": "INTEGER NOT NULL DEFAULT 0",
+        "unresolved_address_detail": "TEXT", "approved_location_precision": "TEXT",
+        "map_location_approximate": "INTEGER NOT NULL DEFAULT 0",
+        "address_confidence_tier": "TEXT", "decision_fingerprint": "TEXT",
+    },
+    "address_decision_audits": {
+        "confidence_tier": "TEXT",
+    },
+    "address_geocode_results": {
+        "derived_location_precision": "TEXT",
+        "map_location_approximate": "INTEGER NOT NULL DEFAULT 0",
+        "input_fingerprint": "TEXT",
+        "neighborhood": "TEXT", "match_status": "TEXT",
+        "matched_components_json": "TEXT NOT NULL DEFAULT '{}'",
+        "osm_type": "TEXT", "osm_id": "INTEGER", "osm_version": "INTEGER",
+        "osm_timestamp": "TEXT", "representative_point_method": "TEXT",
+    },
+    "location_history": {
+        "osm_type": "TEXT", "osm_id": "INTEGER", "osm_version": "INTEGER",
+        "osm_timestamp": "TEXT",
+    },
 }
 
 
@@ -169,6 +447,13 @@ def ensure_public_schema(db_path: str | Path) -> None:
                 connection.execute(
                     f"ALTER TABLE public_restaurants ADD COLUMN {name} {declaration}"
                 )
+        for table, columns in ADDRESS_TABLE_COLUMNS.items():
+            existing_table_columns = {
+                row["name"] for row in connection.execute(f"PRAGMA table_info({table})")
+            }
+            for name, declaration in columns.items():
+                if name not in existing_table_columns:
+                    connection.execute(f"ALTER TABLE {table} ADD COLUMN {name} {declaration}")
         connection.execute(
             """
             CREATE INDEX IF NOT EXISTS idx_location_match_status
@@ -245,6 +530,11 @@ def get_research_queue(
             SELECT
                 p.place_id,
                 p.research_status,
+                p.name_ja,
+                p.name_en,
+                p.discovery_area,
+                p.discovery_area_type,
+                p.discovery_areas_json,
                 r.id AS source_restaurant_id,
                 r.title,
                 r.address,
@@ -516,7 +806,10 @@ def _safe_public_rows(
                    p.food_tags_json, p.signature_dishes_json,
                    p.discovery_area, p.discovery_area_type, p.discovery_areas_json,
                    p.multiple_discovery_areas, p.discovery_area_conflict,
-                   p.latitude, p.longitude, p.location_precision,
+                   p.latitude, p.longitude,
+                   COALESCE(p.map_location_precision, p.location_precision) AS location_precision,
+                   p.verified_core_address, p.core_address_verified,
+                   p.full_address_verified, p.map_location_approximate,
                    p.map_display_eligible,
                    COUNT(c.response_id) AS community_recommendation_count,
                    COALESCE(SUM(c.recommends), 0) AS community_positive_count
@@ -537,10 +830,14 @@ def _safe_public_rows(
         item["category"] = item.pop("primary_category")
         eligible = bool(item.get("map_display_eligible"))
         item["map_display_eligible"] = eligible
+        item["core_address_verified"] = bool(item.get("core_address_verified"))
+        item["full_address_verified"] = bool(item.get("full_address_verified"))
+        item["map_location_approximate"] = bool(item.get("map_location_approximate"))
         if not eligible:
             item["latitude"] = None
             item["longitude"] = None
             item["location_precision"] = None
+            item["map_location_approximate"] = False
         count = int(item.get("community_recommendation_count") or 0)
         positive = int(item.get("community_positive_count") or 0)
         visible = count >= community_minimum

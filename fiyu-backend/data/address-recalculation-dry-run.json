@@ -1,0 +1,344 @@
+{
+  "mode": "dry_run",
+  "evaluated": 4,
+  "pipeline_accepted": 2,
+  "pipeline_rejected": 2,
+  "decision_audit_records_persisted": 0,
+  "verified_addresses_persisted": 0,
+  "responses_api_calls": 0,
+  "web_search_calls": 0,
+  "geocoder_calls": 0,
+  "decisions": [
+    {
+      "place_id": "ChIJAZOKBEyPGGARWoSCCwgRm8E",
+      "address_evidence_id": 3,
+      "previous_acceptance_status": "conflicting",
+      "previous_resolution_status": "address_conflicting",
+      "proposed_acceptance": {
+        "status": "accepted",
+        "resolution_status": "address_verified",
+        "reasons": []
+      },
+      "component_agreement": {
+        "prefecture_agreement": "agrees",
+        "municipality_or_ward_agreement": "agrees",
+        "neighborhood_agreement": "agrees",
+        "street_or_block_agreement": "agrees",
+        "building_agreement": "missing",
+        "floor_agreement": "missing",
+        "postal_code_agreement": "agrees",
+        "agreed_core_address": "µØ▒õ║¼Úâ¢Õìâõ╗úþö░Õî║þÑ×þö░õ¢Éõ╣àÚûôþö║1-13",
+        "conflicting_components": [],
+        "non_material_conflicting_components": [],
+        "material_conflicting_components": [],
+        "component_values": {
+          "postal_code": [
+            "101-0025"
+          ],
+          "prefecture": [
+            "µØ▒õ║¼Úâ¢"
+          ],
+          "municipality_or_ward": [
+            "Õìâõ╗úþö░Õî║"
+          ],
+          "neighborhood": [
+            "þÑ×þö░õ¢Éõ╣àÚûôþö║"
+          ],
+          "street_or_block": [
+            "1-13",
+            "´╝æõ©üþø«´╝æ´╝ô"
+          ],
+          "building": [],
+          "floor": [],
+          "suite_or_unit": [],
+          "entrance": []
+        },
+        "excluded_temporal_evidence": [],
+        "core_address_verified": true,
+        "full_address_verified": true,
+        "unresolved_address_detail": null,
+        "proposed_location_precision": "parcel_or_street_number",
+        "map_location_approximate": false
+      },
+      "source_temporality": [
+        {
+          "source_url": "https://gurunavi.com/en/gj95805/rst/",
+          "address_text_as_displayed": "ÒÇÆ101-0025 µØ▒õ║¼Úâ¢Õìâõ╗úþö░Õî║þÑ×þö░õ¢Éõ╣àÚûôþö║1-13",
+          "address_temporality": "unknown"
+        },
+        {
+          "source_url": "https://www.enjoytokyo.jp/spot/g_gj95805/",
+          "address_text_as_displayed": "ÒÇÆ101-0025 µØ▒õ║¼Úâ¢Õìâõ╗úþö░Õî║þÑ×þö░õ¢Éõ╣àÚûôþö║1-13",
+          "address_temporality": "unknown"
+        },
+        {
+          "source_url": "https://tabelog.com/tokyo/A1310/A131001/13323013/",
+          "address_text_as_displayed": "µØ▒õ║¼Úâ¢Õìâõ╗úþö░Õî║þÑ×þö░õ¢Éõ╣àÚûôþö║1-13",
+          "address_temporality": "unknown"
+        },
+        {
+          "source_url": "https://www.hotpepper.jp/strJ004634463/",
+          "address_text_as_displayed": "µØ▒õ║¼Úâ¢Õìâõ╗úþö░Õî║þÑ×þö░õ¢Éõ╣àÚûôþö║´╝æõ©üþø«´╝æ´╝ô",
+          "address_temporality": "unknown"
+        }
+      ],
+      "would_persist": false
+    },
+    {
+      "place_id": "ChIJGZiCSQCPGGARtJeKu6kiMVo",
+      "address_evidence_id": 1,
+      "previous_acceptance_status": "accepted",
+      "previous_resolution_status": "address_verified",
+      "proposed_acceptance": {
+        "status": "accepted",
+        "resolution_status": "address_verified",
+        "reasons": []
+      },
+      "component_agreement": {
+        "prefecture_agreement": "agrees",
+        "municipality_or_ward_agreement": "agrees",
+        "neighborhood_agreement": "agrees",
+        "street_or_block_agreement": "agrees",
+        "building_agreement": "conflicts",
+        "floor_agreement": "conflicts",
+        "postal_code_agreement": "agrees",
+        "agreed_core_address": "µØ▒õ║¼Úâ¢Õìâõ╗úþö░Õî║þÑ×þö░õ¢Éõ╣àÚûôþö║3-38",
+        "conflicting_components": [
+          "building",
+          "floor"
+        ],
+        "non_material_conflicting_components": [
+          "building",
+          "floor"
+        ],
+        "material_conflicting_components": [],
+        "component_values": {
+          "postal_code": [
+            "101-0025"
+          ],
+          "prefecture": [
+            "µØ▒õ║¼Úâ¢"
+          ],
+          "municipality_or_ward": [
+            "Õìâõ╗úþö░Õî║"
+          ],
+          "neighborhood": [
+            "þÑ×þö░õ¢Éõ╣àÚûôþö║"
+          ],
+          "street_or_block": [
+            "3-38"
+          ],
+          "building": [
+            "ÕñºÚÖ¢ÒâôÒâ½",
+            "þ¼¼5µØ▒ÒâôÒâ½"
+          ],
+          "floor": [
+            "1ÚÜÄ",
+            "B1F",
+            "1F"
+          ],
+          "suite_or_unit": [],
+          "entrance": []
+        },
+        "excluded_temporal_evidence": [],
+        "core_address_verified": true,
+        "full_address_verified": false,
+        "unresolved_address_detail": "Conflicting address components ÔÇö building: ÕñºÚÖ¢ÒâôÒâ½ vs þ¼¼5µØ▒ÒâôÒâ½; floor: 1ÚÜÄ vs B1F vs 1F",
+        "proposed_location_precision": "parcel_or_street_number",
+        "map_location_approximate": true
+      },
+      "source_temporality": [
+        {
+          "source_url": "https://prtimes.jp/main/html/rd/p/000000022.000143737.html",
+          "address_text_as_displayed": "µØ▒õ║¼Úâ¢Õìâõ╗úþö░Õî║þÑ×þö░õ¢Éõ╣àÚûôþö║3-38 ÕñºÚÖ¢ÒâôÒâ½1ÚÜÄ",
+          "address_temporality": "unknown"
+        },
+        {
+          "source_url": "https://www.tablecheck.com/ja/beef-lemon-akihabara",
+          "address_text_as_displayed": "ÒÇÆ101-0025 µØ▒õ║¼Úâ¢ Õìâõ╗úþö░Õî║ þÑ×þö░õ¢Éõ╣àÚûôþö║3-38 þ¼¼5µØ▒ÒâôÒâ½ B1F",
+          "address_temporality": "unknown"
+        },
+        {
+          "source_url": "https://tabelog.com/tokyo/A1310/A131001/13324708/dtlrvwlst/B532233871/",
+          "address_text_as_displayed": "µØ▒õ║¼Úâ¢Õìâõ╗úþö░Õî║þÑ×þö░õ¢Éõ╣àÚûôþö║3-38 ÕñºÚÖ¢ÒâôÒâ½ 1F",
+          "address_temporality": "unknown"
+        },
+        {
+          "source_url": "https://map.yahoo.co.jp/v3/place/jtrC8D8Kw8M",
+          "address_text_as_displayed": "µØ▒õ║¼Úâ¢Õìâõ╗úþö░Õî║þÑ×þö░õ¢Éõ╣àÚûôþö║ 3-38",
+          "address_temporality": "unknown"
+        }
+      ],
+      "would_persist": false
+    },
+    {
+      "place_id": "ChIJKdddfwDzGGAR1YfPayuwpFo",
+      "address_evidence_id": 2,
+      "previous_acceptance_status": "conflicting",
+      "previous_resolution_status": "address_conflicting",
+      "proposed_acceptance": {
+        "status": "needs_review",
+        "resolution_status": "address_needs_review",
+        "reasons": [
+          "identity_not_strongly_confirmed",
+          "insufficient_qualifying_source_corroboration"
+        ]
+      },
+      "component_agreement": {
+        "prefecture_agreement": "agrees",
+        "municipality_or_ward_agreement": "agrees",
+        "neighborhood_agreement": "agrees",
+        "street_or_block_agreement": "agrees",
+        "building_agreement": "missing",
+        "floor_agreement": "missing",
+        "postal_code_agreement": "agrees",
+        "agreed_core_address": "µØ▒õ║¼Úâ¢µØëõ©ªÕî║µÁ£þö░Õ▒▒3-30-5",
+        "conflicting_components": [],
+        "non_material_conflicting_components": [],
+        "material_conflicting_components": [],
+        "component_values": {
+          "postal_code": [
+            "168-0065"
+          ],
+          "prefecture": [
+            "µØ▒õ║¼Úâ¢"
+          ],
+          "municipality_or_ward": [
+            "µØëõ©ªÕî║"
+          ],
+          "neighborhood": [
+            "µÁ£þö░Õ▒▒"
+          ],
+          "street_or_block": [
+            "3-30-5"
+          ],
+          "building": [],
+          "floor": [],
+          "suite_or_unit": [],
+          "entrance": []
+        },
+        "excluded_temporal_evidence": [
+          {
+            "kind": "source_evidence",
+            "temporality": "historical",
+            "address_text": "ÒÇÆ168-0065 µØ▒õ║¼Úâ¢µØëõ©ªÕî║µÁ£þö░Õ▒▒4-14-7",
+            "source_url": "https://www.navita.co.jp/s/11029583/"
+          },
+          {
+            "kind": "source_evidence",
+            "temporality": "historical",
+            "address_text": "µØ▒õ║¼Úâ¢µØëõ©ªÕî║µÁ£þö░Õ▒▒4-14-7",
+            "source_url": "https://www.hotpepper.jp/strJ000144188/map/"
+          },
+          {
+            "kind": "conflicting_address_candidate",
+            "temporality": "historical",
+            "address_text": "ÒÇÆ168-0065 µØ▒õ║¼Úâ¢µØëõ©ªÕî║µÁ£þö░Õ▒▒4-14-7",
+            "source_urls": [
+              "https://www.navita.co.jp/s/11029583/",
+              "https://www.hotpepper.jp/strJ000144188/map/"
+            ]
+          }
+        ],
+        "core_address_verified": true,
+        "full_address_verified": true,
+        "unresolved_address_detail": null,
+        "proposed_location_precision": "parcel_or_street_number",
+        "map_location_approximate": false
+      },
+      "source_temporality": [
+        {
+          "source_url": "https://tabelog.com/13297842/A1318/A131805/13297842/dtlrvwlst/?type=0",
+          "address_text_as_displayed": "µØ▒õ║¼Úâ¢µØëõ©ªÕî║µÁ£þö░Õ▒▒3-30-5 ÕñºÒüìÒü¬Õ£░Õø│ÒéÆÞªïÒéï Õæ¿Þ¥║Òü«ÒüèÕ║ùÒéÆµÄóÒüÖ ÒüôÒü«ÒüèÕ║ùÒü»ÒÇîµØëõ©ªÕî║µÁ£þö░Õ▒▒4-14-7ÒÇìÒüïÒéëþº╗Þ╗óÒüùÒüªÒüäÒü¥ÒüÖÒÇé",
+          "address_temporality": "current"
+        },
+        {
+          "source_url": "https://r.gnavi.co.jp/fgy6vd8d0000/map/",
+          "address_text_as_displayed": "ÒÇÆ168-0065 µØ▒õ║¼Úâ¢µØëõ©ªÕî║µÁ£þö░Õ▒▒3-30-5",
+          "address_temporality": "unknown"
+        },
+        {
+          "source_url": "https://www.navita.co.jp/s/11029583/",
+          "address_text_as_displayed": "ÒÇÆ168-0065 µØ▒õ║¼Úâ¢µØëõ©ªÕî║µÁ£þö░Õ▒▒4-14-7",
+          "address_temporality": "historical"
+        },
+        {
+          "source_url": "https://www.hotpepper.jp/strJ000144188/map/",
+          "address_text_as_displayed": "µØ▒õ║¼Úâ¢µØëõ©ªÕî║µÁ£þö░Õ▒▒4-14-7",
+          "address_temporality": "historical"
+        }
+      ],
+      "would_persist": false
+    },
+    {
+      "place_id": "ChIJt2QEWDmNGGARvJ5tMBSBCqI",
+      "address_evidence_id": 4,
+      "previous_acceptance_status": "failed",
+      "previous_resolution_status": "address_research_failed",
+      "proposed_acceptance": {
+        "status": "needs_review",
+        "resolution_status": "address_needs_review",
+        "reasons": [
+          "identity_not_strongly_confirmed",
+          "insufficient_qualifying_source_corroboration"
+        ]
+      },
+      "component_agreement": {
+        "prefecture_agreement": "agrees",
+        "municipality_or_ward_agreement": "agrees",
+        "neighborhood_agreement": "agrees",
+        "street_or_block_agreement": "agrees",
+        "building_agreement": "missing",
+        "floor_agreement": "missing",
+        "postal_code_agreement": "missing",
+        "agreed_core_address": "µØ▒õ║¼Úâ¢µ©ïÞ░ÀÕî║þÑ×Õ««Õëì2-23-4",
+        "conflicting_components": [],
+        "non_material_conflicting_components": [],
+        "material_conflicting_components": [],
+        "component_values": {
+          "postal_code": [],
+          "prefecture": [
+            "µØ▒õ║¼Úâ¢"
+          ],
+          "municipality_or_ward": [
+            "µ©ïÞ░ÀÕî║"
+          ],
+          "neighborhood": [
+            "þÑ×Õ««Õëì"
+          ],
+          "street_or_block": [
+            "2-23-4"
+          ],
+          "building": [],
+          "floor": [],
+          "suite_or_unit": [],
+          "entrance": []
+        },
+        "excluded_temporal_evidence": [],
+        "core_address_verified": true,
+        "full_address_verified": true,
+        "unresolved_address_detail": null,
+        "proposed_location_precision": "parcel_or_street_number",
+        "map_location_approximate": false
+      },
+      "source_temporality": [
+        {
+          "source_url": "https://hamoni.jp/shop/dPJKeHEUhiMKgmaFdxl5mFgQuQbJ7nOJ",
+          "address_text_as_displayed": "µØ▒õ║¼Úâ¢µ©ïÞ░ÀÕî║þÑ×Õ««Õëì2-23-4",
+          "address_temporality": "unknown"
+        },
+        {
+          "source_url": "https://tabelog.com/tokyo/A1306/A130601/13282286/dtlmap/?lid=rstdtl_top_map",
+          "address_text_as_displayed": "µØ▒õ║¼Úâ¢µ©ïÞ░ÀÕî║þÑ×Õ««Õëì2-23-4",
+          "address_temporality": "unknown"
+        },
+        {
+          "source_url": "https://www.meiji-park.tokyo/event/112/",
+          "address_text_as_displayed": null,
+          "address_temporality": "unknown"
+        }
+      ],
+      "would_persist": false
+    }
+  ]
+}

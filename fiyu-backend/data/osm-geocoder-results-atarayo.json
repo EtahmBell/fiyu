@@ -1,0 +1,38 @@
+[
+  {
+    "normalized_address": "千代田区神田佐久間町1-13",
+    "latitude": 35.6978436,
+    "longitude": 139.7741913,
+    "town_id": null,
+    "address_id": null,
+    "precision": "exact",
+    "warnings": [],
+    "provenance": "Map data © OpenStreetMap contributors",
+    "raw_address": "東京都千代田区神田佐久間町1-13",
+    "prefecture": "東京都",
+    "municipality_or_ward": "千代田区",
+    "provider": "local_osm_addresses",
+    "provider_version": "osm-address-index-v1",
+    "source_reference": "https://www.openstreetmap.org/node/2018264081",
+    "place_id": "ChIJAZOKBEyPGGARWoSCCwgRm8E",
+    "input_fingerprint": "1b70b3292365b38cd09ff7771f5c099549d69fe6dc188f33408963f0c8e927f4",
+    "interpolation_span_meters": null,
+    "neighborhood": "神田佐久間町",
+    "matched_components": {
+      "prefecture": "東京都",
+      "ward": "千代田区",
+      "neighborhood": "神田佐久間町",
+      "address_number": "1-13"
+    },
+    "match_status": "matched_exact",
+    "map_location_approximate": false,
+    "suggested_verification_tier": "provisional_high",
+    "osm_type": "node",
+    "osm_id": 2018264081,
+    "osm_version": 9,
+    "osm_timestamp": "2025-06-19 02:24:20+00:00",
+    "representative_point_method": "node_location",
+    "match_level": "address",
+    "status": "matched_exact"
+  }
+]

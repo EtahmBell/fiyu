@@ -1,0 +1,345 @@
+{
+  "mode": "persist",
+  "eligible_restaurant_count": 1,
+  "requested_limit": 10,
+  "maximum_responses_requests": 1,
+  "requested_maximum_web_actions": 2,
+  "maximum_web_search_actions": 2,
+  "max_search_actions_per_restaurant": 2,
+  "web_action_limit_semantics": "Requested provider max_tool_calls. The backend stops the batch and rejects automatic acceptance if the provider returns more web_search_call actions; already-executed provider actions cannot be retroactively prevented.",
+  "compact_usage_controls": {
+    "compact_research": true,
+    "max_retained_sources": 4,
+    "max_evidence_summary_chars": 160,
+    "max_conflicting_candidates": 3,
+    "max_output_tokens": 4000,
+    "retry_truncated": false
+  },
+  "resolution_report": "C:\\data\\osm\\reports\\osm-after-spatial-wards.json",
+  "skipped_records": {
+    "unpublished": 0,
+    "map_eligible_or_verified_location": 0,
+    "not_likely_missing_from_osm": 0,
+    "already_has_accepted_address": 0,
+    "place_id_mismatch": 49,
+    "duplicate_query_cache": 0
+  },
+  "restaurants": [
+    {
+      "place_id": "ChIJGZiCSQCPGGARtJeKu6kiMVo",
+      "result": {
+        "identity_status": "confirmed",
+        "identity_confidence": 0.99,
+        "matched_name": "牛たんの檸檬 秋葉原店",
+        "branch_name": "秋葉原店",
+        "address_raw": "〒101-0025 東京都千代田区神田佐久間町3-38 大陽ビル1階",
+        "postal_code": "101-0025",
+        "prefecture": "東京都",
+        "municipality_or_ward": "千代田区",
+        "neighborhood": "神田佐久間町",
+        "street_or_block": "3-38",
+        "building": "大陽ビル",
+        "floor": "1階",
+        "suite_or_unit": null,
+        "entrance": null,
+        "source_evidence": [
+          {
+            "source_type": "official_company_press_release",
+            "source_url": "https://prtimes.jp/main/html/rd/p/000000022.000143737.html",
+            "source_title": "牛たんの檸檬 秋葉原店グランドオープン告知",
+            "source_language": "ja",
+            "accessed_at": "2026-07-28",
+            "address_text_as_displayed": "東京都千代田区神田佐久間町3-38 大陽ビル1階",
+            "postal_code": null,
+            "prefecture": "東京都",
+            "municipality_or_ward": "千代田区",
+            "neighborhood": "神田佐久間町",
+            "street_or_block": "3-38",
+            "building": "大陽ビル",
+            "floor": "1階",
+            "suite_or_unit": null,
+            "entrance": null,
+            "identity_evidence_summary": "会社名義のプレスリリースが店名を「牛たんの檸檬 秋葉原店」と明記。",
+            "address_evidence_summary": "店舗情報欄および本文で所在地を明記。",
+            "restaurant_controlled": true,
+            "supports_candidate_address": true,
+            "warnings": []
+          },
+          {
+            "source_type": "restaurant_controlled_reservation_page",
+            "source_url": "https://www.tablecheck.com/ja/beef-lemon-akihabara",
+            "source_title": "TableCheck 牛たんの檸檬 秋葉原店",
+            "source_language": "ja",
+            "accessed_at": "2026-07-28",
+            "address_text_as_displayed": "〒101-0025 東京都 千代田区 神田佐久間町3-38 第5東ビル B1F",
+            "postal_code": "101-0025",
+            "prefecture": "東京都",
+            "municipality_or_ward": "千代田区",
+            "neighborhood": "神田佐久間町",
+            "street_or_block": "3-38",
+            "building": "第5東ビル",
+            "floor": "B1F",
+            "suite_or_unit": null,
+            "entrance": null,
+            "identity_evidence_summary": "予約ページが店名と読み仮名を明記。",
+            "address_evidence_summary": "予約ページに住所を掲載するが、建物名・階数がプレスリリースと相違。",
+            "restaurant_controlled": true,
+            "supports_candidate_address": true,
+            "warnings": [
+              "建物・階数が他の住所証拠と不一致。"
+            ]
+          },
+          {
+            "source_type": "lead_only_restricted_platform",
+            "source_url": "https://tabelog.com/tokyo/A1310/A131001/13324708/dtlrvwlst/B532233871/",
+            "source_title": "食べログ 牛たんの檸檬 秋葉原店",
+            "source_language": "ja",
+            "accessed_at": "2026-07-28",
+            "address_text_as_displayed": "東京都千代田区神田佐久間町3-38 大陽ビル 1F",
+            "postal_code": null,
+            "prefecture": "東京都",
+            "municipality_or_ward": "千代田区",
+            "neighborhood": "神田佐久間町",
+            "street_or_block": "3-38",
+            "building": "大陽ビル",
+            "floor": "1F",
+            "suite_or_unit": null,
+            "entrance": null,
+            "identity_evidence_summary": "店名、ジャンル、公式Instagramを掲載。",
+            "address_evidence_summary": "プレスリリースと同じ建物・階数を掲載。",
+            "restaurant_controlled": false,
+            "supports_candidate_address": false,
+            "warnings": [
+              "ユーザー編集型グルメサイトのため検証扱い不可。",
+              "restricted_platform_lead_only:tabelog.com"
+            ]
+          },
+          {
+            "source_type": "lead_only_restricted_platform",
+            "source_url": "https://map.yahoo.co.jp/v3/place/jtrC8D8Kw8M",
+            "source_title": "Yahoo!マップ 牛たんの檸檬 秋葉原店",
+            "source_language": "ja",
+            "accessed_at": "2026-07-28",
+            "address_text_as_displayed": "東京都千代田区神田佐久間町 3-38",
+            "postal_code": null,
+            "prefecture": "東京都",
+            "municipality_or_ward": "千代田区",
+            "neighborhood": "神田佐久間町",
+            "street_or_block": "3-38",
+            "building": null,
+            "floor": null,
+            "suite_or_unit": null,
+            "entrance": null,
+            "identity_evidence_summary": "店名と秋葉原店を掲載。",
+            "address_evidence_summary": "町名・番地まで一致するが、建物・階数は未掲載。",
+            "restaurant_controlled": false,
+            "supports_candidate_address": true,
+            "warnings": [
+              "情報提供元はPayPayで、検証扱い不可。"
+            ]
+          }
+        ],
+        "conflicting_address_candidates": [
+          {
+            "address_raw": "〒101-0025 東京都 千代田区 神田佐久間町3-38 第5東ビル B1F",
+            "source_urls": [
+              "https://www.tablecheck.com/ja/beef-lemon-akihabara"
+            ],
+            "summary": "TableCheckは第5東ビルB1Fと掲載し、他の主要住所証拠の大陽ビル1階と相違。",
+            "postal_code": "101-0025",
+            "prefecture": "東京都",
+            "municipality_or_ward": "千代田区",
+            "neighborhood": "神田佐久間町",
+            "street_or_block": "3-38",
+            "building": "第5東ビル",
+            "floor": "B1F",
+            "suite_or_unit": null,
+            "entrance": null
+          }
+        ],
+        "search_queries_attempted": [
+          "\"牛たんの檸檬 秋葉原店\" Chiyoda 住所",
+          "\"牛たんの檸檬 秋葉原店\" Chiyoda 所在地 店舗情報"
+        ],
+        "warnings": [
+          "建物名・階数に不一致があるため、住所全体はconflictingとして扱う。"
+        ],
+        "recommended_action": "大陽ビル1階と第5東ビルB1Fの相違について、店舗へ直接確認する。",
+        "research_summary": "店名・秋葉原店の同一性は確認でき、番地3-38と千代田区神田佐久間町は一致する一方、建物・階数に「大陽ビル1階」と「第5東ビルB1F」の明確な不一致がある。"
+      },
+      "acceptance": {
+        "status": "accepted",
+        "resolution_status": "address_verified",
+        "reasons": []
+      },
+      "generated_queries": [
+        "\"牛たんの檸檬 秋葉原店\" Chiyoda 住所",
+        "\"牛たんの檸檬 秋葉原店\" Chiyoda 所在地 店舗情報"
+      ],
+      "component_agreement": {
+        "prefecture_agreement": "agrees",
+        "municipality_or_ward_agreement": "agrees",
+        "neighborhood_agreement": "agrees",
+        "street_or_block_agreement": "agrees",
+        "building_agreement": "conflicts",
+        "floor_agreement": "conflicts",
+        "postal_code_agreement": "agrees",
+        "agreed_core_address": "東京都千代田区神田佐久間町3-38",
+        "conflicting_components": [
+          "building",
+          "floor"
+        ],
+        "non_material_conflicting_components": [
+          "building",
+          "floor"
+        ],
+        "material_conflicting_components": [],
+        "component_values": {
+          "postal_code": [
+            "101-0025"
+          ],
+          "prefecture": [
+            "東京都"
+          ],
+          "municipality_or_ward": [
+            "千代田区"
+          ],
+          "neighborhood": [
+            "神田佐久間町"
+          ],
+          "street_or_block": [
+            "3-38"
+          ],
+          "building": [
+            "大陽ビル",
+            "第5東ビル"
+          ],
+          "floor": [
+            "1階",
+            "B1F",
+            "1F"
+          ],
+          "suite_or_unit": [],
+          "entrance": []
+        },
+        "core_address_verified": true,
+        "full_address_verified": false,
+        "unresolved_address_detail": "Conflicting address components — building: 大陽ビル vs 第5東ビル; floor: 1階 vs B1F vs 1F",
+        "proposed_location_precision": "parcel_or_street_number",
+        "map_location_approximate": true
+      },
+      "query_audit": {
+        "fiyu_generated_queries": [
+          "\"牛たんの檸檬 秋葉原店\" Chiyoda 住所",
+          "\"牛たんの檸檬 秋葉原店\" Chiyoda 所在地 店舗情報"
+        ],
+        "model_requested_queries": [
+          "\"牛たんの檸檬 秋葉原店\" Chiyoda 住所",
+          "\"牛たんの檸檬 秋葉原店\" Chiyoda 所在地 店舗情報"
+        ],
+        "actual_web_search_actions": [
+          {
+            "id": "ws_0f6b1bca583a5652006a68f955127c81989c40fc5f76c541c6",
+            "status": "completed",
+            "action_type": "search",
+            "queries": [
+              "\"牛たんの檸檬 秋葉原店\" Chiyoda 住所",
+              "\"牛たんの檸檬 秋葉原店\" Chiyoda 所在地 店舗情報"
+            ],
+            "sources": [],
+            "attempt_index": 1
+          },
+          {
+            "id": "ws_0f6b1bca583a5652006a68f959c6388198ba7b8e1568e4381d",
+            "status": "completed",
+            "action_type": "open_page",
+            "queries": [],
+            "sources": [],
+            "attempt_index": 1
+          }
+        ],
+        "actual_action_queries": [
+          "\"牛たんの檸檬 秋葉原店\" Chiyoda 住所",
+          "\"牛たんの檸檬 秋葉原店\" Chiyoda 所在地 店舗情報"
+        ],
+        "cached_queries": [],
+        "skipped_queries": [],
+        "configured_action_limit": 2,
+        "actual_action_count": 2,
+        "limit_reached": true,
+        "limit_exceeded": false,
+        "counts_reconcile": true
+      },
+      "usage": {
+        "response_id": "resp_0f6b1bca583a5652006a68f9540bc08198bf812a5b1fad4a10",
+        "response_ids": [
+          "resp_0f6b1bca583a5652006a68f9540bc08198bf812a5b1fad4a10"
+        ],
+        "model": "gpt-5.6-luna",
+        "response_status": "completed",
+        "incomplete_reason": null,
+        "response_request_count": 1,
+        "web_search_action_count": 2,
+        "requested_web_action_limit": 2,
+        "limit_reached": true,
+        "limit_exceeded": false,
+        "raw_output_character_count": 3699,
+        "output_was_truncated": false,
+        "parse_attempted": true,
+        "parse_error_summary": null,
+        "structured_output_mode": "strict_json_schema",
+        "retry_count": 0,
+        "attempts": [
+          {
+            "response_id": "resp_0f6b1bca583a5652006a68f9540bc08198bf812a5b1fad4a10",
+            "response_status": "completed",
+            "incomplete_reason": null,
+            "raw_output_character_count": 3699,
+            "output_was_truncated": false,
+            "parse_attempted": true,
+            "parse_error_summary": null,
+            "structured_output_mode": "strict_json_schema",
+            "response_request_count": 1,
+            "web_search_action_count": 2,
+            "input_tokens": 19037,
+            "cached_input_tokens": 7716,
+            "output_tokens": 1835,
+            "reasoning_tokens": 409,
+            "total_tokens": 20872,
+            "provider_usage": {
+              "input_tokens": 19037,
+              "input_tokens_details": {
+                "cache_write_tokens": 0,
+                "cached_tokens": 7716
+              },
+              "output_tokens": 1835,
+              "output_tokens_details": {
+                "reasoning_tokens": 409
+              },
+              "total_tokens": 20872
+            }
+          }
+        ],
+        "input_tokens": 19037,
+        "cached_input_tokens": 7716,
+        "output_tokens": 1835,
+        "reasoning_tokens": 409,
+        "total_tokens": 20872
+      },
+      "address_evidence_id": 1
+    }
+  ],
+  "usage_totals": {
+    "response_request_count": 1,
+    "web_search_action_count": 2,
+    "input_tokens": 19037,
+    "cached_input_tokens": 7716,
+    "output_tokens": 1835,
+    "reasoning_tokens": 409,
+    "total_tokens": 20872
+  },
+  "failures": [],
+  "completed": 1,
+  "failed": 0,
+  "persisted": 1
+}

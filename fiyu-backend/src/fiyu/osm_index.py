@@ -14,14 +14,22 @@ from pathlib import Path
 
 from .discovery_areas import canonical_tokyo_ward
 from .location_names import normalize_location_name
+from .osm_address_normalization import (
+    compose_osm_address,
+    normalize_osm_number,
+)
+from .utils import haversine_km
 
 OSM_ATTRIBUTION = "Map data © OpenStreetMap contributors"
 FOOD_AMENITIES = {"restaurant", "cafe", "fast_food", "food_court", "bar", "pub"}
 TAG_KEYS = {
     "name", "name:ja", "name:en", "alt_name", "official_name", "short_name",
     "brand", "operator", "cuisine", "amenity", "railway", "public_transport",
-    "addr:postcode", "addr:prefecture", "addr:city", "addr:district", "addr:suburb",
-    "addr:neighbourhood", "addr:street", "addr:housenumber", "website", "contact:website",
+    "addr:postcode", "addr:province", "addr:prefecture", "addr:city", "addr:district",
+    "addr:suburb", "addr:quarter", "addr:neighbourhood", "addr:street",
+    "addr:block_number", "addr:housenumber", "addr:housename", "addr:full",
+    "addr:interpolation", "entrance", "building", "source", "source:addr",
+    "website", "contact:website",
 }
 JAPANESE_PATTERN = re.compile(r"[\u3040-\u30ff\u3400-\u9fff]")
 CLASSIC_MOJIBAKE_PATTERN = re.compile(
@@ -60,6 +68,48 @@ CREATE INDEX idx_osm_name_ja ON osm_locations(name_ja_norm);
 CREATE INDEX idx_osm_name ON osm_locations(name_norm);
 CREATE INDEX idx_osm_name_en ON osm_locations(name_en_norm);
 CREATE INDEX idx_osm_kind ON osm_locations(object_kind);
+CREATE TABLE osm_addresses (
+    osm_type TEXT NOT NULL,
+    osm_id INTEGER NOT NULL,
+    osm_version INTEGER,
+    osm_timestamp TEXT,
+    object_kind TEXT NOT NULL,
+    latitude REAL NOT NULL,
+    longitude REAL NOT NULL,
+    representative_point_method TEXT NOT NULL,
+    geometry_span_meters REAL,
+    name TEXT,
+    addr_province TEXT,
+    addr_prefecture TEXT,
+    addr_city TEXT,
+    addr_district TEXT,
+    addr_suburb TEXT,
+    addr_quarter TEXT,
+    addr_neighbourhood TEXT,
+    addr_block_number TEXT,
+    addr_housenumber TEXT,
+    addr_housename TEXT,
+    addr_full TEXT,
+    entrance TEXT,
+    building TEXT,
+    normalized_address TEXT,
+    prefecture_norm TEXT,
+    ward_norm TEXT,
+    neighborhood_norm TEXT,
+    address_number_norm TEXT,
+    block_number_norm TEXT,
+    housenumber_norm TEXT,
+    tags_json TEXT NOT NULL,
+    source_attribution TEXT NOT NULL,
+    source_reference TEXT NOT NULL,
+    PRIMARY KEY (osm_type, osm_id)
+);
+CREATE INDEX idx_osm_address_components
+    ON osm_addresses(ward_norm, neighborhood_norm, address_number_norm);
+CREATE INDEX idx_osm_address_block
+    ON osm_addresses(ward_norm, neighborhood_norm, block_number_norm);
+CREATE INDEX idx_osm_address_neighborhood
+    ON osm_addresses(neighborhood_norm, address_number_norm);
 CREATE TABLE osm_ward_boundaries (
     ward_name TEXT PRIMARY KEY,
     osm_type TEXT NOT NULL,
@@ -149,6 +199,47 @@ def polygon_representative_point(
     return centroid_y / (3 * twice_area), centroid_x / (3 * twice_area)
 
 
+def _representative_point(
+    feature: OSMFeature,
+) -> tuple[float, float, str]:
+    if feature.is_polygon:
+        points = list(feature.geometry)
+        unique = points[:-1] if len(points) > 1 and points[0] == points[-1] else points
+        twice_area = sum(
+            first[1] * second[0] - second[1] * first[0]
+            for first, second in pairwise([*points, points[0]])
+        ) if points else 0.0
+        method = "polygon_centroid" if abs(twice_area) >= 1e-12 else "polygon_mean_fallback"
+        latitude, longitude = polygon_representative_point(unique)
+        return latitude, longitude, method
+    if len(feature.geometry) == 1:
+        return *feature.geometry[0], "node_location"
+    # Address interpolation and other linear address objects use the midpoint by
+    # cumulative segment length, never an arbitrary vertex.
+    segments = []
+    total = 0.0
+    for first, second in pairwise(feature.geometry):
+        length = ((second[0] - first[0]) ** 2 + (second[1] - first[1]) ** 2) ** 0.5
+        segments.append((first, second, length))
+        total += length
+    if total <= 0:
+        latitude = sum(point[0] for point in feature.geometry) / len(feature.geometry)
+        longitude = sum(point[1] for point in feature.geometry) / len(feature.geometry)
+        return latitude, longitude, "line_mean_fallback"
+    target = total / 2
+    traversed = 0.0
+    for first, second, length in segments:
+        if traversed + length >= target:
+            ratio = (target - traversed) / length
+            return (
+                first[0] + (second[0] - first[0]) * ratio,
+                first[1] + (second[1] - first[1]) * ratio,
+                "line_midpoint",
+            )
+        traversed += length
+    return *feature.geometry[-1], "line_midpoint"
+
+
 def _kind(tags: dict[str, str]) -> str | None:
     if tags.get("amenity") in FOOD_AMENITIES:
         return "food"
@@ -163,6 +254,16 @@ def _raw_tags_are_indexable(raw_tags: object) -> bool:
         tags.get("amenity") in FOOD_AMENITIES  # type: ignore[union-attr]
         or tags.get("railway") == "station"  # type: ignore[union-attr]
         or tags.get("public_transport") == "station"  # type: ignore[union-attr]
+    )
+
+
+def _raw_tags_are_addressable(raw_tags: object) -> bool:
+    tags = raw_tags
+    return any(
+        tags.get(key)  # type: ignore[union-attr]
+        for key in (
+            "addr:full", "addr:housenumber", "addr:block_number", "addr:interpolation",
+        )
     )
 
 
@@ -239,6 +340,81 @@ def _insert_feature(connection: sqlite3.Connection, feature: OSMFeature) -> bool
     return True
 
 
+def _address_kind(feature: OSMFeature, tags: dict[str, str]) -> str:
+    if tags.get("addr:interpolation"):
+        return "address_interpolation"
+    if tags.get("entrance"):
+        return "addressed_entrance"
+    if feature.is_polygon and tags.get("building"):
+        return "addressed_building"
+    if tags.get("amenity") in FOOD_AMENITIES:
+        return "restaurant_poi"
+    if feature.osm_type == "node":
+        return "address_node"
+    return "address_object"
+
+
+def _insert_address_feature(
+    connection: sqlite3.Connection, feature: OSMFeature
+) -> bool:
+    tags = {key: value for key, value in feature.tags.items() if key in TAG_KEYS and value}
+    if not feature.geometry or not _raw_tags_are_addressable(tags):
+        return False
+    latitude, longitude, point_method = _representative_point(feature)
+    if not (-90 <= latitude <= 90 and -180 <= longitude <= 180):
+        return False
+    normalized = compose_osm_address(tags)
+    geometry_span_meters = None
+    if len(feature.geometry) > 1:
+        geometry_span_meters = max(
+            haversine_km(
+                feature.geometry[0][0], feature.geometry[0][1], point[0], point[1]
+            )
+            * 1000
+            for point in feature.geometry[1:]
+        )
+    connection.execute(
+        """
+        INSERT OR REPLACE INTO osm_addresses (
+            osm_type, osm_id, osm_version, osm_timestamp, object_kind,
+            latitude, longitude, representative_point_method, geometry_span_meters, name,
+            addr_province, addr_prefecture, addr_city, addr_district, addr_suburb,
+            addr_quarter, addr_neighbourhood, addr_block_number, addr_housenumber,
+            addr_housename, addr_full, entrance, building, normalized_address,
+            prefecture_norm, ward_norm, neighborhood_norm, address_number_norm,
+            block_number_norm, housenumber_norm, tags_json, source_attribution,
+            source_reference
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                  ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            feature.osm_type, feature.osm_id, feature.osm_version, feature.osm_timestamp,
+            _address_kind(feature, tags), latitude, longitude, point_method,
+            geometry_span_meters,
+            tags.get("name") or tags.get("name:ja"), tags.get("addr:province"),
+            tags.get("addr:prefecture"), tags.get("addr:city"), tags.get("addr:district"),
+            tags.get("addr:suburb"), tags.get("addr:quarter"),
+            tags.get("addr:neighbourhood"), tags.get("addr:block_number"),
+            tags.get("addr:housenumber"), tags.get("addr:housename"),
+            tags.get("addr:full"), tags.get("entrance"), tags.get("building"),
+            normalized.normalized,
+            (
+                normalized.prefecture
+                if not (tags.get("addr:prefecture") or tags.get("addr:province"))
+                or (tags.get("addr:prefecture") or tags.get("addr:province")) == "東京都"
+                else (tags.get("addr:prefecture") or tags.get("addr:province"))
+            ),
+            normalized.ward,
+            normalized.neighborhood, normalized.number_key,
+            normalize_osm_number(tags.get("addr:block_number")),
+            normalize_osm_number(tags.get("addr:housenumber")),
+            json.dumps(tags, ensure_ascii=False, sort_keys=True), OSM_ATTRIBUTION,
+            f"https://www.openstreetmap.org/{feature.osm_type}/{feature.osm_id}",
+        ),
+    )
+    return True
+
+
 def _insert_ward_boundary(
     connection: sqlite3.Connection, boundary: OSMWardBoundary
 ) -> bool:
@@ -291,7 +467,7 @@ def _stream_pbf(pbf_path: Path, connection: sqlite3.Connection) -> dict[str, int
 
     counts = {
         "seen": 0, "indexed": 0, "nodes": 0, "ways": 0, "relations": 0,
-        "ward_boundaries": 0,
+        "ward_boundaries": 0, "address_indexed": 0,
     }
 
     class Handler(osmium.SimpleHandler):
@@ -300,9 +476,13 @@ def _stream_pbf(pbf_path: Path, connection: sqlite3.Connection) -> dict[str, int
             if _insert_feature(connection, feature):
                 counts["indexed"] += 1
                 counts[{"node": "nodes", "way": "ways", "relation": "relations"}[feature.osm_type]] += 1
+            if _insert_address_feature(connection, feature):
+                counts["address_indexed"] += 1
 
         def node(self, node) -> None:
-            if node.location.valid() and _raw_tags_are_indexable(node.tags):
+            if node.location.valid() and (
+                _raw_tags_are_indexable(node.tags) or _raw_tags_are_addressable(node.tags)
+            ):
                 self._write(OSMFeature(
                     "node", node.id, extract_osm_tags(node.tags),
                     ((node.location.lat, node.location.lon),),
@@ -310,7 +490,9 @@ def _stream_pbf(pbf_path: Path, connection: sqlite3.Connection) -> dict[str, int
                 ))
 
         def way(self, way) -> None:
-            if not _raw_tags_are_indexable(way.tags):
+            if not (
+                _raw_tags_are_indexable(way.tags) or _raw_tags_are_addressable(way.tags)
+            ):
                 return
             coordinates = tuple(
                 (node.lat, node.lon) for node in way.nodes if node.location.valid()
@@ -347,7 +529,7 @@ def _stream_pbf(pbf_path: Path, connection: sqlite3.Connection) -> dict[str, int
                 )):
                     counts["ward_boundaries"] += 1
                 return
-            if _kind(tags) is None:
+            if _kind(tags) is None and not _raw_tags_are_addressable(tags):
                 return
             coordinates = []
             for ring in area.outer_rings():
@@ -356,7 +538,9 @@ def _stream_pbf(pbf_path: Path, connection: sqlite3.Connection) -> dict[str, int
             if coordinates:
                 self._write(OSMFeature(
                     "relation", area.orig_id(), tags, tuple(coordinates),
-                    getattr(area, "version", None), None, True,
+                    getattr(area, "version", None),
+                    str(area.timestamp) if getattr(area, "timestamp", None) else None,
+                    True,
                 ))
 
     Handler().apply_file(str(pbf_path), locations=True, idx="sparse_file_array")
@@ -525,7 +709,7 @@ def build_osm_index(
             else:
                 counts = {
                     "seen": 0, "indexed": 0, "nodes": 0, "ways": 0, "relations": 0,
-                    "ward_boundaries": 0,
+                    "ward_boundaries": 0, "address_indexed": 0,
                 }
                 for feature in features:
                     counts["seen"] += 1
@@ -535,6 +719,8 @@ def build_osm_index(
                             feature.osm_type
                         ]
                         counts[key] += 1
+                    if _insert_address_feature(connection, feature):
+                        counts["address_indexed"] += 1
                 for boundary in ward_boundaries or []:
                     if _insert_ward_boundary(connection, boundary):
                         counts["ward_boundaries"] += 1

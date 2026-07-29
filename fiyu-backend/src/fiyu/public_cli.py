@@ -57,6 +57,117 @@ def _parser() -> argparse.ArgumentParser:
 
     subparsers.add_parser("location-status", help="Report restaurant and anchor verification status")
 
+    discover_addresses = subparsers.add_parser(
+        "discover-addresses", help="Research independent public address evidence"
+    )
+    discover_addresses.add_argument("--limit", type=int, default=10)
+    discover_addresses.add_argument("--place-id")
+    mode = discover_addresses.add_mutually_exclusive_group()
+    mode.add_argument("--plan-only", action="store_true")
+    mode.add_argument("--dry-run", action="store_true")
+    discover_addresses.add_argument("--force", action="store_true")
+    discover_addresses.add_argument("--output-report")
+    discover_addresses.add_argument(
+        "--resolution-report",
+        help="Read detailed OSM resolution reasons from a reviewed JSON report",
+    )
+    discover_addresses.add_argument(
+        "--web-action-budget", "--max-search-actions", dest="max_search_actions",
+        type=int, default=4,
+        help=(
+            "Requested Responses API max_tool_calls per restaurant. If the provider returns more "
+            "web actions, the backend rejects acceptance and stops the batch."
+        ),
+    )
+    discover_addresses.add_argument("--max-retained-sources", type=int, default=4)
+    discover_addresses.add_argument("--max-evidence-summary-chars", type=int, default=160)
+    discover_addresses.add_argument("--max-conflicting-candidates", type=int, default=3)
+    discover_addresses.add_argument("--max-output-tokens", type=int, default=4000)
+    discover_addresses.add_argument(
+        "--compact-research", action=argparse.BooleanOptionalAction, default=True
+    )
+    discover_addresses.add_argument(
+        "--retry-truncated", action="store_true",
+        help="Retry one truncated response with a deterministic larger output budget",
+    )
+    discover_addresses.add_argument("--model", default=None)
+
+    recalculate_addresses = subparsers.add_parser(
+        "recalculate-address-decisions",
+        help="Re-evaluate saved address evidence without network calls",
+    )
+    recalculate_selection = recalculate_addresses.add_mutually_exclusive_group(required=True)
+    recalculate_selection.add_argument("--place-id")
+    recalculate_selection.add_argument("--all", action="store_true", dest="all_records")
+    recalculate_addresses.add_argument("--dry-run", action="store_true")
+    recalculate_addresses.add_argument(
+        "--mvp-policy", action="store_true",
+        help="Use the current optimistic MVP policy (currently the default)",
+    )
+
+    geocoding_inputs = subparsers.add_parser(
+        "export-geocoding-inputs",
+        help="Export verified and provisional core addresses for independent geocoding",
+    )
+    geocoding_inputs.add_argument("--output", required=True)
+    geocoding_inputs.add_argument("--limit", type=int, default=100)
+    geocoding_inputs.add_argument("--place-id")
+
+    geocode_file = subparsers.add_parser(
+        "geocode-address-file", help="Geocode an exported address file with a local provider"
+    )
+    geocode_file.add_argument("--input", required=True)
+    geocode_file.add_argument("--output", required=True)
+    geocode_file.add_argument(
+        "--provider", choices=("local-osm-addresses", "digital-agency-abr"), required=True
+    )
+    geocode_file.add_argument("--osm-index")
+    geocode_file.add_argument("--abr-data-dir")
+    geocode_file.add_argument("--abr-command", default="abrg")
+    geocode_file.add_argument("--provider-version", default="2.3.0")
+    geocode_file.add_argument("--place-id")
+    geocode_file.add_argument("--limit", type=int)
+    geocode_file.add_argument("--dry-run", action="store_true")
+
+    replace_location_parser = subparsers.add_parser(
+        "replace-location", help="Replace or remove a map location with append-only history"
+    )
+    replace_location_parser.add_argument("--place-id", required=True)
+    replace_location_parser.add_argument("--latitude", type=float)
+    replace_location_parser.add_argument("--longitude", type=float)
+    replace_location_parser.add_argument("--source-reference", required=True)
+    replace_location_parser.add_argument("--reason", required=True)
+    replace_location_parser.add_argument("--reviewed-by", required=True)
+    replace_location_parser.add_argument("--reviewed-at", required=True)
+    replace_location_parser.add_argument("--remove", action="store_true")
+    replace_location_parser.add_argument("--allow-manual-override", action="store_true")
+    replace_location_parser.add_argument("--dry-run", action="store_true")
+
+    address_review = subparsers.add_parser(
+        "export-address-review", help="Export unresolved address evidence for review"
+    )
+    address_review.add_argument("--output", required=True)
+    address_review.add_argument("--limit", type=int, default=100)
+
+    address_import = subparsers.add_parser(
+        "import-address-review", help="Validate and import reviewed address decisions"
+    )
+    address_import.add_argument("--input", required=True)
+    address_import.add_argument("--dry-run", action="store_true")
+
+    geocode_addresses = subparsers.add_parser(
+        "geocode-verified-addresses",
+        help="Validate offline independent geocoder results for verified addresses",
+    )
+    geocode_addresses.add_argument("--results", required=True)
+    geocode_addresses.add_argument("--limit", type=int, default=10)
+    geocode_addresses.add_argument("--place-id")
+    geocode_addresses.add_argument("--dry-run", action="store_true")
+
+    subparsers.add_parser(
+        "address-resolution-status", help="Report address research, usage, and geocoding status"
+    )
+
     osm_index = subparsers.add_parser("build-osm-index", help="Build a local OSM location index")
     osm_index.add_argument("--pbf", required=True)
     osm_index.add_argument("--output", required=True)
@@ -207,6 +318,145 @@ def main() -> None:
         from .location_verification import location_status
 
         print(json.dumps(location_status(db_path), indent=2))
+    elif args.command == "discover-addresses":
+        from .address_research import run_address_discovery
+
+        if not args.plan_only:
+            if not args.dry_run:
+                ensure_public_schema(db_path)
+            preflight = run_address_discovery(
+                db_path,
+                limit=args.limit,
+                place_id=args.place_id,
+                plan_only=True,
+                force=args.force,
+                resolution_report=args.resolution_report,
+                max_search_actions=args.max_search_actions,
+                max_retained_sources=args.max_retained_sources,
+                max_evidence_summary_chars=args.max_evidence_summary_chars,
+                max_conflicting_candidates=args.max_conflicting_candidates,
+                max_output_tokens=args.max_output_tokens,
+                compact_research=args.compact_research,
+                retry_truncated=args.retry_truncated,
+                model=args.model,
+            )
+            print(
+                json.dumps(
+                    {
+                        "preflight": {
+                            key: preflight[key]
+                            for key in (
+                                "eligible_restaurant_count",
+                                "requested_limit",
+                                "maximum_responses_requests",
+                                "maximum_web_search_actions",
+                                "max_search_actions_per_restaurant",
+                                "skipped_records",
+                            )
+                        }
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                )
+            )
+        result = run_address_discovery(
+            db_path,
+            limit=args.limit,
+            place_id=args.place_id,
+            plan_only=args.plan_only,
+            dry_run=args.dry_run,
+            force=args.force,
+            output_report=args.output_report,
+            resolution_report=args.resolution_report,
+            max_search_actions=args.max_search_actions,
+            max_retained_sources=args.max_retained_sources,
+            max_evidence_summary_chars=args.max_evidence_summary_chars,
+            max_conflicting_candidates=args.max_conflicting_candidates,
+            max_output_tokens=args.max_output_tokens,
+            compact_research=args.compact_research,
+            retry_truncated=args.retry_truncated,
+            model=args.model,
+        )
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+    elif args.command == "recalculate-address-decisions":
+        from .address_research import recalculate_address_decisions
+
+        result = recalculate_address_decisions(
+            db_path,
+            place_id=args.place_id,
+            all_records=args.all_records,
+            dry_run=args.dry_run,
+        )
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+    elif args.command == "export-geocoding-inputs":
+        from .address_geocoding import export_geocoding_inputs
+
+        count = export_geocoding_inputs(
+            db_path, args.output, limit=args.limit, place_id=args.place_id
+        )
+        print(json.dumps({"exported": count, "path": args.output}, indent=2))
+    elif args.command == "geocode-address-file":
+        from .address_geocoder import DigitalAgencyAbrGeocoder, LocalOSMAddressGeocoder
+        from .address_geocoding import geocode_address_file
+
+        if args.provider == "local-osm-addresses":
+            if not args.osm_index:
+                raise SystemExit("--osm-index is required for --provider local-osm-addresses")
+            geocoder = LocalOSMAddressGeocoder(args.osm_index)
+        else:
+            if not args.abr_data_dir:
+                raise SystemExit("--abr-data-dir is required for --provider digital-agency-abr")
+            geocoder = DigitalAgencyAbrGeocoder(
+                executable=args.abr_command,
+                data_dir=args.abr_data_dir,
+                provider_version=args.provider_version,
+            )
+        result = geocode_address_file(
+            args.input, args.output, geocoder=geocoder, place_id=args.place_id,
+            limit=args.limit, dry_run=args.dry_run,
+        )
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+    elif args.command == "replace-location":
+        from .location_corrections import replace_location
+
+        result = replace_location(
+            db_path, place_id=args.place_id, latitude=args.latitude,
+            longitude=args.longitude, source_reference=args.source_reference,
+            reason=args.reason, reviewed_by=args.reviewed_by,
+            reviewed_at=args.reviewed_at, remove=args.remove,
+            allow_manual_override=args.allow_manual_override, dry_run=args.dry_run,
+        )
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        if not result["valid"]:
+            raise SystemExit(2)
+    elif args.command == "export-address-review":
+        from .address_review import export_address_review
+
+        count = export_address_review(db_path, args.output, limit=args.limit)
+        print(json.dumps({"exported": count, "path": args.output}, indent=2))
+    elif args.command == "import-address-review":
+        from .address_review import import_address_review
+
+        result = import_address_review(db_path, args.input, dry_run=args.dry_run)
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        if result["validation_failures"]:
+            raise SystemExit(2)
+    elif args.command == "geocode-verified-addresses":
+        from .address_geocoder import JsonFileAddressGeocoder
+        from .address_geocoding import geocode_verified_addresses
+
+        result = geocode_verified_addresses(
+            db_path,
+            geocoder=JsonFileAddressGeocoder(args.results),
+            limit=args.limit,
+            place_id=args.place_id,
+            dry_run=args.dry_run,
+        )
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+    elif args.command == "address-resolution-status":
+        from .address_research import address_resolution_status
+
+        print(json.dumps(address_resolution_status(db_path), ensure_ascii=False, indent=2))
     elif args.command == "build-osm-index":
         from .osm_index import OSMEncodingValidationError, build_osm_index
 
