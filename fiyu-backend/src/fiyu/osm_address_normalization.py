@@ -32,6 +32,9 @@ class NormalizedJapaneseAddress:
     neighborhood: str | None
     number_key: str | None
     number_parts: tuple[str, ...]
+    chome: str | None
+    block: str | None
+    sub_number: str | None
 
 
 def _kanji_number(value: str) -> int:
@@ -90,8 +93,11 @@ def parse_japanese_address(value: str | None) -> NormalizedJapaneseAddress:
     neighborhood = tail[: number_match.start()] if number_match else tail
     neighborhood = neighborhood.strip("-") or None
     numeric_tail = tail[number_match.start() :] if number_match else ""
-    number_parts = tuple(_NUMBER_PART.findall(numeric_tail))
-    number_key = "-".join(str(int(part)) for part in number_parts) or None
+    number_parts = tuple(str(int(part)) for part in _NUMBER_PART.findall(numeric_tail))
+    number_key = "-".join(number_parts) or None
+    chome = number_parts[0] if number_parts else None
+    block = number_parts[1] if len(number_parts) > 1 else None
+    sub_number = "-".join(number_parts[2:]) if len(number_parts) > 2 else None
     if prefecture is None and ward is not None:
         prefecture = "東京都"
     canonical = "".join(
@@ -106,6 +112,9 @@ def parse_japanese_address(value: str | None) -> NormalizedJapaneseAddress:
         neighborhood=neighborhood,
         number_key=number_key,
         number_parts=number_parts,
+        chome=chome,
+        block=block,
+        sub_number=sub_number,
     )
 
 

@@ -29,13 +29,14 @@ MATCH_LEVEL_PRECISION = {
     "parcel": "parcel_or_street_number",
     "block": "block",
     "interpolation": "block",
+    "chome": "chome",
     "neighborhood": "neighborhood",
     "town": "neighborhood",
     "ward": "ward",
 }
 PRECISION_RANK = {
-    "unknown": 0, "ward": 1, "neighborhood": 2, "block": 3,
-    "parcel_or_street_number": 4, "building": 5, "exact_entrance": 6,
+    "unknown": 0, "ward": 1, "neighborhood": 2, "chome": 3, "block": 4,
+    "parcel_or_street_number": 5, "building": 6, "exact_entrance": 7,
 }
 
 
@@ -64,9 +65,12 @@ def validate_geocode(
     elif not (min_lat <= latitude <= max_lat and min_lon <= longitude <= max_lon):
         reasons.append("coordinates_outside_tokyo_bounds")
     derived_precision = MATCH_LEVEL_PRECISION.get(result.address_level_match, "unknown")
-    if result.address_level_match not in MAP_ELIGIBLE_MATCH_LEVELS:
+    area_fallback = result.map_anchor_type in {"block", "chome", "neighborhood"}
+    if result.address_level_match not in MAP_ELIGIBLE_MATCH_LEVELS and not area_fallback:
         reasons.append("geocode_precision_below_map_threshold")
         reasons.append("geocode_match_level_not_street_detail")
+    if area_fallback and result.address_level_match != result.map_anchor_type:
+        reasons.append("area_anchor_precision_mismatch")
     if result.address_level_match == "interpolation" and (
         result.interpolation_span_meters is None or result.interpolation_span_meters > 150
     ):
@@ -93,7 +97,7 @@ def validate_geocode(
         "location_verified" if not reasons else "geocode_needs_review",
         tuple(dict.fromkeys(reasons)),
         derived_precision,
-        derived_precision == "block",
+        area_fallback or derived_precision == "block",
     )
 
 
@@ -248,6 +252,8 @@ def geocode_address_file(
                 "warnings": list(exc.warnings),
                 "error": str(exc),
             }
+            if exc.diagnostics:
+                output["diagnostics"] = exc.diagnostics
             results.append(output)
             failures.append(output)
         except Exception as exc:  # noqa: BLE001 - isolate independent batch rows.
@@ -309,11 +315,17 @@ def geocode_verified_addresses(
         except TypeError:
             result = geocoder.geocode(raw_address)
         if result is None:
+            exclusion_reason = None
+            explain_exclusion = getattr(geocoder, "exclusion_reason", None)
+            if callable(explain_exclusion):
+                exclusion_reason = explain_exclusion(
+                    raw_address, place_id=str(row["place_id"])
+                )
             reports.append(
                 {
                     "place_id": row["place_id"],
                     "status": "geocoding_failed",
-                    "reasons": ["no_geocoder_result"],
+                    "reasons": [exclusion_reason or "no_geocoder_result"],
                 }
             )
             continue
@@ -338,7 +350,11 @@ def geocode_verified_addresses(
         ):
             effective_precision = evidence_precision
         effective_reasons = [*validation.reasons, *fingerprint_reasons]
-        if PRECISION_RANK.get(effective_precision, 0) < PRECISION_RANK["block"]:
+        is_area_fallback = result.map_anchor_type in {"block", "chome", "neighborhood"}
+        if (
+            PRECISION_RANK.get(effective_precision, 0) < PRECISION_RANK["block"]
+            and not is_area_fallback
+        ):
             effective_reasons.append("verified_address_precision_below_map_threshold")
         validation = GeocodeValidation(
             "location_verified" if not effective_reasons else "geocode_needs_review",
@@ -353,6 +369,9 @@ def geocode_verified_addresses(
             elif result.address_level_match == "block":
                 address_tier = "provisional_medium"
         accepted_status = (
+            "location_provisional"
+            if is_area_fallback
+            else
             "location_verified"
             if address_tier in {"verified", "manual"}
             else "location_provisional"
@@ -410,13 +429,14 @@ def geocode_verified_addresses(
                     public_restaurant_id, verified_address_id, raw_address, normalized_address,
                     latitude, longitude, prefecture, municipality_or_ward, neighborhood,
                     match_level, match_status, matched_components_json, precision,
+                    unmatched_components_json,
                     provider, provider_version, source_reference, warnings_json,
                     derived_location_precision, map_location_approximate,
                     validation_status, validation_reasons_json, input_fingerprint,
                     osm_type, osm_id, osm_version, osm_timestamp,
-                    representative_point_method, created_at
+                    representative_point_method, map_anchor_type, provenance, created_at
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                          ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                          ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     row["place_id"],
@@ -432,6 +452,7 @@ def geocode_verified_addresses(
                     result.match_status,
                     json.dumps(result.matched_components, ensure_ascii=False, sort_keys=True),
                     result.precision,
+                    json.dumps(result.unmatched_components, ensure_ascii=False, sort_keys=True),
                     result.provider,
                     result.provider_version,
                     result.source_reference or result.provenance,
@@ -446,6 +467,8 @@ def geocode_verified_addresses(
                     result.osm_version,
                     result.osm_timestamp,
                     result.representative_point_method,
+                    result.map_anchor_type,
+                    result.provenance,
                     now,
                 ),
             )
@@ -457,11 +480,15 @@ def geocode_verified_addresses(
                     UPDATE public_restaurants SET latitude=?, longitude=?, normalized_address=?,
                         location_source=?, location_source_reference=?, location_verified_at=?,
                         location_precision=?, map_location_precision=?,
-                        map_location_approximate=?, verified_core_address=?,
+                        map_location_approximate=?, map_anchor_type=?,
+                        location_matched_components_json=?,
+                        location_unmatched_components_json=?, location_provenance=?,
+                        verified_core_address=?,
                         core_address_verified=1, full_address_verified=?,
                         unresolved_address_detail=?, location_verification_status=?,
-                        location_verification_tier=?, location_status='location_active',
+                        location_verification_tier=?, location_status=?,
                         location_osm_type=?, location_osm_id=?, location_osm_version=?,
+                        location_osm_timestamp=?, location_representative_point_method=?,
                         location_source_checked_at=?,
                         location_verification_method='independent_verified_address_geocode',
                         address_resolution_status=?, map_display_eligible=1,
@@ -477,14 +504,21 @@ def geocode_verified_addresses(
                         "approximate" if map_location_approximate else "exact",
                         validation.location_precision,
                         int(map_location_approximate),
+                        result.map_anchor_type,
+                        json.dumps(result.matched_components, ensure_ascii=False, sort_keys=True),
+                        json.dumps(result.unmatched_components, ensure_ascii=False, sort_keys=True),
+                        result.provenance,
                         row["verified_core_address"] or raw_address,
                         int(bool(row["full_address_verified"])),
                         row["unresolved_address_detail"],
                         location_status,
                         location_tier,
+                        location_status if is_area_fallback else "location_active",
                         result.osm_type,
                         result.osm_id,
                         result.osm_version,
+                        result.osm_timestamp,
+                        result.representative_point_method,
                         result.osm_timestamp or now,
                         location_status,
                         now,
@@ -505,9 +539,11 @@ def geocode_verified_addresses(
                         location_source, location_source_reference,
                         location_verification_status, location_verification_tier,
                         location_precision, map_location_approximate,
+                        map_anchor_type, matched_components_json,
+                        unmatched_components_json, provenance,
                         map_display_eligible, location_status, osm_type, osm_id, osm_version,
                         osm_timestamp, change_reason, created_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'location_active', ?, ?, ?, ?,
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?,
                               'independent address geocode accepted', ?)
                     """,
                     (
@@ -516,6 +552,11 @@ def geocode_verified_addresses(
                         result.source_reference or result.provenance,
                         location_status, location_tier, validation.location_precision,
                         int(map_location_approximate),
+                        result.map_anchor_type,
+                        json.dumps(result.matched_components, ensure_ascii=False, sort_keys=True),
+                        json.dumps(result.unmatched_components, ensure_ascii=False, sort_keys=True),
+                        result.provenance,
+                        location_status if is_area_fallback else "location_active",
                         result.osm_type, result.osm_id, result.osm_version,
                         result.osm_timestamp,
                         now,

@@ -1,0 +1,133 @@
+[
+  {
+    "normalized_address": "千代田区神田佐久間町3-38",
+    "latitude": 35.69797502625716,
+    "longitude": 139.77817065934673,
+    "town_id": null,
+    "address_id": null,
+    "precision": "approximate",
+    "warnings": [
+      "osm_chome_area_fallback_is_approximate"
+    ],
+    "provenance": "Map data © OpenStreetMap contributors",
+    "raw_address": "東京都千代田区神田佐久間町3-38",
+    "prefecture": "東京都",
+    "municipality_or_ward": "千代田区",
+    "provider": "local_osm_addresses",
+    "provider_version": "osm-address-index-v3-area",
+    "source_reference": "https://www.openstreetmap.org/relation/3564054",
+    "place_id": "ChIJGZiCSQCPGGARtJeKu6kiMVo",
+    "input_fingerprint": "0bc648a06329f78196fa90d6b5ee8a78f73f68940f15fe95618a30c01c56a67d",
+    "interpolation_span_meters": null,
+    "neighborhood": "神田佐久間町",
+    "matched_components": {
+      "prefecture": "東京都",
+      "ward": "千代田区",
+      "neighborhood": "神田佐久間町",
+      "chome": "3"
+    },
+    "unmatched_components": {
+      "block": "38"
+    },
+    "match_status": "matched_chome_area_approximate",
+    "map_location_approximate": true,
+    "suggested_verification_tier": "provisional_medium",
+    "osm_type": "relation",
+    "osm_id": 3564054,
+    "osm_version": 11,
+    "osm_timestamp": "2025-02-22 02:38:01+00:00",
+    "representative_point_method": "polygon_centroid_inside",
+    "map_anchor_type": "chome",
+    "diagnostic_candidates": [],
+    "match_level": "chome",
+    "status": "matched_chome_area_approximate"
+  },
+  {
+    "normalized_address": "杉並区浜田山3-30-5",
+    "latitude": 35.68212640976458,
+    "longitude": 139.6297809321488,
+    "town_id": null,
+    "address_id": null,
+    "precision": "approximate",
+    "warnings": [
+      "osm_chome_area_fallback_is_approximate"
+    ],
+    "provenance": "Map data © OpenStreetMap contributors",
+    "raw_address": "東京都杉並区浜田山3-30-5",
+    "prefecture": "東京都",
+    "municipality_or_ward": "杉並区",
+    "provider": "local_osm_addresses",
+    "provider_version": "osm-address-index-v3-area",
+    "source_reference": "https://www.openstreetmap.org/relation/17294925",
+    "place_id": "ChIJKdddfwDzGGAR1YfPayuwpFo",
+    "input_fingerprint": "ffe8c930df9897d624aa026e31a012ee088b6d40065616f844835d3dd06b8566",
+    "interpolation_span_meters": null,
+    "neighborhood": "浜田山",
+    "matched_components": {
+      "prefecture": "東京都",
+      "ward": "杉並区",
+      "neighborhood": "浜田山",
+      "chome": "3"
+    },
+    "unmatched_components": {
+      "block": "30",
+      "sub_number": "5"
+    },
+    "match_status": "matched_chome_area_approximate",
+    "map_location_approximate": true,
+    "suggested_verification_tier": "provisional_medium",
+    "osm_type": "relation",
+    "osm_id": 17294925,
+    "osm_version": 1,
+    "osm_timestamp": "2024-03-02 01:54:37+00:00",
+    "representative_point_method": "polygon_centroid_inside",
+    "map_anchor_type": "chome",
+    "diagnostic_candidates": [],
+    "match_level": "chome",
+    "status": "matched_chome_area_approximate"
+  },
+  {
+    "normalized_address": "渋谷区神宮前2-23-4",
+    "latitude": 35.673682374824864,
+    "longitude": 139.71160773428886,
+    "town_id": null,
+    "address_id": null,
+    "precision": "approximate",
+    "warnings": [
+      "osm_chome_area_fallback_is_approximate"
+    ],
+    "provenance": "Map data © OpenStreetMap contributors",
+    "raw_address": "東京都渋谷区神宮前2-23-4",
+    "prefecture": "東京都",
+    "municipality_or_ward": "渋谷区",
+    "provider": "local_osm_addresses",
+    "provider_version": "osm-address-index-v3-area",
+    "source_reference": "https://www.openstreetmap.org/relation/17054291",
+    "place_id": "ChIJt2QEWDmNGGARvJ5tMBSBCqI",
+    "input_fingerprint": "49e38f1dcb630f92e558908c49c2256d836d4c3d5959cd43abc643c302aa24f9",
+    "interpolation_span_meters": null,
+    "neighborhood": "神宮前",
+    "matched_components": {
+      "prefecture": "東京都",
+      "ward": "渋谷区",
+      "neighborhood": "神宮前",
+      "chome": "2"
+    },
+    "unmatched_components": {
+      "block": "23",
+      "sub_number": "4"
+    },
+    "match_status": "matched_chome_area_approximate",
+    "map_location_approximate": true,
+    "suggested_verification_tier": "provisional_medium",
+    "osm_type": "relation",
+    "osm_id": 17054291,
+    "osm_version": 5,
+    "osm_timestamp": "2026-02-25 11:24:33+00:00",
+    "representative_point_method": "polygon_centroid_inside",
+    "map_anchor_type": "chome",
+    "diagnostic_candidates": [],
+    "match_level": "chome",
+    "status": "matched_chome_area_approximate"
+  }
+]

@@ -702,16 +702,42 @@ python -m fiyu.public_cli build-osm-index `
 ```
 
 The `osm_addresses` table stores address nodes, addressed entrances, addressed building polygons,
-safe address-interpolation objects, and addressed restaurant POIs. Building coordinates use the
-polygon area centroid, with a mean-point fallback only for degenerate geometry. Linear objects use
-their cumulative-length midpoint. OSM type/ID/version/timestamp, representative-point method,
-source reference, and `Map data © OpenStreetMap contributors` attribution are retained. The old
+safe address-interpolation objects, and addressed restaurant POIs. The `osm_address_areas` table
+separately stores explicit OSM block, chōme, and neighborhood polygons inside one unambiguous Tokyo
+ward. Area anchors use a centroid only when it lies inside the polygon; otherwise a deterministic
+point-on-surface scan finds an interior point and respects polygon holes. Linear address objects use
+their cumulative-length midpoint. OSM type/ID/version/timestamp, geometry level,
+representative-point method, source reference, matched components, and
+`Map data © OpenStreetMap contributors` attribution are retained. The old
 index contains some POI `addr:*` tags but does not contain the complete standalone address layer,
 so it must not be used with `local-osm-addresses` until rebuilt.
 
 Japanese address comparison applies Unicode NFKC, compatible dash forms, `丁目`/`番`/`番地`/`号`,
-Arabic and common Japanese numeric forms, optional `東京都`, and exact ward/neighborhood and number
-components. Materially different numbers are never treated as equivalent.
+Arabic and common Japanese numeric forms, optional `東京都`, and explicit chōme, block, and final
+sub-number components. An exact full-number match remains exact. Exact chōme-plus-block with a
+missing or different final sub-number is an approximate `provisional_medium` map pin. Chōme-only,
+wrong-block, wrong-ward, wrong-neighborhood, and neighborhood-centroid candidates are not accepted;
+numeric closeness never substitutes for an exact block match. Raw and normalized forms remain in
+the index, along with complete `addr:*` tags.
+
+Strict point matching remains the default. To permit the discovery-map-only area hierarchy
+(block, then chōme, then neighborhood), add the explicit flag below. The optional minimum prevents
+fallback below the selected precision; for example, `chome` permits block and chōme but rejects a
+neighborhood anchor.
+
+```powershell
+python -m fiyu.public_cli geocode-address-file `
+  --input data\geocoding-inputs.json `
+  --output data\osm-geocoder-area-results.json `
+  --provider local-osm-addresses `
+  --osm-index C:\data\osm\fiyu-kanto-address-index.sqlite `
+  --allow-area-fallback `
+  --minimum-area-precision neighborhood
+```
+
+Indexes built before `osm_address_areas` was added remain valid for strict address lookup but cannot
+perform area fallback. Rebuild them from the PBF; the resolver reports
+`area_fallback_unavailable` instead of deriving a centroid from address points.
 
 First recalculate saved evidence under the current optimistic MVP policy without any network call:
 
@@ -749,6 +775,11 @@ python -m fiyu.public_cli geocode-address-file `
   --limit 100
 ```
 
+Add `--include-candidates --diagnostic-limit 10` to include component-level candidate diagnostics
+for approximate or rejected records. Diagnostics retain the OSM type/ID, complete `addr:*` fields,
+parsed hierarchy, coordinates, geometry method/span, exact matches and differences, and the
+accept/reject reason. Distance is reported only when a trusted reference coordinate is available.
+
 Each output retains the place ID, input fingerprint, raw/normalized address, coordinates,
 prefecture/ward/neighborhood, matched components, match status, precision/approximate flag,
 provider/version, OSM object provenance, source reference, and warnings. `not_found`, `ambiguous`,
@@ -771,7 +802,7 @@ proposed result report without writing the result JSON file.
     "precision": "exact",
     "map_location_approximate": false,
     "provider": "local_osm_addresses",
-    "provider_version": "osm-address-index-v1",
+    "provider_version": "osm-address-index-v2",
     "osm_type": "node",
     "osm_id": 1234,
     "osm_version": 5,
@@ -796,15 +827,25 @@ python -m fiyu.public_cli --db data\fiyu.db geocode-verified-addresses `
 Only the agreed core address is sent to the geocoder. Tokyo bounds, swapped coordinates, current
 input fingerprint, derived precision, core-ward agreement, and provider provenance are checked
 before map eligibility. Exact address nodes, entrances, and addressed buildings are normal pins;
-block results and interpolation spans no wider than 150 meters are approximate pins. Ward,
-municipality, and broad neighborhood centroids are rejected. Verified addresses become
+block results and interpolation spans no wider than 150 meters are approximate pins. With the
+explicit area flag, an exact-component OSM block/chōme/neighborhood polygon may also become an
+approximate MVP pin. Ward/city centroids, nearby unrelated addresses, numeric closeness, and
+ambiguous polygons remain rejected. Area matches always become
+`location_provisional`, never `location_verified`; other verified addresses become
 `location_verified`; high/medium
 provisional addresses become `location_provisional`. Both can set `map_display_eligible=true`.
 Existing verified OSM locations are
 excluded and never overwritten. Public restaurant responses may expose `verified_core_address`,
-coordinates, `location_precision`, and `map_location_approximate`; they never expose disputed
+coordinates, `location_precision`, `map_anchor_type`, `map_anchor_id`, `location_status`,
+`map_location_approximate`, matched/unmatched components, and OSM provenance; they never expose disputed
 building/floor data as verified. Restaurants without eligible coordinates continue to appear with
 coordinates suppressed.
+
+Area pins are labeled `Approximate area`. Their stable `map_anchor_id` lets the frontend cluster
+restaurants sharing one polygon without jitter. `distance_sort_eligible` and
+`directions_coordinates_eligible` are false for approximate pins, so these coordinates must not be
+used for nearest sorting or directions. `external_map_search_query` contains the independently
+verified written address for an external map search instead.
 
 The migration is additive: public rows gain location tier/status fields; address evidence
 gains parsed-detail and deterministic agreement fields; verified addresses gain a dedicated

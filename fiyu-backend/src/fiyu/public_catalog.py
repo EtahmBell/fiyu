@@ -50,6 +50,8 @@ CREATE TABLE IF NOT EXISTS public_restaurants (
     location_osm_type TEXT,
     location_osm_id INTEGER,
     location_osm_version INTEGER,
+    location_osm_timestamp TEXT,
+    location_representative_point_method TEXT,
     location_source_checked_at TEXT,
     location_resolution_reason TEXT,
     map_display_eligible INTEGER NOT NULL DEFAULT 0,
@@ -58,6 +60,10 @@ CREATE TABLE IF NOT EXISTS public_restaurants (
     full_address_verified INTEGER NOT NULL DEFAULT 0,
     map_location_approximate INTEGER NOT NULL DEFAULT 0,
     map_location_precision TEXT,
+    map_anchor_type TEXT,
+    location_matched_components_json TEXT NOT NULL DEFAULT '{}',
+    location_unmatched_components_json TEXT NOT NULL DEFAULT '{}',
+    location_provenance TEXT,
     unresolved_address_detail TEXT,
     location_precision TEXT CHECK (
         location_precision IS NULL OR location_precision IN ('exact', 'approximate', 'area_anchor')
@@ -294,6 +300,7 @@ CREATE TABLE IF NOT EXISTS address_geocode_results (
     match_level TEXT,
     match_status TEXT,
     matched_components_json TEXT NOT NULL DEFAULT '{}',
+    unmatched_components_json TEXT NOT NULL DEFAULT '{}',
     precision TEXT,
     derived_location_precision TEXT,
     map_location_approximate INTEGER NOT NULL DEFAULT 0,
@@ -309,6 +316,8 @@ CREATE TABLE IF NOT EXISTS address_geocode_results (
     osm_version INTEGER,
     osm_timestamp TEXT,
     representative_point_method TEXT,
+    map_anchor_type TEXT,
+    provenance TEXT,
     created_at TEXT NOT NULL,
     FOREIGN KEY (public_restaurant_id) REFERENCES public_restaurants(place_id)
 );
@@ -326,6 +335,10 @@ CREATE TABLE IF NOT EXISTS location_history (
     location_verification_tier TEXT,
     location_precision TEXT,
     map_location_approximate INTEGER NOT NULL DEFAULT 0,
+    map_anchor_type TEXT,
+    matched_components_json TEXT NOT NULL DEFAULT '{}',
+    unmatched_components_json TEXT NOT NULL DEFAULT '{}',
+    provenance TEXT,
     map_display_eligible INTEGER NOT NULL DEFAULT 0,
     location_status TEXT NOT NULL,
     osm_type TEXT,
@@ -361,6 +374,8 @@ PUBLIC_LOCATION_COLUMNS = {
     "location_osm_type": "TEXT",
     "location_osm_id": "INTEGER",
     "location_osm_version": "INTEGER",
+    "location_osm_timestamp": "TEXT",
+    "location_representative_point_method": "TEXT",
     "location_source_checked_at": "TEXT",
     "location_resolution_reason": "TEXT",
     "map_display_eligible": "INTEGER NOT NULL DEFAULT 0",
@@ -369,6 +384,10 @@ PUBLIC_LOCATION_COLUMNS = {
     "full_address_verified": "INTEGER NOT NULL DEFAULT 0",
     "map_location_approximate": "INTEGER NOT NULL DEFAULT 0",
     "map_location_precision": "TEXT",
+    "map_anchor_type": "TEXT",
+    "location_matched_components_json": "TEXT NOT NULL DEFAULT '{}'",
+    "location_unmatched_components_json": "TEXT NOT NULL DEFAULT '{}'",
+    "location_provenance": "TEXT",
     "unresolved_address_detail": "TEXT",
     "location_precision": "TEXT",
     "address_resolution_status": "TEXT NOT NULL DEFAULT 'address_not_researched'",
@@ -421,12 +440,18 @@ ADDRESS_TABLE_COLUMNS = {
         "input_fingerprint": "TEXT",
         "neighborhood": "TEXT", "match_status": "TEXT",
         "matched_components_json": "TEXT NOT NULL DEFAULT '{}'",
+        "unmatched_components_json": "TEXT NOT NULL DEFAULT '{}'",
         "osm_type": "TEXT", "osm_id": "INTEGER", "osm_version": "INTEGER",
         "osm_timestamp": "TEXT", "representative_point_method": "TEXT",
+        "map_anchor_type": "TEXT", "provenance": "TEXT",
     },
     "location_history": {
         "osm_type": "TEXT", "osm_id": "INTEGER", "osm_version": "INTEGER",
         "osm_timestamp": "TEXT",
+        "map_anchor_type": "TEXT",
+        "matched_components_json": "TEXT NOT NULL DEFAULT '{}'",
+        "unmatched_components_json": "TEXT NOT NULL DEFAULT '{}'",
+        "provenance": "TEXT",
     },
 }
 
@@ -810,7 +835,12 @@ def _safe_public_rows(
                    COALESCE(p.map_location_precision, p.location_precision) AS location_precision,
                    p.verified_core_address, p.core_address_verified,
                    p.full_address_verified, p.map_location_approximate,
-                   p.map_display_eligible,
+                   p.map_display_eligible, p.map_anchor_type, p.location_status,
+                   p.location_matched_components_json,
+                   p.location_unmatched_components_json,
+                   p.location_provenance, p.location_source_reference,
+                   p.location_osm_type, p.location_osm_id, p.location_osm_version,
+                   p.location_osm_timestamp, p.location_representative_point_method,
                    COUNT(c.response_id) AS community_recommendation_count,
                    COALESCE(SUM(c.recommends), 0) AS community_positive_count
             FROM public_restaurants p
@@ -833,11 +863,52 @@ def _safe_public_rows(
         item["core_address_verified"] = bool(item.get("core_address_verified"))
         item["full_address_verified"] = bool(item.get("full_address_verified"))
         item["map_location_approximate"] = bool(item.get("map_location_approximate"))
+        item["location_label"] = (
+            "Approximate area" if item["map_location_approximate"] else None
+        )
+        item["distance_sort_eligible"] = bool(
+            eligible and not item["map_location_approximate"]
+        )
+        item["directions_coordinates_eligible"] = bool(
+            eligible and not item["map_location_approximate"]
+        )
+        item["external_map_search_query"] = item.get("verified_core_address")
+        item["map_anchor_id"] = (
+            f"{item.get('location_osm_type')}:{item.get('location_osm_id')}"
+            if item.get("map_anchor_type")
+            and item.get("location_osm_type")
+            and item.get("location_osm_id") is not None
+            else None
+        )
+        for source, target in (
+            ("location_matched_components_json", "matched_components"),
+            ("location_unmatched_components_json", "unmatched_components"),
+        ):
+            try:
+                value = json.loads(item.pop(source) or "{}")
+                item[target] = value if isinstance(value, dict) else {}
+            except json.JSONDecodeError:
+                item[target] = {}
+        item["provenance"] = {
+            "attribution": item.pop("location_provenance"),
+            "osm_type": item.pop("location_osm_type"),
+            "osm_id": item.pop("location_osm_id"),
+            "osm_version": item.pop("location_osm_version"),
+            "osm_timestamp": item.pop("location_osm_timestamp"),
+            "representative_point_method": item.pop(
+                "location_representative_point_method"
+            ),
+        }
+        item["source_reference"] = item.pop("location_source_reference")
         if not eligible:
             item["latitude"] = None
             item["longitude"] = None
             item["location_precision"] = None
             item["map_location_approximate"] = False
+            item["location_label"] = None
+            item["distance_sort_eligible"] = False
+            item["directions_coordinates_eligible"] = False
+            item["map_anchor_id"] = None
         count = int(item.get("community_recommendation_count") or 0)
         positive = int(item.get("community_positive_count") or 0)
         visible = count >= community_minimum

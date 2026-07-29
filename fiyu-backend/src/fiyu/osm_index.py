@@ -16,7 +16,9 @@ from .discovery_areas import canonical_tokyo_ward
 from .location_names import normalize_location_name
 from .osm_address_normalization import (
     compose_osm_address,
+    normalize_japanese_address_text,
     normalize_osm_number,
+    parse_japanese_address,
 )
 from .utils import haversine_km
 
@@ -30,6 +32,7 @@ TAG_KEYS = {
     "addr:block_number", "addr:housenumber", "addr:housename", "addr:full",
     "addr:interpolation", "entrance", "building", "source", "source:addr",
     "website", "contact:website",
+    "boundary", "admin_level", "place", "type", "ref", "wikidata",
 }
 JAPANESE_PATTERN = re.compile(r"[\u3040-\u30ff\u3400-\u9fff]")
 CLASSIC_MOJIBAKE_PATTERN = re.compile(
@@ -97,6 +100,9 @@ CREATE TABLE osm_addresses (
     ward_norm TEXT,
     neighborhood_norm TEXT,
     address_number_norm TEXT,
+    chome_norm TEXT,
+    block_component_norm TEXT,
+    sub_number_norm TEXT,
     block_number_norm TEXT,
     housenumber_norm TEXT,
     tags_json TEXT NOT NULL,
@@ -106,10 +112,41 @@ CREATE TABLE osm_addresses (
 );
 CREATE INDEX idx_osm_address_components
     ON osm_addresses(ward_norm, neighborhood_norm, address_number_norm);
+CREATE INDEX idx_osm_address_hierarchy
+    ON osm_addresses(ward_norm, neighborhood_norm, chome_norm, block_component_norm);
 CREATE INDEX idx_osm_address_block
     ON osm_addresses(ward_norm, neighborhood_norm, block_number_norm);
 CREATE INDEX idx_osm_address_neighborhood
     ON osm_addresses(neighborhood_norm, address_number_norm);
+CREATE TABLE osm_address_areas (
+    osm_type TEXT NOT NULL,
+    osm_id INTEGER NOT NULL,
+    osm_version INTEGER,
+    osm_timestamp TEXT,
+    geometry_level TEXT NOT NULL CHECK (geometry_level IN ('block', 'chome', 'neighborhood')),
+    area_name TEXT,
+    ward_norm TEXT,
+    neighborhood_norm TEXT NOT NULL,
+    chome_norm TEXT,
+    block_component_norm TEXT,
+    latitude REAL NOT NULL,
+    longitude REAL NOT NULL,
+    representative_point_method TEXT NOT NULL,
+    min_latitude REAL NOT NULL,
+    max_latitude REAL NOT NULL,
+    min_longitude REAL NOT NULL,
+    max_longitude REAL NOT NULL,
+    geometry_json TEXT NOT NULL,
+    tags_json TEXT NOT NULL,
+    source_attribution TEXT NOT NULL,
+    source_reference TEXT NOT NULL,
+    PRIMARY KEY (osm_type, osm_id)
+);
+CREATE INDEX idx_osm_address_area_components
+    ON osm_address_areas(ward_norm, neighborhood_norm, geometry_level,
+                         chome_norm, block_component_norm);
+CREATE INDEX idx_osm_address_area_bbox
+    ON osm_address_areas(min_latitude, max_latitude, min_longitude, max_longitude);
 CREATE TABLE osm_ward_boundaries (
     ward_name TEXT PRIMARY KEY,
     osm_type TEXT NOT NULL,
@@ -158,6 +195,24 @@ class OSMWardBoundary:
     osm_timestamp: str | None = None
 
 
+@dataclass(frozen=True)
+class OSMAddressArea:
+    osm_type: str
+    osm_id: int
+    geometry_level: str
+    neighborhood: str
+    polygons: tuple[
+        tuple[tuple[tuple[float, float], ...], tuple[tuple[tuple[float, float], ...], ...]],
+        ...,
+    ]
+    tags: dict[str, str]
+    ward: str | None = None
+    chome: str | None = None
+    block: str | None = None
+    osm_version: int | None = None
+    osm_timestamp: str | None = None
+
+
 class OSMEncodingValidationError(ValueError):
     """Encoding build failure with machine-readable object diagnostics."""
 
@@ -197,6 +252,94 @@ def polygon_representative_point(
             sum(point[1] for point in unique) / len(unique),
         )
     return centroid_y / (3 * twice_area), centroid_x / (3 * twice_area)
+
+
+def _point_in_ring(
+    latitude: float, longitude: float, ring: Iterable[tuple[float, float]]
+) -> bool:
+    points = list(ring)
+    if len(points) < 3:
+        return False
+    inside = False
+    previous = points[-1]
+    for current in points:
+        y1, x1 = previous
+        y2, x2 = current
+        if (y1 > latitude) != (y2 > latitude):
+            crossing = (x2 - x1) * (latitude - y1) / (y2 - y1) + x1
+            if longitude < crossing:
+                inside = not inside
+        previous = current
+    return inside
+
+
+def _point_in_polygon(
+    latitude: float,
+    longitude: float,
+    outer: tuple[tuple[float, float], ...],
+    inners: tuple[tuple[tuple[float, float], ...], ...],
+) -> bool:
+    return _point_in_ring(latitude, longitude, outer) and not any(
+        _point_in_ring(latitude, longitude, inner) for inner in inners
+    )
+
+
+def polygon_point_on_surface(
+    polygons: tuple[
+        tuple[tuple[tuple[float, float], ...], tuple[tuple[tuple[float, float], ...], ...]],
+        ...,
+    ],
+) -> tuple[float, float, str]:
+    """Return a deterministic point inside a polygon, respecting interior holes."""
+
+    if not polygons:
+        raise ValueError("polygon geometry is empty")
+    ordered = sorted(
+        polygons,
+        key=lambda polygon: abs(sum(
+            first[1] * second[0] - second[1] * first[0]
+            for first, second in pairwise(
+                [*polygon[0], polygon[0][0]] if polygon[0] else []
+            )
+        )),
+        reverse=True,
+    )
+    for outer, inners in ordered:
+        if len(outer) < 3:
+            continue
+        centroid = polygon_representative_point(outer)
+        if _point_in_polygon(*centroid, outer, inners):
+            return *centroid, "polygon_centroid_inside"
+
+        latitudes = sorted({point[0] for ring in (outer, *inners) for point in ring})
+        scanlines = [
+            (first + second) / 2
+            for first, second in pairwise(latitudes)
+            if second > first
+        ]
+        scanlines.sort(key=lambda value: abs(value - centroid[0]))
+        for latitude in scanlines:
+            intersections: list[float] = []
+            points = list(outer)
+            if points[0] != points[-1]:
+                points.append(points[0])
+            for (lat1, lon1), (lat2, lon2) in pairwise(points):
+                if (lat1 > latitude) != (lat2 > latitude):
+                    intersections.append(
+                        lon1 + (lon2 - lon1) * (latitude - lat1) / (lat2 - lat1)
+                    )
+            intersections.sort()
+            intervals = [
+                (left, right)
+                for left, right in zip(intersections[::2], intersections[1::2])
+                if right > left
+            ]
+            for left, right in sorted(intervals, key=lambda pair: pair[1] - pair[0], reverse=True):
+                candidates = ((left + right) / 2, (2 * left + right) / 3, (left + 2 * right) / 3)
+                for longitude in candidates:
+                    if _point_in_polygon(latitude, longitude, outer, inners):
+                        return latitude, longitude, "polygon_scanline_point_on_surface"
+    raise ValueError("could not determine an interior representative point")
 
 
 def _representative_point(
@@ -382,10 +525,10 @@ def _insert_address_feature(
             addr_quarter, addr_neighbourhood, addr_block_number, addr_housenumber,
             addr_housename, addr_full, entrance, building, normalized_address,
             prefecture_norm, ward_norm, neighborhood_norm, address_number_norm,
-            block_number_norm, housenumber_norm, tags_json, source_attribution,
-            source_reference
+            chome_norm, block_component_norm, sub_number_norm, block_number_norm,
+            housenumber_norm, tags_json, source_attribution, source_reference
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                  ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                  ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             feature.osm_type, feature.osm_id, feature.osm_version, feature.osm_timestamp,
@@ -406,6 +549,7 @@ def _insert_address_feature(
             ),
             normalized.ward,
             normalized.neighborhood, normalized.number_key,
+            normalized.chome, normalized.block, normalized.sub_number,
             normalize_osm_number(tags.get("addr:block_number")),
             normalize_osm_number(tags.get("addr:housenumber")),
             json.dumps(tags, ensure_ascii=False, sort_keys=True), OSM_ATTRIBUTION,
@@ -457,6 +601,156 @@ def _insert_ward_boundary(
     return True
 
 
+def _insert_address_area(
+    connection: sqlite3.Connection, area: OSMAddressArea
+) -> bool:
+    if area.geometry_level not in {"block", "chome", "neighborhood"}:
+        raise ValueError(f"unsupported OSM address area level: {area.geometry_level}")
+    if not area.neighborhood or not area.polygons:
+        return False
+    points = [
+        point
+        for outer, inners in area.polygons
+        for ring in (outer, *inners)
+        for point in ring
+    ]
+    if not points or any(
+        not (-90 <= latitude <= 90 and -180 <= longitude <= 180)
+        for latitude, longitude in points
+    ):
+        return False
+    latitude, longitude, point_method = polygon_point_on_surface(area.polygons)
+    tags = {key: value for key, value in area.tags.items() if key in TAG_KEYS and value}
+    geometry = [
+        {"outer": outer, "inners": inners} for outer, inners in area.polygons
+    ]
+    connection.execute(
+        """
+        INSERT OR REPLACE INTO osm_address_areas (
+            osm_type, osm_id, osm_version, osm_timestamp, geometry_level, area_name,
+            ward_norm, neighborhood_norm, chome_norm, block_component_norm,
+            latitude, longitude, representative_point_method,
+            min_latitude, max_latitude, min_longitude, max_longitude,
+            geometry_json, tags_json, source_attribution, source_reference
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            area.osm_type, area.osm_id, area.osm_version, area.osm_timestamp,
+            area.geometry_level, tags.get("name:ja") or tags.get("name") or area.neighborhood,
+            canonical_tokyo_ward(area.ward) if area.ward else None,
+            normalize_japanese_address_text(area.neighborhood),
+            normalize_osm_number(area.chome), normalize_osm_number(area.block),
+            latitude, longitude, point_method,
+            min(point[0] for point in points), max(point[0] for point in points),
+            min(point[1] for point in points), max(point[1] for point in points),
+            json.dumps(geometry, ensure_ascii=False, separators=(",", ":")),
+            json.dumps(tags, ensure_ascii=False, sort_keys=True), OSM_ATTRIBUTION,
+            f"https://www.openstreetmap.org/{area.osm_type}/{area.osm_id}",
+        ),
+    )
+    return True
+
+
+def _address_area_from_osm(
+    *,
+    osm_type: str,
+    osm_id: int,
+    tags: dict[str, str],
+    polygons: tuple[
+        tuple[tuple[tuple[float, float], ...], tuple[tuple[tuple[float, float], ...], ...]],
+        ...,
+    ],
+    osm_version: int | None,
+    osm_timestamp: str | None,
+) -> OSMAddressArea | None:
+    """Recognize explicit OSM place/admin polygons; never infer areas from proximity."""
+
+    if not (
+        tags.get("place") in {"quarter", "neighbourhood", "suburb"}
+        or (
+            tags.get("boundary") == "administrative"
+            and tags.get("admin_level") in {"9", "10", "11"}
+        )
+    ):
+        return None
+    name = tags.get("name:ja") or tags.get("name") or ""
+    if not name:
+        return None
+    parsed = compose_osm_address(tags) if any(
+        tags.get(key) for key in ("addr:full", "addr:quarter", "addr:neighbourhood")
+    ) else parse_japanese_address(name)
+    neighborhood = parsed.neighborhood
+    if not neighborhood:
+        return None
+    if parsed.block:
+        geometry_level = "block"
+    elif parsed.chome:
+        geometry_level = "chome"
+    else:
+        geometry_level = "neighborhood"
+    explicit_ward = next(
+        (
+            canonical_tokyo_ward(tags.get(key))
+            for key in ("addr:city", "addr:district", "addr:suburb")
+            if canonical_tokyo_ward(tags.get(key))
+        ),
+        None,
+    )
+    return OSMAddressArea(
+        osm_type=osm_type,
+        osm_id=osm_id,
+        geometry_level=geometry_level,
+        neighborhood=neighborhood,
+        ward=explicit_ward or parsed.ward,
+        chome=parsed.chome,
+        block=parsed.block,
+        polygons=polygons,
+        tags=tags,
+        osm_version=osm_version,
+        osm_timestamp=osm_timestamp,
+    )
+
+
+def _point_in_geometry(latitude: float, longitude: float, geometry_json: str) -> bool:
+    for polygon in json.loads(geometry_json):
+        outer = tuple(tuple(point) for point in polygon.get("outer", []))
+        inners = tuple(
+            tuple(tuple(point) for point in inner)
+            for inner in polygon.get("inners", [])
+        )
+        if outer and _point_in_polygon(latitude, longitude, outer, inners):
+            return True
+    return False
+
+
+def _finalize_address_area_wards(connection: sqlite3.Connection) -> int:
+    """Assign areas to one unambiguous Tokyo ward, then discard all others."""
+
+    wards = connection.execute(
+        "SELECT ward_name, min_latitude, max_latitude, min_longitude, "
+        "max_longitude, geometry_json FROM osm_ward_boundaries"
+    ).fetchall()
+    pending = connection.execute(
+        "SELECT osm_type, osm_id, latitude, longitude FROM osm_address_areas "
+        "WHERE ward_norm IS NULL"
+    ).fetchall()
+    for osm_type, osm_id, latitude, longitude in pending:
+        matches = [
+            ward[0]
+            for ward in wards
+            if ward[1] <= latitude <= ward[2]
+            and ward[3] <= longitude <= ward[4]
+            and _point_in_geometry(latitude, longitude, ward[5])
+        ]
+        if len(matches) == 1:
+            connection.execute(
+                "UPDATE osm_address_areas SET ward_norm=? WHERE osm_type=? AND osm_id=?",
+                (matches[0], osm_type, osm_id),
+            )
+    connection.execute("DELETE FROM osm_address_areas WHERE ward_norm IS NULL")
+    return int(connection.execute("SELECT COUNT(1) FROM osm_address_areas").fetchone()[0])
+
+
 def _stream_pbf(pbf_path: Path, connection: sqlite3.Connection) -> dict[str, int]:
     try:
         import osmium
@@ -467,7 +761,7 @@ def _stream_pbf(pbf_path: Path, connection: sqlite3.Connection) -> dict[str, int
 
     counts = {
         "seen": 0, "indexed": 0, "nodes": 0, "ways": 0, "relations": 0,
-        "ward_boundaries": 0, "address_indexed": 0,
+        "ward_boundaries": 0, "address_indexed": 0, "address_areas": 0,
     }
 
     class Handler(osmium.SimpleHandler):
@@ -505,20 +799,18 @@ def _stream_pbf(pbf_path: Path, connection: sqlite3.Connection) -> dict[str, int
                 ))
 
         def area(self, area) -> None:
-            if area.from_way():
-                return
             tags = extract_osm_tags(area.tags)
             ward_name = _tokyo_special_ward(tags)
+            polygons = []
+            for outer in area.outer_rings():
+                outer_points = tuple((node.lat, node.lon) for node in outer)
+                inner_points = tuple(
+                    tuple((node.lat, node.lon) for node in inner)
+                    for inner in area.inner_rings(outer)
+                )
+                if outer_points:
+                    polygons.append((outer_points, inner_points))
             if ward_name:
-                polygons = []
-                for outer in area.outer_rings():
-                    outer_points = tuple((node.lat, node.lon) for node in outer)
-                    inner_points = tuple(
-                        tuple((node.lat, node.lon) for node in inner)
-                        for inner in area.inner_rings(outer)
-                    )
-                    if outer_points:
-                        polygons.append((outer_points, inner_points))
                 if polygons and _insert_ward_boundary(connection, OSMWardBoundary(
                     ward_name=ward_name,
                     osm_id=area.orig_id(),
@@ -529,6 +821,18 @@ def _stream_pbf(pbf_path: Path, connection: sqlite3.Connection) -> dict[str, int
                 )):
                     counts["ward_boundaries"] += 1
                 return
+            address_area = _address_area_from_osm(
+                osm_type="way" if area.from_way() else "relation",
+                osm_id=area.orig_id(),
+                tags=tags,
+                polygons=tuple(polygons),
+                osm_version=getattr(area, "version", None),
+                osm_timestamp=(
+                    str(area.timestamp) if getattr(area, "timestamp", None) else None
+                ),
+            )
+            if address_area and _insert_address_area(connection, address_area):
+                counts["address_areas"] += 1
             if _kind(tags) is None and not _raw_tags_are_addressable(tags):
                 return
             coordinates = []
@@ -544,6 +848,7 @@ def _stream_pbf(pbf_path: Path, connection: sqlite3.Connection) -> dict[str, int
                 ))
 
     Handler().apply_file(str(pbf_path), locations=True, idx="sparse_file_array")
+    counts["address_areas"] = _finalize_address_area_wards(connection)
     return counts
 
 
@@ -681,6 +986,7 @@ def build_osm_index(
     *,
     features: Iterable[OSMFeature] | None = None,
     ward_boundaries: Iterable[OSMWardBoundary] | None = None,
+    address_areas: Iterable[OSMAddressArea] | None = None,
     max_suspicious_rate: float = DEFAULT_MAX_SUSPICIOUS_RATE,
     diagnostic_detail_limit: int = DEFAULT_MAX_DIAGNOSTIC_DETAILS,
 ) -> dict[str, object]:
@@ -709,7 +1015,7 @@ def build_osm_index(
             else:
                 counts = {
                     "seen": 0, "indexed": 0, "nodes": 0, "ways": 0, "relations": 0,
-                    "ward_boundaries": 0, "address_indexed": 0,
+                    "ward_boundaries": 0, "address_indexed": 0, "address_areas": 0,
                 }
                 for feature in features:
                     counts["seen"] += 1
@@ -724,6 +1030,10 @@ def build_osm_index(
                 for boundary in ward_boundaries or []:
                     if _insert_ward_boundary(connection, boundary):
                         counts["ward_boundaries"] += 1
+                for area in address_areas or []:
+                    if _insert_address_area(connection, area):
+                        counts["address_areas"] += 1
+                counts["address_areas"] = _finalize_address_area_wards(connection)
             diagnostics, suspicious_objects = _encoding_diagnostics(
                 connection, detail_limit=diagnostic_detail_limit
             )

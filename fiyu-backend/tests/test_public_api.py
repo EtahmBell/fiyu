@@ -113,6 +113,14 @@ def test_public_core_only_location_omits_disputed_detail(public_db):
                 verified_core_address='東京都千代田区神田佐久間町3-38',
                 core_address_verified=1, full_address_verified=0,
                 map_location_precision='block', map_location_approximate=1,
+                map_anchor_type='block', location_status='location_provisional',
+                location_osm_type='relation', location_osm_id=123,
+                location_osm_version=4, location_osm_timestamp='2026-07-01T00:00:00Z',
+                location_representative_point_method='polygon_centroid_inside',
+                location_source_reference='https://www.openstreetmap.org/relation/123',
+                location_provenance='Map data © OpenStreetMap contributors',
+                location_matched_components_json='{"ward":"千代田区","block":"38"}',
+                location_unmatched_components_json='{"sub_number":"4"}',
                 unresolved_address_detail='building: A vs B; floor: 1階 vs B1F'
             WHERE place_id='eligible'
             """
@@ -124,6 +132,16 @@ def test_public_core_only_location_omits_disputed_detail(public_db):
     assert row["map_location_approximate"] is True
     assert row["core_address_verified"] is True
     assert row["full_address_verified"] is False
+    assert row["location_label"] == "Approximate area"
+    assert row["location_status"] == "location_provisional"
+    assert row["map_anchor_type"] == "block"
+    assert row["map_anchor_id"] == "relation:123"
+    assert row["distance_sort_eligible"] is False
+    assert row["directions_coordinates_eligible"] is False
+    assert row["external_map_search_query"] == row["verified_core_address"]
+    assert row["matched_components"]["block"] == "38"
+    assert row["provenance"]["osm_id"] == 123
+    assert row["source_reference"].endswith("/relation/123")
     assert "building" not in row and "floor" not in row
     assert "unresolved_address_detail" not in row
 

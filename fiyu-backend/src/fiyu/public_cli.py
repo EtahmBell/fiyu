@@ -128,6 +128,24 @@ def _parser() -> argparse.ArgumentParser:
     geocode_file.add_argument("--place-id")
     geocode_file.add_argument("--limit", type=int)
     geocode_file.add_argument("--dry-run", action="store_true")
+    geocode_file.add_argument(
+        "--include-candidates", action="store_true",
+        help="Include component-level OSM candidate diagnostics",
+    )
+    geocode_file.add_argument(
+        "--diagnostic-limit", type=int, default=10,
+        help="Maximum OSM candidates per address in diagnostics (default: 10)",
+    )
+    geocode_file.add_argument(
+        "--allow-area-fallback", action="store_true",
+        help="Allow exact matching OSM block, chome, or neighborhood polygons",
+    )
+    geocode_file.add_argument(
+        "--minimum-area-precision",
+        choices=("block", "chome", "neighborhood"),
+        default="neighborhood",
+        help="Coarsest area fallback allowed (default: neighborhood)",
+    )
 
     replace_location_parser = subparsers.add_parser(
         "replace-location", help="Replace or remove a map location with append-only history"
@@ -402,7 +420,13 @@ def main() -> None:
         if args.provider == "local-osm-addresses":
             if not args.osm_index:
                 raise SystemExit("--osm-index is required for --provider local-osm-addresses")
-            geocoder = LocalOSMAddressGeocoder(args.osm_index)
+            geocoder = LocalOSMAddressGeocoder(
+                args.osm_index,
+                include_candidates=args.include_candidates,
+                diagnostic_limit=args.diagnostic_limit,
+                allow_area_fallback=args.allow_area_fallback,
+                minimum_area_precision=args.minimum_area_precision,
+            )
         else:
             if not args.abr_data_dir:
                 raise SystemExit("--abr-data-dir is required for --provider digital-agency-abr")

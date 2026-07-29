@@ -1,0 +1,46 @@
+[
+  {
+    "normalized_address": "渋谷区神宮前2-23-4",
+    "latitude": 35.673682374824864,
+    "longitude": 139.71160773428886,
+    "town_id": null,
+    "address_id": null,
+    "precision": "approximate",
+    "warnings": [
+      "osm_chome_area_fallback_is_approximate"
+    ],
+    "provenance": "Map data © OpenStreetMap contributors",
+    "raw_address": "東京都渋谷区神宮前2-23-4",
+    "prefecture": "東京都",
+    "municipality_or_ward": "渋谷区",
+    "provider": "local_osm_addresses",
+    "provider_version": "osm-address-index-v3-area",
+    "source_reference": "https://www.openstreetmap.org/relation/17054291",
+    "place_id": "ChIJt2QEWDmNGGARvJ5tMBSBCqI",
+    "input_fingerprint": "49e38f1dcb630f92e558908c49c2256d836d4c3d5959cd43abc643c302aa24f9",
+    "interpolation_span_meters": null,
+    "neighborhood": "神宮前",
+    "matched_components": {
+      "prefecture": "東京都",
+      "ward": "渋谷区",
+      "neighborhood": "神宮前",
+      "chome": "2"
+    },
+    "unmatched_components": {
+      "block": "23",
+      "sub_number": "4"
+    },
+    "match_status": "matched_chome_area_approximate",
+    "map_location_approximate": true,
+    "suggested_verification_tier": "provisional_medium",
+    "osm_type": "relation",
+    "osm_id": 17054291,
+    "osm_version": 5,
+    "osm_timestamp": "2026-02-25 11:24:33+00:00",
+    "representative_point_method": "polygon_centroid_inside",
+    "map_anchor_type": "chome",
+    "diagnostic_candidates": [],
+    "match_level": "chome",
+    "status": "matched_chome_area_approximate"
+  }
+]

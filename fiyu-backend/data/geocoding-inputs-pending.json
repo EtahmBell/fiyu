@@ -1,0 +1,47 @@
+[
+  {
+    "place_id": "ChIJGZiCSQCPGGARtJeKu6kiMVo",
+    "name_ja": "牛たんの檸檬 秋葉原店",
+    "accepted_core_address": "東京都千代田区神田佐久間町3-38",
+    "address_status": "address_verified",
+    "confidence_tier": "verified",
+    "expected_prefecture": "東京都",
+    "expected_ward": "千代田区",
+    "proposed_precision": "parcel_or_street_number",
+    "verified_address_id": 1,
+    "address_evidence_id": 1,
+    "evidence_fingerprint": "8c2db88ecbc1e7bcb3088a30c72c22a6c8aa059bc33034289df218d9146d6147",
+    "decision_fingerprint": "8c2db88ecbc1e7bcb3088a30c72c22a6c8aa059bc33034289df218d9146d6147",
+    "input_fingerprint": "0bc648a06329f78196fa90d6b5ee8a78f73f68940f15fe95618a30c01c56a67d"
+  },
+  {
+    "place_id": "ChIJKdddfwDzGGAR1YfPayuwpFo",
+    "name_ja": "浜田山叙々苑",
+    "accepted_core_address": "東京都杉並区浜田山3-30-5",
+    "address_status": "address_verified",
+    "confidence_tier": "verified",
+    "expected_prefecture": "東京都",
+    "expected_ward": "杉並区",
+    "proposed_precision": "parcel_or_street_number",
+    "verified_address_id": 3,
+    "address_evidence_id": 2,
+    "evidence_fingerprint": "44bce31be913bab3de736c05f17be8d272d39ac75940c3ccfd000f3e55377033",
+    "decision_fingerprint": "44bce31be913bab3de736c05f17be8d272d39ac75940c3ccfd000f3e55377033",
+    "input_fingerprint": "ffe8c930df9897d624aa026e31a012ee088b6d40065616f844835d3dd06b8566"
+  },
+  {
+    "place_id": "ChIJt2QEWDmNGGARvJ5tMBSBCqI",
+    "name_ja": "江戸酒場 海",
+    "accepted_core_address": "東京都渋谷区神宮前2-23-4",
+    "address_status": "address_verified",
+    "confidence_tier": "verified",
+    "expected_prefecture": "東京都",
+    "expected_ward": "渋谷区",
+    "proposed_precision": "parcel_or_street_number",
+    "verified_address_id": 4,
+    "address_evidence_id": 4,
+    "evidence_fingerprint": "a43cf7bd8a6f20597a2508c4868a6d2b529c67a434fdbcdbd77f58954a38bbe8",
+    "decision_fingerprint": "a43cf7bd8a6f20597a2508c4868a6d2b529c67a434fdbcdbd77f58954a38bbe8",
+    "input_fingerprint": "49e38f1dcb630f92e558908c49c2256d836d4c3d5959cd43abc643c302aa24f9"
+  }
+]

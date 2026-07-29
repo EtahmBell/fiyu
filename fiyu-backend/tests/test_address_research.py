@@ -11,7 +11,11 @@ from types import SimpleNamespace
 import pytest
 from pydantic import BaseModel
 
-from fiyu.address_geocoder import AddressGeocodeResult, DigitalAgencyAbrGeocoder
+from fiyu.address_geocoder import (
+    AddressGeocodeResult,
+    DigitalAgencyAbrGeocoder,
+    JsonFileAddressGeocoder,
+)
 from fiyu.address_geocoding import (
     export_geocoding_inputs,
     geocode_address_file,
@@ -2114,6 +2118,207 @@ def test_valid_geocode_alone_sets_map_eligibility_and_preserves_kin(tmp_path):
     assert [(row["location_source"], row["map_display_eligible"]) for row in history] == [
         ("independent_offline_geocoder", 1)
     ]
+
+
+def test_area_fallback_persists_as_map_eligible_provisional_location(tmp_path):
+    path = _db(tmp_path)
+    kin_before = deepcopy(_stored(path, "ChIJ2WzWhfWPGGARyYQS7SD2tIM"))
+    _seed_verified_address(path)
+    area_result = _geocode(
+        address_level_match="chome",
+        precision="approximate",
+        neighborhood="谷中",
+        match_status="matched_chome_area_approximate",
+        map_location_approximate=True,
+        map_anchor_type="chome",
+        matched_components={"ward": "台東区", "neighborhood": "谷中", "chome": "1"},
+        unmatched_components={"block": "2", "sub_number": "3"},
+        suggested_verification_tier="provisional_medium",
+        osm_type="relation",
+        osm_id=1234,
+        osm_version=8,
+        osm_timestamp="2026-07-01T00:00:00Z",
+        representative_point_method="polygon_centroid_inside",
+        provenance="Map data © OpenStreetMap contributors",
+        source_reference="https://www.openstreetmap.org/relation/1234",
+    )
+    report = geocode_verified_addresses(path, geocoder=MockGeocoder(area_result))
+    assert report["location_provisional"] == 1
+    stored = _stored(path)
+    assert stored["map_display_eligible"] == 1
+    assert stored["location_verification_status"] == "location_provisional"
+    assert stored["location_status"] == "location_provisional"
+    assert stored["map_location_approximate"] == 1
+    assert stored["map_location_precision"] == "chome"
+    assert stored["map_anchor_type"] == "chome"
+    assert json.loads(stored["location_unmatched_components_json"])["block"] == "2"
+    assert _stored(path, "ChIJ2WzWhfWPGGARyYQS7SD2tIM") == kin_before
+    with connect(path) as connection:
+        history = connection.execute(
+            "SELECT * FROM location_history WHERE public_restaurant_id='p1'"
+        ).fetchone()
+    assert history["location_status"] == "location_provisional"
+    assert history["map_anchor_type"] == "chome"
+
+
+def test_json_loader_retains_all_area_fallback_statuses_for_dry_run(tmp_path):
+    path = _db(tmp_path)
+    with connect(path) as connection:
+        connection.executemany(
+            """
+            INSERT INTO public_restaurants (
+                place_id, research_status, is_published,
+                location_verification_status, map_display_eligible,
+                address_resolution_status, created_at, updated_at
+            ) VALUES (?, 'complete', 1, 'unresolved', 0,
+                      'address_not_researched', 'created', 'before')
+            """,
+            [("area-block",), ("area-neighborhood",)],
+        )
+        connection.commit()
+    for place_id in ("p1", "area-block", "area-neighborhood"):
+        _seed_verified_address(path, place_id)
+
+    inputs_path = tmp_path / "inputs.json"
+    assert export_geocoding_inputs(path, inputs_path) == 3
+    inputs = {
+        item["place_id"]: item
+        for item in json.loads(inputs_path.read_text(encoding="utf-8"))
+    }
+    status_by_place = {
+        "area-block": ("matched_block_area_approximate", "block"),
+        "p1": ("matched_chome_area_approximate", "chome"),
+        "area-neighborhood": (
+            "matched_neighborhood_area_approximate", "neighborhood"
+        ),
+    }
+    payload = []
+    for offset, (place_id, (status, level)) in enumerate(
+        status_by_place.items(), start=1
+    ):
+        item = inputs[place_id]
+        payload.append({
+            "normalized_address": "台東区谷中1-2-3",
+            "latitude": 35.727 + offset / 10000,
+            "longitude": 139.77 + offset / 10000,
+            "precision": "approximate",
+            "warnings": [f"osm_{level}_area_fallback_is_approximate"],
+            "provenance": "Map data © OpenStreetMap contributors",
+            "raw_address": item["accepted_core_address"],
+            "prefecture": "東京都",
+            "municipality_or_ward": "台東区",
+            "provider": "local_osm_addresses",
+            "provider_version": "osm-address-index-v3-area",
+            "source_reference": f"https://www.openstreetmap.org/relation/{9000 + offset}",
+            "place_id": place_id,
+            "input_fingerprint": item["input_fingerprint"],
+            "neighborhood": "谷中",
+            "matched_components": {"ward": "台東区", "neighborhood": "谷中"},
+            "unmatched_components": {"block": "2", "sub_number": "3"},
+            "match_status": status,
+            "map_location_approximate": True,
+            "suggested_verification_tier": "provisional_medium",
+            "osm_type": "relation",
+            "osm_id": 9000 + offset,
+            "osm_version": 1,
+            "osm_timestamp": "2026-07-01T00:00:00Z",
+            "representative_point_method": "polygon_centroid_inside",
+            "map_anchor_type": level,
+            "diagnostic_candidates": [],
+            "match_level": level,
+            "status": status,
+        })
+    payload.extend([
+        {
+            "place_id": "rejected",
+            "raw_address": "東京都台東区谷中9-9",
+            "status": "rejected_address_number_mismatch",
+            "match_status": "rejected_address_number_mismatch",
+        },
+        {
+            "place_id": "malformed",
+            "raw_address": "東京都台東区谷中8-8",
+            "status": "matched_chome_area_approximate",
+            "match_status": "matched_chome_area_approximate",
+            "match_level": "chome",
+            "longitude": 139.77,
+        },
+    ])
+    results_path = tmp_path / "area-results.json"
+    results_path.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+
+    geocoder = JsonFileAddressGeocoder(results_path)
+    assert geocoder.loaded_count == 3
+    for place_id, (status, _level) in status_by_place.items():
+        loaded = geocoder.geocode(
+            str(inputs[place_id]["accepted_core_address"]), place_id=place_id
+        )
+        assert loaded is not None
+        assert loaded.match_status == status
+    assert [item["reason"] for item in geocoder.excluded_records] == [
+        "status_not_importable:rejected_address_number_mismatch",
+        "malformed_geocoder_result:KeyError:'latitude'",
+    ]
+
+    report = geocode_verified_addresses(path, geocoder=geocoder, dry_run=True)
+    assert {
+        key: report[key]
+        for key in (
+            "selected", "location_verified", "location_provisional",
+            "needs_review", "failed",
+        )
+    } == {
+        "selected": 3,
+        "location_verified": 0,
+        "location_provisional": 3,
+        "needs_review": 0,
+        "failed": 0,
+    }
+
+
+@pytest.mark.parametrize(
+    ("record", "expected_reason"),
+    [
+        (
+            {"status": "rejected_address_number_mismatch"},
+            "status_not_importable:rejected_address_number_mismatch",
+        ),
+        (
+            {
+                "status": "matched_chome_area_approximate",
+                "match_status": "matched_chome_area_approximate",
+                "match_level": "chome",
+                "longitude": 139.77,
+            },
+            "malformed_geocoder_result:KeyError:'latitude'",
+        ),
+    ],
+)
+def test_json_loader_reports_explicit_reason_for_excluded_selected_record(
+    tmp_path, record, expected_reason
+):
+    path = _db(tmp_path)
+    _seed_verified_address(path)
+    inputs_path = tmp_path / "inputs.json"
+    export_geocoding_inputs(path, inputs_path)
+    item = json.loads(inputs_path.read_text(encoding="utf-8"))[0]
+    results_path = tmp_path / "excluded.json"
+    results_path.write_text(
+        json.dumps([{
+            "place_id": item["place_id"],
+            "raw_address": item["accepted_core_address"],
+            "input_fingerprint": item["input_fingerprint"],
+            **record,
+        }], ensure_ascii=False),
+        encoding="utf-8",
+    )
+    report = geocode_verified_addresses(
+        path, geocoder=JsonFileAddressGeocoder(results_path), dry_run=True
+    )
+    assert report["failed"] == 1
+    assert report["reports"][0]["reasons"] == [expected_reason]
 
 
 def test_invalid_geocode_is_persisted_for_review_without_map_eligibility(tmp_path):

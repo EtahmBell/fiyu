@@ -1,0 +1,26 @@
+[
+  {
+    "place_id": "ChIJGZiCSQCPGGARtJeKu6kiMVo",
+    "input_fingerprint": "0bc648a06329f78196fa90d6b5ee8a78f73f68940f15fe95618a30c01c56a67d",
+    "raw_address": "東京都千代田区神田佐久間町3-38",
+    "status": "rejected_address_number_mismatch",
+    "warnings": [],
+    "error": "OSM neighborhood exists but the house/block number differs"
+  },
+  {
+    "place_id": "ChIJKdddfwDzGGAR1YfPayuwpFo",
+    "input_fingerprint": "ffe8c930df9897d624aa026e31a012ee088b6d40065616f844835d3dd06b8566",
+    "raw_address": "東京都杉並区浜田山3-30-5",
+    "status": "rejected_address_number_mismatch",
+    "warnings": [],
+    "error": "OSM neighborhood exists but the house/block number differs"
+  },
+  {
+    "place_id": "ChIJt2QEWDmNGGARvJ5tMBSBCqI",
+    "input_fingerprint": "49e38f1dcb630f92e558908c49c2256d836d4c3d5959cd43abc643c302aa24f9",
+    "raw_address": "東京都渋谷区神宮前2-23-4",
+    "status": "rejected_address_number_mismatch",
+    "warnings": [],
+    "error": "OSM neighborhood exists but the house/block number differs"
+  }
+]

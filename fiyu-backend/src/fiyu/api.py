@@ -78,6 +78,17 @@ class PublicRestaurantSummary(BaseModel):
     full_address_verified: bool = False
     map_location_approximate: bool = False
     map_display_eligible: bool = False
+    map_anchor_type: str | None = None
+    map_anchor_id: str | None = None
+    location_status: str | None = None
+    location_label: str | None = None
+    matched_components: dict[str, str] = Field(default_factory=dict)
+    unmatched_components: dict[str, str] = Field(default_factory=dict)
+    provenance: dict[str, object | None] = Field(default_factory=dict)
+    source_reference: str | None = None
+    distance_sort_eligible: bool = False
+    directions_coordinates_eligible: bool = False
+    external_map_search_query: str | None = None
     community_recommendation_count: int = 0
     community_positive_count: int = 0
     community_recommendation_rate: float | None = None
