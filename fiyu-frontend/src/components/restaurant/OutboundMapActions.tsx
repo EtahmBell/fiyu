@@ -24,16 +24,16 @@ export function OutboundMapActions({ restaurant, className }: OutboundMapActions
   if (links.length === 0) return null;
 
   return (
-    <ul className={cn("flex flex-wrap gap-x-4 gap-y-1", className)}>
+    <ul className={cn("flex min-w-0 max-w-full flex-wrap gap-x-4 gap-y-1", className)}>
       {links.map((link) => (
-        <li key={link.id}>
+        <li key={link.id} className="min-w-0 max-w-full">
           <a
             href={link.href}
             target="_blank"
             rel="noopener noreferrer"
             // The card's stretched control covers the whole surface, so these
             // need to sit above it to stay clickable.
-            className="relative z-10 text-xs text-lavender-700 underline decoration-line underline-offset-2 transition-colors duration-200 ease-(--ease-fiyu) hover:decoration-lavender-500"
+            className="relative z-10 break-words text-xs text-lavender-700 underline decoration-line underline-offset-2 transition-colors duration-200 ease-(--ease-fiyu) hover:decoration-lavender-500"
           >
             {link.label}
           </a>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { DailyPicksPanel } from "@/components/daily-picks/DailyPicksPanel";
 import { PageIntro, SiteFooter } from "@/components/layout/SiteHeader";
@@ -15,6 +15,7 @@ import {
   originFromGeolocation,
   type FreeDiscoveryOrigin,
 } from "@/lib/location/origin";
+import { cn } from "@/lib/utils/cn";
 
 export interface DiscoveryShellProps {
   /** Already filtered to browsable rows by the server component. */
@@ -40,8 +41,8 @@ interface Selection {
  *
  * LAYOUT. Desktop is a true two-pane discovery view: the list column scrolls
  * independently at ~42% while the map holds the remaining ~58% of a
- * viewport-height pane. Mobile begins directly with a bounded map below the
- * site header, while the feed owns the independently scrolling lower region.
+ * viewport-height pane. Mobile keeps the feed primary and floats the same map
+ * above it in compact or expanded form.
  *
  * Data arrives already fetched and validated from the server component, so this
  * never touches the network, and ordering is delegated to the ranking adapter.
@@ -51,6 +52,7 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
   const [visibleRestaurantIds, setVisibleRestaurantIds] = useState<string[]>([]);
   const [homeArea, setHomeArea] = useState<LocationAnchor | null>(null);
   const [continuedWithoutLocation, setContinuedWithoutLocation] = useState(false);
+  const [mapExpanded, setMapExpanded] = useState(false);
 
   const geolocation = useGeolocation();
 
@@ -88,10 +90,19 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
     [select],
   );
 
+  useEffect(() => {
+    if (!mapExpanded) return;
+    const collapseOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMapExpanded(false);
+    };
+    window.addEventListener("keydown", collapseOnEscape);
+    return () => window.removeEventListener("keydown", collapseOnEscape);
+  }, [mapExpanded]);
+
   return (
     <div
       data-testid="discovery-layout"
-      className="grid h-[calc(100dvh-var(--spacing-header))] min-h-0 grid-cols-1 grid-rows-[40dvh_minmax(0,1fr)] overflow-hidden bg-canvas lg:grid-cols-[minmax(0,42fr)_minmax(0,58fr)] lg:grid-rows-1"
+      className="grid h-[calc(100dvh-var(--spacing-header))] min-h-0 grid-cols-1 grid-rows-[minmax(0,1fr)] overflow-hidden bg-canvas lg:grid-cols-[minmax(0,42fr)_minmax(0,58fr)] lg:grid-rows-1"
     >
       <section
         className="contents lg:col-start-1 lg:row-start-1 lg:block lg:min-h-0 lg:min-w-0 lg:overflow-y-auto lg:overscroll-contain"
@@ -100,13 +111,20 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
           <PageIntro />
         </div>
 
-        {/* The feed scrolls independently below the bounded map on mobile. */}
+        {/* The feed remains the primary scroll surface behind the floating map. */}
         <div
           data-testid="restaurant-scroll-region"
-          className="row-start-2 min-h-0 min-w-0 overflow-x-hidden overflow-y-auto overscroll-contain lg:overflow-visible"
+          className="row-start-1 min-h-0 min-w-0 overflow-x-hidden overflow-y-auto overscroll-contain lg:w-full lg:overflow-visible"
         >
-          <div className="mx-auto w-full max-w-[38rem] px-5 pb-[calc(2rem+env(safe-area-inset-bottom))] sm:px-8 lg:mx-0 lg:max-w-none lg:pb-10">
-            <div className="pt-5 lg:pt-0">
+          <div className="relative isolate mx-auto min-w-0 w-full max-w-[38rem] px-5 pb-[calc(17rem+env(safe-area-inset-bottom))] sm:px-8 lg:mx-0 lg:max-w-none lg:pb-10">
+            <header
+              data-testid="mobile-picks-page-header"
+              className="border-b border-line pt-4 pb-3 lg:hidden"
+            >
+              <h1 className="font-display text-[1.75rem] leading-none text-ink">Picks</h1>
+            </header>
+
+            <div className="relative z-10 min-w-0 w-full">
               <DailyPicksPanel
                 restaurants={restaurants}
                 activeArea={activeArea}
@@ -131,11 +149,19 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
         </div>
       </section>
 
-      {/* Bounded upper pane on mobile; the existing side-by-side pane on desktop. */}
+      {/* Floating mini-map on mobile; the existing side-by-side pane on desktop. */}
       <aside
         aria-label="Restaurant map"
         data-testid="mobile-map-region"
-        className="relative row-start-1 min-h-0 min-w-0 overflow-hidden border-b border-line bg-subtle after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:z-10 after:h-3 after:bg-gradient-to-b after:from-transparent after:to-canvas/50 lg:col-start-2 lg:row-start-1 lg:h-full lg:border-b-0 lg:border-l lg:after:hidden"
+        data-expanded={mapExpanded ? "true" : "false"}
+        className={cn(
+          "fixed right-4 z-20 min-h-0 min-w-0 overflow-hidden rounded-card border border-line-strong bg-subtle shadow-[0_10px_32px_-12px_rgba(49,40,61,0.45)] transition-[width,height] duration-200 ease-(--ease-fiyu)",
+          "bottom-[calc(var(--spacing-mobile-nav)+0.75rem)]",
+          mapExpanded
+            ? "left-4 h-[min(50dvh,32rem)]"
+            : "size-[clamp(9rem,40vw,10.5rem)] max-[360px]:size-[8.75rem]",
+          "lg:static lg:col-start-2 lg:row-start-1 lg:h-full lg:w-auto lg:rounded-none lg:border-y-0 lg:border-r-0 lg:border-l lg:shadow-none lg:transition-none",
+        )}
       >
         {/*
          * The map receives current daily picks (including concealed cards) and
@@ -154,8 +180,18 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
             onSelect={selectFromMap}
             surfaceMode="bounded"
             interactive
+            compactOnMobile={!mapExpanded}
           />
         )}
+
+        <button
+          type="button"
+          aria-label={mapExpanded ? "Collapse map" : "Expand map"}
+          onClick={() => setMapExpanded((expanded) => !expanded)}
+          className="absolute top-2 left-2 z-30 min-h-9 rounded-chip border border-white/80 bg-plum/90 px-3 text-xs font-medium text-white shadow-sm backdrop-blur-sm hover:bg-plum focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600 lg:hidden"
+        >
+          {mapExpanded ? "Collapse map" : "Expand map"}
+        </button>
       </aside>
     </div>
   );

@@ -59,7 +59,7 @@ export function CompactRestaurantCard({
       onClick={handleClick}
       onKeyDown={handleKeyDown}
       className={cn(
-        "relative overflow-hidden rounded-card border border-line bg-surface p-2.5 shadow-[0_6px_20px_-18px_rgba(49,40,61,0.35)]",
+        "relative min-w-0 w-full overflow-hidden rounded-card border border-line bg-surface p-2.5 shadow-[0_6px_20px_-18px_rgba(49,40,61,0.35)]",
         onOpen && "cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600",
       )}
       style={{ animation: "fiyu-fade-in 260ms var(--ease-fiyu)" }}
@@ -99,7 +99,7 @@ export function CompactRestaurantCard({
       {tags.length > 0 && <TagList tags={tags} max={3} className="mt-2" />}
 
       <div className="relative z-10 mt-2 flex flex-wrap items-center justify-between gap-2 border-t border-line pt-2">
-        <div onClick={(event) => event.stopPropagation()}>
+        <div className="min-w-0 max-w-full" onClick={(event) => event.stopPropagation()}>
           <OutboundMapActions restaurant={restaurant} />
         </div>
         <Button

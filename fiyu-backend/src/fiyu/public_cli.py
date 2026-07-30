@@ -50,6 +50,13 @@ def _parser() -> argparse.ArgumentParser:
     descriptions.add_argument("--limit", type=int, default=10)
     descriptions.add_argument("--plan-only", action="store_true")
     descriptions.add_argument("--dry-run", action="store_true")
+    descriptions.add_argument(
+        "--refresh-existing",
+        "--force",
+        dest="refresh_existing",
+        action="store_true",
+        help="Intentionally refresh rows that already have description_en",
+    )
     descriptions.add_argument("--output-report", required=True)
     descriptions.add_argument(
         "--max-search-actions",
@@ -340,6 +347,7 @@ def main() -> None:
             limit=args.limit,
             plan_only=args.plan_only,
             dry_run=args.dry_run,
+            refresh_existing=args.refresh_existing,
             output_report=args.output_report,
             max_search_actions=args.max_search_actions,
             model=args.model,

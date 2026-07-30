@@ -55,6 +55,8 @@ describe("Today’s Fiyu Picks panel", () => {
     fireEvent.click(screen.getByRole("button", { name: /Find today's restaurants/i }));
     expect(screen.getByRole("heading", { name: "Today’s Fiyu Picks" })).toBeTruthy();
     expect(screen.queryByTestId("pre-pick-preferences")).toBeNull();
+    expect(screen.getByText("Finding today’s restaurants…")).toBeTruthy();
+    act(() => vi.advanceTimersByTime(850));
     expect(screen.getAllByTestId("concealed-restaurant-card")).toHaveLength(3);
     const selectedIds = firstStorage.getSnapshot()?.selection?.restaurantIds;
     expect(selectedIds).toHaveLength(3);
@@ -66,7 +68,7 @@ describe("Today’s Fiyu Picks panel", () => {
     expect(revealedId).toBeTruthy();
     expect(firstStorage.getSnapshot()?.discoveries).toContainEqual({
       restaurantId: revealedId,
-      revealedAt: new Date(revealedAt).toISOString(),
+      revealedAt: new Date(revealedAt + 850).toISOString(),
     });
 
     firstRender.unmount();

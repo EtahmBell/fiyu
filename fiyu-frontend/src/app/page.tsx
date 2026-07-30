@@ -36,7 +36,9 @@ async function loadCatalog(): Promise<CatalogResult> {
 function StateColumn({ children }: { children: React.ReactNode }) {
   return (
     <div className="mx-auto w-full max-w-[38rem] px-5 pb-20 sm:px-8">
-      <PageIntro />
+      <div className="hidden lg:block">
+        <PageIntro />
+      </div>
       {children}
       <SiteFooter />
     </div>

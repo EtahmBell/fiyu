@@ -34,6 +34,7 @@
   --color-plum: #31283d;
   --color-gold: #b18a36;
   --color-gold-soft: #f5ecd5;
+  --color-rose-dust: #c58f98;
 
   --color-status-open: #2c6a45;
   --color-status-closed: #8a7263;
@@ -47,8 +48,9 @@
   --radius-card: 0.875rem;
   --radius-chip: 999px;
 
-  /* Slim brand bar. The desktop split fills the remaining viewport height. */
-  --spacing-header: 3.5rem;
+  /* The app chrome includes device safe areas without changing desktop height. */
+  --spacing-header: calc(3.5rem + env(safe-area-inset-top));
+  --spacing-mobile-nav: calc(4.25rem + env(safe-area-inset-bottom));
 
   /* One motion duration, used everywhere. */
   --ease-fiyu: cubic-bezier(0.22, 0.61, 0.36, 1);

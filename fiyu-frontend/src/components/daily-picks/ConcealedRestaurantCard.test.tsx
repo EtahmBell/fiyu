@@ -39,7 +39,12 @@ describe("concealed daily restaurant card", () => {
     expect(screen.queryByText("Sushi Saito")).toBeNull();
     expect(screen.queryByText(/quiet precision/)).toBeNull();
     expect(screen.queryByLabelText(/Fiyu score/)).toBeNull();
-    expect(screen.getByRole("button", { name: "Tap to reveal restaurant 1" })).toBeTruthy();
+    const reveal = screen.getByRole("button", { name: "Tap to reveal restaurant 1" });
+    expect(reveal.className).toContain("focus-visible:outline-2");
+    expect(reveal.className).toContain("focus-visible:outline-lavender-600");
+    expect(reveal.className).not.toContain("focus-visible:outline-none");
+    reveal.focus();
+    expect(document.activeElement).toBe(reveal);
   });
 
   it("reveals the full card and uses the shared ten-point score", () => {
@@ -88,4 +93,51 @@ describe("concealed daily restaurant card", () => {
     );
     expect(screen.getByTestId("concealed-restaurant-card").dataset.goldTreatment).toBe("false");
   });
+
+  it("selects three low-contrast noren variants deterministically by card position", () => {
+    const props = {
+      restaurant: fixture(88),
+      revealed: false,
+      saved: false,
+      onReveal: () => {},
+      onToggleSaved: () => {},
+    };
+    const { container, rerender } = render(
+      <ConcealedRestaurantCard {...props} position={1} />,
+    );
+    const pattern = () => container.querySelector("[data-city-concealed-pattern]");
+    expect(pattern()?.getAttribute("data-city-concealed-pattern")).toBe("0");
+    expect(pattern()?.getAttribute("class")).toContain("opacity-[0.16]");
+
+    rerender(<ConcealedRestaurantCard {...props} position={2} />);
+    expect(pattern()?.getAttribute("data-city-concealed-pattern")).toBe("1");
+    rerender(<ConcealedRestaurantCard {...props} position={3} />);
+    expect(pattern()?.getAttribute("data-city-concealed-pattern")).toBe("2");
+    rerender(<ConcealedRestaurantCard {...props} position={4} />);
+    expect(pattern()?.getAttribute("data-city-concealed-pattern")).toBe("0");
+  });
+
+  it("does not encode gold treatment into the noren pattern", () => {
+    const shared = {
+      position: 2,
+      revealed: false,
+      saved: false,
+      onReveal: () => {},
+      onToggleSaved: () => {},
+    };
+    const { container, rerender } = render(
+      <ConcealedRestaurantCard {...shared} restaurant={fixture(90)} />,
+    );
+    const patternIndex = () =>
+      container
+        .querySelector("[data-city-concealed-pattern]")
+        ?.getAttribute("data-city-concealed-pattern");
+    expect(patternIndex()).toBe("1");
+    expect(screen.getByTestId("concealed-restaurant-card").dataset.goldTreatment).toBe("true");
+
+    rerender(<ConcealedRestaurantCard {...shared} restaurant={fixture(80)} />);
+    expect(patternIndex()).toBe("1");
+    expect(screen.getByTestId("concealed-restaurant-card").dataset.goldTreatment).toBe("false");
+  });
+
 });

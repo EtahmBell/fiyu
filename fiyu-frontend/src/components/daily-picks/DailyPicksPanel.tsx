@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
 import { ConcealedRestaurantCard } from "@/components/daily-picks/ConcealedRestaurantCard";
+import { CityLoadingSequence } from "@/components/city-signature/CitySignature";
 import {
   DailyCardFrame,
   type DailyCardRefRegistrar,
@@ -11,6 +12,7 @@ import { RecentDiscoveries } from "@/components/daily-picks/RecentDiscoveries";
 import { FreeOriginOnboarding } from "@/components/location/FreeOriginOnboarding";
 import { Button } from "@/components/ui/Button";
 import type { PublicRestaurant } from "@/lib/api/schemas";
+import { ACTIVE_FIYU_CITY } from "@/lib/city/editions";
 import {
   JAPANESE_FOOD_PREFERENCES,
   selectDailyRestaurants,
@@ -178,6 +180,8 @@ export function DailyPicksPanel({
   );
   const now = useSyncExternalStore(subscribeClock, currentMinute, serverMinute);
   const [inventoryMessage, setInventoryMessage] = useState<string | null>(null);
+  const [finding, setFinding] = useState(false);
+  const findingTimerRef = useRef<number | null>(null);
   const cardRefs = useRef(new Map<string, HTMLDivElement>());
 
   const state = snapshot ?? EMPTY_DAILY_PICKS_STATE;
@@ -228,6 +232,13 @@ export function DailyPicksPanel({
     if (snapshot !== null) onVisibleRestaurantIdsChange?.(visibleRestaurantIds);
   }, [onVisibleRestaurantIdsChange, snapshot, visibleRestaurantIds]);
 
+  useEffect(
+    () => () => {
+      if (findingTimerRef.current !== null) window.clearTimeout(findingTimerRef.current);
+    },
+    [],
+  );
+
   const persist = useCallback(
     (next: DailyPicksState) => {
       storage.save(next);
@@ -250,6 +261,7 @@ export function DailyPicksPanel({
       return;
     }
     setInventoryMessage(null);
+    setFinding(true);
     persist({
       ...state,
       selection: createDailySelection(
@@ -257,6 +269,10 @@ export function DailyPicksPanel({
         generatedAt,
       ),
     });
+    findingTimerRef.current = window.setTimeout(() => {
+      setFinding(false);
+      findingTimerRef.current = null;
+    }, 850);
   };
 
   const reveal = (placeId: string, revealedAt: number) => {
@@ -284,16 +300,23 @@ export function DailyPicksPanel({
   return (
     <section
       aria-labelledby="daily-picks-heading"
-      className="my-5 rounded-card border border-line bg-surface p-4 shadow-[0_8px_30px_-24px_rgba(49,40,61,0.3)] sm:p-5"
+      className="my-5 min-w-0 w-full rounded-card border border-line bg-surface p-4 shadow-[0_8px_30px_-24px_rgba(49,40,61,0.3)] sm:p-5"
     >
       <h2 id="daily-picks-heading" className="font-display text-2xl text-ink">
         {hasActivePicks ? "Today’s Fiyu Picks" : "Choose today’s preferences"}
       </h2>
 
-      {snapshot === null ? (
-        <p className="mt-4 min-h-11 text-sm text-ink-faint" data-testid="daily-picks-hydrating">
-          Loading today&apos;s selection…
-        </p>
+      {snapshot === null || finding ? (
+        <div
+          role="status"
+          className="mt-4 flex min-h-36 flex-col items-center justify-center text-center"
+          data-testid="daily-picks-hydrating"
+        >
+          <CityLoadingSequence cityId={ACTIVE_FIYU_CITY.id} />
+          <p className="mt-2 text-sm font-medium text-ink-muted">
+            {finding ? "Finding today’s restaurants…" : "Loading today’s selection…"}
+          </p>
+        </div>
       ) : (
         <div className="mt-4 space-y-4">
           {hasActivePicks && currentSelection && (

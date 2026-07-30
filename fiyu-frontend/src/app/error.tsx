@@ -26,7 +26,7 @@ export default function Error({
   }, [error]);
 
   return (
-    <main className="mx-auto flex w-full max-w-2xl flex-1 items-center px-5 py-16 sm:px-8">
+    <main className="mx-auto flex w-full max-w-2xl flex-1 items-center px-5 pt-16 pb-[calc(var(--spacing-mobile-nav)+2rem)] sm:px-8 lg:pb-16">
       <StatusMessage
         tone="error"
         className="w-full"

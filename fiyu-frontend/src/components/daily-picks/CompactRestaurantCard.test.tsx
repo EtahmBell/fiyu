@@ -85,6 +85,30 @@ describe("compact restaurant card content", () => {
     expect(screen.queryByText("Approximate area")).toBeNull();
   });
 
+  it("keeps long card content and map actions inside the assigned column", () => {
+    render(
+      <CompactRestaurantCard
+        restaurant={restaurant({
+          name_ja: "とても長い名前のレストラン".repeat(12),
+          name_en: "A deliberately long restaurant name ".repeat(10),
+          description_en: "A long discovery-card description that must remain inside its pane. ".repeat(20),
+        })}
+        saved={false}
+        onToggleSaved={() => {}}
+      />,
+    );
+
+    const card = screen.getByTestId("compact-restaurant-card");
+    expect(card.className).toContain("min-w-0");
+    expect(card.className).toContain("w-full");
+    expect(screen.getByTestId("compact-card-layout").className).toContain("min-w-0");
+    expect(screen.getByRole("heading", { level: 3 }).className).toContain("truncate");
+    const googleLink = screen.getByRole("link", { name: "Open in Google Maps" });
+    expect(googleLink.className).toContain("break-words");
+    expect(googleLink.closest("ul")?.className).toContain("flex-wrap");
+    expect(googleLink.closest("ul")?.className).toContain("max-w-full");
+  });
+
   it("uses the stored researched description without a generic replacement", () => {
     const researched =
       "Edo Sakaba Umi is an izakaya and standing bar serving grilled chicken and sake in Jingumae. Its compact counter format is documented in the stored restaurant research.";

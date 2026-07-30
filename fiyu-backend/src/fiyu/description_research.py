@@ -234,7 +234,11 @@ def research_description(
 
 
 def _description_rows(
-    db_path: str | Path, *, limit: int, place_id: str | None
+    db_path: str | Path,
+    *,
+    limit: int,
+    place_id: str | None,
+    refresh_existing: bool,
 ) -> list[dict[str, object]]:
     with readonly_sqlite_snapshot(db_path) as connection:
         columns = {
@@ -249,7 +253,7 @@ def _description_rows(
         if place_id:
             conditions.append("p.place_id = ?")
             parameters.append(place_id)
-        elif "description_en" in columns:
+        if not refresh_existing and "description_en" in columns:
             conditions.append("(p.description_en IS NULL OR TRIM(p.description_en) = '')")
         rows = connection.execute(
             f"""
@@ -293,20 +297,26 @@ def _persist_description(
     now = datetime.now(UTC).isoformat()
     sources = json.dumps(result.supporting_source_urls, ensure_ascii=False)
     with connect(db_path) as connection:
+        current = connection.execute(
+            "SELECT description_en FROM public_restaurants WHERE place_id=?",
+            (result.place_id,),
+        ).fetchone()
+        previous_description = current["description_en"] if current else None
         cursor = connection.execute(
             """
             INSERT INTO description_research_runs (
                 public_restaurant_id, provider, model, response_id, status,
-                description_en, restaurant_type_en, cuisine_terms_en_json,
+                previous_description_en, description_en, restaurant_type_en, cuisine_terms_en_json,
                 signature_dishes_en_json, supporting_source_urls_json, confidence,
                 unsupported_claims_json, web_search_action_count, input_tokens,
                 output_tokens, total_tokens, error, created_at
-            ) VALUES (?, 'openai_responses', ?, ?, 'accepted', ?, ?, ?, ?, ?, ?, '[]', ?, ?, ?, ?, NULL, ?)
+            ) VALUES (?, 'openai_responses', ?, ?, 'accepted', ?, ?, ?, ?, ?, ?, ?, '[]', ?, ?, ?, ?, NULL, ?)
             """,
             (
                 result.place_id,
                 str(metadata.get("model") or model),
                 metadata.get("response_id"),
+                previous_description,
                 result.description_en,
                 result.restaurant_type_en,
                 json.dumps(result.cuisine_terms_en, ensure_ascii=False),
@@ -352,6 +362,7 @@ def run_description_research(
     limit: int = 10,
     plan_only: bool = False,
     dry_run: bool = False,
+    refresh_existing: bool = False,
     output_report: str | Path,
     max_search_actions: int = DEFAULT_MAX_SEARCH_ACTIONS,
     model: str | None = None,
@@ -366,11 +377,17 @@ def run_description_research(
     if not plan_only and not dry_run:
         ensure_public_schema(db_path)
 
-    rows = _description_rows(db_path, limit=limit, place_id=place_id)
+    rows = _description_rows(
+        db_path,
+        limit=limit,
+        place_id=place_id,
+        refresh_existing=refresh_existing,
+    )
     selected_model = model or os.getenv("OPENAI_MODEL", DEFAULT_MODEL)
     report: dict[str, Any] = {
         "mode": "plan_only" if plan_only else "dry_run" if dry_run else "persist",
         "prompt_version": PROMPT_VERSION,
+        "refresh_existing": refresh_existing,
         "selected": len(rows),
         "maximum_responses_requests": 0 if plan_only else len(rows),
         "maximum_web_search_actions": (

@@ -23,7 +23,7 @@ export default function Loading() {
           {/* Skeleton masthead rather than the real <h1>. The heading belongs
               to the resolved page; rendering it here too would put two <h1>
               elements into the streamed HTML. */}
-          <div aria-hidden="true" className="px-1 pt-8 pb-6 sm:pt-10">
+          <div aria-hidden="true" className="hidden px-1 pt-8 pb-6 sm:pt-10 lg:block">
             <Skeleton className="h-12 w-40 sm:h-14" />
             <Skeleton className="mt-4 h-3.5 w-full max-w-md" />
             <Skeleton className="mt-2 h-3.5 w-2/3 max-w-md" />

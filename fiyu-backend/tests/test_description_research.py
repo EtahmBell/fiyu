@@ -115,6 +115,11 @@ def test_unsupported_popularity_claim_is_rejected():
 
 def test_dry_run_uses_stored_evidence_first_and_writes_only_the_json_report(tmp_path):
     path = _db(tmp_path)
+    with connect(path) as connection:
+        connection.execute(
+            "UPDATE public_restaurants SET description_en='Existing description.'"
+        )
+        connection.commit()
     before = path.read_bytes()
     report_path = tmp_path / "description-report.json"
     client = FakeClient([_result()])
@@ -123,6 +128,7 @@ def test_dry_run_uses_stored_evidence_first_and_writes_only_the_json_report(tmp_
         path,
         place_id="place-1",
         dry_run=True,
+        refresh_existing=True,
         output_report=report_path,
         client=client,
         model="test-model",
@@ -157,6 +163,28 @@ def test_plan_only_makes_no_paid_request(tmp_path):
     assert not client.responses.calls
 
 
+def test_existing_description_is_not_selected_without_explicit_refresh(tmp_path):
+    path = _db(tmp_path)
+    with connect(path) as connection:
+        connection.execute(
+            "UPDATE public_restaurants SET description_en='Existing description.'"
+        )
+        connection.commit()
+    client = FakeClient([])
+
+    report = run_description_research(
+        path,
+        place_id="place-1",
+        plan_only=True,
+        output_report=tmp_path / "no-refresh.json",
+        client=client,
+    )
+
+    assert report["selected"] == 0
+    assert report["refresh_existing"] is False
+    assert not client.responses.calls
+
+
 def test_insufficient_stored_evidence_enables_only_the_bounded_search_fallback(tmp_path):
     path = _db(tmp_path)
     with connect(path) as connection:
@@ -185,6 +213,12 @@ def test_insufficient_stored_evidence_enables_only_the_bounded_search_fallback(t
 
 def test_valid_description_and_provenance_persist_without_changing_score_or_why_fiyu(tmp_path):
     path = _db(tmp_path)
+    previous_description = "Existing description that should remain in history."
+    with connect(path) as connection:
+        connection.execute(
+            "UPDATE public_restaurants SET description_en=?", (previous_description,)
+        )
+        connection.commit()
     client = FakeClient([_result()])
     with connect(path) as connection:
         before = dict(
@@ -199,6 +233,7 @@ def test_valid_description_and_provenance_persist_without_changing_score_or_why_
         output_report=tmp_path / "persist.json",
         client=client,
         model="test-model",
+        refresh_existing=True,
     )
 
     with connect(path) as connection:
@@ -211,6 +246,7 @@ def test_valid_description_and_provenance_persist_without_changing_score_or_why_
     assert row["is_published"] == before["is_published"]
     assert json.loads(provenance["supporting_source_urls_json"]) == [SOURCE_URL]
     assert provenance["response_id"] == "resp_description_1"
+    assert provenance["previous_description_en"] == previous_description
 
 
 def test_unsupported_claims_are_never_persisted(tmp_path):

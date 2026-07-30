@@ -112,7 +112,7 @@ describe("rendered SVG geometry", () => {
   });
 
   it("writes no over-precise number into a dash pattern", () => {
-    // Approximate markers are dashed, and the pattern is scale-divided.
+    // Dashed base-geography lines are scale-divided.
     const { container } = renderMap();
     const dashed = [...container.querySelectorAll("[stroke-dasharray]")];
     expect(dashed.length).toBeGreaterThan(0);
@@ -132,29 +132,32 @@ describe("rendered SVG geometry", () => {
   });
 });
 
-describe("approximate markers are distinguishable", () => {
-  it("marks each chome-anchored restaurant and no others", () => {
+describe("approximate locations remain on the discovery map", () => {
+  it("plots each chome-anchored restaurant alongside exact locations", () => {
     const { container } = renderMap();
     // Of the four browsable pins, two are chome anchors and two are precise.
     expect(container.querySelectorAll("[data-place-id]")).toHaveLength(4);
-    expect(container.querySelectorAll('[data-location-approximate="true"]')).toHaveLength(2);
-  });
-
-  it("says 'Approximate area' on each approximate marker", () => {
-    const { container } = renderMap();
-    const approximate = [...container.querySelectorAll('[data-location-approximate="true"]')];
-    for (const marker of approximate) {
-      expect(marker.getAttribute("aria-label")).toContain("Approximate area");
-      expect(marker.querySelector("title")?.textContent).toContain("Approximate area");
+    const approximateIds = browsable
+      .filter((restaurant) => restaurant.map_location_approximate)
+      .map((restaurant) => restaurant.place_id);
+    expect(approximateIds).toHaveLength(2);
+    for (const placeId of approximateIds) {
+      expect(container.querySelector(`[data-place-id="${placeId}"]`)).toBeTruthy();
     }
   });
 
-  it("gives an approximate marker a dashed edge and no solid centre", () => {
+  it("uses the regular pin treatment without frontend approximate-area tags", () => {
     const { container } = renderMap();
-    const marker = container.querySelector('[data-location-approximate="true"]');
-    expect(marker?.querySelector("[stroke-dasharray]")).toBeTruthy();
-    // The solid cream centre is what makes an exact pin read as "the door".
-    expect(marker?.innerHTML).not.toContain("var(--map-marker-center)");
+    const approximateIds = browsable
+      .filter((restaurant) => restaurant.map_location_approximate)
+      .map((restaurant) => restaurant.place_id);
+    for (const placeId of approximateIds) {
+      const marker = container.querySelector(`[data-place-id="${placeId}"]`);
+      expect(marker?.getAttribute("aria-label")).not.toContain("Approximate area");
+      expect(marker?.querySelector("title")?.textContent).not.toContain("Approximate area");
+      expect(marker?.querySelector("[stroke-dasharray]")).toBeNull();
+      expect(marker?.innerHTML).toContain("var(--map-marker-center)");
+    }
   });
 });
 

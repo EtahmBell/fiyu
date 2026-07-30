@@ -22,7 +22,7 @@ export function DailyCardFrame({
       data-daily-card-place-id={placeId}
       data-selected={selected ? "true" : "false"}
       className={cn(
-        "rounded-card transition-[box-shadow] duration-300 focus:outline-none",
+        "min-w-0 w-full rounded-card transition-[box-shadow] duration-300 focus:outline-none",
         selected && "shadow-[0_0_0_3px_var(--color-lavender-500)]",
       )}
     >

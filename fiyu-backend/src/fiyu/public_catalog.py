@@ -112,6 +112,7 @@ CREATE TABLE IF NOT EXISTS description_research_runs (
     model TEXT NOT NULL,
     response_id TEXT,
     status TEXT NOT NULL,
+    previous_description_en TEXT,
     description_en TEXT,
     restaurant_type_en TEXT,
     cuisine_terms_en_json TEXT NOT NULL DEFAULT '[]',
@@ -444,6 +445,10 @@ PUBLIC_DESCRIPTION_COLUMNS = {
     "description_researched_at": "TEXT",
 }
 
+DESCRIPTION_TABLE_COLUMNS = {
+    "previous_description_en": "TEXT",
+}
+
 ADDRESS_TABLE_COLUMNS = {
     "address_research_runs": {
         "requested_max_web_actions": "INTEGER NOT NULL DEFAULT 0",
@@ -522,6 +527,15 @@ def ensure_public_schema(db_path: str | Path) -> None:
             for name, declaration in columns.items():
                 if name not in existing_table_columns:
                     connection.execute(f"ALTER TABLE {table} ADD COLUMN {name} {declaration}")
+        existing_description_columns = {
+            row["name"]
+            for row in connection.execute("PRAGMA table_info(description_research_runs)")
+        }
+        for name, declaration in DESCRIPTION_TABLE_COLUMNS.items():
+            if name not in existing_description_columns:
+                connection.execute(
+                    f"ALTER TABLE description_research_runs ADD COLUMN {name} {declaration}"
+                )
         connection.execute(
             """
             CREATE INDEX IF NOT EXISTS idx_location_match_status

@@ -51,6 +51,8 @@ export interface FiyuMapProps {
    * differ between server and client without any hydration consequence.
    */
   interactive?: boolean;
+  /** Hide secondary context and controls only in the collapsed mobile mini-map. */
+  compactOnMobile?: boolean;
   /** Starting point for distances, if the user has set one. */
   anchor?: DiscoveryAnchor | null;
   /** When true, a tap on the map places or moves the manual pin. */
@@ -86,6 +88,7 @@ export function FiyuMap({
   onSelect,
   surfaceMode = "fullscreen",
   interactive = true,
+  compactOnMobile = false,
   anchor = null,
   placingPin = false,
   onPlacePin,
@@ -322,9 +325,11 @@ export function FiyuMap({
         */}
         <g transform={transformFor(view)}>
           <MapBase detail={detail} />
-          <MapLabels scale={view.k} detail={detail} />
-          <MapStations scale={view.k} detail={detail} />
-          <MapLandmarks scale={view.k} detail={detail} />
+          <g className={compactOnMobile ? "hidden lg:inline" : undefined}>
+            <MapLabels scale={view.k} detail={detail} />
+            <MapStations scale={view.k} detail={detail} />
+            <MapLandmarks scale={view.k} detail={detail} />
+          </g>
           {anchor && <AnchorMarker anchor={anchor} scale={view.k} />}
           <MapMarkers
             clusters={clusters}
@@ -336,7 +341,12 @@ export function FiyuMap({
         </g>
       </svg>
 
-      <div className="pointer-events-none absolute inset-0">
+      <div
+        className={cn(
+          "pointer-events-none absolute inset-0",
+          compactOnMobile && "hidden lg:block",
+        )}
+      >
         <MapControls
           onZoomIn={() => {
             markInteracted();

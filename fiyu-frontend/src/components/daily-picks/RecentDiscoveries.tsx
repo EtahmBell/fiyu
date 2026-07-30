@@ -1,11 +1,13 @@
 "use client";
 
 import { CompactRestaurantCard } from "@/components/daily-picks/CompactRestaurantCard";
+import { CityEmptyState } from "@/components/city-signature/CitySignature";
 import {
   DailyCardFrame,
   type DailyCardRefRegistrar,
 } from "@/components/daily-picks/DailyCardFrame";
 import type { PublicRestaurant } from "@/lib/api/schemas";
+import { ACTIVE_FIYU_CITY } from "@/lib/city/editions";
 import {
   formatExpirationLabel,
   getDiscoveryExpiration,
@@ -48,9 +50,13 @@ export function RecentDiscoveries({
       </h3>
 
       {entries.length === 0 ? (
-        <p className="mt-2 text-xs text-ink-faint">
-          Revealed restaurants from earlier selections will appear here for 72 hours.
-        </p>
+        <CityEmptyState
+          cityId={ACTIVE_FIYU_CITY.id}
+          kind="discoveries"
+          title="No recent discoveries"
+          description="Revealed restaurants remain here for 72 hours."
+          compact
+        />
       ) : (
         <div className="mt-3 space-y-3">
           {entries.map(({ discovery, restaurant }) => (
