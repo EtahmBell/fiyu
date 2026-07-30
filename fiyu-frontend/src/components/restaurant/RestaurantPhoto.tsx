@@ -115,7 +115,7 @@ export function RestaurantPhoto({
             style={{ animation: "fiyu-fade-in 260ms var(--ease-fiyu)" }}
           />
         ) : (
-          <PhotoPlaceholder pending={inView && !failed} />
+          <PhotoPlaceholder pending={inView && !failed} unavailable={failed} />
         )}
       </div>
 
@@ -170,26 +170,34 @@ export function RestaurantPhoto({
  * Branded lavender-and-cream stand-in.
  *
  * Deliberately not a grey box or a broken-image icon: an unavailable photo
- * should look like part of Fiyu, not like a fault.
+ * should look like part of Fiyu, not like a fault. Equally deliberately not
+ * imagery of any kind -- it must stay obvious that nothing here is a photograph
+ * of the restaurant.
+ *
+ * A flat tint rather than the previous gradient: at card scale the ramp only
+ * read as a smudge, and flat cream-lavender sits better beside real photos.
  */
-function PhotoPlaceholder({ pending }: { pending: boolean }) {
+function PhotoPlaceholder({ pending, unavailable }: { pending: boolean; unavailable: boolean }) {
   return (
     <div
       aria-hidden="true"
-      className="absolute inset-0 flex items-center justify-center bg-lavender-50"
-      style={{
-        backgroundImage:
-          "linear-gradient(135deg, var(--color-lavender-50) 0%, var(--map-marker-center) 100%)",
-      }}
+      className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-lavender-50"
     >
       <span
         className={cn(
-          "font-display text-2xl text-lavender-700",
+          "font-display text-2xl leading-none text-lavender-700",
           pending ? "opacity-30" : "opacity-45",
         )}
       >
         Fiyu
       </span>
+      {/* A faint rule stands in for the missing frame without imitating one. */}
+      <span className="h-px w-8 rounded-full bg-lavender-500 opacity-40" />
+      {unavailable && (
+        <span className="mt-0.5 text-[0.625rem] tracking-[0.08em] text-lavender-700/70 uppercase">
+          Photo unavailable
+        </span>
+      )}
     </div>
   );
 }

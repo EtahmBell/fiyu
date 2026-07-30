@@ -5,7 +5,6 @@ import type { KeyboardEvent, MouseEvent } from "react";
 import { OutboundMapActions } from "@/components/restaurant/OutboundMapActions";
 import { RestaurantPhoto } from "@/components/restaurant/RestaurantPhoto";
 import { TagList } from "@/components/restaurant/TagList";
-import { Button } from "@/components/ui/Button";
 import { ScoreMark } from "@/components/ui/ScoreMark";
 import type { PublicRestaurant } from "@/lib/api/schemas";
 import {
@@ -59,14 +58,14 @@ export function CompactRestaurantCard({
       onClick={handleClick}
       onKeyDown={handleKeyDown}
       className={cn(
-        "relative min-w-0 w-full overflow-hidden rounded-card border border-line bg-surface p-2.5 shadow-[0_6px_20px_-18px_rgba(49,40,61,0.35)]",
+        "relative min-w-0 w-full overflow-hidden rounded-card border border-line bg-surface p-3 shadow-[0_6px_20px_-18px_rgba(49,40,61,0.35)] sm:p-3.5",
         onOpen && "cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600",
       )}
       style={{ animation: "fiyu-fade-in 260ms var(--ease-fiyu)" }}
     >
       <div
         data-testid="compact-card-layout"
-        className="grid min-w-0 grid-cols-1 items-stretch gap-3 min-[420px]:grid-cols-[minmax(10rem,36%)_minmax(0,1fr)]"
+        className="grid min-w-0 grid-cols-1 items-stretch gap-3 min-[420px]:grid-cols-[minmax(10rem,36%)_minmax(0,1fr)] min-[420px]:gap-3.5"
       >
         <RestaurantPhoto
           placeId={restaurant.place_id}
@@ -75,45 +74,72 @@ export function CompactRestaurantCard({
           className="h-44 min-w-0 min-[420px]:h-full min-[420px]:min-h-52"
         />
 
-        <div className="min-w-0 pr-24">
-          <h3
-            lang={restaurant.name_ja?.trim() ? "ja" : "en"}
-            className="truncate font-display text-xl leading-tight text-ink"
-          >
-            {title}
-          </h3>
-          {subtitle && <p className="mt-0.5 truncate text-sm text-ink-muted">{subtitle}</p>}
+        <div className="flex min-w-0 flex-col">
+          {/*
+           * Identity and score share one row rather than the score floating over
+           * the card corner: the name column can then shrink against a fixed
+           * score column instead of colliding with it.
+           */}
+          <div className="flex min-w-0 items-start justify-between gap-3">
+            <div className="min-w-0 flex-1 pt-0.5">
+              <h3
+                lang={restaurant.name_ja?.trim() ? "ja" : "en"}
+                className="truncate font-display text-xl leading-tight text-ink"
+              >
+                {title}
+              </h3>
+              {subtitle && (
+                <p className="mt-1 line-clamp-2 text-[0.8125rem] leading-snug text-ink-muted">
+                  {subtitle}
+                </p>
+              )}
+            </div>
+
+            <ScoreMark score={restaurant.fiyu_score} size="lg" />
+          </div>
 
           {description && (
-            <p className="mt-2 line-clamp-4 text-sm leading-relaxed text-ink/80">{description}</p>
+            <p className="mt-2.5 line-clamp-4 max-w-prose text-[0.8125rem] leading-6 text-ink/75">
+              {description}
+            </p>
           )}
 
           {expirationLabel && (
             <p className="mt-2 text-[0.6875rem] text-ink-faint">{expirationLabel}</p>
           )}
         </div>
-
-        <ScoreMark score={restaurant.fiyu_score} size="lg" className="absolute top-3 right-3" />
       </div>
 
-      {tags.length > 0 && <TagList tags={tags} max={3} className="mt-2" />}
+      {tags.length > 0 && <TagList tags={tags} max={3} className="mt-3" />}
 
-      <div className="relative z-10 mt-2 flex flex-wrap items-center justify-between gap-2 border-t border-line pt-2">
+      <div className="relative z-10 mt-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-t border-line pt-3">
         <div className="min-w-0 max-w-full" onClick={(event) => event.stopPropagation()}>
-          <OutboundMapActions restaurant={restaurant} />
+          <OutboundMapActions restaurant={restaurant} variant="footer" />
         </div>
-        <Button
-          variant={saved ? "secondary" : "ghost"}
-          size="sm"
+        {/*
+         * Styled here rather than through `Button`: this control has to sit in
+         * the same pill family as the map links beside it, and `cn` joins class
+         * strings without resolving Tailwind conflicts, so overriding the
+         * button's radius and fill from outside would not be reliable.
+         */}
+        <button
+          type="button"
           aria-pressed={saved}
           onClick={(event) => {
             event.stopPropagation();
             onToggleSaved();
           }}
-          className="min-h-9 px-3 text-xs"
+          className={cn(
+            "relative z-10 inline-flex min-h-11 shrink-0 items-center rounded-chip border px-4 text-xs font-medium",
+            "transition-[background-color,border-color,color,transform] duration-[180ms]",
+            "ease-(--ease-fiyu) active:scale-[0.98]",
+            saved
+              ? "border-lavender-600/50 bg-lavender-50 text-lavender-700 hover:bg-lavender-100"
+              : "border-line bg-surface text-ink-muted hover:border-line-strong hover:text-ink",
+          )}
         >
           {saved ? "Saved" : "Save"}
-        </Button>
+        </button>
       </div>
     </article>
   );

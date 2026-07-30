@@ -1,17 +1,19 @@
 // @vitest-environment jsdom
-import { act } from "react";
+import { act, useState } from "react";
 import type { AnchorHTMLAttributes, ReactNode } from "react";
 import { hydrateRoot } from "react-dom/client";
 import { renderToString } from "react-dom/server";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ApplicationNavigation } from "@/components/layout/ApplicationNavigation";
 
 const route = vi.hoisted(() => ({ pathname: "/picks" }));
+const navigation = vi.hoisted(() => ({ push: vi.fn() }));
 
 vi.mock("next/navigation", () => ({
   usePathname: () => route.pathname,
+  useRouter: () => navigation,
 }));
 
 vi.mock("next/link", () => ({
@@ -31,6 +33,7 @@ vi.mock("next/link", () => ({
 afterEach(() => {
   cleanup();
   route.pathname = "/picks";
+  navigation.push.mockReset();
   vi.restoreAllMocks();
 });
 
@@ -96,8 +99,9 @@ describe("application navigation", () => {
     expect(screen.getByRole("link", { name: "Fiyu" }).getAttribute("href")).toBe("/");
     expect(screen.getAllByText("Tokyo").length).toBeGreaterThan(0);
     expect(document.querySelectorAll('[data-city-signature-mark="tokyo"]')).toHaveLength(2);
-    for (const cityEntry of screen.getAllByRole("link", { name: /TokyoJapanAvailable/ })) {
+    for (const cityEntry of screen.getAllByRole("button", { name: /TokyoJapanAvailable/ })) {
       expect(cityEntry.querySelector("[data-city-signature-mark]")).toBeNull();
+      expect(cityEntry.getAttribute("aria-current")).toBe("true");
     }
     expect(screen.getByLabelText("Notifications")).toBeTruthy();
     expect(screen.getByLabelText("Open menu")).toBeTruthy();
@@ -106,6 +110,76 @@ describe("application navigation", () => {
     );
     expect(screen.getByText("Nothing new right now.")).toBeTruthy();
     expect(screen.queryByText(/\d+ notifications?/i)).toBeNull();
+  });
+
+  it("selects the active Tokyo edition in place without resetting the current app route or state", () => {
+    route.pathname = "/lists";
+
+    function StateProbe() {
+      const [savedCount, setSavedCount] = useState(0);
+      return (
+        <button type="button" onClick={() => setSavedCount((count) => count + 1)}>
+          Saved state {savedCount}
+        </button>
+      );
+    }
+
+    render(
+      <>
+        <ApplicationNavigation />
+        <StateProbe />
+      </>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Saved state 0" }));
+
+    const mobileCityTrigger = screen.getAllByLabelText(
+      "Choose Fiyu city edition. Current city: Tokyo",
+    )[0];
+    const mobileSelector = mobileCityTrigger.closest("details");
+    expect(mobileSelector).toBeTruthy();
+    fireEvent.click(mobileCityTrigger);
+    expect(mobileSelector?.open).toBe(true);
+
+    const tokyo = within(mobileSelector as HTMLDetailsElement).getByRole("button", {
+      name: /TokyoJapanAvailable/,
+    });
+    expect(tokyo.closest("a")).toBeNull();
+    fireEvent.click(tokyo);
+
+    expect(mobileSelector?.open).toBe(false);
+    expect(document.activeElement).toBe(mobileCityTrigger);
+    expect(route.pathname).toBe("/lists");
+    expect(navigation.push).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Saved state 1" })).toBeTruthy();
+    expect(
+      within(screen.getByRole("navigation", { name: "Mobile primary" }))
+        .getByRole("link", { name: "Lists" })
+        .getAttribute("aria-current"),
+    ).toBe("page");
+  });
+
+  it("keeps coming-soon editions disabled and dismisses the selector accessibly", () => {
+    render(<ApplicationNavigation />);
+
+    const mobileCityTrigger = screen.getAllByLabelText(
+      "Choose Fiyu city edition. Current city: Tokyo",
+    )[0];
+    const mobileSelector = mobileCityTrigger.closest("details") as HTMLDetailsElement;
+    fireEvent.click(mobileCityTrigger);
+
+    const newYork = within(mobileSelector).getByRole("button", { name: /New YorkUnited StatesComing soon/ });
+    const rome = within(mobileSelector).getByRole("button", { name: /RomeItalyComing soon/ });
+    expect(newYork.hasAttribute("disabled")).toBe(true);
+    expect(rome.hasAttribute("disabled")).toBe(true);
+    expect(within(mobileSelector).queryByRole("link", { name: /Tokyo|New York|Rome/ })).toBeNull();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(mobileSelector.open).toBe(false);
+    expect(document.activeElement).toBe(mobileCityTrigger);
+
+    fireEvent.click(mobileCityTrigger);
+    fireEvent.pointerDown(document.body);
+    expect(mobileSelector.open).toBe(false);
   });
 
   it("hydrates with the same route-derived active destination", async () => {

@@ -117,10 +117,12 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
           className="row-start-1 min-h-0 min-w-0 overflow-x-hidden overflow-y-auto overscroll-contain lg:w-full lg:overflow-visible"
         >
           <div className="relative isolate mx-auto min-w-0 w-full max-w-[38rem] px-5 pb-[calc(17rem+env(safe-area-inset-bottom))] sm:px-8 lg:mx-0 lg:max-w-none lg:pb-10">
-            <header
-              data-testid="mobile-picks-page-header"
-              className="border-b border-line pt-4 pb-3 lg:hidden"
-            >
+            {/*
+              * The hairline under the heading belongs to the discovery context
+              * that follows it, so the masthead and its standfirst read as one
+              * block rather than two stacked rules.
+              */}
+            <header data-testid="mobile-picks-page-header" className="pt-5 pb-2 lg:hidden">
               <h1 className="font-display text-[1.75rem] leading-none text-ink">Picks</h1>
             </header>
 

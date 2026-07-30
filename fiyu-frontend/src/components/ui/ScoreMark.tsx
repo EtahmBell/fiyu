@@ -31,34 +31,42 @@ export function ScoreMark({ score, size = "md", className }: ScoreMarkProps) {
 
   return (
     <div
-      className={cn("flex shrink-0 flex-col items-end gap-0.5", className)}
+      className={cn("flex shrink-0 flex-col items-end", className)}
       role="img"
       aria-label={scoreAccessibleLabel(score)}
     >
       <span
         aria-hidden="true"
         className={cn(
-          "font-medium tracking-[0.18em] text-lavender-700 uppercase",
+          "leading-none font-medium tracking-[0.18em] text-lavender-700 uppercase",
           hasScore ? "opacity-100" : "opacity-50",
           label,
         )}
       >
         Fiyu Score
       </span>
+      {/*
+       * The numeral and its denominator share one line box so `/10` sits on the
+       * numeral's baseline rather than floating beside it.
+       */}
       <span
         aria-hidden="true"
         className={cn(
-          "font-display leading-none tabular-nums",
+          "mt-1.5 font-display leading-none tabular-nums",
           hasScore ? "text-plum" : "text-ink-faint",
           numeral,
         )}
       >
         {formatFiyuScore(score)}
-        {hasScore && <span className="ml-0.5 font-sans text-[0.42em] text-ink-muted">/10</span>}
+        {hasScore && (
+          <span className="ml-1 align-baseline font-sans text-[0.42em] tracking-normal text-ink-muted">
+            /10
+          </span>
+        )}
       </span>
       <span
         aria-hidden="true"
-        className={cn("mt-0.5 h-px rounded-full bg-lavender-500", rule, !hasScore && "opacity-30")}
+        className={cn("mt-2 h-px rounded-full bg-lavender-500", rule, !hasScore && "opacity-30")}
       />
     </div>
   );

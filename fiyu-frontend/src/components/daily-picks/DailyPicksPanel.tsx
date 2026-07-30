@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
 import { ConcealedRestaurantCard } from "@/components/daily-picks/ConcealedRestaurantCard";
-import { CityLoadingSequence } from "@/components/city-signature/CitySignature";
+import { CityHeaderMark, CityLoadingSequence } from "@/components/city-signature/CitySignature";
 import {
   DailyCardFrame,
   type DailyCardRefRegistrar,
@@ -160,6 +160,67 @@ function PreferenceControls({
   );
 }
 
+/**
+ * Discovery context beneath the mobile `Picks` heading.
+ *
+ * Every value here comes from state that already exists: the count is the
+ * current selection's length and the area is the resolved discovery origin.
+ * Neither is invented -- with no active selection the count line is omitted
+ * entirely, and with no resolved origin the area prefix simply disappears.
+ *
+ * Deliberately not a boxed widget: a headline, a supporting line, a hairline
+ * rule and one quiet action, so it reads as a masthead standfirst rather than a
+ * dashboard summary.
+ */
+function PicksDiscoveryContext({
+  areaLabel,
+  pickCount,
+  tuning,
+  onToggleTuning,
+}: {
+  areaLabel: string | null;
+  pickCount: number;
+  tuning: boolean;
+  onToggleTuning?: () => void;
+}) {
+  const countLabel = pickCount > 0 ? `${pickCount} picks today` : null;
+  const headline =
+    countLabel && areaLabel
+      ? `Near ${areaLabel} · ${countLabel}`
+      : (countLabel ?? (areaLabel ? `Near ${areaLabel}` : null));
+
+  return (
+    <div
+      data-testid="picks-discovery-context"
+      className="flex min-w-0 items-start justify-between gap-3 border-b border-line pb-3 lg:hidden"
+    >
+      <div className="min-w-0">
+        {headline && (
+          <p className="flex min-w-0 items-center gap-1.5 text-sm leading-5 font-medium text-ink">
+            <CityHeaderMark cityId={ACTIVE_FIYU_CITY.id} />
+            <span className="truncate">{headline}</span>
+          </p>
+        )}
+        <p className="mt-1 text-xs leading-5 text-ink-muted">
+          Selected around your tastes and nearby area
+        </p>
+      </div>
+
+      {onToggleTuning && (
+        <button
+          type="button"
+          onClick={onToggleTuning}
+          aria-expanded={tuning}
+          aria-controls={tuning ? "picks-preference-tuning" : undefined}
+          className="inline-flex min-h-9 shrink-0 items-center rounded-chip border border-line bg-surface px-3.5 text-xs font-medium text-lavender-700 transition-colors duration-200 ease-(--ease-fiyu) hover:border-lavender-600 hover:bg-lavender-50"
+        >
+          Tune
+        </button>
+      )}
+    </div>
+  );
+}
+
 export function DailyPicksPanel({
   restaurants,
   activeArea = null,
@@ -181,6 +242,7 @@ export function DailyPicksPanel({
   const now = useSyncExternalStore(subscribeClock, currentMinute, serverMinute);
   const [inventoryMessage, setInventoryMessage] = useState<string | null>(null);
   const [finding, setFinding] = useState(false);
+  const [tuning, setTuning] = useState(false);
   const findingTimerRef = useRef<number | null>(null);
   const cardRefs = useRef(new Map<string, HTMLDivElement>());
 
@@ -298,96 +360,119 @@ export function DailyPicksPanel({
   };
 
   return (
-    <section
-      aria-labelledby="daily-picks-heading"
-      className="my-5 min-w-0 w-full rounded-card border border-line bg-surface p-4 shadow-[0_8px_30px_-24px_rgba(49,40,61,0.3)] sm:p-5"
-    >
-      <h2 id="daily-picks-heading" className="font-display text-2xl text-ink">
-        {hasActivePicks ? "Today’s Fiyu Picks" : "Choose today’s preferences"}
-      </h2>
+    <>
+      <PicksDiscoveryContext
+        areaLabel={activeArea?.trim() ? activeArea.trim() : null}
+        pickCount={hasActivePicks ? selectedRestaurants.length : 0}
+        tuning={tuning}
+        // Tuning is only offered while a selection is active: without one the
+        // same controls are already the primary content of the panel below.
+        onToggleTuning={hasActivePicks ? () => setTuning((open) => !open) : undefined}
+      />
 
-      {snapshot === null || finding ? (
+      {hasActivePicks && tuning && (
         <div
-          role="status"
-          className="mt-4 flex min-h-36 flex-col items-center justify-center text-center"
-          data-testid="daily-picks-hydrating"
+          id="picks-preference-tuning"
+          className="mt-4 rounded-card border border-line bg-lavender-50/35 p-4 lg:hidden"
         >
-          <CityLoadingSequence cityId={ACTIVE_FIYU_CITY.id} />
-          <p className="mt-2 text-sm font-medium text-ink-muted">
-            {finding ? "Finding today’s restaurants…" : "Loading today’s selection…"}
+          <PreferenceControls preferences={state.preferences} onChange={updatePreferences} />
+          <p className="mt-4 text-xs leading-5 text-ink-muted">
+            Saved for your next picks. Today&apos;s selection stays as it is.
           </p>
         </div>
-      ) : (
-        <div className="mt-4 space-y-4">
-          {hasActivePicks && currentSelection && (
-            <div className="space-y-3" aria-label="Today’s restaurants">
-              {selectedRestaurants.map((restaurant, index) => (
-                <DailyCardFrame
-                  key={restaurant.place_id}
-                  placeId={restaurant.place_id}
-                  selected={selectedPlaceId === restaurant.place_id}
-                  registerRef={registerCardRef}
-                >
-                  <ConcealedRestaurantCard
-                    restaurant={restaurant}
-                    position={index + 1}
-                    revealed={currentSelection.revealedIds.includes(restaurant.place_id)}
-                    saved={state.savedRestaurantIds.includes(restaurant.place_id)}
-                    onReveal={() => reveal(restaurant.place_id, Date.now())}
-                    onToggleSaved={() => toggleSaved(restaurant.place_id)}
-                    onOpen={onOpenRestaurant}
-                  />
-                </DailyCardFrame>
-              ))}
-            </div>
-          )}
-
-          {!hasActivePicks && (
-            <div className="rounded-card border border-line bg-lavender-50/35 p-4 sm:p-5">
-              <PreferenceControls preferences={state.preferences} onChange={updatePreferences} />
-              {originSetup && !originSetup.origin ? (
-                <div className="mt-5">
-                  <FreeOriginOnboarding setup={originSetup} />
-                </div>
-              ) : (
-                <Button
-                  variant="primary"
-                  onClick={generate}
-                  className="mt-5 min-h-12 w-full px-6 text-sm sm:w-auto"
-                >
-                  Find today&apos;s restaurants
-                </Button>
-              )}
-            </div>
-          )}
-
-          {hasActivePicks && currentSelection && (
-            <div className="flex flex-wrap items-center gap-3">
-              <p className="text-xs text-ink-muted" aria-live="polite">
-                Next selection available in{" "}
-                {remainingLabel(Date.parse(currentSelection.expiresAt) - now)}
-              </p>
-            </div>
-          )}
-
-          {inventoryMessage && (
-            <p role="status" className="text-xs text-ink-muted">
-              {inventoryMessage}
-            </p>
-          )}
-
-          <RecentDiscoveries
-            discoveries={recent}
-            restaurants={restaurants}
-            savedRestaurantIds={state.savedRestaurantIds}
-            now={now}
-            onOpen={onOpenRestaurant}
-            onToggleSaved={toggleSaved}
-            selectedPlaceId={selectedPlaceId}
-            registerCardRef={registerCardRef}
-          />
-        </div>
       )}
-    </section>
+
+      <section
+        aria-labelledby="daily-picks-heading"
+        className="my-5 min-w-0 w-full rounded-card border border-line bg-surface p-4 shadow-[0_8px_30px_-24px_rgba(49,40,61,0.3)] sm:p-5"
+      >
+        <h2 id="daily-picks-heading" className="font-display text-2xl text-ink">
+          {hasActivePicks ? "Today’s Fiyu Picks" : "Choose today’s preferences"}
+        </h2>
+
+        {snapshot === null || finding ? (
+          <div
+            role="status"
+            className="mt-4 flex min-h-36 flex-col items-center justify-center text-center"
+            data-testid="daily-picks-hydrating"
+          >
+            <CityLoadingSequence cityId={ACTIVE_FIYU_CITY.id} />
+            <p className="mt-2 text-sm font-medium text-ink-muted">
+              {finding ? "Finding today’s restaurants…" : "Loading today’s selection…"}
+            </p>
+          </div>
+        ) : (
+          <div className="mt-4 space-y-4">
+            {hasActivePicks && currentSelection && (
+              <div className="space-y-4" aria-label="Today’s restaurants">
+                {selectedRestaurants.map((restaurant, index) => (
+                  <DailyCardFrame
+                    key={restaurant.place_id}
+                    placeId={restaurant.place_id}
+                    selected={selectedPlaceId === restaurant.place_id}
+                    registerRef={registerCardRef}
+                  >
+                    <ConcealedRestaurantCard
+                      restaurant={restaurant}
+                      position={index + 1}
+                      revealed={currentSelection.revealedIds.includes(restaurant.place_id)}
+                      saved={state.savedRestaurantIds.includes(restaurant.place_id)}
+                      onReveal={() => reveal(restaurant.place_id, Date.now())}
+                      onToggleSaved={() => toggleSaved(restaurant.place_id)}
+                      onOpen={onOpenRestaurant}
+                    />
+                  </DailyCardFrame>
+                ))}
+              </div>
+            )}
+
+            {!hasActivePicks && (
+              <div className="rounded-card border border-line bg-lavender-50/35 p-4 sm:p-5">
+                <PreferenceControls preferences={state.preferences} onChange={updatePreferences} />
+                {originSetup && !originSetup.origin ? (
+                  <div className="mt-5">
+                    <FreeOriginOnboarding setup={originSetup} />
+                  </div>
+                ) : (
+                  <Button
+                    variant="primary"
+                    onClick={generate}
+                    className="mt-5 min-h-12 w-full px-6 text-sm sm:w-auto"
+                  >
+                    Find today&apos;s restaurants
+                  </Button>
+                )}
+              </div>
+            )}
+
+            {hasActivePicks && currentSelection && (
+              <div className="flex flex-wrap items-center gap-3">
+                <p className="text-xs text-ink-muted" aria-live="polite">
+                  Next selection available in{" "}
+                  {remainingLabel(Date.parse(currentSelection.expiresAt) - now)}
+                </p>
+              </div>
+            )}
+
+            {inventoryMessage && (
+              <p role="status" className="text-xs text-ink-muted">
+                {inventoryMessage}
+              </p>
+            )}
+
+            <RecentDiscoveries
+              discoveries={recent}
+              restaurants={restaurants}
+              savedRestaurantIds={state.savedRestaurantIds}
+              now={now}
+              onOpen={onOpenRestaurant}
+              onToggleSaved={toggleSaved}
+              selectedPlaceId={selectedPlaceId}
+              registerCardRef={registerCardRef}
+            />
+          </div>
+        )}
+      </section>
+    </>
   );
 }

@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 
 import { CityHeaderMark } from "@/components/city-signature/CitySignature";
-import { ACTIVE_FIYU_CITY, FIYU_CITIES } from "@/lib/city/editions";
+import { ACTIVE_FIYU_CITY, FIYU_CITIES, type CityId } from "@/lib/city/editions";
 import {
   DESKTOP_NAVIGATION_ORDER,
   MOBILE_NAVIGATION_ORDER,
@@ -42,14 +43,55 @@ function MenuIcon() {
   );
 }
 
-function CitySelector({ align = "left" }: { align?: "left" | "right" }) {
+function CitySelector({
+  activeCityId,
+  align = "left",
+  onSelectCity,
+}: {
+  activeCityId: CityId;
+  align?: "left" | "right";
+  onSelectCity: (cityId: CityId) => void;
+}) {
+  const detailsRef = useRef<HTMLDetailsElement>(null);
+  const summaryRef = useRef<HTMLElement>(null);
+  const activeCity = FIYU_CITIES.find((city) => city.id === activeCityId) ?? ACTIVE_FIYU_CITY;
+
+  useEffect(() => {
+    const dismissOutside = (event: PointerEvent) => {
+      const details = detailsRef.current;
+      if (details?.open && !details.contains(event.target as Node)) details.open = false;
+    };
+    const dismissOnEscape = (event: KeyboardEvent) => {
+      const details = detailsRef.current;
+      if (event.key !== "Escape" || !details?.open) return;
+      details.open = false;
+      summaryRef.current?.focus();
+    };
+
+    document.addEventListener("pointerdown", dismissOutside);
+    document.addEventListener("keydown", dismissOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", dismissOutside);
+      document.removeEventListener("keydown", dismissOnEscape);
+    };
+  }, []);
+
+  const selectCity = (cityId: CityId) => {
+    onSelectCity(cityId);
+    if (detailsRef.current) detailsRef.current.open = false;
+    summaryRef.current?.focus();
+  };
+
   return (
-    <details className="group relative">
-      <summary className="flex min-h-11 cursor-pointer list-none items-center gap-1 rounded-md px-2 text-sm font-medium text-ink-muted transition-colors hover:text-ink [&::-webkit-details-marker]:hidden">
-        <span>{ACTIVE_FIYU_CITY.name}</span>
-        <CityHeaderMark cityId={ACTIVE_FIYU_CITY.id} />
+    <details ref={detailsRef} data-active-city-id={activeCity.id} className="group relative">
+      <summary
+        ref={summaryRef}
+        aria-label={`Choose Fiyu city edition. Current city: ${activeCity.name}`}
+        className="flex min-h-11 cursor-pointer list-none items-center gap-1 rounded-md px-2 text-sm font-medium text-ink-muted transition-colors hover:text-ink [&::-webkit-details-marker]:hidden"
+      >
+        <span>{activeCity.name}</span>
+        <CityHeaderMark cityId={activeCity.id} />
         <ChevronIcon />
-        <span className="sr-only">Choose Fiyu city edition</span>
       </summary>
       <div
         className={cn(
@@ -62,23 +104,26 @@ function CitySelector({ align = "left" }: { align?: "left" | "right" }) {
         </p>
         {FIYU_CITIES.map((city) =>
           city.status === "available" ? (
-            <Link
+            <button
               key={city.id}
-              href="/"
-              aria-current={city.id === ACTIVE_FIYU_CITY.id ? "true" : undefined}
-              className="flex min-h-11 items-center justify-between rounded-lg px-3 text-sm text-ink hover:bg-subtle"
+              type="button"
+              onClick={() => selectCity(city.id)}
+              aria-current={city.id === activeCity.id ? "true" : undefined}
+              className="flex min-h-11 w-full items-center justify-between rounded-lg px-3 text-left text-sm text-ink hover:bg-subtle"
             >
               <span>
                 {city.name}
                 <span className="ml-2 text-xs text-ink-faint">{city.country}</span>
               </span>
               <span className="text-xs font-medium text-lavender-700">Available</span>
-            </Link>
+            </button>
           ) : (
-            <div
+            <button
               key={city.id}
+              type="button"
+              disabled
               aria-disabled="true"
-              className="flex min-h-11 items-center justify-between rounded-lg px-3 text-sm text-ink-muted"
+              className="flex min-h-11 w-full items-center justify-between rounded-lg px-3 text-left text-sm text-ink-muted"
             >
               <span>
                 {city.name}
@@ -87,7 +132,7 @@ function CitySelector({ align = "left" }: { align?: "left" | "right" }) {
               <span className="text-[0.6875rem] font-medium tracking-wide text-ink-faint uppercase">
                 Coming soon
               </span>
-            </div>
+            </button>
           ),
         )}
       </div>
@@ -141,6 +186,7 @@ function MobileMenu() {
 
 export function ApplicationNavigation() {
   const pathname = usePathname();
+  const [activeCityId, setActiveCityId] = useState<CityId>(ACTIVE_FIYU_CITY.id);
 
   return (
     <>
@@ -154,7 +200,7 @@ export function ApplicationNavigation() {
             >
               Fiyu
             </Link>
-            <CitySelector />
+            <CitySelector activeCityId={activeCityId} onSelectCity={setActiveCityId} />
           </div>
 
           <div className="hidden min-w-0 items-center gap-2 lg:flex">
@@ -165,7 +211,7 @@ export function ApplicationNavigation() {
               Fiyu
             </Link>
             <span aria-hidden="true" className="h-4 w-px bg-line-strong" />
-            <CitySelector />
+            <CitySelector activeCityId={activeCityId} onSelectCity={setActiveCityId} />
           </div>
 
           <nav aria-label="Primary" className="ml-10 hidden h-full items-center gap-1 lg:flex">
@@ -217,13 +263,20 @@ export function ApplicationNavigation() {
         </div>
       </header>
 
+      {/*
+       * Cream rather than white, matching the header: the bar then reads as app
+       * chrome bracketing the canvas rather than as a card floating on it. The
+       * blur is the header's, kept light enough that labels stay legible over
+       * whatever scrolls beneath.
+       */}
       <nav
         aria-label="Mobile primary"
-        className="fixed inset-x-0 bottom-0 z-40 grid h-mobile-nav grid-cols-5 border-t border-line-strong bg-surface/95 px-1 pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_24px_-18px_rgba(49,40,61,0.45)] backdrop-blur-md lg:hidden"
+        className="fixed inset-x-0 bottom-0 z-40 grid h-mobile-nav grid-cols-5 items-stretch border-t border-line bg-canvas/95 px-1 pb-[env(safe-area-inset-bottom)] shadow-[0_-10px_28px_-24px_rgba(49,40,61,0.4)] backdrop-blur-sm lg:hidden"
       >
         {MOBILE_NAVIGATION_ORDER.map((id) => {
           const item = navigationItem(id);
           const active = navigationIsActive(pathname, item);
+          const log = item.id === "log";
           return (
             <Link
               key={item.id}
@@ -231,14 +284,31 @@ export function ApplicationNavigation() {
               aria-label={item.accessibleLabel}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "relative flex min-h-12 min-w-0 flex-col items-center justify-center gap-0.5 rounded-lg px-1 text-[0.6875rem] font-medium transition-colors",
+                "relative flex min-h-12 min-w-0 flex-col items-center justify-center gap-1 rounded-lg px-1 text-[0.6875rem] leading-none font-medium transition-colors duration-200 ease-(--ease-fiyu)",
                 active ? "text-lavender-700" : "text-ink-muted hover:text-ink",
-                item.id === "log" && "before:absolute before:inset-x-2 before:inset-y-1.5 before:-z-10 before:rounded-xl before:bg-subtle",
+                // Log keeps a quiet tinted field instead of a raised centre
+                // action: enough to find by thumb, not enough to shout.
+                log &&
+                  "before:absolute before:inset-x-2.5 before:inset-y-2 before:-z-10 before:rounded-xl before:border before:border-line before:bg-subtle",
               )}
             >
-              <item.icon className={item.id === "log" ? "size-6" : "size-5"} />
+              {/*
+               * The plus is a single stroked cross, so it needs a touch more
+               * weight than an outlined glyph to read at the same size. Spread
+               * conditionally: passing `strokeWidth={undefined}` would override
+               * the shared icon default rather than leave it alone.
+               */}
+              <item.icon
+                className={log ? "size-6" : "size-5"}
+                {...(log ? { strokeWidth: 2.1 } : {})}
+              />
               <span className="truncate">{item.label}</span>
-              {active && <span aria-hidden="true" className="absolute top-0 h-0.5 w-7 rounded-full bg-lavender-600" />}
+              {active && (
+                <span
+                  aria-hidden="true"
+                  className="absolute top-0 h-[0.1875rem] w-8 rounded-b-full bg-lavender-600"
+                />
+              )}
             </Link>
           );
         })}

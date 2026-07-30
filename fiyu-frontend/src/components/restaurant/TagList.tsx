@@ -27,16 +27,17 @@ export function TagList({ tags, max, className }: TagListProps) {
   const hidden = tags.length - visible.length;
 
   return (
-    <ul className={cn("flex flex-wrap items-center gap-1.5", className)}>
+    <ul className={cn("flex min-w-0 flex-wrap items-center gap-1.5", className)}>
       {visible.map((tag) => (
-        <li key={tag}>
-          <Badge tone="outline" lang={detectTextLang(tag)}>
+        // A single long tag must wrap inside the card rather than widen it.
+        <li key={tag} className="min-w-0 max-w-full">
+          <Badge tone="outline" lang={detectTextLang(tag)} className="max-w-full break-words">
             {tag}
           </Badge>
         </li>
       ))}
       {hidden > 0 && (
-        <li>
+        <li className="min-w-0 max-w-full">
           <Badge tone="quiet" title={tags.slice(visible.length).join(", ")}>
             +{hidden}
           </Badge>

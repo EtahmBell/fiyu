@@ -1,10 +1,14 @@
 // @vitest-environment jsdom
-import type { AnchorHTMLAttributes, ReactNode } from "react";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { act, type AnchorHTMLAttributes, type ImgHTMLAttributes, type ReactNode } from "react";
+import { hydrateRoot } from "react-dom/client";
+import { renderToString } from "react-dom/server";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import MarketingLayout from "@/app/(marketing)/layout";
+import PublicLandingPage from "@/app/(marketing)/page";
 import { LandingPage } from "@/components/landing-page/LandingPage";
+import { WORLD_LAND_PATH } from "@/components/landing-page/worldLandPath";
 
 vi.mock("next/link", () => ({
   default: ({
@@ -18,46 +22,177 @@ vi.mock("next/link", () => ({
   ),
 }));
 
-afterEach(cleanup);
+vi.mock("next/image", () => ({
+  default: ({ alt, ...props }: ImgHTMLAttributes<HTMLImageElement>) => (
+    // The test covers the image contract rather than Next.js optimization internals.
+    // eslint-disable-next-line @next/next/no-img-element
+    <img alt={alt ?? ""} {...props} />
+  ),
+}));
+
+(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
+
+function landingRoute() {
+  return (
+    <MarketingLayout>
+      <PublicLandingPage />
+    </MarketingLayout>
+  );
+}
 
 describe("public landing experience", () => {
-  it("uses dedicated landing chrome and never renders application navigation", () => {
-    render(
-      <MarketingLayout>
-        <LandingPage />
-      </MarketingLayout>,
-    );
+  it("renders dedicated landing chrome at / without application navigation", () => {
+    render(landingRoute());
 
     const header = screen.getByRole("banner");
     expect(within(header).getByRole("link", { name: "Fiyu home" }).getAttribute("href")).toBe(
       "/",
     );
-    expect(within(header).getByRole("link", { name: "Open Fiyu" }).getAttribute("href")).toBe(
-      "/picks",
-    );
+    expect(within(header).getAllByRole("link", { name: "Explore Tokyo" })).not.toHaveLength(0);
+    for (const action of screen.getAllByRole("link", { name: "Explore Tokyo" })) {
+      expect(action.getAttribute("href")).toBe("/picks");
+    }
     expect(screen.getByRole("contentinfo")).toBeTruthy();
     expect(screen.queryByRole("navigation", { name: "Mobile primary" })).toBeNull();
     expect(screen.queryByRole("navigation", { name: "Primary" })).toBeNull();
   });
 
-  it("renders the complete editorial hierarchy with responsive layout contracts", () => {
+  it("renders the approved hero copy and responsive wordmark treatment", () => {
     render(<LandingPage />);
 
-    const heading = screen.getByRole("heading", {
-      level: 1,
-      name: "Find the Tokyo you can taste.",
-    });
-    expect(heading.className).toContain("text-[clamp(3.65rem,10vw,9rem)]");
-    expect(screen.getByRole("heading", { name: "A deliberate alternative to searching everything." })).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "Tokyo, beyond the obvious." })).toBeTruthy();
-    expect(screen.getAllByRole("link", { name: /picks|Tokyo edition/i })).toHaveLength(2);
-
-    const heroGrid = heading.closest("div.max-w-5xl")?.parentElement;
-    expect(heroGrid?.className).toContain(
-      "lg:grid-cols-[minmax(0,1.35fr)_minmax(18rem,0.65fr)]",
+    const wordmark = screen.getByTestId("landing-wordmark");
+    expect(wordmark.textContent).toBe("Fiyu");
+    expect(wordmark.className).toContain("text-[clamp(5rem,18vw,13rem)]");
+    expect(
+      screen.getByRole("heading", {
+        level: 1,
+        name: "Hidden places. Carefully uncovered.",
+      }),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(
+        "Fiyu combines local-language research, machine learning, and your feedback to uncover independent, underexposed restaurants suited to your tastes.",
+      ),
+    ).toBeTruthy();
+    expect(screen.getByRole("link", { name: "See how Fiyu works" }).getAttribute("href")).toBe(
+      "#how-it-works",
     );
-    expect(heroGrid?.className).toContain("px-5");
-    expect(heroGrid?.className).toContain("sm:px-8");
-    expect(document.querySelector("[lang='ja']")?.textContent).toContain("東京");
+  });
+
+  it("renders one keyboard-accessible available city on the deterministic world map", () => {
+    render(<LandingPage />);
+
+    const map = screen.getByTestId("world-locations-map");
+    expect(map.getAttribute("role")).toBe("img");
+    expect(map.getAttribute("viewBox")).toBe("0 0 900 450");
+    expect(map.getAttribute("class")).toContain("max-w-full");
+    const available = map.querySelectorAll('[data-location-status="available"]');
+    expect(available).toHaveLength(1);
+    const tokyo = within(map).getByRole("link", { name: "Tokyo — Available" });
+    expect(tokyo.getAttribute("href")).toBe("/picks");
+    tokyo.focus();
+    expect(document.activeElement).toBe(tokyo);
+    expect(screen.queryByRole("link", { name: /New York|Rome/i })).toBeNull();
+    expect(WORLD_LAND_PATH.length).toBeGreaterThan(10_000);
+    expect(WORLD_LAND_PATH.length).toBeLessThan(30_000);
+  });
+
+  it("renders the workflow before the gradual-reveal philosophy", () => {
+    render(<LandingPage />);
+
+    const workflow = screen.getByRole("heading", { name: "How Fiyu works" }).closest("section");
+    const philosophy = screen
+      .getByRole("heading", { name: "Why only a few restaurants at a time?" })
+      .closest("section");
+    expect(workflow).toBeTruthy();
+    expect(philosophy).toBeTruthy();
+    if (!workflow || !philosophy) throw new Error("Expected ordered landing sections");
+    expect(
+      Boolean(workflow.compareDocumentPosition(philosophy) & Node.DOCUMENT_POSITION_FOLLOWING),
+    ).toBe(true);
+    expect(
+      screen.getByText(
+        /Great small restaurants can be overwhelmed by sudden attention\. Fiyu reveals discoveries gradually through small, personalized selections/,
+      ),
+    ).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Tell us what you like" })).toBeTruthy();
+    expect(
+      screen.getByRole("heading", { name: "Receive a few considered picks" }),
+    ).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Reveal, save, and visit" })).toBeTruthy();
+  });
+
+  it("uses the existing sharing artwork as the accessible Tokyo edition poster", () => {
+    render(<LandingPage />);
+
+    expect(screen.queryByText("Three doors into the city.")).toBeNull();
+    expect(screen.getByRole("heading", { name: "Meet the city beyond the obvious." })).toBeTruthy();
+    expect(
+      screen.getByText(
+        "Fiyu selects restaurants around your current or chosen area and personal tastes, giving you a thoughtful way to explore what is close by.",
+      ),
+    ).toBeTruthy();
+    const poster = screen.getByRole("img", {
+      name: "Fiyu Tokyo edition artwork with a map marker over Japan.",
+    });
+    expect(poster.getAttribute("src")).toBe("/og.png");
+    expect(poster.getAttribute("width")).toBe("1200");
+    expect(poster.getAttribute("height")).toBe("630");
+    expect(poster.getAttribute("loading")).toBe("lazy");
+    expect(poster.getAttribute("sizes")).toContain("100vw");
+    expect(screen.queryByLabelText("Simplified illustrated preview of Tokyo neighborhoods")).toBeNull();
+    expect(screen.queryByLabelText("Three concealed Tokyo restaurant previews")).toBeNull();
+  });
+
+  it("supports a focus-managed mobile menu that closes with Escape", () => {
+    render(landingRoute());
+
+    const trigger = screen.getByRole("button", { name: "Open menu" });
+    expect(trigger.getAttribute("aria-expanded")).toBe("false");
+    fireEvent.click(trigger);
+    const menu = screen.getByRole("navigation", { name: "Landing page mobile" });
+    expect(trigger.getAttribute("aria-expanded")).toBe("true");
+    expect(within(menu).getByRole("link", { name: "Explore" })).toBe(document.activeElement);
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(trigger.getAttribute("aria-expanded")).toBe("false");
+    expect(document.activeElement).toBe(trigger);
+    expect(menu.hidden).toBe(true);
+  });
+
+  it("keeps the mobile surface width-safe and disables entrance motion when requested", () => {
+    const { container } = render(<LandingPage />);
+
+    const main = container.querySelector("main");
+    expect(main?.className).toContain("min-w-0");
+    expect(main?.className).toContain("overflow-x-clip");
+    expect(screen.getByTestId("world-locations-map").getAttribute("class")).toContain("w-full");
+    const styles = [...container.querySelectorAll("style")].map((style) => style.textContent).join("\n");
+    expect(styles).toContain("prefers-reduced-motion: reduce");
+    expect(styles).toContain("animation: none");
+  });
+
+  it("hydrates the server-rendered landing route without a warning", async () => {
+    const element = landingRoute();
+    const container = document.createElement("div");
+    container.innerHTML = renderToString(element);
+    document.body.appendChild(container);
+    const messages: string[] = [];
+    vi.spyOn(console, "error").mockImplementation((...args) =>
+      messages.push(args.map(String).join(" ")),
+    );
+    vi.spyOn(console, "warn").mockImplementation((...args) =>
+      messages.push(args.map(String).join(" ")),
+    );
+
+    await act(async () => {
+      hydrateRoot(container, element);
+    });
+
+    expect(messages).toEqual([]);
   });
 });
