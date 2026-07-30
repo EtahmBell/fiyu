@@ -2,8 +2,8 @@
 import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
-import ListsPage from "@/app/lists/page";
-import LogPage from "@/app/log/page";
+import ListsPage from "@/app/(application)/lists/page";
+import LogPage from "@/app/(application)/log/page";
 
 afterEach(cleanup);
 
@@ -14,7 +14,9 @@ describe("Tokyo destination empty states", () => {
     const lists = container.querySelector('[data-city-empty-state="lists"]') as HTMLElement;
 
     expect(within(saved).getByText("No saved places in Tokyo yet")).toBeTruthy();
-    expect(within(saved).getByRole("link", { name: "Explore today's Picks" })).toBeTruthy();
+    expect(
+      within(saved).getByRole("link", { name: "Explore today's Picks" }).getAttribute("href"),
+    ).toBe("/picks");
     expect(within(lists).getByText("No custom lists yet")).toBeTruthy();
     expect(within(lists).queryByRole("link")).toBeNull();
     expect(within(lists).queryByRole("button")).toBeNull();

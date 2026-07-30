@@ -2,7 +2,9 @@ import type { Metadata } from "next";
 
 import { DestinationPage } from "@/components/destinations/DestinationPage";
 
-export const metadata: Metadata = { title: "Profile" };
+export const metadata: Metadata = {
+  title: "Profile",
+};
 
 const sections = [
   {

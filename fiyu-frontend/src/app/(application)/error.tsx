@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { StatusMessage } from "@/components/ui/StatusMessage";
 
 /**
- * Last-resort boundary for unexpected render failures.
+ * Application boundary for unexpected render failures.
  *
  * Expected API problems (backend down, malformed catalog, 404) are handled
  * inline by the page so the shell stays visible. Anything reaching here is a

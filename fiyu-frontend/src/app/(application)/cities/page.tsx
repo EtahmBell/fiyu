@@ -4,7 +4,9 @@ import Link from "next/link";
 import { DestinationPage } from "@/components/destinations/DestinationPage";
 import { ACTIVE_FIYU_CITY, FIYU_CITIES } from "@/lib/city/editions";
 
-export const metadata: Metadata = { title: "City Editions" };
+export const metadata: Metadata = {
+  title: "City Editions",
+};
 
 export default function CitiesPage() {
   return (
@@ -19,7 +21,7 @@ export default function CitiesPage() {
             <p className="text-xs font-medium text-ink-faint">{city.country}</p>
             <h2 className="mt-1 font-display text-2xl text-ink">{city.name}</h2>
             {city.status === "available" ? (
-              <Link href="/" className="mt-5 inline-flex min-h-11 items-center text-sm font-medium text-lavender-700 underline decoration-lavender-100 decoration-2 underline-offset-4">
+              <Link href="/picks" className="mt-5 inline-flex min-h-11 items-center text-sm font-medium text-lavender-700 underline decoration-lavender-100 decoration-2 underline-offset-4">
                 {city.id === ACTIVE_FIYU_CITY.id ? "Open active edition" : "Open edition"}
               </Link>
             ) : (

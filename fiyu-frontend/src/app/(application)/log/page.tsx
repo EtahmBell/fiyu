@@ -4,7 +4,9 @@ import { CityEmptyState } from "@/components/city-signature/CitySignature";
 import { DestinationPage } from "@/components/destinations/DestinationPage";
 import { ACTIVE_FIYU_CITY } from "@/lib/city/editions";
 
-export const metadata: Metadata = { title: "Log a Visit" };
+export const metadata: Metadata = {
+  title: "Log a Visit",
+};
 
 export default function LogPage() {
   return (

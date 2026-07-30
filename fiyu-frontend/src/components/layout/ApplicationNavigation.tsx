@@ -148,8 +148,8 @@ export function ApplicationNavigation() {
         <div className="mx-auto flex h-full w-full max-w-[1560px] items-center px-4 pt-[env(safe-area-inset-top)] sm:px-8">
           <div className="flex min-w-0 items-center gap-1 lg:hidden">
             <Link
-              href="/cities"
-              aria-label="Fiyu city editions"
+              href="/picks"
+              aria-label="Fiyu Picks"
               className="mr-1 font-display text-[1.45rem] leading-none text-ink transition-colors hover:text-lavender-700"
             >
               Fiyu
@@ -159,7 +159,7 @@ export function ApplicationNavigation() {
 
           <div className="hidden min-w-0 items-center gap-2 lg:flex">
             <Link
-              href="/cities"
+              href="/"
               className="font-display text-[1.45rem] leading-none text-ink transition-colors hover:text-lavender-700"
             >
               Fiyu

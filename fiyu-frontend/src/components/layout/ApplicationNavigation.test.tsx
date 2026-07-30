@@ -8,7 +8,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ApplicationNavigation } from "@/components/layout/ApplicationNavigation";
 
-const route = vi.hoisted(() => ({ pathname: "/" }));
+const route = vi.hoisted(() => ({ pathname: "/picks" }));
 
 vi.mock("next/navigation", () => ({
   usePathname: () => route.pathname,
@@ -30,7 +30,7 @@ vi.mock("next/link", () => ({
 
 afterEach(() => {
   cleanup();
-  route.pathname = "/";
+  route.pathname = "/picks";
   vi.restoreAllMocks();
 });
 
@@ -48,7 +48,7 @@ describe("application navigation", () => {
       "Profile",
     ]);
     expect(links.map((link) => link.getAttribute("href"))).toEqual([
-      "/",
+      "/picks",
       "/lists",
       "/log",
       "/map",
@@ -92,9 +92,8 @@ describe("application navigation", () => {
   it("provides city, notification, and meaningful menu surfaces", () => {
     render(<ApplicationNavigation />);
 
-    expect(screen.getByRole("link", { name: "Fiyu city editions" }).getAttribute("href")).toBe(
-      "/cities",
-    );
+    expect(screen.getByRole("link", { name: "Fiyu Picks" }).getAttribute("href")).toBe("/picks");
+    expect(screen.getByRole("link", { name: "Fiyu" }).getAttribute("href")).toBe("/");
     expect(screen.getAllByText("Tokyo").length).toBeGreaterThan(0);
     expect(document.querySelectorAll('[data-city-signature-mark="tokyo"]')).toHaveLength(2);
     for (const cityEntry of screen.getAllByRole("link", { name: /TokyoJapanAvailable/ })) {

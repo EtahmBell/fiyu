@@ -68,7 +68,7 @@ function ProfileIcon(props: SVGProps<SVGSVGElement>) {
 }
 
 export const APP_NAVIGATION = [
-  { id: "picks", label: "Picks", accessibleLabel: "Picks", href: "/", icon: PicksIcon },
+  { id: "picks", label: "Picks", accessibleLabel: "Picks", href: "/picks", icon: PicksIcon },
   { id: "lists", label: "Lists", accessibleLabel: "Lists", href: "/lists", icon: ListsIcon },
   { id: "log", label: "Log", accessibleLabel: "Log a visit", href: "/log", icon: LogIcon },
   { id: "map", label: "Map", accessibleLabel: "Map", href: "/map", icon: MapIcon },
@@ -103,7 +103,5 @@ export function navigationItem(id: NavigationId): NavigationItem {
 }
 
 export function navigationIsActive(pathname: string, item: NavigationItem): boolean {
-  return item.href === "/"
-    ? pathname === "/" || pathname === "/picks"
-    : pathname === item.href || pathname.startsWith(`${item.href}/`);
+  return pathname === item.href || pathname.startsWith(`${item.href}/`);
 }

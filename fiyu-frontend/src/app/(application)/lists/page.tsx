@@ -20,7 +20,7 @@ export default function ListsPage() {
           title="No saved places in Tokyo yet"
           description="Restaurants you save will appear here."
           action={
-            <Link href="/" className="inline-flex min-h-11 items-center text-sm font-medium text-lavender-700 underline decoration-lavender-100 decoration-2 underline-offset-4">
+            <Link href="/picks" className="inline-flex min-h-11 items-center text-sm font-medium text-lavender-700 underline decoration-lavender-100 decoration-2 underline-offset-4">
               Explore today&apos;s Picks
             </Link>
           }

@@ -1,3 +1,5 @@
+import type { Metadata } from "next";
+
 import { DiscoveryShell } from "@/components/discovery/DiscoveryShell";
 import { PageIntro, SiteFooter } from "@/components/layout/SiteHeader";
 import { BackendUnavailable } from "@/components/states/BackendUnavailable";
@@ -9,6 +11,8 @@ import type { LocationAnchor, ParsedRestaurantList } from "@/lib/api/schemas";
 import { selectBrowsable } from "@/lib/discovery/filters";
 
 type CatalogResult = ({ ok: true } & ParsedRestaurantList) | { ok: false; error: FiyuApiError };
+
+export const metadata: Metadata = { title: "Picks" };
 
 /**
  * Catalog load.

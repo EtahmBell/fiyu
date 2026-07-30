@@ -7,7 +7,9 @@ import { type FiyuApiError, isFiyuApiError } from "@/lib/api/errors";
 import type { PublicRestaurant } from "@/lib/api/schemas";
 import { selectBrowsable } from "@/lib/discovery/filters";
 
-export const metadata: Metadata = { title: "Map" };
+export const metadata: Metadata = {
+  title: "Map",
+};
 
 type MapCatalogResult =
   | { ok: true; restaurants: PublicRestaurant[] }

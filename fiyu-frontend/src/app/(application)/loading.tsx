@@ -2,7 +2,7 @@ import { RestaurantListSkeleton } from "@/components/restaurant/RestaurantCardSk
 import { Skeleton } from "@/components/ui/Skeleton";
 
 /**
- * Shown while the catalog is being fetched.
+ * Shown while the application catalog is being fetched.
  *
  * Mirrors the real split so nothing jumps when data lands: the masthead is
  * already final, only the list and map panes are placeholders. The brand bar
