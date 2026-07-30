@@ -1,4 +1,4 @@
-import { formatScore, scoreAccessibleLabel } from "@/lib/format/score";
+import { formatFiyuScore, scoreAccessibleLabel } from "@/lib/format/score";
 import { cn } from "@/lib/utils/cn";
 
 export type ScoreMarkSize = "sm" | "md" | "lg";
@@ -23,8 +23,7 @@ export interface ScoreMarkProps {
  * wordmark, a display numeral, and a lavender rule -- so the score reads as an
  * editorial judgement rather than a measurement.
  *
- * No stars and no denominator: Fiyu publishes neither, and both would invite
- * comparison with a Google rating.
+ * No stars: this is Fiyu's editorial score, not an external rating.
  */
 export function ScoreMark({ score, size = "md", className }: ScoreMarkProps) {
   const { numeral, label, rule } = SIZES[size];
@@ -54,7 +53,8 @@ export function ScoreMark({ score, size = "md", className }: ScoreMarkProps) {
           numeral,
         )}
       >
-        {formatScore(score)}
+        {formatFiyuScore(score)}
+        {hasScore && <span className="ml-0.5 font-sans text-[0.42em] text-ink-muted">/10</span>}
       </span>
       <span
         aria-hidden="true"

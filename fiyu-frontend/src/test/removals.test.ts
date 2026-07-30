@@ -209,10 +209,19 @@ describe("SVG geometry is deterministic across engines", () => {
     expect(offenders).toEqual([]);
   });
 
-  it("builds the content transform only through transformFor", () => {
+  /**
+   * The pan/zoom transform specifically -- not every SVG transform.
+   *
+   * `view.k` derives from fitToPoints, and so from mercatorY, so interpolating it
+   * raw into markup reintroduces the cross-engine divergence that transformFor
+   * exists to round away. Other transforms (a landmark glyph scaling itself, say)
+   * are fine as long as their numbers went through svgNumber, which the
+   * attribute-shape test in lib/map/determinism.test.tsx enforces at render time.
+   */
+  it("interpolates the view transform only through transformFor", () => {
     const offenders = productionFiles.filter((path) => {
       if (path.endsWith(join("lib", "map", "viewport.ts"))) return false;
-      return /translate\(\$\{/.test(stripComments(read(path)));
+      return /\$\{\s*view\.[xyk]\s*\}/.test(stripComments(read(path)));
     });
     expect(offenders).toEqual([]);
   });

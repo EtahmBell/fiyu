@@ -32,6 +32,8 @@
   --color-lavender-600: #7657e8;
   --color-lavender-700: #6044c8;
   --color-plum: #31283d;
+  --color-gold: #b18a36;
+  --color-gold-soft: #f5ecd5;
 
   --color-status-open: #2c6a45;
   --color-status-closed: #8a7263;
@@ -75,6 +77,17 @@
   --map-rail: #cfc4db;
   --map-label: #51485b;
   --map-label-muted: #8a8190;
+  /*
+   * Base-geography tones. Roads sit deliberately close to the land colour: they
+   * are there to orient by, not to read as a route network, and a restaurant pin
+   * must always be the most salient mark on screen.
+   */
+  --map-rail-subway: #b9aecd;
+  --map-label-park: #7d8a76;
+  --map-station-fill: #fff9ef;
+  --map-station-stroke: #7d6ba8;
+  --map-landmark: #8a7f9c;
+
   --map-marker: #8b6cf6;
   --map-marker-selected: #3e304f;
   --map-marker-center: #fff9ef;

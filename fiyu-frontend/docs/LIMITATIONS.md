@@ -261,6 +261,41 @@ bit-exact, because pin placement round-trips through them. Structural guards in
 `src/test/removals.test.ts` and a rendered-attribute test in
 `src/lib/map/determinism.test.tsx` keep this from regressing.
 
+## 8d. The base map is generated OSM data, not a tile service
+
+The illustrated geography — roads, rail, stations, parks, water, ward outlines — is
+extracted offline from a Kanto OpenStreetMap extract and committed as static JSON
+under `src/lib/map/generated/`. See the README there for the regeneration command
+and the per-layer OSM selectors.
+
+**What this deliberately is not.** No Google tiles, no Google-derived geometry, no
+runtime third-party tile requests, and no network fetch for base-map data at all.
+The browser never parses a PBF.
+
+**Consequences worth knowing.**
+
+- The geography is **simplified**, per-layer, with Ramer–Douglas–Peucker. It is an
+  orientation aid and is stated as such in the map key. It must not be used to
+  judge whether a restaurant is on a particular side of a street.
+- The base map is a **client-side payload**, because `FiyuMap` is a client
+  component. That is the binding constraint on how much detail can be added: every
+  new layer is bytes shipped to every visitor. Sizes are reported in the README.
+- Coverage is **only the Fiyu extent** (139.56–139.92 E, 35.52–35.82 N). Anything
+  beyond it is clipped at generation time and cannot be shown, which is also why
+  §8c exists.
+- Detail is **bucketed into three levels**, not continuous. Secondary roads and
+  subway lines appear at level 2. This is a performance requirement, not a styling
+  choice — see `src/lib/map/detail.ts`.
+- The one hand-drawn shape is the **Tokyo Bay fill** in `basemap.ts`. OSM models the
+  open bay as coastline rather than a closed polygon, so a filled bay has to be
+  closed against the map edge by hand. It is stylised, and labelled as such.
+- Station **positions and names** are OSM's. Which stations get a label, and at what
+  zoom, is editorial (`src/lib/map/landmarks.ts`). Landmark positions are OSM
+  coordinates; the selection of eight and their glyphs are editorial.
+
+**ODbL attribution is a licence obligation.** It is rendered in the map key from
+`OSM_ATTRIBUTION`. Do not remove it from the UI.
+
 ## 8c. Coordinates outside the illustrated area
 
 `TOKYO_BOUNDS` covers the 23 special wards. All five current coordinates are

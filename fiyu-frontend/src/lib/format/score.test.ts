@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import {
   MISSING_VALUE,
+  formatFiyuScore,
   formatScore,
+  hasGoldFiyuTreatment,
   normalizeSignal,
   parseScoreBand,
   scoreBandLabel,
@@ -50,15 +52,24 @@ describe("scoreBandLabel", () => {
 });
 
 describe("formatScore", () => {
-  it("rounds to a whole number for display", () => {
-    expect(formatScore(88.39)).toBe("88");
-    expect(formatScore(54.99)).toBe("55");
+  it("displays the backend score on a one-decimal 10-point scale", () => {
+    expect(formatFiyuScore(88)).toBe("8.8");
+    expect(formatScore(90)).toBe("9.0");
+    expect(formatScore(54.99)).toBe("5.5");
   });
 
   it("renders a placeholder when the score is absent or not finite", () => {
     expect(formatScore(null)).toBe(MISSING_VALUE);
     expect(formatScore(Number.NaN)).toBe(MISSING_VALUE);
     expect(formatScore(Number.POSITIVE_INFINITY)).toBe(MISSING_VALUE);
+  });
+});
+
+describe("gold treatment", () => {
+  it("starts at an internal score of 90", () => {
+    expect(hasGoldFiyuTreatment(90)).toBe(true);
+    expect(hasGoldFiyuTreatment(89.99)).toBe(false);
+    expect(hasGoldFiyuTreatment(null)).toBe(false);
   });
 });
 

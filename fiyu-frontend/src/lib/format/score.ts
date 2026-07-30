@@ -47,13 +47,18 @@ export function scoreBandLabel(value: string | null): string | null {
 /** Placeholder shown wherever a numeric field is absent. */
 export const MISSING_VALUE = "—";
 
-/**
- * Fiyu score for display. Backend sends 2dp; a whole number reads better in an
- * editorial layout. Sorting always uses the raw value, never this string.
- */
-export function formatScore(score: number | null): string {
+/** Public presentation of the backend's 0-100 score on Fiyu's 10-point scale. */
+export function formatFiyuScore(score: number | null): string {
   if (score === null || !Number.isFinite(score)) return MISSING_VALUE;
-  return String(Math.round(score));
+  return (score / 10).toFixed(1);
+}
+
+/** Backward-compatible name for components that only need the formatted numeral. */
+export const formatScore = formatFiyuScore;
+
+/** A restrained presentation treatment; never changes selection or ranking. */
+export function hasGoldFiyuTreatment(score: number | null): boolean {
+  return score !== null && Number.isFinite(score) && score >= 90;
 }
 
 /**
@@ -72,5 +77,5 @@ export function normalizeSignal(value: number | null): number | null {
  */
 export function scoreAccessibleLabel(score: number | null): string {
   if (score === null || !Number.isFinite(score)) return "Fiyu score unavailable";
-  return `Fiyu score ${Math.round(score)} out of 100`;
+  return `Fiyu score ${formatFiyuScore(score)} out of 10`;
 }

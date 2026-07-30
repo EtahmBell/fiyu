@@ -5,10 +5,15 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnchorMarker } from "@/components/map/AnchorMarker";
 import { MapBase } from "@/components/map/MapBase";
 import { MapControls } from "@/components/map/MapControls";
+import { MapLabels } from "@/components/map/MapLabels";
+import { MapLandmarks } from "@/components/map/MapLandmarks";
+import { MapLegend } from "@/components/map/MapLegend";
 import { MapMarkers } from "@/components/map/MapMarkers";
+import { MapStations } from "@/components/map/MapStations";
 import type { MappableRestaurant } from "@/lib/geo/mappable";
 import type { DiscoveryAnchor } from "@/lib/location/anchor";
 import { type MarkerCluster, clusterMarkers } from "@/lib/map/clustering";
+import { detailLevelFor, detailLevelLabel } from "@/lib/map/detail";
 import { type LatLng, VIEWBOX, isWithinBounds, project, unproject } from "@/lib/map/projection";
 import {
   IDENTITY_VIEW,
@@ -20,7 +25,6 @@ import {
   panBy,
   transformFor,
   viewBoxToContent,
-  viewsEqual,
   zoomAt,
   zoomByStep,
 } from "@/lib/map/viewport";
@@ -131,6 +135,15 @@ export function FiyuMap({
       ),
     [plotted, points, view.k],
   );
+
+  /*
+   * Detail level, bucketed from the scale.
+   *
+   * This is what keeps the base geography off the hot path: it is an integer that
+   * panning cannot change and zooming changes at most twice, so MapBase's memo
+   * holds across every frame of a drag. See lib/map/detail.ts.
+   */
+  const detail = detailLevelFor(view.k);
 
   /**
    * Auto-fit only when the result set materially changes, never after the user
@@ -301,8 +314,17 @@ export function FiyuMap({
         onPointerCancel={endPointer}
         onPointerLeave={endPointer}
       >
+        {/*
+          Draw order is deliberate and is the whole basis of the visual
+          hierarchy. Geography first, then place names, then context marks, and
+          restaurant markers LAST so a pin is never overdrawn by a station,
+          landmark or label. Every layer above the markers would be a bug.
+        */}
         <g transform={transformFor(view)}>
-          <MapBase scale={view.k} />
+          <MapBase detail={detail} />
+          <MapLabels scale={view.k} detail={detail} />
+          <MapStations scale={view.k} detail={detail} />
+          <MapLandmarks scale={view.k} detail={detail} />
           {anchor && <AnchorMarker anchor={anchor} scale={view.k} />}
           <MapMarkers
             clusters={clusters}
@@ -331,11 +353,20 @@ export function FiyuMap({
           canFit={points.length > 0}
         />
 
-        {!viewsEqual(view, IDENTITY_VIEW) && (
-          <p className="absolute bottom-3 left-4 text-[0.625rem] text-[var(--map-label-muted)]">
-            Illustrated map — approximate positions
-          </p>
-        )}
+        {/*
+          Key and data credit. Bottom-left, clear of the controls on the right and
+          of the mobile peek sheet at the bottom.
+        */}
+        <MapLegend className="absolute bottom-3 left-4" />
+
+        {/*
+          Announced politely so a screen-reader user knows detail changed with the
+          zoom, without it being read as an alert. Visually hidden: sighted users
+          can see the map change.
+        */}
+        <p aria-live="polite" className="sr-only">
+          {detailLevelLabel(detail)}. Showing {plotted.length} restaurants.
+        </p>
       </div>
     </div>
   );

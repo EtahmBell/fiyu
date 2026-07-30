@@ -33,19 +33,29 @@ function mappable(
 const SHIBUYA = mappable("shibuya", 35.658, 139.7016, { name_ja: "渋谷の店" });
 const UENO = mappable("ueno", 35.7141, 139.7774, { name_ja: "上野の店" });
 
+/**
+ * The map surface.
+ *
+ * Queried by accessible name rather than by role alone: stations and landmarks
+ * are also role="img", so a bare getByRole("img") is ambiguous.
+ */
+function mapSurface(): HTMLElement {
+  return screen.getByRole("img", { name: /Map of Tokyo/ });
+}
+
 afterEach(cleanup);
 
 describe("map surface", () => {
   it("describes itself and its marker count to assistive tech", () => {
     render(<FiyuMap restaurants={[SHIBUYA, UENO]} selectedPlaceId={null} onSelect={() => {}} />);
-    expect(screen.getByRole("img").getAttribute("aria-label")).toBe(
+    expect(mapSurface().getAttribute("aria-label")).toBe(
       "Map of Tokyo showing 2 restaurants.",
     );
   });
 
   it("says so plainly when nothing is mapped", () => {
     render(<FiyuMap restaurants={[]} selectedPlaceId={null} onSelect={() => {}} />);
-    expect(screen.getByRole("img").getAttribute("aria-label")).toContain(
+    expect(mapSurface().getAttribute("aria-label")).toContain(
       "No restaurants are currently mapped",
     );
   });
@@ -128,7 +138,7 @@ describe("controls", () => {
 
   it("returns to the whole-map view when Reset is pressed", () => {
     render(<FiyuMap restaurants={[SHIBUYA, UENO]} selectedPlaceId={null} onSelect={() => {}} />);
-    const surface = screen.getByRole("img");
+    const surface = mapSurface();
 
     fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
     fireEvent.click(screen.getByRole("button", { name: "Reset to the whole map" }));
@@ -147,7 +157,7 @@ describe("controls", () => {
     }
     expect(screen.getByRole("button", { name: "Zoom in" })).toHaveProperty("disabled", true);
 
-    const transform = screen.getByRole("img").querySelector("g")?.getAttribute("transform") ?? "";
+    const transform = mapSurface().querySelector("g")?.getAttribute("transform") ?? "";
     const scale = Number(transform.match(/scale\(([\d.]+)\)/)?.[1]);
     expect(scale).toBeLessThanOrEqual(4);
   });

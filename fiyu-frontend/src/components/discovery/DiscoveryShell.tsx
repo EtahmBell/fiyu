@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState } from "react";
 
 import { MapPeekSheet } from "@/components/discovery/MapPeekSheet";
 import { RankingControl } from "@/components/discovery/RankingControl";
+import { DailyPicksPanel } from "@/components/daily-picks/DailyPicksPanel";
 import { PageIntro, SiteFooter } from "@/components/layout/SiteHeader";
 import { LocationControl } from "@/components/location/LocationControl";
 import { FiyuMap } from "@/components/map/FiyuMap";
@@ -187,6 +188,11 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
                   onClear={clearAnchor}
                 />
               </div>
+
+              <DailyPicksPanel
+                restaurants={restaurants}
+                activeArea={areaAnchor?.area_name ?? null}
+              />
 
               <RankingControl mode={mode} onChange={setMode} count={ranked.length} />
 

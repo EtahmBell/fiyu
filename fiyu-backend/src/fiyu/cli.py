@@ -60,6 +60,27 @@ def build_parser() -> argparse.ArgumentParser:
     init_config = subparsers.add_parser("write-config", help="Write default scoring JSON")
     init_config.add_argument("path", nargs="?", default="scoring.example.json")
 
+    export_map = subparsers.add_parser(
+        "export-map-assets",
+        help="Generate the frontend discovery-map base geography from an OSM PBF",
+        description=(
+            "Extracts roads, railways, stations, parks, water and ward boundaries "
+            "from an OpenStreetMap extract, clips them to the Fiyu Tokyo map "
+            "extent, simplifies the geometry and writes compact JSON layers. "
+            "Reads no database and writes nothing outside --out."
+        ),
+    )
+    export_map.add_argument(
+        "--pbf",
+        default="C:/data/osm/kanto-latest.osm.pbf",
+        help="Path to the Kanto .osm.pbf extract",
+    )
+    export_map.add_argument(
+        "--out",
+        default="../fiyu-frontend/src/lib/map/generated",
+        help="Directory to write the generated JSON layers into",
+    )
+
     return parser
 
 
@@ -71,6 +92,13 @@ def main() -> None:
         path = Path(args.path)
         path.write_text(json.dumps(ScoringConfig().to_dict(), indent=2), encoding="utf-8")
         print(f"Wrote {path}")
+        return
+
+    if args.command == "export-map-assets":
+        # Imported lazily: this is the only command that needs pyosmium.
+        from .map_assets import export_map_assets
+
+        export_map_assets(Path(args.pbf), Path(args.out))
         return
 
     config = _config_from_args(args)
