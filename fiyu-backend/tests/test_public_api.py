@@ -37,11 +37,11 @@ def public_db(tmp_path, monkeypatch):
         connection.executemany(
             """
             INSERT INTO public_restaurants
-                (place_id, name_ja, name_en, why_fiyu, primary_category,
+                (place_id, name_ja, name_en, why_fiyu, description_en, primary_category,
                  food_tags_json, signature_dishes_json, fiyu_score, score_band,
                  local_signal, evidence_json, evidence_urls_json, research_error,
                  model_name, prompt_version, is_published, created_at, updated_at)
-            VALUES (?, ?, ?, ?, 'soba', ?, ?, ?, 'excellent', 75,
+            VALUES (?, ?, ?, 'Internal why_fiyu evidence.', ?, 'soba', ?, ?, ?, 'excellent', 75,
                     '{"secret": true}', '["private"]', 'private error',
                     'private model', 'private prompt', ?, 'now', 'now')
             """,

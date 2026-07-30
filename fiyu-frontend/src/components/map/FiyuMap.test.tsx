@@ -87,6 +87,21 @@ describe("card and marker selection stay in sync", () => {
     expect(screen.getByLabelText("上野の店").getAttribute("aria-pressed")).toBe("true");
   });
 
+  it("does not pan, recenter, or change zoom when a card selects a pin", () => {
+    const { rerender } = render(
+      <FiyuMap restaurants={[SHIBUYA, UENO]} selectedPlaceId={null} onSelect={() => {}} />,
+    );
+    const content = mapSurface().querySelector("g[transform]") as SVGGElement;
+    fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
+    const before = content.getAttribute("transform") ?? "";
+
+    rerender(
+      <FiyuMap restaurants={[SHIBUYA, UENO]} selectedPlaceId="ueno" onSelect={() => {}} />,
+    );
+
+    expect(content.getAttribute("transform")).toBe(before);
+  });
+
   it("reports the restaurant when its pin is clicked", () => {
     const onSelect = vi.fn();
     render(<FiyuMap restaurants={[SHIBUYA, UENO]} selectedPlaceId={null} onSelect={onSelect} />);

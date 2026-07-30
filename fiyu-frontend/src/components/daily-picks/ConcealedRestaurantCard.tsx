@@ -1,7 +1,6 @@
 "use client";
 
-import { RestaurantCard } from "@/components/restaurant/RestaurantCard";
-import { Button } from "@/components/ui/Button";
+import { CompactRestaurantCard } from "@/components/daily-picks/CompactRestaurantCard";
 import type { PublicRestaurant } from "@/lib/api/schemas";
 import { hasGoldFiyuTreatment } from "@/lib/format/score";
 import { cn } from "@/lib/utils/cn";
@@ -13,6 +12,7 @@ export interface ConcealedRestaurantCardProps {
   saved: boolean;
   onReveal(): void;
   onToggleSaved(): void;
+  onOpen?: (restaurant: PublicRestaurant) => void;
 }
 
 /** Conceals all identifying content until the user deliberately reveals it. */
@@ -23,6 +23,7 @@ export function ConcealedRestaurantCard({
   saved,
   onReveal,
   onToggleSaved,
+  onOpen,
 }: ConcealedRestaurantCardProps) {
   const gold = hasGoldFiyuTreatment(restaurant.fiyu_score);
 
@@ -65,23 +66,13 @@ export function ConcealedRestaurantCard({
     <div
       data-testid="revealed-restaurant-card"
       data-gold-treatment={gold ? "true" : "false"}
-      className={cn(
-        "overflow-hidden rounded-card border bg-surface",
-        gold ? "border-gold" : "border-line",
-      )}
-      style={{ animation: "fiyu-fade-in 260ms var(--ease-fiyu)" }}
     >
-      <RestaurantCard restaurant={restaurant} />
-      <div className="flex justify-end border-t border-line px-4 py-3 sm:px-5">
-        <Button
-          variant={saved ? "secondary" : "ghost"}
-          size="sm"
-          aria-pressed={saved}
-          onClick={onToggleSaved}
-        >
-          {saved ? "Saved" : "Save restaurant"}
-        </Button>
-      </div>
+      <CompactRestaurantCard
+        restaurant={restaurant}
+        saved={saved}
+        onOpen={onOpen}
+        onToggleSaved={onToggleSaved}
+      />
     </div>
   );
 }

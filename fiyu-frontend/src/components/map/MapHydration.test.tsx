@@ -72,7 +72,7 @@ describe("server and client render the same map", () => {
   it("keeps all restaurant pins through hydration", async () => {
     const { container } = await hydrateAndCollectErrors();
     expect(container.querySelectorAll("[data-place-id]")).toHaveLength(browsable.length);
-    expect(container.querySelectorAll('[data-location-approximate="true"]')).toHaveLength(2);
+    expect(container.querySelectorAll('[data-location-approximate="true"]')).toHaveLength(0);
   });
 
   it("produces byte-identical markup on two server renders", () => {
@@ -101,7 +101,8 @@ describe("server and client render the same map", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /map key/i }));
 
-    expect(screen.getByText("Approximate area")).toBeTruthy();
+    expect(screen.getByText("Restaurant")).toBeTruthy();
+    expect(screen.queryByText("Approximate area")).toBeNull();
     expect(errors).toEqual([]);
   });
 });

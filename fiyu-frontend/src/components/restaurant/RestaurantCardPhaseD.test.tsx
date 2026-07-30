@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RestaurantCard } from "@/components/restaurant/RestaurantCard";
@@ -175,9 +175,9 @@ describe("outbound map actions", () => {
 });
 
 describe("approximate location disclosure", () => {
-  it("labels an approximate restaurant with the backend's own wording", () => {
+  it("does not add an approximate-area tag to the frontend card", () => {
     render(<RestaurantCard restaurant={make(APPROXIMATE)} />);
-    expect(screen.getByText("Approximate area")).toBeTruthy();
+    expect(screen.queryByText("Approximate area")).toBeNull();
   });
 
   it("says nothing of the kind for a precisely-located restaurant", () => {
@@ -225,7 +225,7 @@ describe("photos", () => {
     expect(screen.getAllByText("Fiyu").length).toBeGreaterThan(0);
   });
 
-  it("renders the photo with its author attribution once loaded", async () => {
+  it("reveals photo attribution on pointer hover", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue({
@@ -239,6 +239,9 @@ describe("photos", () => {
 
     const image = await screen.findByRole("img", { name: /photo from Google/ });
     expect(image.getAttribute("src")).toBe(photoFixture.media_url);
+    expect(screen.queryByText(/Photo by/)).toBeNull();
+
+    fireEvent.mouseEnter(screen.getByTestId("restaurant-photo-region"));
 
     // Attribution must travel with the photo.
     const author = photoFixture.author_attributions[0];
@@ -252,12 +255,57 @@ describe("photos", () => {
     expect(screen.getByRole("link", { name: "Report" }).getAttribute("href")).toBe(
       photoFixture.flag_content_uri,
     );
+    fireEvent.mouseLeave(screen.getByTestId("restaurant-photo-region"));
+    expect(screen.queryByText(/Photo by/)).toBeNull();
+  });
+
+  it("reveals attribution through keyboard focus and a touch-style tap", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => photoFixture,
+      }),
+    );
+    render(<RestaurantCard restaurant={make(MAPPABLE)} />);
+    await screen.findByRole("img", { name: /photo from Google/ });
+
+    expect(screen.queryByRole("button", { name: "Photo information" })).toBeNull();
+    const photoRegion = screen.getByTestId("restaurant-photo-region");
+    fireEvent.focus(photoRegion);
+    expect(screen.getByTestId("photo-attribution-overlay")).toBeTruthy();
+    fireEvent.blur(photoRegion, { relatedTarget: document.body });
+    expect(screen.queryByTestId("photo-attribution-overlay")).toBeNull();
+
+    fireEvent.click(photoRegion);
+    expect(photoRegion.getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getByTestId("photo-attribution-overlay")).toBeTruthy();
+    fireEvent.click(photoRegion);
+    expect(photoRegion.getAttribute("aria-expanded")).toBe("false");
   });
 
   it("keeps the placeholder when the photo request fails", async () => {
     render(<RestaurantCard restaurant={make(MAPPABLE)} />);
     await waitFor(() => expect(globalThis.fetch).toHaveBeenCalled());
     expect(screen.queryByRole("img", { name: /photo from Google/ })).toBeNull();
+  });
+
+  it("restores the placeholder if returned media cannot load", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => photoFixture,
+      }),
+    );
+    render(<RestaurantCard restaurant={make(MAPPABLE)} />);
+
+    fireEvent.error(await screen.findByRole("img", { name: /photo from Google/ }));
+
+    expect(screen.queryByRole("img", { name: /photo from Google/ })).toBeNull();
+    expect(screen.getAllByText("Fiyu").length).toBeGreaterThan(0);
   });
 
   it("loads no photo in the dense map-sheet variant", () => {

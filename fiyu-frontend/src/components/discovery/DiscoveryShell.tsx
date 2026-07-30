@@ -2,30 +2,19 @@
 
 import { useCallback, useMemo, useState } from "react";
 
-import { MapPeekSheet } from "@/components/discovery/MapPeekSheet";
-import { RankingControl } from "@/components/discovery/RankingControl";
 import { DailyPicksPanel } from "@/components/daily-picks/DailyPicksPanel";
 import { PageIntro, SiteFooter } from "@/components/layout/SiteHeader";
-import { LocationControl } from "@/components/location/LocationControl";
 import { FiyuMap } from "@/components/map/FiyuMap";
 import { MapUnavailable } from "@/components/map/MapUnavailable";
-import { RestaurantList } from "@/components/restaurant/RestaurantList";
-import { ModeUnavailable } from "@/components/states/EmptyState";
 import type { PublicRestaurant } from "@/lib/api/schemas";
-import {
-  DEFAULT_MODE,
-  type DiscoveryMode,
-  getMode,
-  isModeAvailable,
-  rankByMode,
-} from "@/lib/discovery/ranking";
-import { mappableRestaurants, outsideMapBounds, unmappableCount } from "@/lib/geo/mappable";
+import { mappableRestaurants } from "@/lib/geo/mappable";
 import { useGeolocation } from "@/lib/hooks/useGeolocation";
-import { useIsDesktop } from "@/lib/hooks/useMediaQuery";
-import type { DiscoveryAnchor } from "@/lib/location/anchor";
-import type { LatLng } from "@/lib/map/projection";
 import type { LocationAnchor } from "@/lib/api/schemas";
-import { cn } from "@/lib/utils/cn";
+import {
+  originAreaName,
+  originFromGeolocation,
+  type FreeDiscoveryOrigin,
+} from "@/lib/location/origin";
 
 export interface DiscoveryShellProps {
   /** Already filtered to browsable rows by the server component. */
@@ -34,125 +23,64 @@ export interface DiscoveryShellProps {
   areaAnchors: LocationAnchor[];
 }
 
-/** Which surface the user is looking at. Only meaningful below `lg`. */
-type MobileView = "list" | "map";
-
 /**
- * Where a selection came from. The list only auto-scrolls for map-originated
- * selections; scrolling on a card click would move the card just tapped.
+ * Where a selection came from. Kept with the selection so a future detail
+ * transition can preserve whether the user arrived from the feed or map.
  */
-type SelectionSource = "list" | "map";
+type SelectionSource = "feed" | "map";
 
 interface Selection {
   placeId: string;
   source: SelectionSource;
+  navigationKey: number;
 }
 
 /**
- * Owns all client-side discovery state: ranking mode, selection, and which
- * surface is showing on mobile.
+ * Owns the client-side daily-feed selection and map-card synchronization.
  *
  * LAYOUT. Desktop is a true two-pane discovery view: the list column scrolls
  * independently at ~42% while the map holds the remaining ~58% of a
- * viewport-height pane. Mobile is a separate experience rather than a shrunk
- * split -- a full-width editorial list, a floating Map/List pill, a full-screen
- * map, and a non-modal peek sheet for the selected pin.
- *
- * The map is mounted once and repositioned with CSS. Two instances would load
- * the Google script twice and double the map loads billed per session.
+ * viewport-height pane. Mobile begins directly with a bounded map below the
+ * site header, while the feed owns the independently scrolling lower region.
  *
  * Data arrives already fetched and validated from the server component, so this
  * never touches the network, and ordering is delegated to the ranking adapter.
  */
 export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps) {
-  const [mode, setMode] = useState<DiscoveryMode>(DEFAULT_MODE);
   const [selection, setSelection] = useState<Selection | null>(null);
-  const [view, setView] = useState<MobileView>("list");
-  const [sheetExpanded, setSheetExpanded] = useState(false);
-  const isDesktop = useIsDesktop();
+  const [visibleRestaurantIds, setVisibleRestaurantIds] = useState<string[]>([]);
+  const [homeArea, setHomeArea] = useState<LocationAnchor | null>(null);
+  const [continuedWithoutLocation, setContinuedWithoutLocation] = useState(false);
 
-  /*
-   * Location anchor. Client-side only: never persisted, never sent to the
-   * backend, and cleared on reload.
-   */
-  const [manualPin, setManualPin] = useState<LatLng | null>(null);
-  const [areaAnchor, setAreaAnchor] = useState<LocationAnchor | null>(null);
-  const [placingPin, setPlacingPin] = useState(false);
   const geolocation = useGeolocation();
 
-  /*
-   * Precedence is most-explicit-first: a hand-placed pin beats a chosen area,
-   * which beats a GPS fix. Setting one clears the others, so exactly one
-   * anchor can ever be active.
-   */
-  const anchor = useMemo<DiscoveryAnchor | null>(() => {
-    if (manualPin) return { kind: "manual-pin", point: manualPin };
-    if (areaAnchor) {
-      return {
-        kind: "area-anchor",
-        point: { lat: areaAnchor.latitude, lng: areaAnchor.longitude },
-        id: areaAnchor.id,
-        displayName: areaAnchor.display_name,
-        areaName: areaAnchor.area_name,
-        qualifier: areaAnchor.qualifier,
-      };
-    }
-    if (geolocation.state.status === "granted") {
-      return {
-        kind: "current-location",
-        point: geolocation.state.point,
-        accuracyMeters: geolocation.state.accuracyMeters,
-      };
-    }
-    return null;
-  }, [manualPin, areaAnchor, geolocation.state]);
-
-  const clearAnchor = useCallback(() => {
-    setManualPin(null);
-    setAreaAnchor(null);
-    setPlacingPin(false);
-    geolocation.clear();
-  }, [geolocation]);
-
-  const placePin = useCallback((point: LatLng) => {
-    setAreaAnchor(null);
-    setManualPin(point);
-  }, []);
-
-  const chooseArea = useCallback((area: LocationAnchor) => {
-    setManualPin(null);
-    setPlacingPin(false);
-    setAreaAnchor(area);
-  }, []);
-
-  const useCurrentLocation = useCallback(() => {
-    setManualPin(null);
-    setAreaAnchor(null);
-    setPlacingPin(false);
-    geolocation.request();
-  }, [geolocation]);
-
-  const available = isModeAvailable(mode);
-  const ranked = useMemo(() => rankByMode(restaurants, mode), [restaurants, mode]);
-
-  const mappable = useMemo(() => mappableRestaurants(ranked), [ranked]);
-  const unmappable = useMemo(() => unmappableCount(ranked), [ranked]);
-  const offMap = useMemo(() => outsideMapBounds(ranked), [ranked]);
-
-  const selected = useMemo(
-    () => ranked.find((restaurant) => restaurant.place_id === selection?.placeId) ?? null,
-    [ranked, selection],
+  const origin = useMemo<FreeDiscoveryOrigin | null>(() => {
+    const current = originFromGeolocation(geolocation.state);
+    if (current) return current;
+    if (homeArea) return { kind: "home-area", area: homeArea };
+    return continuedWithoutLocation ? { kind: "unavailable" } : null;
+  }, [continuedWithoutLocation, geolocation.state, homeArea]);
+  const activeArea = useMemo(
+    () => originAreaName(origin, areaAnchors),
+    [areaAnchors, origin],
   );
 
+  const visibleRestaurants = useMemo(() => {
+    const visible = new Set(visibleRestaurantIds);
+    return restaurants.filter((restaurant) => visible.has(restaurant.place_id));
+  }, [restaurants, visibleRestaurantIds]);
+  const mappable = useMemo(() => mappableRestaurants(visibleRestaurants), [visibleRestaurants]);
+
   const select = useCallback((restaurant: PublicRestaurant, source: SelectionSource) => {
-    setSheetExpanded(false);
-    setSelection((current) =>
-      current?.placeId === restaurant.place_id ? null : { placeId: restaurant.place_id, source },
-    );
+    setSelection((current) => ({
+      placeId: restaurant.place_id,
+      source,
+      navigationKey: (current?.navigationKey ?? 0) + 1,
+    }));
   }, []);
 
-  const selectFromList = useCallback(
-    (restaurant: PublicRestaurant) => select(restaurant, "list"),
+  const selectFromFeed = useCallback(
+    (restaurant: PublicRestaurant) => select(restaurant, "feed"),
     [select],
   );
   const selectFromMap = useCallback(
@@ -160,96 +88,59 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
     [select],
   );
 
-  const showingMap = view === "map";
-
   return (
-    <div className="lg:grid lg:h-[calc(100dvh-var(--spacing-header))] lg:grid-cols-[minmax(0,42fr)_minmax(0,58fr)]">
-      {/* List column: the only scroll container on desktop. */}
-      <div
-        className={cn(
-          "min-w-0 lg:overflow-y-auto lg:overscroll-contain",
-          showingMap ? "hidden lg:block" : "block",
-        )}
+    <div
+      data-testid="discovery-layout"
+      className="grid h-[calc(100dvh-var(--spacing-header))] min-h-0 grid-cols-1 grid-rows-[40dvh_minmax(0,1fr)] overflow-hidden bg-canvas lg:grid-cols-[minmax(0,42fr)_minmax(0,58fr)] lg:grid-rows-1"
+    >
+      <section
+        className="contents lg:col-start-1 lg:row-start-1 lg:block lg:min-h-0 lg:min-w-0 lg:overflow-y-auto lg:overscroll-contain"
       >
-        <div className="mx-auto w-full max-w-[38rem] px-5 pb-28 sm:px-8 lg:mx-0 lg:max-w-none lg:pb-10">
+        <div data-testid="desktop-page-intro" className="hidden px-5 sm:px-8 lg:block">
           <PageIntro />
+        </div>
 
-          {available ? (
-            <>
-              <div className="pb-1">
-                <LocationControl
-                  anchor={anchor}
-                  geolocation={geolocation.state}
-                  areaAnchors={areaAnchors}
-                  placingPin={placingPin}
-                  onUseCurrentLocation={useCurrentLocation}
-                  onChooseArea={chooseArea}
-                  onTogglePlacePin={() => setPlacingPin((on) => !on)}
-                  onClear={clearAnchor}
-                />
-              </div>
-
+        {/* The feed scrolls independently below the bounded map on mobile. */}
+        <div
+          data-testid="restaurant-scroll-region"
+          className="row-start-2 min-h-0 min-w-0 overflow-x-hidden overflow-y-auto overscroll-contain lg:overflow-visible"
+        >
+          <div className="mx-auto w-full max-w-[38rem] px-5 pb-[calc(2rem+env(safe-area-inset-bottom))] sm:px-8 lg:mx-0 lg:max-w-none lg:pb-10">
+            <div className="pt-5 lg:pt-0">
               <DailyPicksPanel
                 restaurants={restaurants}
-                activeArea={areaAnchor?.area_name ?? null}
-              />
-
-              <RankingControl mode={mode} onChange={setMode} count={ranked.length} />
-
-              <p aria-live="polite" className="sr-only">
-                Showing {ranked.length} restaurants ranked by {getMode(mode).label}.
-              </p>
-
-              <RestaurantList
-                restaurants={ranked}
+                activeArea={activeArea}
+                onOpenRestaurant={selectFromFeed}
+                onVisibleRestaurantIdsChange={setVisibleRestaurantIds}
                 selectedPlaceId={selection?.placeId ?? null}
-                onSelect={selectFromList}
                 scrollToPlaceId={selection?.source === "map" ? selection.placeId : null}
-                anchor={anchor}
+                scrollRequestKey={selection?.navigationKey ?? 0}
+                originSetup={{
+                  origin,
+                  geolocation: geolocation.state,
+                  areaAnchors,
+                  requestCurrentLocation: geolocation.request,
+                  chooseHomeArea: setHomeArea,
+                  continueWithoutLocation: () => setContinuedWithoutLocation(true),
+                }}
               />
+            </div>
 
-              {unmappable > 0 && (
-                <p className="px-1 pt-4 text-xs text-ink-faint">
-                  {unmappable} not shown on the map
-                </p>
-              )}
-
-              {/* Verified, but beyond the illustrated area, so no pin exists. */}
-              {offMap > 0 && (
-                <p className="px-1 pt-1 text-xs text-ink-faint">
-                  {offMap} outside the mapped area
-                </p>
-              )}
-            </>
-          ) : (
-            <>
-              <RankingControl mode={mode} onChange={setMode} />
-              <div className="pt-2">
-                <ModeUnavailable
-                  label={getMode(mode).label}
-                  onBrowseLocal={() => setMode(DEFAULT_MODE)}
-                />
-              </div>
-            </>
-          )}
-
-          <SiteFooter />
+            <SiteFooter />
+          </div>
         </div>
-      </div>
+      </section>
 
-      {/* Map pane. Full-bleed beside the list on desktop, full-screen on mobile. */}
+      {/* Bounded upper pane on mobile; the existing side-by-side pane on desktop. */}
       <aside
         aria-label="Restaurant map"
-        className={cn(
-          "bg-subtle",
-          showingMap ? "fixed inset-0 top-header z-20" : "hidden",
-          "lg:sticky lg:inset-auto lg:top-0 lg:z-auto lg:block lg:h-full lg:border-l lg:border-line",
-        )}
+        data-testid="mobile-map-region"
+        className="relative row-start-1 min-h-0 min-w-0 overflow-hidden border-b border-line bg-subtle after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:z-10 after:h-3 after:bg-gradient-to-b after:from-transparent after:to-canvas/50 lg:col-start-2 lg:row-start-1 lg:h-full lg:border-b-0 lg:border-l lg:after:hidden"
       >
         {/*
-         * The map receives only `mappable` restaurants -- those the backend has
-         * verified and marked eligible -- and shares the list's selection
-         * state, so cards and pins stay synchronised.
+         * The map receives current daily picks (including concealed cards) and
+         * active Recent Discoveries that the backend marked map-eligible. A pin
+         * can therefore navigate to a concealed card without revealing it.
          *
          * With nothing mapped there is no map to interact with, so the
          * placeholder is shown instead of an empty illustration.
@@ -261,57 +152,11 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
             restaurants={mappable}
             selectedPlaceId={selection?.placeId ?? null}
             onSelect={selectFromMap}
-            // Which surface this is. Drives class names, so it must depend only
-            // on React state that is identical on the server and on hydration --
-            // never on a media query. Desktop styling comes from lg: variants.
-            surfaceMode={showingMap ? "fullscreen" : "inline"}
-            // Gestures are captured fully only when the map is the active
-            // surface: full-screen on mobile, always on desktop. Behaviour only,
-            // so reading a media query here is safe.
-            interactive={showingMap || isDesktop}
-            anchor={anchor}
-            placingPin={placingPin}
-            onPlacePin={placePin}
+            surfaceMode="bounded"
+            interactive
           />
         )}
       </aside>
-
-      {/* Mobile controls, above the map surface. */}
-      <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 lg:hidden">
-        {showingMap && selected && (
-          <MapPeekSheet
-            restaurant={selected}
-            anchor={anchor}
-            expanded={sheetExpanded}
-            onToggleExpanded={() => setSheetExpanded((open) => !open)}
-            onDismiss={() => {
-              setSheetExpanded(false);
-              setSelection(null);
-            }}
-          />
-        )}
-
-        {!(showingMap && selected) && (
-          <div className="flex justify-center px-4 pb-6">
-            <button
-              type="button"
-              onClick={() => setView(showingMap ? "list" : "map")}
-              className={cn(
-                "pointer-events-auto inline-flex min-h-12 items-center gap-2 rounded-chip px-6",
-                "bg-plum text-sm font-medium text-white",
-                "shadow-[0_4px_16px_-4px_rgba(49,40,61,0.45)]",
-                "transition-transform duration-200 ease-(--ease-fiyu) active:scale-[0.97]",
-              )}
-            >
-              <span
-                aria-hidden="true"
-                className="size-1.5 rounded-full bg-lavender-500"
-              />
-              {showingMap ? "List" : "Map"}
-            </button>
-          </div>
-        )}
-      </div>
     </div>
   );
 }

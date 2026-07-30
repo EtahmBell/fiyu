@@ -11,6 +11,8 @@ export interface RestaurantPhotoProps {
   placeId: string;
   /** Used only as the image's accessible name. */
   restaurantName: string;
+  /** Fill a stable card region instead of using the default 16:9 aspect box. */
+  fill?: boolean;
   className?: string;
 }
 
@@ -31,10 +33,18 @@ export interface RestaurantPhotoProps {
  * is a media fetch, not a Places API call: no Google key is involved and no
  * Places endpoint is contacted from the client.
  */
-export function RestaurantPhoto({ placeId, restaurantName, className }: RestaurantPhotoProps) {
+export function RestaurantPhoto({
+  placeId,
+  restaurantName,
+  fill = false,
+  className,
+}: RestaurantPhotoProps) {
   const { ref, inView } = useInView<HTMLDivElement>();
   const [photo, setPhoto] = useState<GooglePhoto | null>(null);
   const [failed, setFailed] = useState(false);
+  const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const [tappedOpen, setTappedOpen] = useState(false);
 
   useEffect(() => {
     if (!inView || photo || failed) return;
@@ -52,11 +62,39 @@ export function RestaurantPhoto({ placeId, restaurantName, className }: Restaura
   }, [inView, photo, failed, placeId]);
 
   const attribution = photo?.author_attributions[0] ?? null;
+  const hasPhotoInformation = Boolean(
+    attribution?.display_name || photo?.google_maps_uri || photo?.flag_content_uri,
+  );
+  const informationVisible = hasPhotoInformation && (hovered || focused || tappedOpen);
 
   return (
-    <div ref={ref} className={cn("overflow-hidden rounded-lg bg-lavender-50", className)}>
+    <div
+      ref={ref}
+      data-testid="restaurant-photo-region"
+      tabIndex={photo && hasPhotoInformation ? 0 : undefined}
+      aria-label={photo && hasPhotoInformation ? "Photo attribution" : undefined}
+      aria-expanded={photo && hasPhotoInformation ? informationVisible : undefined}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onClick={(event) => {
+        if (!photo || !hasPhotoInformation) return;
+        event.stopPropagation();
+        setTappedOpen((open) => !open);
+      }}
+      onKeyDown={(event) => {
+        if (event.key === "Escape") setTappedOpen(false);
+      }}
+      onFocusCapture={() => setFocused(true)}
+      onBlurCapture={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) setFocused(false);
+      }}
+      className={cn(
+        "relative overflow-hidden rounded-lg bg-lavender-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600",
+        className,
+      )}
+    >
       {/* Aspect box reserved up front, so nothing reflows when the image lands. */}
-      <div className="relative aspect-[16/9] w-full">
+      <div className={cn("relative w-full", fill ? "h-full min-h-44" : "aspect-[16/9]")}>
         {photo ? (
           // A plain <img>, not next/image: the backend returns a short-lived
           // Google media URL, and next/image would cache it well beyond that
@@ -69,7 +107,10 @@ export function RestaurantPhoto({ placeId, restaurantName, className }: Restaura
             height={photo.height}
             loading="lazy"
             decoding="async"
-            onError={() => setFailed(true)}
+            onError={() => {
+              setPhoto(null);
+              setFailed(true);
+            }}
             className="absolute inset-0 size-full object-cover"
             style={{ animation: "fiyu-fade-in 260ms var(--ease-fiyu)" }}
           />
@@ -78,29 +119,33 @@ export function RestaurantPhoto({ placeId, restaurantName, className }: Restaura
         )}
       </div>
 
-      {attribution?.display_name && (
-        <p className="flex flex-wrap items-center gap-x-1.5 px-2 py-1 text-[0.625rem] text-ink-faint">
-          <span>
+      {informationVisible && photo && (
+        <div
+          data-testid="photo-attribution-overlay"
+          onClick={(event) => event.stopPropagation()}
+          className="absolute inset-x-2 bottom-2 z-20 flex max-h-[48%] flex-wrap items-center gap-x-2 gap-y-1 overflow-y-auto rounded-md bg-plum/90 px-2.5 py-2 text-[0.6875rem] leading-tight text-white shadow-md backdrop-blur-sm"
+        >
+          {attribution?.display_name && <span>
             Photo by{" "}
             {attribution.uri ? (
               <a
                 href={attribution.uri}
                 target="_blank"
                 rel="noopener noreferrer nofollow"
-                className="underline decoration-line underline-offset-2 hover:text-lavender-700"
+                className="underline decoration-white/60 underline-offset-2 hover:text-lavender-100 focus-visible:outline-1 focus-visible:outline-white"
               >
                 {attribution.display_name}
               </a>
             ) : (
               attribution.display_name
             )}
-          </span>
+          </span>}
           {photo?.google_maps_uri && (
             <a
               href={photo.google_maps_uri}
               target="_blank"
               rel="noopener noreferrer nofollow"
-              className="underline decoration-line underline-offset-2 hover:text-lavender-700"
+              className="underline decoration-white/60 underline-offset-2 hover:text-lavender-100 focus-visible:outline-1 focus-visible:outline-white"
             >
               View on Google Maps
             </a>
@@ -110,12 +155,12 @@ export function RestaurantPhoto({ placeId, restaurantName, className }: Restaura
               href={photo.flag_content_uri}
               target="_blank"
               rel="noopener noreferrer nofollow"
-              className="underline decoration-line underline-offset-2 hover:text-lavender-700"
+              className="underline decoration-white/60 underline-offset-2 hover:text-lavender-100 focus-visible:outline-1 focus-visible:outline-white"
             >
               Report
             </a>
           )}
-        </p>
+        </div>
       )}
     </div>
   );

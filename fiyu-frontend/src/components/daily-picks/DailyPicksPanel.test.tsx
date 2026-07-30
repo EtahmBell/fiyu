@@ -2,12 +2,13 @@
 import { act } from "react";
 import { hydrateRoot } from "react-dom/client";
 import { renderToString } from "react-dom/server";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DailyPicksPanel } from "@/components/daily-picks/DailyPicksPanel";
 import { publicRestaurantSchema, type PublicRestaurant } from "@/lib/api/schemas";
-import { createDailyPicksStorage } from "@/lib/daily-picks/storage";
+import { RECENT_DISCOVERY_DURATION_MS } from "@/lib/daily-picks/history";
+import { createDailyPicksStorage, createDailySelection } from "@/lib/daily-picks/storage";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -35,17 +36,25 @@ const catalog = [
 
 beforeEach(() => window.localStorage.clear());
 afterEach(() => {
+  vi.useRealTimers();
   cleanup();
   vi.restoreAllMocks();
   document.body.innerHTML = "";
 });
 
 describe("Today’s Fiyu Picks panel", () => {
-  it("persists exactly three picks and reveal state across a reload", () => {
+  it("persists exactly three picks and the exact reveal time across a reload", () => {
+    const revealedAt = Date.UTC(2026, 6, 29, 12, 34, 56);
+    vi.useFakeTimers();
+    vi.setSystemTime(revealedAt);
     const firstStorage = createDailyPicksStorage(window.localStorage);
     const firstRender = render(<DailyPicksPanel restaurants={catalog} storage={firstStorage} />);
 
-    fireEvent.click(screen.getByRole("button", { name: /Receive today's restaurants/i }));
+    expect(screen.getByRole("heading", { name: "Choose today’s preferences" })).toBeTruthy();
+    expect(screen.getByTestId("pre-pick-preferences")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /Find today's restaurants/i }));
+    expect(screen.getByRole("heading", { name: "Today’s Fiyu Picks" })).toBeTruthy();
+    expect(screen.queryByTestId("pre-pick-preferences")).toBeNull();
     expect(screen.getAllByTestId("concealed-restaurant-card")).toHaveLength(3);
     const selectedIds = firstStorage.getSnapshot()?.selection?.restaurantIds;
     expect(selectedIds).toHaveLength(3);
@@ -55,6 +64,10 @@ describe("Today’s Fiyu Picks panel", () => {
     expect(screen.getAllByTestId("revealed-restaurant-card")).toHaveLength(1);
     const revealedId = firstStorage.getSnapshot()?.selection?.revealedIds[0];
     expect(revealedId).toBeTruthy();
+    expect(firstStorage.getSnapshot()?.discoveries).toContainEqual({
+      restaurantId: revealedId,
+      revealedAt: new Date(revealedAt).toISOString(),
+    });
 
     firstRender.unmount();
     render(
@@ -66,6 +79,174 @@ describe("Today’s Fiyu Picks panel", () => {
     expect(screen.getAllByTestId("concealed-restaurant-card")).toHaveLength(2);
     expect(screen.getAllByTestId("revealed-restaurant-card")).toHaveLength(1);
     expect(screen.getByText(`店 ${revealedId}`)).toBeTruthy();
+  });
+
+  it("treats Surprise me as an exclusive cuisine choice", () => {
+    const storage = createDailyPicksStorage(window.localStorage);
+    render(<DailyPicksPanel restaurants={catalog} storage={storage} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Sushi" }));
+    fireEvent.click(screen.getByRole("button", { name: "Izakaya" }));
+    expect(storage.getSnapshot()?.preferences.categories).toEqual(["sushi", "izakaya"]);
+    fireEvent.click(screen.getByRole("button", { name: "Surprise me" }));
+    expect(storage.getSnapshot()?.preferences.categories).toEqual([]);
+  });
+
+  it("allows no more than three cuisine choices", () => {
+    const storage = createDailyPicksStorage(window.localStorage);
+    render(<DailyPicksPanel restaurants={catalog} storage={storage} />);
+
+    for (const name of ["Sushi", "Izakaya", "Noodles"]) {
+      fireEvent.click(screen.getByRole("button", { name }));
+    }
+    const fourth = screen.getByRole("button", { name: "Yakiniku" });
+    expect(fourth).toHaveProperty("disabled", true);
+    fireEvent.click(fourth);
+    expect(storage.getSnapshot()?.preferences.categories).toEqual([
+      "sushi",
+      "izakaya",
+      "noodles",
+    ]);
+  });
+
+  it("returns to prefilled preferences after the cooldown expires", () => {
+    const now = Date.UTC(2026, 6, 30, 12);
+    vi.useFakeTimers();
+    vi.setSystemTime(now);
+    const storage = createDailyPicksStorage(window.localStorage);
+    storage.save({
+      version: 2,
+      preferences: { categories: ["sushi", "tempura"], nonJapanese: "japanese-only" },
+      selection: createDailySelection(["one", "two", "three"], now - 24 * 60 * 60 * 1000),
+      discoveries: [],
+      savedRestaurantIds: [],
+    });
+
+    render(<DailyPicksPanel restaurants={catalog} storage={storage} />);
+    expect(screen.getByRole("heading", { name: "Choose today’s preferences" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Sushi" }).getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByRole("button", { name: "Tempura" }).getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByRole("button", { name: "Japanese only" }).getAttribute("aria-pressed")).toBe("true");
+    expect(screen.queryByTestId("concealed-restaurant-card")).toBeNull();
+  });
+
+  it("does not regenerate active picks when stored preferences change", () => {
+    const now = Date.UTC(2026, 6, 30, 12);
+    vi.useFakeTimers();
+    vi.setSystemTime(now);
+    const storage = createDailyPicksStorage(window.localStorage);
+    const selection = createDailySelection(["one", "two", "three"], now);
+    storage.save({
+      version: 2,
+      preferences: { categories: [], nonJapanese: "occasionally" },
+      selection,
+      discoveries: [],
+      savedRestaurantIds: [],
+    });
+    render(<DailyPicksPanel restaurants={catalog} storage={storage} />);
+
+    const current = storage.getSnapshot();
+    storage.save({
+      ...current!,
+      preferences: { categories: ["tempura"], nonJapanese: "yes" },
+    });
+    expect(storage.getSnapshot()?.selection?.restaurantIds).toEqual(selection.restaurantIds);
+    expect(screen.queryByTestId("pre-pick-preferences")).toBeNull();
+    expect(screen.getAllByTestId("concealed-restaurant-card")).toHaveLength(3);
+  });
+
+  it("shows only previous revealed restaurants, newest first, without current duplicates", () => {
+    const now = Date.UTC(2026, 6, 29, 12);
+    vi.useFakeTimers();
+    vi.setSystemTime(now);
+    const storage = createDailyPicksStorage(window.localStorage);
+    storage.save({
+      version: 2,
+      preferences: { categories: [], nonJapanese: "occasionally" },
+      selection: {
+        ...createDailySelection(["four", "five", "six"], now - 1_000),
+        revealedIds: ["four"],
+      },
+      discoveries: [
+        { restaurantId: "one", revealedAt: new Date(now - 8 * 60 * 60 * 1000).toISOString() },
+        { restaurantId: "two", revealedAt: new Date(now - 2 * 60 * 60 * 1000).toISOString() },
+        { restaurantId: "four", revealedAt: new Date(now - 1_000).toISOString() },
+      ],
+      savedRestaurantIds: [],
+    });
+
+    render(<DailyPicksPanel restaurants={catalog} storage={storage} />);
+    const recentSection = screen.getByRole("heading", { name: "Recent Discoveries" }).closest(
+      "section",
+    ) as HTMLElement;
+    const recentCards = within(recentSection).getAllByTestId("compact-restaurant-card");
+    expect(recentCards).toHaveLength(2);
+    expect(within(recentCards[0]).getByText("Restaurant two")).toBeTruthy();
+    expect(within(recentCards[1]).getByText("Restaurant one")).toBeTruthy();
+    expect(within(recentSection).queryByText("Restaurant four")).toBeNull();
+    expect(within(recentSection).queryByText("Restaurant three")).toBeNull();
+  });
+
+  it("exposes current picks, including concealed cards, plus recent IDs to the map", () => {
+    const now = Date.UTC(2026, 6, 29, 12);
+    vi.useFakeTimers();
+    vi.setSystemTime(now);
+    const storage = createDailyPicksStorage(window.localStorage);
+    storage.save({
+      version: 2,
+      preferences: { categories: [], nonJapanese: "occasionally" },
+      selection: {
+        ...createDailySelection(["one", "two", "three"], now - 1_000),
+        revealedIds: ["one"],
+      },
+      discoveries: [
+        { restaurantId: "one", revealedAt: new Date(now - 1_000).toISOString() },
+        { restaurantId: "four", revealedAt: new Date(now - 60_000).toISOString() },
+      ],
+      savedRestaurantIds: [],
+    });
+    const onVisibleRestaurantIdsChange = vi.fn();
+
+    render(
+      <DailyPicksPanel
+        restaurants={catalog}
+        storage={storage}
+        onVisibleRestaurantIdsChange={onVisibleRestaurantIdsChange}
+      />,
+    );
+
+    expect(onVisibleRestaurantIdsChange).toHaveBeenLastCalledWith([
+      "four",
+      "one",
+      "three",
+      "two",
+    ]);
+  });
+
+  it("removes expired discoveries without removing their saved state", () => {
+    const now = Date.UTC(2026, 6, 29, 12);
+    vi.useFakeTimers();
+    vi.setSystemTime(now);
+    const storage = createDailyPicksStorage(window.localStorage);
+    storage.save({
+      version: 2,
+      preferences: { categories: [], nonJapanese: "occasionally" },
+      selection: createDailySelection(["four", "five", "six"], now - 1_000),
+      discoveries: [
+        {
+          restaurantId: "one",
+          revealedAt: new Date(now - RECENT_DISCOVERY_DURATION_MS).toISOString(),
+        },
+      ],
+      savedRestaurantIds: ["one"],
+    });
+
+    render(<DailyPicksPanel restaurants={catalog} storage={storage} />);
+    const recentSection = screen.getByRole("heading", { name: "Recent Discoveries" }).closest(
+      "section",
+    ) as HTMLElement;
+    expect(within(recentSection).queryByText("Restaurant one")).toBeNull();
+    expect(storage.getSnapshot()?.savedRestaurantIds).toEqual(["one"]);
   });
 
   it("hydrates deterministically without a localStorage mismatch", async () => {

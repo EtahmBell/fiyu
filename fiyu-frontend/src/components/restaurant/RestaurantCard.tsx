@@ -4,11 +4,9 @@ import { OutboundMapActions } from "@/components/restaurant/OutboundMapActions";
 import { RestaurantPhoto } from "@/components/restaurant/RestaurantPhoto";
 import { SignatureDishes } from "@/components/restaurant/SignatureDishes";
 import { TagList } from "@/components/restaurant/TagList";
-import { Badge } from "@/components/ui/Badge";
 import { ScoreMark } from "@/components/ui/ScoreMark";
 import type { PublicRestaurant } from "@/lib/api/schemas";
 import { distanceAccessibleLabel, formatDistance } from "@/lib/geo/distance";
-import { locationLabel } from "@/lib/geo/precision";
 import { editorialLabel } from "@/lib/format/editorialLabels";
 import { detectTextLang, resolveNames } from "@/lib/format/language";
 import { type DiscoveryAnchor, anchorDistanceSuffix, restaurantDistance } from "@/lib/location/anchor";
@@ -76,7 +74,6 @@ export function RestaurantCard({
           coarse: measured.approximate,
         });
 
-  const precisionNote = locationLabel(restaurant);
 
   return (
     <article
@@ -162,7 +159,7 @@ export function RestaurantCard({
         </p>
       )}
 
-      {(category || neighborhood || distance || precisionNote) && (
+      {(category || neighborhood || distance) && (
         <p className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-faint">
           {category && <span lang={detectTextLang(category)}>{category}</span>}
           {category && neighborhood && <span aria-hidden="true">·</span>}
@@ -178,9 +175,6 @@ export function RestaurantCard({
               </span>
             </>
           )}
-          {/* The backend's own wording, so a chome anchor is never presented as
-              an exact address. Matches the dashed pin on the map. */}
-          {precisionNote && <Badge tone="outline">{precisionNote}</Badge>}
         </p>
       )}
 

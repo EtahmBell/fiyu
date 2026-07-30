@@ -60,7 +60,7 @@ describe("concealed daily restaurant card", () => {
     expect(screen.getByText("Sushi Saito")).toBeTruthy();
     expect(screen.getByLabelText("Fiyu score 9.0 out of 10")).toBeTruthy();
     expect(screen.getByText("/10")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Save restaurant" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Save" })).toBeTruthy();
   });
 
   it("applies gold treatment at 90 but not below", () => {

@@ -254,16 +254,10 @@ describe("restaurant pins survive the new geography", () => {
     expect(container.querySelectorAll("[data-place-id]")).toHaveLength(4);
   });
 
-  it("still distinguishes exact from approximate pins", () => {
+  it("uses one regular pin treatment for every mapped restaurant", () => {
     const { container } = renderMap();
-    expect(container.querySelectorAll('[data-location-approximate="true"]')).toHaveLength(2);
-  });
-
-  it("still says 'Approximate area' on approximate pins", () => {
-    const { container } = renderMap();
-    for (const pin of container.querySelectorAll('[data-location-approximate="true"]')) {
-      expect(pin.getAttribute("aria-label")).toContain("Approximate area");
-    }
+    expect(container.querySelectorAll('[data-location-approximate="true"]')).toHaveLength(0);
+    expect(container.querySelectorAll("[data-place-id]")).toHaveLength(4);
   });
 
   it("draws pins after every context layer, so nothing overdraws them", () => {
@@ -292,13 +286,14 @@ describe("restaurant pins survive the new geography", () => {
 });
 
 describe("map key", () => {
-  it("offers a key covering the four mark types", () => {
+  it("offers a key without a separate approximate-location design", () => {
     renderMap();
     fireEvent.click(screen.getByRole("button", { name: /map key/i }));
 
-    for (const label of ["Exact location", "Approximate area", "Station", "Landmark"]) {
+    for (const label of ["Restaurant", "Station", "Landmark"]) {
       expect(screen.getByText(label), label).toBeTruthy();
     }
+    expect(screen.queryByText("Approximate area")).toBeNull();
   });
 
   it("credits OpenStreetMap whether the key is open or closed", () => {

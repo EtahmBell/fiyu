@@ -21,6 +21,12 @@ CREATE TABLE IF NOT EXISTS public_restaurants (
     food_tags_json TEXT NOT NULL DEFAULT '[]',
     signature_dishes_json TEXT NOT NULL DEFAULT '[]',
     why_fiyu TEXT,
+    description_en TEXT,
+    description_source_urls_json TEXT NOT NULL DEFAULT '[]',
+    description_confidence REAL,
+    description_model_name TEXT,
+    description_prompt_version TEXT,
+    description_researched_at TEXT,
 
     discovery_area TEXT,
     discovery_area_type TEXT,
@@ -99,6 +105,30 @@ CREATE INDEX IF NOT EXISTS idx_public_score
     ON public_restaurants(is_published, fiyu_score DESC);
 CREATE INDEX IF NOT EXISTS idx_public_research_queue
     ON public_restaurants(research_status, updated_at);
+CREATE TABLE IF NOT EXISTS description_research_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    public_restaurant_id TEXT NOT NULL,
+    provider TEXT NOT NULL,
+    model TEXT NOT NULL,
+    response_id TEXT,
+    status TEXT NOT NULL,
+    description_en TEXT,
+    restaurant_type_en TEXT,
+    cuisine_terms_en_json TEXT NOT NULL DEFAULT '[]',
+    signature_dishes_en_json TEXT NOT NULL DEFAULT '[]',
+    supporting_source_urls_json TEXT NOT NULL DEFAULT '[]',
+    confidence REAL,
+    unsupported_claims_json TEXT NOT NULL DEFAULT '[]',
+    web_search_action_count INTEGER NOT NULL DEFAULT 0,
+    input_tokens INTEGER NOT NULL DEFAULT 0,
+    output_tokens INTEGER NOT NULL DEFAULT 0,
+    total_tokens INTEGER NOT NULL DEFAULT 0,
+    error TEXT,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (public_restaurant_id) REFERENCES public_restaurants(place_id)
+);
+CREATE INDEX IF NOT EXISTS idx_description_research_runs_restaurant
+    ON description_research_runs(public_restaurant_id, created_at DESC);
 CREATE TABLE IF NOT EXISTS community_recommendations (
     response_id TEXT PRIMARY KEY,
     place_id TEXT NOT NULL,
@@ -405,6 +435,15 @@ PUBLIC_DISCOVERY_COLUMNS = {
     "discovery_area_conflict_reason": "TEXT",
 }
 
+PUBLIC_DESCRIPTION_COLUMNS = {
+    "description_en": "TEXT",
+    "description_source_urls_json": "TEXT NOT NULL DEFAULT '[]'",
+    "description_confidence": "REAL",
+    "description_model_name": "TEXT",
+    "description_prompt_version": "TEXT",
+    "description_researched_at": "TEXT",
+}
+
 ADDRESS_TABLE_COLUMNS = {
     "address_research_runs": {
         "requested_max_web_actions": "INTEGER NOT NULL DEFAULT 0",
@@ -467,7 +506,11 @@ def ensure_public_schema(db_path: str | Path) -> None:
             row["name"]
             for row in connection.execute("PRAGMA table_info(public_restaurants)").fetchall()
         }
-        for name, declaration in {**PUBLIC_LOCATION_COLUMNS, **PUBLIC_DISCOVERY_COLUMNS}.items():
+        for name, declaration in {
+            **PUBLIC_LOCATION_COLUMNS,
+            **PUBLIC_DISCOVERY_COLUMNS,
+            **PUBLIC_DESCRIPTION_COLUMNS,
+        }.items():
             if name not in existing:
                 connection.execute(
                     f"ALTER TABLE public_restaurants ADD COLUMN {name} {declaration}"
@@ -827,7 +870,7 @@ def _safe_public_rows(
         rows = connection.execute(
             f"""
             SELECT p.place_id, p.name_ja, p.name_en, p.primary_category,
-                   r.neighborhood, p.fiyu_score, p.score_band, p.why_fiyu,
+                   r.neighborhood, p.fiyu_score, p.score_band, p.description_en,
                    p.food_tags_json, p.signature_dishes_json,
                    p.discovery_area, p.discovery_area_type, p.discovery_areas_json,
                    p.multiple_discovery_areas, p.discovery_area_conflict,
@@ -856,7 +899,6 @@ def _safe_public_rows(
     results = []
     for row in rows:
         item = dict(row)
-        item["description_en"] = item.pop("why_fiyu")
         item["category"] = item.pop("primary_category")
         eligible = bool(item.get("map_display_eligible"))
         item["map_display_eligible"] = eligible

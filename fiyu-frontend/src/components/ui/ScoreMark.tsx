@@ -43,7 +43,7 @@ export function ScoreMark({ score, size = "md", className }: ScoreMarkProps) {
           label,
         )}
       >
-        Fiyu
+        Fiyu Score
       </span>
       <span
         aria-hidden="true"

@@ -43,7 +43,7 @@ export interface FiyuMapProps {
    * expressed with Tailwind `lg:` variants instead, which live in CSS and are
    * identical on both sides. Keep it that way.
    */
-  surfaceMode?: "inline" | "fullscreen";
+  surfaceMode?: "inline" | "bounded" | "fullscreen";
   /**
    * Whether to capture pan, zoom and pinch gestures.
    *
@@ -306,7 +306,7 @@ export function FiyuMap({
           // not the active surface; capture gestures fully when it is. Expressed
           // as a Tailwind variant rather than a media-query hook so the server
           // and client render the same class list -- see surfaceMode above.
-          surfaceMode === "fullscreen" ? "touch-none" : "touch-pan-y lg:touch-none",
+          surfaceMode === "inline" ? "touch-pan-y lg:touch-none" : "touch-none",
         )}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}

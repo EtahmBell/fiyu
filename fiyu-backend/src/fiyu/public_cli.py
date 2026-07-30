@@ -42,6 +42,24 @@ def _parser() -> argparse.ArgumentParser:
     localize.add_argument("--dry-run", action="store_true")
     localize.add_argument("--model", default=None)
 
+    descriptions = subparsers.add_parser(
+        "research-descriptions",
+        help="Generate grounded English card descriptions from stored research",
+    )
+    descriptions.add_argument("--place-id")
+    descriptions.add_argument("--limit", type=int, default=10)
+    descriptions.add_argument("--plan-only", action="store_true")
+    descriptions.add_argument("--dry-run", action="store_true")
+    descriptions.add_argument("--output-report", required=True)
+    descriptions.add_argument(
+        "--max-search-actions",
+        type=int,
+        choices=(0, 1, 2),
+        default=1,
+        help="Bounded web-search fallback actions per restaurant (default: 1)",
+    )
+    descriptions.add_argument("--model", default=None)
+
     location_review = subparsers.add_parser(
         "export-location-review", help="Export published restaurants for location review"
     )
@@ -310,6 +328,20 @@ def main() -> None:
             place_id=args.place_id,
             force=args.force,
             dry_run=args.dry_run,
+            model=args.model,
+        )
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+    elif args.command == "research-descriptions":
+        from .description_research import run_description_research
+
+        result = run_description_research(
+            db_path,
+            place_id=args.place_id,
+            limit=args.limit,
+            plan_only=args.plan_only,
+            dry_run=args.dry_run,
+            output_report=args.output_report,
+            max_search_actions=args.max_search_actions,
             model=args.model,
         )
         print(json.dumps(result, ensure_ascii=False, indent=2))

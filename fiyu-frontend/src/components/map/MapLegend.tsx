@@ -14,9 +14,8 @@ import { cn } from "@/lib/utils/cn";
  *
  * Collapsed to a single line by default. A permanent four-row key would occupy
  * the corner of a map that only ever shows a handful of restaurants, and the
- * approximate-pin distinction is already spelled out on the pins themselves and
- * on the cards. This is a reference for someone who wants it, not an explanation
- * nobody asked for.
+ * restaurant pins share one visual treatment because this is an orientation
+ * map, not a directions or survey product.
  *
  * The ODbL credit is not optional and is shown whether the key is open or closed.
  */
@@ -30,29 +29,11 @@ interface LegendEntry {
 /** Swatches reuse the map's own CSS variables, so the key cannot drift. */
 const ENTRIES: LegendEntry[] = [
   {
-    id: "exact",
-    label: "Exact location",
+    id: "restaurant",
+    label: "Restaurant",
     swatch: (
       <svg viewBox="0 0 16 16" className="size-4" aria-hidden="true">
         <circle cx="8" cy="8" r="5.5" fill="var(--map-marker-center)" stroke="var(--map-marker)" strokeWidth="2.5" />
-      </svg>
-    ),
-  },
-  {
-    id: "approximate",
-    label: "Approximate area",
-    swatch: (
-      <svg viewBox="0 0 16 16" className="size-4" aria-hidden="true">
-        <circle
-          cx="8"
-          cy="8"
-          r="6"
-          fill="var(--map-marker-approximate)"
-          fillOpacity="0.18"
-          stroke="var(--map-marker-approximate)"
-          strokeWidth="1.6"
-          strokeDasharray="3 2"
-        />
       </svg>
     ),
   },
@@ -111,8 +92,7 @@ export function MapLegend({ className }: MapLegendProps) {
 
           {/*
             The geography is real but simplified for drawing. Saying so is the
-            same honesty the approximate pins get -- this is an orientation aid,
-            not a survey, and not a navigation map.
+            this is an orientation aid, not a survey or navigation map.
           */}
           <li className="max-w-[13rem] pt-1 text-[0.625rem] leading-snug text-ink-faint">
             Illustrated map. Geography is simplified and is not for navigation.

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  DAILY_PICKS_STORAGE_KEY,
   DAILY_PICKS_DURATION_MS,
   createDailyPicksStorage,
   createDailySelection,
@@ -44,9 +45,10 @@ describe("daily picks storage", () => {
       revealedIds: ["b"],
     };
     firstSession.save({
-      version: 1,
+      version: 2,
       preferences: { categories: ["sushi"], nonJapanese: "japanese-only" },
       selection,
+      discoveries: [{ restaurantId: "b", revealedAt: "1970-01-01T00:00:02.000Z" }],
       savedRestaurantIds: ["b"],
     });
 
@@ -54,6 +56,49 @@ describe("daily picks storage", () => {
     expect(reloaded?.selection).toEqual(selection);
     expect(reloaded?.preferences.categories).toEqual(["sushi"]);
     expect(reloaded?.savedRestaurantIds).toEqual(["b"]);
+  });
+
+  it("migrates old revealed IDs using selection creation time", () => {
+    const localStorage = new MemoryStorage();
+    const selection = {
+      ...createDailySelection(["a", "b", "c"], 1_000),
+      revealedIds: ["b"],
+    };
+    localStorage.setItem(
+      DAILY_PICKS_STORAGE_KEY,
+      JSON.stringify({
+        version: 1,
+        preferences: { categories: [], nonJapanese: "occasionally" },
+        selection,
+        savedRestaurantIds: [],
+      }),
+    );
+
+    expect(createDailyPicksStorage(localStorage).getSnapshot()?.discoveries).toEqual([
+      { restaurantId: "b", revealedAt: selection.generatedAt },
+    ]);
+  });
+
+  it("migrates oversized and duplicate legacy cuisine preferences safely", () => {
+    const localStorage = new MemoryStorage();
+    localStorage.setItem(
+      DAILY_PICKS_STORAGE_KEY,
+      JSON.stringify({
+        version: 1,
+        preferences: {
+          categories: ["sushi", "sushi", "izakaya", "noodles", "tempura", "unknown"],
+          nonJapanese: "occasionally",
+        },
+        selection: null,
+        savedRestaurantIds: [],
+      }),
+    );
+
+    expect(createDailyPicksStorage(localStorage).getSnapshot()?.preferences.categories).toEqual([
+      "sushi",
+      "izakaya",
+      "noodles",
+    ]);
   });
 
   it("keeps the selection active for exactly its 24-hour window", () => {
