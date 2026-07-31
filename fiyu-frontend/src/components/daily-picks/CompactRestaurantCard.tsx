@@ -19,6 +19,7 @@ export interface CompactRestaurantCardProps {
   saved: boolean;
   expirationLabel?: string;
   onOpen?: (restaurant: PublicRestaurant) => void;
+  onViewDetails?: (restaurant: PublicRestaurant) => void;
   onToggleSaved(): void;
 }
 
@@ -31,6 +32,7 @@ export function CompactRestaurantCard({
   saved,
   expirationLabel,
   onOpen,
+  onViewDetails,
   onToggleSaved,
 }: CompactRestaurantCardProps) {
   const englishName = englishStructuredValue(restaurant.name_en);
@@ -122,24 +124,38 @@ export function CompactRestaurantCard({
          * strings without resolving Tailwind conflicts, so overriding the
          * button's radius and fill from outside would not be reliable.
          */}
-        <button
-          type="button"
-          aria-pressed={saved}
-          onClick={(event) => {
-            event.stopPropagation();
-            onToggleSaved();
-          }}
-          className={cn(
-            "relative z-10 inline-flex min-h-11 shrink-0 items-center rounded-chip border px-4 text-xs font-medium",
-            "transition-[background-color,border-color,color,transform] duration-[180ms]",
-            "ease-(--ease-fiyu) active:scale-[0.98]",
-            saved
-              ? "border-lavender-600/50 bg-lavender-50 text-lavender-700 hover:bg-lavender-100"
-              : "border-line bg-surface text-ink-muted hover:border-line-strong hover:text-ink",
+        <div className="flex flex-wrap items-center justify-end gap-1.5">
+          {onViewDetails && (
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onViewDetails(restaurant);
+              }}
+              className="relative z-10 inline-flex min-h-11 items-center rounded-chip border border-lavender-100 bg-lavender-50/60 px-4 text-xs font-medium text-lavender-700 transition-colors hover:border-lavender-500 hover:bg-lavender-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600"
+            >
+              View restaurant
+            </button>
           )}
-        >
-          {saved ? "Saved" : "Save"}
-        </button>
+          <button
+            type="button"
+            aria-pressed={saved}
+            onClick={(event) => {
+              event.stopPropagation();
+              onToggleSaved();
+            }}
+            className={cn(
+              "relative z-10 inline-flex min-h-11 shrink-0 items-center rounded-chip border px-4 text-xs font-medium",
+              "transition-[background-color,border-color,color,transform] duration-[180ms]",
+              "ease-(--ease-fiyu) active:scale-[0.98]",
+              saved
+                ? "border-lavender-600/50 bg-lavender-50 text-lavender-700 hover:bg-lavender-100"
+                : "border-line bg-surface text-ink-muted hover:border-line-strong hover:text-ink",
+            )}
+          >
+            {saved ? "Saved" : "Save"}
+          </button>
+        </div>
       </div>
     </article>
   );

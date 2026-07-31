@@ -6,6 +6,7 @@ import { FiyuMap } from "@/components/map/FiyuMap";
 import { publicRestaurantSchema } from "@/lib/api/schemas";
 import { type MappableRestaurant, mappableRestaurants } from "@/lib/geo/mappable";
 import { publishNewlyRevealedMapPlaces } from "@/lib/map/revealEvents";
+import { clearMapViewportSessions } from "@/lib/map/viewportSession";
 
 /**
  * Fixture coordinates. These are real Tokyo positions used to drive the
@@ -46,6 +47,7 @@ function mapSurface(): HTMLElement {
 
 afterEach(() => {
   cleanup();
+  clearMapViewportSessions();
   vi.useRealTimers();
 });
 
@@ -183,6 +185,35 @@ describe("newly revealed map pins", () => {
 });
 
 describe("controls", () => {
+  it("restores an application map transform without re-fitting on a matching result set", () => {
+    const first = render(
+      <FiyuMap
+        restaurants={[SHIBUYA, UENO]}
+        selectedPlaceId={null}
+        onSelect={() => {}}
+        viewportSessionKey="detail-test"
+      />,
+    );
+    const map = mapSurface();
+    const content = map.querySelector("g[transform]") as SVGGElement;
+    fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
+    const changedTransform = content.getAttribute("transform");
+    first.unmount();
+
+    render(
+      <FiyuMap
+        restaurants={[SHIBUYA, UENO]}
+        selectedPlaceId="shibuya"
+        onSelect={() => {}}
+        viewportSessionKey="detail-test"
+      />,
+    );
+
+    expect((mapSurface().querySelector("g[transform]") as SVGGElement).getAttribute("transform")).toBe(
+      changedTransform,
+    );
+  });
+
   it("exposes zoom, fit and reset as real keyboard-reachable buttons", () => {
     render(<FiyuMap restaurants={[SHIBUYA, UENO]} selectedPlaceId={null} onSelect={() => {}} />);
     for (const name of [

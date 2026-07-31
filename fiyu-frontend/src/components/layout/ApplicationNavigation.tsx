@@ -186,11 +186,17 @@ function MobileMenu() {
 
 export function ApplicationNavigation() {
   const pathname = usePathname();
+  const detailRoute = pathname.startsWith("/restaurants/");
   const [activeCityId, setActiveCityId] = useState<CityId>(ACTIVE_FIYU_CITY.id);
 
   return (
     <>
-      <header className="sticky top-0 z-40 h-header border-b border-line bg-canvas/95 backdrop-blur-sm">
+      <header
+        className={cn(
+          "sticky top-0 z-40 h-header border-b border-line bg-canvas/95 backdrop-blur-sm",
+          detailRoute && "hidden lg:block",
+        )}
+      >
         <div className="mx-auto flex h-full w-full max-w-[1560px] items-center px-4 pt-[env(safe-area-inset-top)] sm:px-8">
           <div className="flex min-w-0 items-center gap-1 lg:hidden">
             <Link
@@ -269,7 +275,7 @@ export function ApplicationNavigation() {
        * blur is the header's, kept light enough that labels stay legible over
        * whatever scrolls beneath.
        */}
-      <nav
+      {!detailRoute && <nav
         aria-label="Mobile primary"
         className="fixed inset-x-0 bottom-0 z-40 grid h-mobile-nav grid-cols-5 items-stretch border-t border-line bg-canvas/95 px-1 pb-[env(safe-area-inset-bottom)] shadow-[0_-10px_28px_-24px_rgba(49,40,61,0.4)] backdrop-blur-sm lg:hidden"
       >
@@ -312,7 +318,7 @@ export function ApplicationNavigation() {
             </Link>
           );
         })}
-      </nav>
+      </nav>}
     </>
   );
 }

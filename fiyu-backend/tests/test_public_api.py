@@ -158,6 +158,41 @@ def test_public_detail_requires_published_restaurant(public_db):
     assert client.get("/public/restaurants/hidden").status_code == 404
 
 
+def test_public_detail_exposes_latest_grounded_description_fields_only(public_db):
+    with connect(public_db) as connection:
+        connection.execute(
+            """
+            INSERT INTO description_research_runs (
+                public_restaurant_id, provider, model, status, description_en,
+                restaurant_type_en, cuisine_terms_en_json, signature_dishes_en_json,
+                supporting_source_urls_json, created_at
+            ) VALUES (?, 'openai_responses', 'test-model', 'accepted', ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                "eligible",
+                "Grounded detail.",
+                "Standing soba shop",
+                json.dumps(["soba", "tempura"]),
+                json.dumps(["Zaru soba"]),
+                json.dumps(["https://example.com/source"]),
+                "2026-07-20T12:00:00+00:00",
+            ),
+        )
+        connection.commit()
+
+    client = TestClient(api.app)
+    summary = client.get("/public/restaurants").json()[0]
+    detail = client.get("/public/restaurants/eligible").json()
+
+    assert "restaurant_type_en" not in summary
+    assert detail["restaurant_type_en"] == "Standing soba shop"
+    assert detail["cuisine_terms_en"] == ["soba", "tempura"]
+    assert detail["signature_dishes_en"] == ["Zaru soba"]
+    assert detail["supporting_source_urls"] == ["https://example.com/source"]
+    assert detail["researched_at"] == "2026-07-20T12:00:00+00:00"
+    assert "why_fiyu" not in detail
+
+
 def test_photo_endpoint_preserves_attribution_without_persisting(public_db, monkeypatch):
     with connect(public_db) as connection:
         before = dict(connection.execute(

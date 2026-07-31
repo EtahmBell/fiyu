@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 
 import type { CityId } from "@/lib/city/editions";
 import { citySignatureFor, type CityEmptyStateKind } from "@/lib/city/signatures";
@@ -19,21 +19,71 @@ export function CityHeaderMark({ cityId, className }: { cityId: CityId; classNam
   );
 }
 
+/**
+ * Each frame holds this long before crossfading to the next.
+ *
+ * Five frames at 600ms is the three-second discovery window in
+ * `DailyPicksPanel`; the two are meant to stay in step.
+ */
+const ILLUSTRATION_HOLD_MS = 600;
+
+/**
+ * The single frame reduced-motion users see: the noodle bowl, which reads as a
+ * bowl at a glance without any motion to explain it.
+ */
+const STATIC_ILLUSTRATION_INDEX = 1;
+
+const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
+
+/**
+ * The motion preference read as an external store rather than as effect state.
+ *
+ * The server has no media queries, so the server snapshot is always false and
+ * the first client render matches it; React then re-renders with the real value
+ * after hydration. Capturing the MediaQueryList inside `subscribe` matters --
+ * `matchMedia` hands back a new object each call, so cleaning up against a
+ * second lookup would leave the listener attached.
+ */
+function subscribeMotionPreference(listener: () => void) {
+  const query = window.matchMedia?.(REDUCED_MOTION_QUERY);
+  if (!query) return () => {};
+  query.addEventListener("change", listener);
+  return () => query.removeEventListener("change", listener);
+}
+
+const motionPreferenceSnapshot = () =>
+  window.matchMedia?.(REDUCED_MOTION_QUERY).matches ?? false;
+const motionPreferenceServerSnapshot = () => false;
+
 export function CityLoadingSequence({ cityId, className }: { cityId: CityId; className?: string }) {
   const illustrations = citySignatureFor(cityId)?.loadingIllustrations ?? [];
-  const [activeIndex, setActiveIndex] = useState(0);
+  // Depend on the count, not the array: the signature lookup returns a fresh
+  // reference each render and would otherwise restart the sequence constantly.
+  const count = illustrations.length;
+  const reducedMotion = useSyncExternalStore(
+    subscribeMotionPreference,
+    motionPreferenceSnapshot,
+    motionPreferenceServerSnapshot,
+  );
+  const [frame, setFrame] = useState(0);
 
   useEffect(() => {
-    const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)");
-    if (reducedMotion?.matches || illustrations.length < 2) return;
-    const timer = window.setInterval(
-      () => setActiveIndex((current) => (current + 1) % illustrations.length),
-      800,
-    );
+    if (reducedMotion || count < 2) return;
+    // The set plays once and holds on the last frame rather than looping. The
+    // discovery window is timed to end on the mochi, and a wrap would flash the
+    // oden again just as the loading state fades out.
+    let shown = 0;
+    const timer = window.setInterval(() => {
+      shown += 1;
+      setFrame(shown);
+      if (shown >= count - 1) window.clearInterval(timer);
+    }, ILLUSTRATION_HOLD_MS);
     return () => window.clearInterval(timer);
-  }, [illustrations.length]);
+  }, [count, reducedMotion]);
 
-  if (illustrations.length === 0) return null;
+  if (count === 0) return null;
+
+  const activeIndex = reducedMotion ? Math.min(STATIC_ILLUSTRATION_INDEX, count - 1) : frame;
 
   return (
     <div
@@ -47,7 +97,7 @@ export function CityLoadingSequence({ cityId, className }: { cityId: CityId; cla
           key={index}
           data-loading-illustration={index}
           className={cn(
-            "absolute inset-0 size-full transition-opacity duration-500 ease-(--ease-fiyu)",
+            "absolute inset-0 size-full transition-opacity duration-300 ease-(--ease-fiyu)",
             index === activeIndex ? "opacity-100" : "opacity-0",
           )}
         />

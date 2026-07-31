@@ -57,7 +57,7 @@ describe("Today’s Fiyu Picks panel", () => {
     expect(screen.getByRole("heading", { name: "Today’s Fiyu Picks" })).toBeTruthy();
     expect(screen.queryByTestId("pre-pick-preferences")).toBeNull();
     expect(screen.getByText("Finding today’s restaurants…")).toBeTruthy();
-    act(() => vi.advanceTimersByTime(850));
+    act(() => vi.advanceTimersByTime(3_000));
     expect(screen.getAllByTestId("concealed-restaurant-card")).toHaveLength(3);
     const selectedIds = firstStorage.getSnapshot()?.selection?.restaurantIds;
     expect(selectedIds).toHaveLength(3);
@@ -69,7 +69,7 @@ describe("Today’s Fiyu Picks panel", () => {
     expect(revealedId).toBeTruthy();
     expect(firstStorage.getSnapshot()?.discoveries).toContainEqual({
       restaurantId: revealedId,
-      revealedAt: new Date(revealedAt + 850).toISOString(),
+      revealedAt: new Date(revealedAt + 3_000).toISOString(),
     });
 
     firstRender.unmount();
@@ -82,6 +82,47 @@ describe("Today’s Fiyu Picks panel", () => {
     expect(screen.getAllByTestId("concealed-restaurant-card")).toHaveLength(2);
     expect(screen.getAllByTestId("revealed-restaurant-card")).toHaveLength(1);
     expect(screen.getByText(`店 ${revealedId}`)).toBeTruthy();
+  });
+
+  it("holds the discovery sequence for three seconds without delaying the selection", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(Date.UTC(2026, 6, 29, 12));
+    const storage = createDailyPicksStorage(window.localStorage);
+    render(<DailyPicksPanel restaurants={catalog} storage={storage} />);
+    fireEvent.click(screen.getByRole("button", { name: /Find today's restaurants/i }));
+
+    // The work is already done: picks are chosen and persisted on the click,
+    // so the three seconds are presentation running alongside it, not after it.
+    expect(storage.getSnapshot()?.selection?.restaurantIds).toHaveLength(3);
+
+    const loading = () => screen.queryByTestId("daily-picks-hydrating");
+    expect(loading()?.dataset.discoveryPhase).toBe("finding");
+
+    // Still on screen through the fifth illustration.
+    act(() => vi.advanceTimersByTime(2_400));
+    expect(loading()?.dataset.discoveryPhase).toBe("finding");
+    expect(screen.getByTestId("city-loading-sequence").dataset.activeIllustration).toBe("4");
+    expect(screen.queryByTestId("concealed-restaurant-card")).toBeNull();
+
+    // Then it fades rather than cutting, and the picks take its place.
+    act(() => vi.advanceTimersByTime(380));
+    expect(loading()?.dataset.discoveryPhase).toBe("settling");
+    expect(loading()?.style.animation).toContain("fiyu-fade-out");
+
+    act(() => vi.advanceTimersByTime(220));
+    expect(loading()).toBeNull();
+    expect(screen.getAllByTestId("concealed-restaurant-card")).toHaveLength(3);
+  });
+
+  it("clears the discovery timer when the panel unmounts mid-sequence", () => {
+    vi.useFakeTimers();
+    const storage = createDailyPicksStorage(window.localStorage);
+    const { unmount } = render(<DailyPicksPanel restaurants={catalog} storage={storage} />);
+    fireEvent.click(screen.getByRole("button", { name: /Find today's restaurants/i }));
+
+    act(() => vi.advanceTimersByTime(1_000));
+    unmount();
+    expect(() => act(() => vi.advanceTimersByTime(5_000))).not.toThrow();
   });
 
   it("treats Surprise me as an exclusive cuisine choice", () => {

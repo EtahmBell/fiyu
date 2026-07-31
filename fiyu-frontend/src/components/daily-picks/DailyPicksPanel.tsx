@@ -43,12 +43,32 @@ export interface DailyPicksPanelProps {
   activeArea?: string | null;
   storage?: DailyPicksStorage;
   onOpenRestaurant?: (restaurant: PublicRestaurant) => void;
+  onViewRestaurant?: (restaurant: PublicRestaurant) => void;
   onVisibleRestaurantIdsChange?: (restaurantIds: string[]) => void;
   selectedPlaceId?: string | null;
   scrollToPlaceId?: string | null;
   scrollRequestKey?: number;
   originSetup?: FreeOriginSetup;
 }
+
+/**
+ * How long the discovery sequence stays on screen after the user asks for picks.
+ *
+ * This is a floor on the presentation, not a delay bolted onto the work.
+ * Selection is synchronous over the already-fetched catalogue and the result is
+ * persisted the instant the button is pressed, so the work and this timer run
+ * alongside each other -- the equivalent of awaiting both together. Nothing is
+ * waiting on a network call that this could be shortening.
+ *
+ * Five illustrations at 600ms fill it exactly once, ending on the mochi.
+ */
+const DISCOVERY_SEQUENCE_MS = 3_000;
+
+/** The tail of that window, during which the loading state fades out. */
+const DISCOVERY_SETTLE_MS = 220;
+
+/** `settling` is the fade; picks mount when the phase returns to `idle`. */
+type DiscoveryPhase = "idle" | "finding" | "settling";
 
 const subscribeClock = (listener: () => void) => {
   const timer = window.setInterval(listener, 60_000);
@@ -231,6 +251,7 @@ export function DailyPicksPanel({
   activeArea = null,
   storage: injectedStorage,
   onOpenRestaurant,
+  onViewRestaurant,
   onVisibleRestaurantIdsChange,
   selectedPlaceId = null,
   scrollToPlaceId = null,
@@ -246,7 +267,7 @@ export function DailyPicksPanel({
   );
   const now = useSyncExternalStore(subscribeClock, currentMinute, serverMinute);
   const [inventoryMessage, setInventoryMessage] = useState<string | null>(null);
-  const [finding, setFinding] = useState(false);
+  const [phase, setPhase] = useState<DiscoveryPhase>("idle");
   const [tuning, setTuning] = useState(false);
   const [newMapPlaceCount, setNewMapPlaceCount] = useState(0);
   const findingTimerRef = useRef<number | null>(null);
@@ -360,7 +381,9 @@ export function DailyPicksPanel({
       return;
     }
     setInventoryMessage(null);
-    setFinding(true);
+    setPhase("finding");
+    // Persisted first, before either timer: the selection is already made and
+    // saved while the sequence plays, so the wait is presentation only.
     persist({
       ...state,
       selection: createDailySelection(
@@ -369,9 +392,12 @@ export function DailyPicksPanel({
       ),
     });
     findingTimerRef.current = window.setTimeout(() => {
-      setFinding(false);
-      findingTimerRef.current = null;
-    }, 850);
+      setPhase("settling");
+      findingTimerRef.current = window.setTimeout(() => {
+        setPhase("idle");
+        findingTimerRef.current = null;
+      }, DISCOVERY_SETTLE_MS);
+    }, DISCOVERY_SEQUENCE_MS - DISCOVERY_SETTLE_MS);
   };
 
   const reveal = (placeId: string, revealedAt: number) => {
@@ -445,21 +471,31 @@ export function DailyPicksPanel({
           {hasActivePicks ? "Today’s Fiyu Picks" : "Choose today’s preferences"}
         </h2>
 
-        {snapshot === null || finding ? (
+        {snapshot === null || phase !== "idle" ? (
           <div
             role="status"
             className="mt-4 flex min-h-36 flex-col items-center justify-center text-center"
             data-testid="daily-picks-hydrating"
+            data-discovery-phase={phase}
+            style={
+              phase === "settling"
+                ? { animation: `fiyu-fade-out ${DISCOVERY_SETTLE_MS}ms var(--ease-fiyu) forwards` }
+                : undefined
+            }
           >
             <CityLoadingSequence cityId={ACTIVE_FIYU_CITY.id} />
             <p className="mt-2 text-sm font-medium text-ink-muted">
-              {finding ? "Finding today’s restaurants…" : "Loading today’s selection…"}
+              {phase === "idle" ? "Loading today’s selection…" : "Finding today’s restaurants…"}
             </p>
           </div>
         ) : (
           <div className="mt-4 space-y-4">
             {hasActivePicks && currentSelection && (
-              <div className="space-y-4" aria-label="Today’s restaurants">
+              <div
+                className="space-y-4"
+                aria-label="Today’s restaurants"
+                style={{ animation: "fiyu-fade-in 260ms var(--ease-fiyu)" }}
+              >
                 {selectedRestaurants.map((restaurant, index) => (
                   <DailyCardFrame
                     key={restaurant.place_id}
@@ -475,6 +511,7 @@ export function DailyPicksPanel({
                       onReveal={() => reveal(restaurant.place_id, Date.now())}
                       onToggleSaved={() => toggleSaved(restaurant.place_id)}
                       onOpen={onOpenRestaurant}
+                      onViewDetails={onViewRestaurant}
                     />
                   </DailyCardFrame>
                 ))}
@@ -533,6 +570,7 @@ export function DailyPicksPanel({
               savedRestaurantIds={state.savedRestaurantIds}
               now={now}
               onOpen={onOpenRestaurant}
+              onViewDetails={onViewRestaurant}
               onToggleSaved={toggleSaved}
               selectedPlaceId={selectedPlaceId}
               registerCardRef={registerCardRef}

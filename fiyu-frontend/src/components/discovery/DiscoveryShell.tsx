@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { DailyPicksPanel } from "@/components/daily-picks/DailyPicksPanel";
 import { PageIntro, SiteFooter } from "@/components/layout/SiteHeader";
@@ -15,6 +16,12 @@ import {
   originFromGeolocation,
   type FreeDiscoveryOrigin,
 } from "@/lib/location/origin";
+import {
+  readPicksReturnState,
+  restaurantDetailHref,
+  savePicksReturnState,
+} from "@/lib/navigation/restaurantDetail";
+import { PICKS_DETAIL_MAP_SESSION_KEY } from "@/lib/map/viewportSession";
 import { cn } from "@/lib/utils/cn";
 
 export interface DiscoveryShellProps {
@@ -48,11 +55,13 @@ interface Selection {
  * never touches the network, and ordering is delegated to the ranking adapter.
  */
 export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps) {
+  const router = useRouter();
   const [selection, setSelection] = useState<Selection | null>(null);
   const [visibleRestaurantIds, setVisibleRestaurantIds] = useState<string[]>([]);
   const [homeArea, setHomeArea] = useState<LocationAnchor | null>(null);
   const [continuedWithoutLocation, setContinuedWithoutLocation] = useState(false);
   const [mapExpanded, setMapExpanded] = useState(false);
+  const scrollRegionRef = useRef<HTMLDivElement>(null);
 
   const geolocation = useGeolocation();
 
@@ -90,6 +99,52 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
     [select],
   );
 
+  const openRestaurantDetail = useCallback(
+    (restaurant: PublicRestaurant) => {
+      savePicksReturnState({
+        placeId: restaurant.place_id,
+        scrollTop: scrollRegionRef.current?.scrollTop ?? 0,
+        createdAt: Date.now(),
+      });
+      setSelection((current) => ({
+        placeId: restaurant.place_id,
+        source: "feed",
+        navigationKey: (current?.navigationKey ?? 0) + 1,
+      }));
+      router.push(restaurantDetailHref(restaurant.place_id), { scroll: false });
+    },
+    [router],
+  );
+
+  useEffect(() => {
+    const restore = readPicksReturnState();
+    const scrollRegion = scrollRegionRef.current;
+    if (!restore || !scrollRegion) return;
+
+    setSelection((current) => ({
+      placeId: restore.placeId,
+      source: "feed",
+      navigationKey: (current?.navigationKey ?? 0) + 1,
+    }));
+
+    const restoreCard = () => {
+      const card = [...document.querySelectorAll<HTMLElement>("[data-daily-card-place-id]")].find(
+        (candidate) => candidate.dataset.dailyCardPlaceId === restore.placeId,
+      );
+      if (!card) return false;
+      scrollRegion.scrollTop = restore.scrollTop;
+      card.focus({ preventScroll: true });
+      return true;
+    };
+
+    if (restoreCard()) return;
+    const observer = new MutationObserver(() => {
+      if (restoreCard()) observer.disconnect();
+    });
+    observer.observe(scrollRegion, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, []);
+
   useEffect(() => {
     if (!mapExpanded) return;
     const collapseOnEscape = (event: KeyboardEvent) => {
@@ -113,6 +168,7 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
 
         {/* The feed remains the primary scroll surface behind the floating map. */}
         <div
+          ref={scrollRegionRef}
           data-testid="restaurant-scroll-region"
           className="row-start-1 min-h-0 min-w-0 overflow-x-hidden overflow-y-auto overscroll-contain lg:w-full lg:overflow-visible"
         >
@@ -131,6 +187,7 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
                 restaurants={restaurants}
                 activeArea={activeArea}
                 onOpenRestaurant={selectFromFeed}
+                onViewRestaurant={openRestaurantDetail}
                 onVisibleRestaurantIdsChange={setVisibleRestaurantIds}
                 selectedPlaceId={selection?.placeId ?? null}
                 scrollToPlaceId={selection?.source === "map" ? selection.placeId : null}
@@ -183,6 +240,7 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
             surfaceMode="bounded"
             interactive
             compactOnMobile={!mapExpanded}
+            viewportSessionKey={PICKS_DETAIL_MAP_SESSION_KEY}
           />
         )}
 

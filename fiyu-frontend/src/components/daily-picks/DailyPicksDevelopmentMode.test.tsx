@@ -76,7 +76,7 @@ describe("unlimited Picks development mode", () => {
     ]);
     expect(storage.getSnapshot()?.savedRestaurantIds).toEqual(["two"]);
 
-    act(() => vi.advanceTimersByTime(850));
+    act(() => vi.advanceTimersByTime(3_000));
     expect(screen.getAllByTestId("concealed-restaurant-card")).toHaveLength(3);
     expect(screen.getByText("Restaurant one")).toBeTruthy();
 
@@ -84,7 +84,7 @@ describe("unlimited Picks development mode", () => {
     expect(new Set(storage.getSnapshot()?.selection?.restaurantIds)).toEqual(
       new Set(["one", "two", "three"]),
     );
-    act(() => vi.advanceTimersByTime(850));
+    act(() => vi.advanceTimersByTime(3_000));
   });
 
   it("requires the explicit public development flag", async () => {

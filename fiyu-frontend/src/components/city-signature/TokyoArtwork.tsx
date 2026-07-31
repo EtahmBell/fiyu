@@ -15,6 +15,25 @@ const textileLine = {
   strokeLinejoin: "round" as const,
 };
 
+/**
+ * Shared line treatment for the five loading illustrations.
+ *
+ * `fill: "none"` is the load-bearing part. The older `line` constant omits it,
+ * so every open path drawn with it inherited the SVG default of solid black --
+ * the steam wisps and the broth curve in the bowl, and the arc on the onigiri,
+ * all rendered as filled blobs rather than strokes.
+ *
+ * Spread this FIRST and put an explicit `fill` after it on the shapes that want
+ * one; spreading it last would overwrite their fill with `none`.
+ */
+const foodLine = {
+  fill: "none",
+  stroke: "var(--color-plum)",
+  strokeWidth: 3,
+  strokeLinecap: "round" as const,
+  strokeLinejoin: "round" as const,
+};
+
 /** Custom seven-petal floral mark; intentionally unlike the Imperial crest. */
 export function TokyoKikuMark(props: SVGProps<SVGSVGElement>) {
   return (
@@ -44,13 +63,37 @@ function FoodCanvas({ children, ...props }: SVGProps<SVGSVGElement>) {
   );
 }
 
+/**
+ * A skewer threaded with a circle, a triangle and a rounded rectangle.
+ *
+ * The pieces are laid out on a vertical axis and the whole group is rotated
+ * once, so every piece is genuinely centred on the skewer. The previous version
+ * hand-placed each piece near a diagonal line, which left the triangle hanging
+ * off the axis and the rounded rectangle overhanging the end of the stick.
+ * Rotating a group also keeps stroke weight uniform, since no scaling occurs.
+ */
 export function TokyoOdenIllustration(props: SVGProps<SVGSVGElement>) {
   return (
     <FoodCanvas {...props}>
-      <path d="M35 76 80 19" {...line} />
-      <circle cx="70" cy="31" r="12" fill="var(--color-lavender-100)" {...line} />
-      <path d="m55 43 15 22-27 1Z" fill="var(--color-rose-dust)" fillOpacity=".25" {...line} />
-      <rect x="25" y="59" width="27" height="17" rx="6" fill="var(--color-lavender-100)" {...line} />
+      <g transform="rotate(38 60 50)">
+        <path d="M60 90V6" {...foodLine} />
+        <circle cx="60" cy="26" r="11" {...foodLine} fill="var(--color-lavender-100)" />
+        <path
+          d="m60 40 12 20H48Z"
+          {...foodLine}
+          fill="var(--color-rose-dust)"
+          fillOpacity=".3"
+        />
+        <rect
+          x="46"
+          y="62"
+          width="28"
+          height="16"
+          rx="7"
+          {...foodLine}
+          fill="var(--color-lavender-100)"
+        />
+      </g>
     </FoodCanvas>
   );
 }
@@ -58,23 +101,13 @@ export function TokyoOdenIllustration(props: SVGProps<SVGSVGElement>) {
 export function TokyoNoodleIllustration(props: SVGProps<SVGSVGElement>) {
   return (
     <FoodCanvas {...props}>
-      <path d="M28 47h64c-2 24-14 34-32 34S30 71 28 47Z" fill="var(--color-lavender-100)" {...line} />
-      <path d="M24 47h72M42 58c7 6 29 6 36 0" {...line} />
-      <path d="M43 35c-5-6 4-8 0-15M60 35c-5-6 4-8 0-15M77 35c-5-6 4-8 0-15" {...line} />
-    </FoodCanvas>
-  );
-}
-
-export function TokyoOnigiriIllustration(props: SVGProps<SVGSVGElement>) {
-  return (
-    <FoodCanvas {...props}>
       <path
-        d="M60 17c7 0 12 7 18 17l18 31c5 9-1 17-12 17H36c-11 0-17-8-12-17l18-31c6-10 11-17 18-17Z"
+        d="M28 47h64c-2 24-14 34-32 34S30 71 28 47Z"
+        {...foodLine}
         fill="var(--color-lavender-100)"
-        {...line}
       />
-      <path d="M49 57h22v25H49z" fill="var(--color-plum)" stroke="var(--color-plum)" strokeWidth="3" />
-      <path d="M44 41c8-4 24-4 32 0" {...line} stroke="var(--color-rose-dust)" />
+      <path d="M24 47h72M42 58c7 6 29 6 36 0" {...foodLine} />
+      <path d="M43 35c-5-6 4-8 0-15M60 35c-5-6 4-8 0-15M77 35c-5-6 4-8 0-15" {...foodLine} />
     </FoodCanvas>
   );
 }
@@ -84,11 +117,25 @@ export function TokyoFishIllustration(props: SVGProps<SVGSVGElement>) {
     <FoodCanvas {...props}>
       <path
         d="M25 52c13-22 42-27 66-9l14-11-1 25 1 14-16-10C65 76 38 71 25 52Z"
+        {...foodLine}
         fill="var(--color-lavender-100)"
-        {...line}
       />
       <circle cx="47" cy="48" r="2.5" fill="var(--color-plum)" />
-      <path d="m62 43-8 18M76 42l-8 20" {...line} stroke="var(--color-rose-dust)" />
+      <path d="m62 43-8 18M76 42l-8 20" {...foodLine} stroke="var(--color-rose-dust)" />
+    </FoodCanvas>
+  );
+}
+
+export function TokyoOnigiriIllustration(props: SVGProps<SVGSVGElement>) {
+  return (
+    <FoodCanvas {...props}>
+      <path
+        d="M60 17c7 0 12 7 18 17l18 31c5 9-1 17-12 17H36c-11 0-17-8-12-17l18-31c6-10 11-17 18-17Z"
+        {...foodLine}
+        fill="var(--color-lavender-100)"
+      />
+      <path d="M49 57h22v25H49z" {...foodLine} fill="var(--color-plum)" />
+      <path d="M44 41c8-4 24-4 32 0" {...foodLine} stroke="var(--color-rose-dust)" />
     </FoodCanvas>
   );
 }
@@ -96,10 +143,18 @@ export function TokyoFishIllustration(props: SVGProps<SVGSVGElement>) {
 export function TokyoMochiIllustration(props: SVGProps<SVGSVGElement>) {
   return (
     <FoodCanvas {...props}>
-      <ellipse cx="42" cy="62" rx="22" ry="16" fill="var(--color-lavender-100)" {...line} />
-      <ellipse cx="77" cy="60" rx="23" ry="18" fill="var(--color-rose-dust)" fillOpacity=".25" {...line} />
-      <ellipse cx="60" cy="42" rx="22" ry="17" fill="var(--color-lavender-100)" {...line} />
-      <path d="M34 82h53" {...line} />
+      <ellipse cx="42" cy="62" rx="22" ry="16" {...foodLine} fill="var(--color-lavender-100)" />
+      <ellipse
+        cx="77"
+        cy="60"
+        rx="23"
+        ry="18"
+        {...foodLine}
+        fill="var(--color-rose-dust)"
+        fillOpacity=".28"
+      />
+      <ellipse cx="60" cy="42" rx="22" ry="17" {...foodLine} fill="var(--color-lavender-100)" />
+      <path d="M34 82h53" {...foodLine} />
     </FoodCanvas>
   );
 }

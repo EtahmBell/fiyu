@@ -175,6 +175,21 @@ export const publicRestaurantSchema = z.object({
 
 export const publicRestaurantListSchema = z.array(publicRestaurantSchema);
 
+/**
+ * GET /public/restaurants/{place_id}.
+ *
+ * Detail-only editorial fields come from the latest accepted grounded
+ * description-research run. They deliberately do not appear in the catalog
+ * response, and every section that consumes them must tolerate their absence.
+ */
+export const publicRestaurantDetailSchema = publicRestaurantSchema.extend({
+  restaurant_type_en: nullableString,
+  cuisine_terms_en: stringArray,
+  signature_dishes_en: stringArray,
+  supporting_source_urls: stringArray,
+  researched_at: nullableString,
+});
+
 /** One author credit on a Google photo. Attribution must always be displayed. */
 export const photoAttributionSchema = z.object({
   display_name: nullableString,
@@ -219,6 +234,7 @@ export const locationAnchorSchema = z.object({
 export const locationAnchorListSchema = z.array(locationAnchorSchema);
 
 export type PublicRestaurant = z.infer<typeof publicRestaurantSchema>;
+export type PublicRestaurantDetail = z.infer<typeof publicRestaurantDetailSchema>;
 export type PublicRestaurantList = z.infer<typeof publicRestaurantListSchema>;
 export type GooglePhoto = z.infer<typeof googlePhotoSchema>;
 export type PhotoAttribution = z.infer<typeof photoAttributionSchema>;

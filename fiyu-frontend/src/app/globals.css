@@ -1,4 +1,7 @@
-@import "tailwindcss";
+/* Restrict Tailwind to authored source. Automatic discovery can otherwise
+   ingest Turbopack's binary .next/dev cache and emit invalid selectors. */
+@import "tailwindcss" source(none);
+@source "../";
 
 /*
  * Fiyu design tokens.
@@ -224,14 +227,14 @@ body {
 }
 
 /*
- * Concealed-to-revealed cross-fade on a daily pick.
+ * Soft exits: the concealed face lifting off a revealed pick, and the discovery
+ * sequence retiring once the three-second window is up.
  *
- * The noren face fades off the top of the restaurant card while the card itself
- * settles up into place -- roughly 300ms end to end. The reduced-motion rule
- * above collapses both to an instant swap, which is why the movement lives in a
+ * The reduced-motion rule above collapses both of these, and the paired
+ * `fiyu-reveal-in`, to an instant swap -- which is why the movement lives in a
  * keyframe rather than in a transform held by a class.
  */
-@keyframes fiyu-conceal-out {
+@keyframes fiyu-fade-out {
   from {
     opacity: 1;
   }

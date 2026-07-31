@@ -191,6 +191,16 @@ describe("application navigation", () => {
     expect(mobileSelector.open).toBe(false);
   });
 
+  it("gives a restaurant detail route its compact mobile header instead of app chrome", () => {
+    route.pathname = "/restaurants/place-123";
+    render(<ApplicationNavigation />);
+
+    expect(screen.queryByRole("navigation", { name: "Mobile primary" })).toBeNull();
+    expect(screen.getByRole("banner").className).toContain("hidden");
+    expect(screen.getByRole("banner").className).toContain("lg:block");
+    expect(screen.getByRole("navigation", { name: "Primary" })).toBeTruthy();
+  });
+
   it("hydrates with the same route-derived active destination", async () => {
     const element = <ApplicationNavigation />;
     const container = document.createElement("div");

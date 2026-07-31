@@ -148,7 +148,7 @@ describe("reveal transition", () => {
     const fade = screen.getByTestId("conceal-fade-out");
     expect(fade.getAttribute("aria-hidden")).toBe("true");
     expect(fade.className).toContain("pointer-events-none");
-    expect(fade.style.animation).toContain("fiyu-conceal-out");
+    expect(fade.style.animation).toContain("fiyu-fade-out");
     expect(screen.getByTestId("revealed-restaurant-card").firstElementChild).toHaveProperty(
       "style.animation",
       expect.stringContaining("fiyu-reveal-in"),

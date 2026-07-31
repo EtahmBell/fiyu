@@ -15,6 +15,7 @@ import type { DiscoveryAnchor } from "@/lib/location/anchor";
 import { type MarkerCluster, clusterMarkers } from "@/lib/map/clustering";
 import { detailLevelFor, detailLevelLabel } from "@/lib/map/detail";
 import { subscribeToNewlyRevealedMapPlaces } from "@/lib/map/revealEvents";
+import { readMapViewportSession, saveMapViewportSession } from "@/lib/map/viewportSession";
 import { type LatLng, VIEWBOX, isWithinBounds, project, unproject } from "@/lib/map/projection";
 import {
   IDENTITY_VIEW,
@@ -59,6 +60,8 @@ export interface FiyuMapProps {
   /** When true, a tap on the map places or moves the manual pin. */
   placingPin?: boolean;
   onPlacePin?: (point: LatLng) => void;
+  /** Preserve the transform between application surfaces that share this key. */
+  viewportSessionKey?: string;
   className?: string;
 }
 
@@ -94,10 +97,16 @@ export function FiyuMap({
   anchor = null,
   placingPin = false,
   onPlacePin,
+  viewportSessionKey,
   className,
 }: FiyuMapProps) {
   const svgRef = useRef<SVGSVGElement>(null);
-  const [view, setView] = useState<MapView>(IDENTITY_VIEW);
+  const [initialViewportSession] = useState(() =>
+    viewportSessionKey ? readMapViewportSession(viewportSessionKey) : null,
+  );
+  const [view, setView] = useState<MapView>(
+    () => initialViewportSession?.view ?? IDENTITY_VIEW,
+  );
   const [sproutingPlaceIds, setSproutingPlaceIds] = useState<ReadonlySet<string>>(
     () => new Set(),
   );
@@ -164,17 +173,34 @@ export function FiyuMap({
     () => new Set(plotted.map((restaurant) => restaurant.place_id)),
     [plotted],
   );
-  const lastFitKey = useRef<string | null>(null);
+  const lastFitKey = useRef<string | null>(
+    initialViewportSession?.resultKey === resultKey ? resultKey : null,
+  );
+  const skipNextViewportSave = useRef(false);
   const userHasInteracted = useRef(false);
 
   useEffect(() => {
     if (lastFitKey.current === resultKey) return;
     lastFitKey.current = resultKey;
     userHasInteracted.current = false;
-    setView(points.length > 0 ? fitToPoints(points) : IDENTITY_VIEW);
+    const fitted = points.length > 0 ? fitToPoints(points) : IDENTITY_VIEW;
+    skipNextViewportSave.current = true;
+    if (viewportSessionKey) {
+      saveMapViewportSession(viewportSessionKey, { resultKey, view: fitted });
+    }
+    setView(fitted);
     // `points` is derived from the same restaurants as resultKey.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resultKey]);
+  }, [resultKey, viewportSessionKey]);
+
+  useEffect(() => {
+    if (!viewportSessionKey || lastFitKey.current !== resultKey) return;
+    if (skipNextViewportSave.current) {
+      skipNextViewportSave.current = false;
+      return;
+    }
+    saveMapViewportSession(viewportSessionKey, { resultKey, view });
+  }, [resultKey, view, viewportSessionKey]);
 
   useEffect(() => {
     const unsubscribe = subscribeToNewlyRevealedMapPlaces((event) => {

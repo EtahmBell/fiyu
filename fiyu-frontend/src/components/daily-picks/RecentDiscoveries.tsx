@@ -20,6 +20,7 @@ export interface RecentDiscoveriesProps {
   savedRestaurantIds: string[];
   now: number;
   onOpen?: (restaurant: PublicRestaurant) => void;
+  onViewDetails?: (restaurant: PublicRestaurant) => void;
   onToggleSaved(placeId: string): void;
   selectedPlaceId?: string | null;
   registerCardRef?: DailyCardRefRegistrar;
@@ -31,6 +32,7 @@ export function RecentDiscoveries({
   savedRestaurantIds,
   now,
   onOpen,
+  onViewDetails,
   onToggleSaved,
   selectedPlaceId = null,
   registerCardRef,
@@ -74,6 +76,7 @@ export function RecentDiscoveries({
                   now,
                 )}
                 onOpen={onOpen}
+                onViewDetails={onViewDetails}
                 onToggleSaved={() => onToggleSaved(restaurant.place_id)}
               />
             </DailyCardFrame>

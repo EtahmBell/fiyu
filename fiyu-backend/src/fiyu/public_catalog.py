@@ -861,6 +861,43 @@ def get_public_restaurant(db_path: str | Path, place_id: str) -> dict[str, objec
     return rows[0] if rows else None
 
 
+def get_public_restaurant_detail(
+    db_path: str | Path, place_id: str
+) -> dict[str, object] | None:
+    """Return the public summary plus the latest accepted grounded detail fields."""
+    restaurant = get_public_restaurant(db_path, place_id)
+    if restaurant is None:
+        return None
+
+    with connect(db_path) as connection:
+        row = connection.execute(
+            """
+            SELECT restaurant_type_en, cuisine_terms_en_json,
+                   signature_dishes_en_json, supporting_source_urls_json,
+                   created_at
+            FROM description_research_runs
+            WHERE public_restaurant_id = ? AND status = 'accepted'
+            ORDER BY created_at DESC, id DESC
+            LIMIT 1
+            """,
+            (place_id,),
+        ).fetchone()
+
+    restaurant["restaurant_type_en"] = row["restaurant_type_en"] if row else None
+    restaurant["researched_at"] = row["created_at"] if row else None
+    for output, source in (
+        ("cuisine_terms_en", "cuisine_terms_en_json"),
+        ("signature_dishes_en", "signature_dishes_en_json"),
+        ("supporting_source_urls", "supporting_source_urls_json"),
+    ):
+        try:
+            value = json.loads(row[source] or "[]") if row else []
+            restaurant[output] = value if isinstance(value, list) else []
+        except json.JSONDecodeError:
+            restaurant[output] = []
+    return restaurant
+
+
 def list_published_restaurants(
     db_path: str | Path, *, limit: int = 100
 ) -> list[dict[str, object]]:

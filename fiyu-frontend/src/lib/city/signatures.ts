@@ -30,11 +30,12 @@ export interface CitySignature {
 export const TOKYO_CITY_SIGNATURE: CitySignature = {
   cityId: "tokyo",
   headerMark: TokyoKikuMark,
+  // Order is the sequence the loading state plays, not an alphabetical list.
   loadingIllustrations: [
     TokyoOdenIllustration,
     TokyoNoodleIllustration,
-    TokyoOnigiriIllustration,
     TokyoFishIllustration,
+    TokyoOnigiriIllustration,
     TokyoMochiIllustration,
   ],
   picksWatermark: TokyoPicksWatermark,

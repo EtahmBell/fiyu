@@ -2,7 +2,7 @@
 import { act } from "react";
 import { hydrateRoot } from "react-dom/client";
 import { renderToString } from "react-dom/server";
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DiscoveryShell } from "@/components/discovery/DiscoveryShell";
@@ -12,6 +12,9 @@ import {
   createDailySelection,
   parseDailyPicksState,
 } from "@/lib/daily-picks/storage";
+
+const router = vi.hoisted(() => ({ push: vi.fn() }));
+vi.mock("next/navigation", () => ({ useRouter: () => router }));
 
 const catalog = [
   ["one", "Sushi", 35.66, 139.70],
@@ -40,6 +43,8 @@ const catalog = [
 
 beforeEach(() => {
   window.localStorage.clear();
+  window.sessionStorage.clear();
+  router.push.mockReset();
   Object.defineProperty(window, "matchMedia", {
     configurable: true,
     value: () => ({
@@ -123,7 +128,7 @@ describe("daily-only discovery shell", () => {
     fireEvent.click(screen.getByRole("button", { name: "Continue without location" }));
     fireEvent.click(screen.getByRole("button", { name: /Find today's restaurants/i }));
     expect(screen.getByText("Finding today’s restaurants…")).toBeTruthy();
-    act(() => vi.advanceTimersByTime(850));
+    act(() => vi.advanceTimersByTime(3_000));
     fireEvent.click(screen.getByRole("button", { name: "Tap to reveal restaurant 1" }));
 
     const state = parseDailyPicksState(window.localStorage.getItem(DAILY_PICKS_STORAGE_KEY));
@@ -207,6 +212,44 @@ describe("daily-only discovery shell", () => {
     expect(container.querySelector('[data-place-id="one"]')?.getAttribute("aria-pressed")).toBe(
       "true",
     );
+  });
+
+  it("opens detail by place_id and restores the selected card and list scroll on return", async () => {
+    const now = Date.now();
+    window.localStorage.setItem(
+      DAILY_PICKS_STORAGE_KEY,
+      JSON.stringify({
+        version: 2,
+        preferences: { categories: [], nonJapanese: "occasionally" },
+        selection: {
+          ...createDailySelection(["one", "two", "three"], now - 1_000),
+          revealedIds: ["one"],
+        },
+        discoveries: [{ restaurantId: "one", revealedAt: new Date(now - 1_000).toISOString() }],
+        savedRestaurantIds: [],
+      }),
+    );
+    const first = render(<DiscoveryShell restaurants={catalog} areaAnchors={[]} />);
+    const scrollRegion = screen.getByTestId("restaurant-scroll-region");
+    scrollRegion.scrollTop = 247;
+    const frame = document.querySelector('[data-daily-card-place-id="one"]') as HTMLElement;
+
+    fireEvent.click(within(frame).getByRole("button", { name: "View restaurant" }));
+
+    expect(router.push).toHaveBeenCalledWith("/restaurants/one", { scroll: false });
+    expect(JSON.parse(window.sessionStorage.getItem("fiyu.picks-detail-return.v1") ?? "null")).toMatchObject({
+      placeId: "one",
+      scrollTop: 247,
+    });
+
+    first.unmount();
+    render(<DiscoveryShell restaurants={catalog} areaAnchors={[]} />);
+    await waitFor(() => {
+      const restored = document.querySelector('[data-daily-card-place-id="one"]') as HTMLElement;
+      expect(restored.dataset.selected).toBe("true");
+      expect(document.activeElement).toBe(restored);
+      expect(screen.getByTestId("restaurant-scroll-region").scrollTop).toBe(247);
+    });
   });
 
   it("hydrates the onboarding and daily feed without a mismatch", async () => {

@@ -15,6 +15,7 @@ export interface ConcealedRestaurantCardProps {
   onReveal(): void;
   onToggleSaved(): void;
   onOpen?: (restaurant: PublicRestaurant) => void;
+  onViewDetails?: (restaurant: PublicRestaurant) => void;
 }
 
 /**
@@ -61,6 +62,7 @@ export function ConcealedRestaurantCard({
   onReveal,
   onToggleSaved,
   onOpen,
+  onViewDetails,
 }: ConcealedRestaurantCardProps) {
   const gold = hasGoldFiyuTreatment(restaurant.fiyu_score);
   // Only a reveal that happens in front of the user animates. A card restored
@@ -121,6 +123,7 @@ export function ConcealedRestaurantCard({
           restaurant={restaurant}
           saved={saved}
           onOpen={onOpen}
+          onViewDetails={onViewDetails}
           onToggleSaved={onToggleSaved}
         />
       </div>
@@ -130,7 +133,7 @@ export function ConcealedRestaurantCard({
           aria-hidden="true"
           data-testid="conceal-fade-out"
           className="pointer-events-none absolute inset-x-0 top-0 z-20"
-          style={{ animation: `fiyu-conceal-out ${CONCEAL_FADE_MS}ms var(--ease-fiyu) forwards` }}
+          style={{ animation: `fiyu-fade-out ${CONCEAL_FADE_MS}ms var(--ease-fiyu) forwards` }}
         >
           <div className={cn(FACE_SURFACE, faceEdge(gold))}>
             <div className="relative z-10 flex min-h-24 w-full flex-col items-center justify-center">

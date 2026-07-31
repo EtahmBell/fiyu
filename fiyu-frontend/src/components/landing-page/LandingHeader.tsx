@@ -1,7 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+
+import { LANDING_MEASURE } from "@/components/landing-page/landingSystem";
+import { cn } from "@/lib/utils/cn";
 
 const navigation = [
   { href: "#explore", label: "Explore" },
@@ -9,7 +12,21 @@ const navigation = [
   { href: "#why-few", label: "Why only a few?" },
 ] as const;
 
+/**
+ * Sticky state read as an external store rather than as effect state.
+ *
+ * The server has no scroll position, so the server snapshot is always false and
+ * the first client render matches it; React re-reads after hydration.
+ */
+function subscribeScroll(listener: () => void) {
+  window.addEventListener("scroll", listener, { passive: true });
+  return () => window.removeEventListener("scroll", listener);
+}
+const scrollSnapshot = () => window.scrollY > 8;
+const scrollServerSnapshot = () => false;
+
 export function LandingHeader() {
+  const lifted = useSyncExternalStore(subscribeScroll, scrollSnapshot, scrollServerSnapshot);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const firstMenuLinkRef = useRef<HTMLAnchorElement>(null);
@@ -29,29 +46,38 @@ export function LandingHeader() {
   const closeMenu = () => setMenuOpen(false);
 
   return (
-    <header className="sticky top-0 z-40 border-b border-line/80 bg-canvas/95 pt-[env(safe-area-inset-top)] backdrop-blur-md">
-      <div className="mx-auto flex min-h-16 w-full max-w-[90rem] items-center px-5 sm:px-8 lg:px-12">
+    <header
+      // No border and no blur at rest, so the header reads as part of the page
+      // rather than as a toolbar sitting on top of it; both arrive on scroll.
+      className={cn(
+        "sticky top-0 z-40 border-b pt-[env(safe-area-inset-top)]",
+        "transition-[background-color,border-color] duration-300 ease-(--ease-fiyu)",
+        lifted ? "border-line bg-canvas/95 backdrop-blur-sm" : "border-transparent bg-canvas",
+      )}
+    >
+      <div className={cn(LANDING_MEASURE, "flex min-h-16 items-center lg:min-h-[4.5rem]")}>
         <Link
           href="/"
           aria-label="Fiyu home"
-          className="font-display text-[1.7rem] leading-none text-ink transition-colors hover:text-lavender-700"
+          className="font-display text-[1.5rem] leading-none tracking-[-0.02em] text-ink transition-colors duration-200 ease-(--ease-fiyu) hover:text-lavender-700 lg:text-[1.625rem]"
         >
           Fiyu
         </Link>
 
-        <nav aria-label="Landing page" className="ml-auto hidden items-center gap-7 md:flex">
+        <nav aria-label="Landing page" className="ml-auto hidden items-center gap-8 md:flex">
           {navigation.map((item) => (
             <a
               key={item.href}
-              className="text-sm text-ink-muted transition-colors hover:text-ink"
+              className="text-[0.9375rem] text-ink-muted underline decoration-transparent decoration-1 underline-offset-[6px] transition-colors duration-200 ease-(--ease-fiyu) hover:text-ink hover:decoration-rose-dust"
               href={item.href}
             >
               {item.label}
             </a>
           ))}
+          <span aria-hidden="true" className="ml-1 h-4 w-px bg-line-strong" />
           <Link
             href="/picks"
-            className="inline-flex min-h-11 items-center rounded-chip bg-plum px-5 text-sm font-medium text-white transition-colors hover:bg-lavender-700"
+            className="inline-flex min-h-11 items-center rounded-chip bg-plum px-6 text-sm font-medium text-white transition-colors duration-200 ease-(--ease-fiyu) hover:bg-lavender-700"
           >
             Explore Tokyo
           </Link>
@@ -59,7 +85,7 @@ export function LandingHeader() {
 
         <Link
           href="/picks"
-          className="ml-auto hidden min-h-10 items-center rounded-chip bg-plum px-4 text-sm font-medium text-white min-[390px]:inline-flex md:hidden"
+          className="ml-auto hidden min-h-10 items-center rounded-chip bg-plum px-4 text-sm font-medium text-white transition-colors duration-200 ease-(--ease-fiyu) hover:bg-lavender-700 min-[390px]:inline-flex md:hidden"
         >
           Explore Tokyo
         </Link>
@@ -96,9 +122,12 @@ export function LandingHeader() {
         id="landing-mobile-menu"
         aria-label="Landing page mobile"
         hidden={!menuOpen}
-        className="absolute inset-x-0 top-full border-b border-line bg-canvas px-5 py-5 shadow-[0_16px_30px_-24px_rgba(49,40,61,0.35)] md:hidden"
+        className={cn(
+          LANDING_MEASURE,
+          "absolute inset-x-0 top-full border-b border-line bg-canvas py-5 shadow-[0_16px_30px_-24px_rgba(49,40,61,0.35)] md:hidden",
+        )}
       >
-        <div className="mx-auto flex max-w-[90rem] flex-col">
+        <div className="flex flex-col">
           {navigation.map((item, index) => (
             <a
               key={item.href}

@@ -20,13 +20,13 @@ import {
   type GooglePhoto,
   type LocationAnchor,
   type ParsedRestaurantList,
-  type PublicRestaurant,
+  type PublicRestaurantDetail,
   describeZodIssues,
   googlePhotoListSchema,
   googlePhotoSchema,
   locationAnchorListSchema,
   parseRestaurantList,
-  publicRestaurantSchema,
+  publicRestaurantDetailSchema,
 } from "@/lib/api/schemas";
 
 /**
@@ -209,8 +209,8 @@ export async function fetchRestaurants(
 export function fetchRestaurant(
   placeId: string,
   options: RequestOptions = {},
-): Promise<PublicRestaurant> {
-  return requestJson(restaurantUrl(placeId), paths.restaurant(placeId), publicRestaurantSchema, {
+): Promise<PublicRestaurantDetail> {
+  return requestJson(restaurantUrl(placeId), paths.restaurant(placeId), publicRestaurantDetailSchema, {
     revalidate: CATALOG_REVALIDATE_SECONDS,
     tags: [CATALOG_CACHE_TAG],
     ...options,

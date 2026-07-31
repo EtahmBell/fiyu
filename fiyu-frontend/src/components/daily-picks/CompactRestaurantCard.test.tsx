@@ -200,4 +200,24 @@ describe("compact card interaction", () => {
     fireEvent.click(screen.getByRole("link", { name: "Open in Apple Maps" }));
     expect(onOpen).toHaveBeenCalledTimes(2);
   });
+
+  it("opens the reusable detail route action without triggering card selection", () => {
+    const onOpen = vi.fn();
+    const onViewDetails = vi.fn();
+    const value = restaurant();
+    render(
+      <CompactRestaurantCard
+        restaurant={value}
+        saved={false}
+        onOpen={onOpen}
+        onViewDetails={onViewDetails}
+        onToggleSaved={() => {}}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "View restaurant" }));
+
+    expect(onViewDetails).toHaveBeenCalledWith(value);
+    expect(onOpen).not.toHaveBeenCalled();
+  });
 });

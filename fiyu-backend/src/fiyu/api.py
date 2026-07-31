@@ -21,7 +21,7 @@ from .google_places import (
 )
 from .location_anchors import load_location_anchors
 from .osm_index import OSM_ATTRIBUTION
-from .public_catalog import get_public_restaurant, list_published_restaurants
+from .public_catalog import get_public_restaurant, get_public_restaurant_detail, list_published_restaurants
 from .utils import haversine_km
 
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
@@ -96,7 +96,11 @@ class PublicRestaurantSummary(BaseModel):
 
 
 class PublicRestaurantDetail(PublicRestaurantSummary):
-    pass
+    restaurant_type_en: str | None = None
+    cuisine_terms_en: list[str] = Field(default_factory=list)
+    signature_dishes_en: list[str] = Field(default_factory=list)
+    supporting_source_urls: list[str] = Field(default_factory=list)
+    researched_at: str | None = None
 
 
 class PhotoAttribution(BaseModel):
@@ -147,7 +151,7 @@ def public_restaurants(
 @app.get("/public/restaurants/{place_id}", response_model=PublicRestaurantDetail)
 def public_restaurant_detail(place_id: str) -> dict[str, object]:
     _ensure_database()
-    restaurant = get_public_restaurant(DB_PATH, place_id)
+    restaurant = get_public_restaurant_detail(DB_PATH, place_id)
     if restaurant is None:
         raise HTTPException(status_code=404, detail="Restaurant not found")
     return restaurant

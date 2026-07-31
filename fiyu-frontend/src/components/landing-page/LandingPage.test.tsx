@@ -62,12 +62,43 @@ describe("public landing experience", () => {
     expect(screen.queryByRole("navigation", { name: "Primary" })).toBeNull();
   });
 
+  it("keeps the footer to real destinations, with attribution split from navigation", () => {
+    render(landingRoute());
+
+    const footer = within(screen.getByRole("contentinfo"));
+    const links = footer.getAllByRole("navigation", { name: "Landing footer" });
+    expect(links).toHaveLength(1);
+    expect(
+      within(links[0]).getAllByRole("link").map((link) => link.getAttribute("href")),
+    ).toEqual(["/picks", "/profile#privacy"]);
+
+    // Same-page section anchors belong in the header, not the footer.
+    expect(footer.queryByRole("link", { name: "How Fiyu works" })).toBeNull();
+    expect(footer.queryByRole("link", { name: "Why only a few?" })).toBeNull();
+
+    expect(footer.getByText("© 2026 Fiyu.")).toBeTruthy();
+    expect(footer.getByRole("link", { name: "Natural Earth" }).getAttribute("href")).toBe(
+      "https://www.naturalearthdata.com/",
+    );
+  });
+
+  it("shares one measure across the header, every section, and the footer", () => {
+    const { container } = render(landingRoute());
+
+    const measured = [...container.querySelectorAll(".max-w-\\[90rem\\]")];
+    expect(measured.length).toBeGreaterThanOrEqual(7);
+    for (const element of measured) {
+      expect(element.className).toContain("px-5");
+      expect(element.className).toContain("lg:px-12");
+    }
+  });
+
   it("renders the approved hero copy and responsive wordmark treatment", () => {
     render(<LandingPage />);
 
     const wordmark = screen.getByTestId("landing-wordmark");
     expect(wordmark.textContent).toBe("Fiyu");
-    expect(wordmark.className).toContain("text-[clamp(5rem,18vw,13rem)]");
+    expect(wordmark.className).toContain("text-[clamp(4.5rem,13vw,10rem)]");
     expect(
       screen.getByRole("heading", {
         level: 1,
@@ -81,6 +112,36 @@ describe("public landing experience", () => {
     ).toBeTruthy();
     expect(screen.getByRole("link", { name: "See how Fiyu works" }).getAttribute("href")).toBe(
       "#how-it-works",
+    );
+  });
+
+  it("pairs the hero with a captioned, city-neutral nearby-discovery plate", () => {
+    const { container } = render(<LandingPage />);
+
+    expect(screen.queryByText("A quiet way in")).toBeNull();
+    expect(screen.getByText("Selected around you.")).toBeTruthy();
+    expect(
+      screen.getByText(
+        /Independent restaurants matched to your tastes and nearby area—whether you’re exploring a new city or rediscovering your everyday one\./,
+      ),
+    ).toBeTruthy();
+
+    // The hero keeps a single heading; the plate is captioned, not sectioned.
+    const hero = screen.getByTestId("hero-nearby-figure").closest("section");
+    expect(hero?.querySelectorAll("h1, h2, h3")).toHaveLength(1);
+
+    // Decorative to assistive tech, and no place is named or plotted.
+    const plate = screen.getByTestId("hero-nearby-figure").querySelector("svg");
+    expect(plate?.getAttribute("aria-hidden")).toBe("true");
+    expect(plate?.querySelector("text")).toBeNull();
+    expect(plate?.querySelector("image")).toBeNull();
+    // One origin plus three nearby picks.
+    expect(plate?.querySelectorAll('circle[fill="var(--color-rose-dust)"]')).toHaveLength(3);
+    expect(plate?.querySelectorAll('circle[fill="var(--color-plum)"]')).toHaveLength(1);
+
+    // Stacks on narrow screens rather than crowding the primary copy.
+    expect(container.querySelector('[data-testid="hero-nearby-figure"]')?.className).toContain(
+      "border-t",
     );
   });
 
@@ -119,6 +180,9 @@ describe("public landing experience", () => {
       screen.getByText(
         /Great small restaurants can be overwhelmed by sudden attention\. Fiyu reveals discoveries gradually through small, personalized selections/,
       ),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(/By varying recommendations across users instead of directing everyone/),
     ).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Tell us what you like" })).toBeTruthy();
     expect(
