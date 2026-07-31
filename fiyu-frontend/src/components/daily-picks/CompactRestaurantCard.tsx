@@ -14,6 +14,24 @@ import {
 } from "@/lib/daily-picks/cardContent";
 import { cn } from "@/lib/utils/cn";
 
+function BookmarkIcon({ filled }: { filled: boolean }) {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      className="size-5"
+      fill={filled ? "currentColor" : "none"}
+      stroke="currentColor"
+      strokeWidth="1.75"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      data-bookmark-state={filled ? "saved" : "unsaved"}
+    >
+      <path d="M7 4.75A1.75 1.75 0 0 1 8.75 3h6.5A1.75 1.75 0 0 1 17 4.75v15l-5-3.25-5 3.25v-15Z" />
+    </svg>
+  );
+}
+
 export interface CompactRestaurantCardProps {
   restaurant: PublicRestaurant;
   saved: boolean;
@@ -23,8 +41,20 @@ export interface CompactRestaurantCardProps {
   onToggleSaved(): void;
 }
 
-function actionTarget(target: EventTarget | null): boolean {
-  return target instanceof Element && Boolean(target.closest("a, button"));
+const INTERACTIVE_CARD_SELECTOR =
+  'a, button, input, select, textarea, [role="button"], [data-no-card-navigation]';
+
+function nestedInteractiveTarget(
+  target: EventTarget | null,
+  currentTarget: HTMLElement,
+): boolean {
+  if (!(target instanceof Element)) return false;
+  const interactive = target.closest(INTERACTIVE_CARD_SELECTOR);
+  return interactive !== null && interactive !== currentTarget;
+}
+
+function hasFinePointer(): boolean {
+  return typeof window.matchMedia === "function" && window.matchMedia("(pointer: fine)").matches;
 }
 
 export function CompactRestaurantCard({
@@ -43,7 +73,17 @@ export function CompactRestaurantCard({
 
   const open = () => onOpen?.(restaurant);
   const handleClick = (event: MouseEvent<HTMLElement>) => {
-    if (!actionTarget(event.target)) open();
+    if (!nestedInteractiveTarget(event.target, event.currentTarget)) open();
+  };
+  const handleDoubleClick = (event: MouseEvent<HTMLElement>) => {
+    if (
+      !onViewDetails ||
+      !hasFinePointer() ||
+      nestedInteractiveTarget(event.target, event.currentTarget)
+    ) {
+      return;
+    }
+    onViewDetails(restaurant);
   };
   const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => {
     if (event.target !== event.currentTarget || (event.key !== "Enter" && event.key !== " ")) return;
@@ -58,6 +98,7 @@ export function CompactRestaurantCard({
       tabIndex={onOpen ? 0 : undefined}
       aria-label={onOpen ? `View ${title}` : undefined}
       onClick={handleClick}
+      onDoubleClick={handleDoubleClick}
       onKeyDown={handleKeyDown}
       className={cn(
         "relative min-w-0 w-full overflow-hidden rounded-card border border-line bg-surface p-3 shadow-[0_6px_20px_-18px_rgba(49,40,61,0.35)] sm:p-3.5",
@@ -114,17 +155,14 @@ export function CompactRestaurantCard({
 
       {tags.length > 0 && <TagList tags={tags} max={3} className="mt-3" />}
 
-      <div className="relative z-10 mt-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-t border-line pt-3">
+      <div
+        data-testid="compact-card-footer"
+        className="relative z-10 mt-3 min-w-0 border-t border-line pt-2.5"
+      >
         <div className="min-w-0 max-w-full" onClick={(event) => event.stopPropagation()}>
           <OutboundMapActions restaurant={restaurant} variant="footer" />
         </div>
-        {/*
-         * Styled here rather than through `Button`: this control has to sit in
-         * the same pill family as the map links beside it, and `cn` joins class
-         * strings without resolving Tailwind conflicts, so overriding the
-         * button's radius and fill from outside would not be reliable.
-         */}
-        <div className="flex flex-wrap items-center justify-end gap-1.5">
+        <div className="mt-0.5 flex min-w-0 items-center gap-3">
           {onViewDetails && (
             <button
               type="button"
@@ -132,28 +170,31 @@ export function CompactRestaurantCard({
                 event.stopPropagation();
                 onViewDetails(restaurant);
               }}
-              className="relative z-10 inline-flex min-h-11 items-center rounded-chip border border-lavender-100 bg-lavender-50/60 px-4 text-xs font-medium text-lavender-700 transition-colors hover:border-lavender-500 hover:bg-lavender-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600"
+              className="relative z-10 inline-flex min-h-11 min-w-0 items-center gap-1.5 py-2 pr-3 text-left text-sm font-semibold text-plum underline decoration-transparent underline-offset-4 transition-colors hover:decoration-lavender-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600"
             >
-              View restaurant
+              <span>View restaurant</span>
+              <span aria-hidden="true">→</span>
             </button>
           )}
           <button
             type="button"
             aria-pressed={saved}
+            aria-label={saved ? "Remove restaurant from saved" : "Save restaurant"}
             onClick={(event) => {
               event.stopPropagation();
               onToggleSaved();
             }}
             className={cn(
-              "relative z-10 inline-flex min-h-11 shrink-0 items-center rounded-chip border px-4 text-xs font-medium",
-              "transition-[background-color,border-color,color,transform] duration-[180ms]",
+              "relative z-10 ml-auto inline-flex size-11 shrink-0 items-center justify-center",
+              "transition-[color,transform] duration-[180ms]",
               "ease-(--ease-fiyu) active:scale-[0.98]",
+              "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600",
               saved
-                ? "border-lavender-600/50 bg-lavender-50 text-lavender-700 hover:bg-lavender-100"
-                : "border-line bg-surface text-ink-muted hover:border-line-strong hover:text-ink",
+                ? "text-plum hover:text-lavender-900"
+                : "text-ink-muted hover:text-plum",
             )}
           >
-            {saved ? "Saved" : "Save"}
+            <BookmarkIcon filled={saved} />
           </button>
         </div>
       </div>

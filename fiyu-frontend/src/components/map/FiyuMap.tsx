@@ -23,6 +23,7 @@ import {
   MIN_SCALE,
   type MapView,
   clientToViewBox,
+  fitPointsIfOutsideView,
   fitToPoints,
   panBy,
   transformFor,
@@ -71,6 +72,7 @@ const TAP_SLOP = 6;
 /** Wheel delta -> zoom factor. Tuned so a trackpad feels smooth, not jumpy. */
 const WHEEL_SENSITIVITY = 0.0015;
 const PIN_SPROUT_STATE_MS = 600;
+const REVEAL_FIT_PADDING = 120;
 
 function distanceBetween(a: PointerEvent, b: PointerEvent): number {
   return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
@@ -173,6 +175,10 @@ export function FiyuMap({
     () => new Set(plotted.map((restaurant) => restaurant.place_id)),
     [plotted],
   );
+  const pointByPlaceId = useMemo(
+    () => new Map(plotted.map((restaurant, index) => [restaurant.place_id, points[index]])),
+    [plotted, points],
+  );
   const lastFitKey = useRef<string | null>(
     initialViewportSession?.resultKey === resultKey ? resultKey : null,
   );
@@ -211,7 +217,14 @@ export function FiyuMap({
       );
       if (newlyPlotted.length === 0) return;
 
+      const revealedPoints = event.revealedPlaceIds
+        .map((placeId) => pointByPlaceId.get(placeId))
+        .filter((point): point is NonNullable<typeof point> => Boolean(point));
+
       setSproutingPlaceIds((current) => new Set([...current, ...newlyPlotted]));
+      setView((current) =>
+        fitPointsIfOutsideView(revealedPoints, current, { padding: REVEAL_FIT_PADDING }),
+      );
       const timer = window.setTimeout(() => {
         setSproutingPlaceIds((current) => {
           const next = new Set(current);
@@ -228,7 +241,7 @@ export function FiyuMap({
       for (const timer of sproutTimers.current) window.clearTimeout(timer);
       sproutTimers.current = [];
     };
-  }, [plottedPlaceIds]);
+  }, [plottedPlaceIds, pointByPlaceId]);
 
   const markInteracted = useCallback(() => {
     userHasInteracted.current = true;

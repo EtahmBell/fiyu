@@ -192,7 +192,7 @@ describe("compact card interaction", () => {
     fireEvent.keyDown(card, { key: "Enter" });
     expect(onOpen).toHaveBeenCalledTimes(2);
 
-    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save restaurant" }));
     expect(onToggleSaved).toHaveBeenCalledOnce();
     expect(onOpen).toHaveBeenCalledTimes(2);
 
@@ -219,5 +219,121 @@ describe("compact card interaction", () => {
 
     expect(onViewDetails).toHaveBeenCalledWith(value);
     expect(onOpen).not.toHaveBeenCalled();
+  });
+
+  it("uses a fine-pointer double-click on card content as a detail shortcut", () => {
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn().mockReturnValue({ matches: true }),
+    );
+    const onOpen = vi.fn();
+    const onViewDetails = vi.fn();
+    const value = restaurant();
+    render(
+      <CompactRestaurantCard
+        restaurant={value}
+        saved={false}
+        onOpen={onOpen}
+        onViewDetails={onViewDetails}
+        onToggleSaved={() => {}}
+      />,
+    );
+
+    fireEvent.doubleClick(screen.getByRole("heading", { level: 3 }));
+
+    expect(onViewDetails).toHaveBeenCalledOnce();
+    expect(onViewDetails).toHaveBeenCalledWith(value);
+    expect(onOpen).not.toHaveBeenCalled();
+  });
+
+  it("does not open details from double-clicks on nested card actions", () => {
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn().mockReturnValue({ matches: true }),
+    );
+    const onViewDetails = vi.fn();
+    render(
+      <CompactRestaurantCard
+        restaurant={restaurant()}
+        saved={false}
+        onOpen={vi.fn()}
+        onViewDetails={onViewDetails}
+        onToggleSaved={vi.fn()}
+      />,
+    );
+
+    fireEvent.doubleClick(screen.getByRole("button", { name: "Save restaurant" }));
+    fireEvent.doubleClick(screen.getByRole("link", { name: "Open in Google Maps" }));
+    fireEvent.doubleClick(screen.getByRole("link", { name: "Open in Apple Maps" }));
+    fireEvent.doubleClick(screen.getByRole("button", { name: "View restaurant" }));
+
+    expect(onViewDetails).not.toHaveBeenCalled();
+  });
+
+  it("does not add a mobile double-tap navigation gesture", () => {
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn().mockReturnValue({ matches: false }),
+    );
+    const onViewDetails = vi.fn();
+    render(
+      <CompactRestaurantCard
+        restaurant={restaurant()}
+        saved={false}
+        onOpen={vi.fn()}
+        onViewDetails={onViewDetails}
+        onToggleSaved={() => {}}
+      />,
+    );
+
+    fireEvent.doubleClick(screen.getByRole("heading", { level: 3 }));
+
+    expect(onViewDetails).not.toHaveBeenCalled();
+  });
+
+  it("renders a flat editorial footer with accessible bookmark states", () => {
+    const { rerender } = render(
+      <CompactRestaurantCard
+        restaurant={restaurant()}
+        saved={false}
+        onToggleSaved={vi.fn()}
+        onViewDetails={vi.fn()}
+      />,
+    );
+
+    const googleMaps = screen.getByRole("link", { name: "Open in Google Maps" });
+    const appleMaps = screen.getByRole("link", { name: "Open in Apple Maps" });
+    const viewRestaurant = screen.getByRole("button", { name: "View restaurant" });
+    const saveRestaurant = screen.getByRole("button", { name: "Save restaurant" });
+
+    expect(screen.getByTestId("compact-card-footer").className).toContain("border-t");
+    for (const mapLink of [googleMaps, appleMaps]) {
+      expect(mapLink.className).toContain("min-h-11");
+      expect(mapLink.className).not.toContain("rounded-chip");
+      expect(mapLink.className).not.toContain("bg-surface");
+      expect(mapLink.className).not.toContain("border-line");
+    }
+    expect(viewRestaurant.textContent).toContain("→");
+    expect(viewRestaurant.className).toContain("text-plum");
+    expect(viewRestaurant.className).not.toContain("rounded-chip");
+    expect(saveRestaurant.className).toContain("size-11");
+    expect(saveRestaurant.className).not.toContain("rounded-chip");
+    expect(saveRestaurant.querySelector("svg")?.getAttribute("fill")).toBe("none");
+
+    rerender(
+      <CompactRestaurantCard
+        restaurant={restaurant()}
+        saved
+        onToggleSaved={vi.fn()}
+        onViewDetails={vi.fn()}
+      />,
+    );
+
+    const removeSaved = screen.getByRole("button", {
+      name: "Remove restaurant from saved",
+    });
+    expect(removeSaved.getAttribute("aria-pressed")).toBe("true");
+    expect(removeSaved.className).toContain("text-plum");
+    expect(removeSaved.querySelector("svg")?.getAttribute("fill")).toBe("currentColor");
   });
 });

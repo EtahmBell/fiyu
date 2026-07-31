@@ -196,6 +196,35 @@ export function fitToPoints(points: readonly Point[], options: FitOptions = {}):
   });
 }
 
+/** Whether a projected map point is inside the currently visible map area. */
+export function pointIsVisible(point: Point, view: MapView): boolean {
+  const x = point.x * view.k + view.x;
+  const y = point.y * view.k + view.y;
+  return x >= 0 && x <= VIEWBOX_WIDTH && y >= 0 && y <= VIEWBOX_HEIGHT;
+}
+
+/**
+ * Frame points only when the current viewport excludes at least one of them.
+ *
+ * The current scale is the fit ceiling, so this may zoom out or preserve zoom
+ * while recentering, but can never zoom in. Returning the original object for
+ * the all-visible case also guarantees a true no-op for reveal events that do
+ * not need a viewport adjustment.
+ */
+export function fitPointsIfOutsideView(
+  points: readonly Point[],
+  current: MapView,
+  options: FitOptions = {},
+): MapView {
+  if (points.length === 0 || points.every((point) => pointIsVisible(point, current))) {
+    return current;
+  }
+  return fitToPoints(points, {
+    ...options,
+    maxScale: Math.min(current.k, options.maxScale ?? current.k),
+  });
+}
+
 /** Frame a set of coordinates. Convenience wrapper over fitToPoints. */
 export function fitToCoordinates(
   coordinates: readonly LatLng[],

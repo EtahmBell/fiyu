@@ -4,8 +4,8 @@ import { cn } from "@/lib/utils/cn";
 
 /**
  * `inline` keeps the original underlined text links used by the detail-style
- * card. `footer` is the compact bordered pair used in a discovery card's action
- * row, where three raw links in a row read as unfinished markup.
+ * card. `footer` is the quieter editorial pair used in a discovery card's
+ * action row.
  */
 export type OutboundMapActionsVariant = "inline" | "footer";
 
@@ -63,7 +63,7 @@ export function OutboundMapActions({
     <ul
       className={cn(
         "flex min-w-0 max-w-full flex-wrap",
-        footer ? "gap-1.5" : "gap-x-4 gap-y-1",
+        footer ? "gap-x-3 gap-y-0" : "gap-x-4 gap-y-1",
         className,
       )}
     >
@@ -79,14 +79,14 @@ export function OutboundMapActions({
             className={cn(
               "relative z-10 break-words transition-colors duration-200 ease-(--ease-fiyu)",
               footer
-                ? "inline-flex min-h-11 items-center gap-1.5 rounded-chip border border-line bg-surface px-3.5 text-xs font-medium text-ink-muted hover:border-line-strong hover:text-ink"
+                ? "inline-flex min-h-11 items-center gap-1.5 py-2 pr-3 text-xs font-medium text-ink-muted underline decoration-transparent underline-offset-4 hover:text-plum hover:decoration-line-strong"
                 : "text-xs text-lavender-700 underline decoration-line underline-offset-2 hover:decoration-lavender-500",
             )}
           >
             {footer ? (
               <>
-                <ExternalArrow />
                 {SHORT_LABELS[link.id]}
+                <ExternalArrow />
               </>
             ) : (
               link.label

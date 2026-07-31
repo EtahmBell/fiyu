@@ -9,6 +9,7 @@ import {
   clampScale,
   clampTranslate,
   clientToViewBox,
+  fitPointsIfOutsideView,
   fitToCoordinates,
   fitToPoints,
   normalizeView,
@@ -208,6 +209,38 @@ describe("fitToPoints", () => {
       { x: 900, y: 900 },
     ]);
     expect(clampTranslate(view)).toEqual(view);
+  });
+});
+
+describe("fitPointsIfOutsideView", () => {
+  it("returns the exact current viewport when every point is visible", () => {
+    const current = clampTranslate({ x: -500, y: -500, k: 2 });
+    const points = [
+      { x: 300, y: 300 },
+      { x: 700, y: 700 },
+    ];
+
+    expect(fitPointsIfOutsideView(points, current)).toBe(current);
+  });
+
+  it("fits every point with padding without zooming in past the current scale", () => {
+    const current = clampTranslate({ x: -700, y: -700, k: 2 });
+    const points = [
+      { x: 120, y: 180 },
+      { x: 850, y: 820 },
+    ];
+
+    const fitted = fitPointsIfOutsideView(points, current, { padding: 120 });
+
+    expect(fitted).not.toBe(current);
+    expect(fitted.k).toBeLessThanOrEqual(current.k);
+    for (const point of points) {
+      const screen = screenOf(point, fitted);
+      expect(screen.x).toBeGreaterThanOrEqual(120 - 0.01);
+      expect(screen.x).toBeLessThanOrEqual(VIEWBOX_WIDTH - 120 + 0.01);
+      expect(screen.y).toBeGreaterThanOrEqual(120 - 0.01);
+      expect(screen.y).toBeLessThanOrEqual(VIEWBOX_HEIGHT - 120 + 0.01);
+    }
   });
 });
 

@@ -11,9 +11,9 @@ const tokyoEdition: CityEditionPreviewModel = {
   imageWidth: 1200,
   imageHeight: 630,
   eyebrow: "Now exploring: Tokyo",
-  heading: "Meet the city beyond the obvious.",
+  heading: "Fiyu has arrived in Tokyo.",
   description:
-    "Fiyu selects restaurants around your current or chosen area and personal tastes, giving you a thoughtful way to explore what is close by.",
+    "Explore Tokyo’s independent and underexposed restaurants, selected around your tastes—from local izakayas to tucked-away ramen counters you might otherwise miss.",
   destination: "/picks",
 };
 

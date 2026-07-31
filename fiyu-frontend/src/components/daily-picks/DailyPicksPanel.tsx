@@ -412,7 +412,15 @@ export function DailyPicksPanel({
     });
     const restaurant = restaurants.find((candidate) => candidate.place_id === placeId);
     if (restaurant && isMappable(restaurant)) {
-      publishNewlyRevealedMapPlaces([placeId], revealedAt);
+      publishNewlyRevealedMapPlaces(
+        [placeId],
+        revealedAt,
+        [
+          ...currentSelection.revealedIds,
+          placeId,
+          ...recent.map((discovery) => discovery.restaurantId),
+        ],
+      );
     }
   };
 

@@ -60,6 +60,42 @@ function PhotoAttribution({ photo }: { photo: GooglePhoto }) {
   );
 }
 
+function PhotoPositionIndicator({
+  photoCount,
+  activeIndex,
+}: {
+  photoCount: number;
+  activeIndex: number;
+}) {
+  if (photoCount <= 1) return null;
+
+  return (
+    <div
+      data-testid="photo-position-indicator"
+      aria-hidden="true"
+      className="absolute inset-x-5 bottom-3 z-10 flex justify-center gap-1.5 rounded-full bg-plum/25 px-2.5 py-2 backdrop-blur-[2px]"
+    >
+      {Array.from({ length: photoCount }, (_, index) => (
+        <span
+          key={`photo-position-${index}`}
+          data-active={activeIndex === index ? "true" : "false"}
+          className={cn(
+            "h-1 w-8 max-w-[14%] rounded-full shadow-[0_1px_2px_rgba(49,40,61,0.18)] transition-colors motion-reduce:transition-none",
+            activeIndex === index ? "bg-cream" : "bg-lavender-100/65",
+          )}
+        />
+      ))}
+    </div>
+  );
+}
+
+function prefersReducedMotion(): boolean {
+  return (
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
+}
+
 /** Bounded, on-demand gallery. Photo URLs stay in component memory only. */
 export function RestaurantPhotoGallery({
   placeId,
@@ -99,11 +135,15 @@ export function RestaurantPhotoGallery({
   };
 
   const showPhoto = (index: number) => {
-    setActiveIndex(index);
+    const nextIndex = Math.max(0, Math.min(photos.length - 1, index));
+    setActiveIndex(nextIndex);
     const track = mobileTrackRef.current;
-    const slide = track?.children.item(index) as HTMLElement | null;
+    const slide = track?.children.item(nextIndex) as HTMLElement | null;
     if (track && slide && typeof track.scrollTo === "function") {
-      track.scrollTo({ left: slide.offsetLeft, behavior: "smooth" });
+      track.scrollTo({
+        left: slide.offsetLeft,
+        behavior: prefersReducedMotion() ? "auto" : "smooth",
+      });
     }
   };
 
@@ -134,12 +174,16 @@ export function RestaurantPhotoGallery({
   return (
     <section aria-labelledby="photo-gallery-heading">
       <h2 id="photo-gallery-heading" className="sr-only">Photos</h2>
+      <p className="sr-only" aria-live="polite" aria-atomic="true">
+        Photo {activeIndex + 1} of {photos.length}
+      </p>
 
       <div className="hidden md:block">
         <div className="relative aspect-[16/10] overflow-hidden rounded-card bg-lavender-50">
           {/* Short-lived backend media URL: deliberately not passed through next/image. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
+            data-testid="desktop-active-gallery-photo"
             src={activePhoto.media_url}
             alt={`${restaurantName}, photo ${activeIndex + 1} from Google`}
             width={activePhoto.width}
@@ -149,6 +193,31 @@ export function RestaurantPhotoGallery({
             onError={() => markFailed(activeIndex)}
             className="absolute inset-0 size-full object-cover"
           />
+          {photos.length > 1 && (
+            <>
+              <button
+                type="button"
+                data-gallery-control="desktop-previous"
+                aria-label="Previous photo"
+                disabled={activeIndex === 0}
+                onClick={() => showPhoto(activeIndex - 1)}
+                className="absolute top-1/2 left-3 z-20 inline-flex size-11 -translate-y-1/2 items-center justify-center rounded-full bg-cream/90 text-2xl leading-none text-plum shadow-sm backdrop-blur-sm transition-colors hover:bg-cream focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cream disabled:opacity-35 motion-reduce:transition-none"
+              >
+                <span aria-hidden="true">‹</span>
+              </button>
+              <button
+                type="button"
+                data-gallery-control="desktop-next"
+                aria-label="Next photo"
+                disabled={activeIndex === photos.length - 1}
+                onClick={() => showPhoto(activeIndex + 1)}
+                className="absolute top-1/2 right-3 z-20 inline-flex size-11 -translate-y-1/2 items-center justify-center rounded-full bg-cream/90 text-2xl leading-none text-plum shadow-sm backdrop-blur-sm transition-colors hover:bg-cream focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cream disabled:opacity-35 motion-reduce:transition-none"
+              >
+                <span aria-hidden="true">›</span>
+              </button>
+            </>
+          )}
+          <PhotoPositionIndicator photoCount={photos.length} activeIndex={activeIndex} />
         </div>
         <PhotoAttribution photo={activePhoto} />
 
@@ -183,51 +252,58 @@ export function RestaurantPhotoGallery({
         )}
       </div>
 
-      <div className="md:hidden">
-        <div
-          ref={mobileTrackRef}
-          aria-label="Restaurant photo gallery"
-          className="flex snap-x snap-mandatory overflow-x-auto rounded-card bg-lavender-50"
-          onScroll={(event) => {
-            const width = event.currentTarget.clientWidth;
-            if (width > 0) setActiveIndex(Math.round(event.currentTarget.scrollLeft / width));
-          }}
-        >
-          {photos.map((photo, index) => (
-            <div key={`${photo.media_url}:${index}`} className="relative aspect-[4/3] w-full shrink-0 snap-center">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={photo.media_url}
-                alt={`${restaurantName}, photo ${index + 1} from Google`}
-                width={photo.width}
-                height={photo.height}
-                loading={index === 0 ? "eager" : "lazy"}
-                decoding="async"
-                onError={() => markFailed(index)}
-                className="absolute inset-0 size-full object-cover"
-              />
-            </div>
-          ))}
+      <div className="min-w-0 max-w-full overflow-hidden md:hidden">
+        <div className="relative min-w-0 max-w-full overflow-hidden rounded-card bg-lavender-50">
+          <div
+            ref={mobileTrackRef}
+            role="region"
+            aria-roledescription="carousel"
+            aria-label="Restaurant photo gallery"
+            className="flex w-full max-w-full snap-x snap-mandatory overflow-x-auto overscroll-x-contain"
+            onScroll={(event) => {
+              const width = event.currentTarget.clientWidth;
+              if (width <= 0) return;
+              const nextIndex = Math.round(event.currentTarget.scrollLeft / width);
+              setActiveIndex(Math.max(0, Math.min(photos.length - 1, nextIndex)));
+            }}
+          >
+            {photos.map((photo, index) => (
+              <div key={`${photo.media_url}:${index}`} className="relative aspect-[4/3] w-full shrink-0 snap-center">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={photo.media_url}
+                  alt={`${restaurantName}, photo ${index + 1} from Google`}
+                  width={photo.width}
+                  height={photo.height}
+                  loading={index === 0 ? "eager" : "lazy"}
+                  decoding="async"
+                  onError={() => markFailed(index)}
+                  className="absolute inset-0 size-full object-cover"
+                />
+              </div>
+            ))}
+          </div>
+          <PhotoPositionIndicator photoCount={photos.length} activeIndex={activeIndex} />
         </div>
         <div className="mt-2 flex items-center justify-between gap-3">
           <p className="text-xs text-ink-faint">Photo {activeIndex + 1} of {photos.length}</p>
           {photos.length > 1 && (
-            <div className="flex gap-2">
+            <div className="sr-only md:hidden" data-testid="mobile-accessible-gallery-controls">
               <button
                 type="button"
+                aria-label="Previous photo"
                 disabled={activeIndex === 0}
-                onClick={() => showPhoto(Math.max(0, activeIndex - 1))}
-                className="min-h-11 rounded-chip border border-line px-3 text-xs text-ink-muted disabled:opacity-35"
+                onClick={() => showPhoto(activeIndex - 1)}
               >
-                Previous
+                Previous photo
               </button>
               <button
                 type="button"
+                aria-label="Next photo"
                 disabled={activeIndex === photos.length - 1}
-                onClick={() => showPhoto(Math.min(photos.length - 1, activeIndex + 1))}
-                className="min-h-11 rounded-chip border border-line px-3 text-xs text-ink-muted disabled:opacity-35"
+                onClick={() => showPhoto(activeIndex + 1)}
               >
-                Next
+                Next photo
               </button>
             </div>
           )}

@@ -35,6 +35,9 @@ function mappable(
 const SHIBUYA = mappable("shibuya", 35.658, 139.7016, { name_ja: "渋谷の店" });
 const UENO = mappable("ueno", 35.7141, 139.7774, { name_ja: "上野の店" });
 
+const WEST_TOKYO = mappable("west-tokyo", 35.67, 139.58, { name_en: "West Tokyo fixture" });
+const EAST_TOKYO = mappable("east-tokyo", 35.67, 139.9, { name_en: "East Tokyo fixture" });
+
 /**
  * The map surface.
  *
@@ -128,7 +131,7 @@ describe("card and marker selection stay in sync", () => {
 });
 
 describe("newly revealed map pins", () => {
-  it("sprouts the matching marker once on every map already mounted without changing its viewport", () => {
+  it("sprouts the matching marker once and preserves each viewport when all revealed pins are visible", () => {
     vi.useFakeTimers();
     render(
       <>
@@ -145,7 +148,11 @@ describe("newly revealed map pins", () => {
     expect(shibuyaPins.every((pin) => !pin.hasAttribute("data-newly-revealed"))).toBe(true);
 
     act(() => {
-      publishNewlyRevealedMapPlaces(["shibuya"], Date.UTC(2026, 6, 30, 12));
+      publishNewlyRevealedMapPlaces(
+        ["shibuya"],
+        Date.UTC(2026, 6, 30, 12),
+        ["shibuya", "ueno"],
+      );
     });
 
     expect(shibuyaPins.every((pin) => pin.getAttribute("data-newly-revealed") === "true")).toBe(
@@ -158,6 +165,37 @@ describe("newly revealed map pins", () => {
 
     act(() => vi.advanceTimersByTime(600));
     expect(shibuyaPins.every((pin) => !pin.hasAttribute("data-newly-revealed"))).toBe(true);
+  });
+
+  it("fits all currently revealed pins when a genuine reveal falls outside the viewport", () => {
+    render(
+      <FiyuMap
+        restaurants={[WEST_TOKYO, EAST_TOKYO]}
+        selectedPlaceId={null}
+        onSelect={() => {}}
+      />,
+    );
+    const content = mapSurface().querySelector("g[transform]") as SVGGElement;
+    fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
+    fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
+    const before = content.getAttribute("transform") ?? "";
+    const beforeScale = Number(before.match(/scale\(([\d.]+)\)/)?.[1]);
+
+    act(() => {
+      publishNewlyRevealedMapPlaces(
+        ["east-tokyo"],
+        Date.UTC(2026, 6, 30, 12),
+        ["west-tokyo", "east-tokyo"],
+      );
+    });
+
+    const after = content.getAttribute("transform") ?? "";
+    const afterScale = Number(after.match(/scale\(([\d.]+)\)/)?.[1]);
+    expect(after).not.toBe(before);
+    expect(afterScale).toBeLessThanOrEqual(beforeScale);
+    expect(screen.getByLabelText("East Tokyo fixture").getAttribute("data-newly-revealed")).toBe(
+      "true",
+    );
   });
 
   it("does not replay an old reveal on a map mounted later", () => {

@@ -195,10 +195,10 @@ describe("public landing experience", () => {
     render(<LandingPage />);
 
     expect(screen.queryByText("Three doors into the city.")).toBeNull();
-    expect(screen.getByRole("heading", { name: "Meet the city beyond the obvious." })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Fiyu has arrived in Tokyo." })).toBeTruthy();
     expect(
       screen.getByText(
-        "Fiyu selects restaurants around your current or chosen area and personal tastes, giving you a thoughtful way to explore what is close by.",
+        "Explore Tokyo’s independent and underexposed restaurants, selected around your tastes—from local izakayas to tucked-away ramen counters you might otherwise miss.",
       ),
     ).toBeTruthy();
     const poster = screen.getByRole("img", {

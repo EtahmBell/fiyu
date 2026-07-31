@@ -1,6 +1,7 @@
 export type NewlyRevealedMapPlaces = {
   eventId: string;
   placeIds: string[];
+  revealedPlaceIds: string[];
   createdAt: number;
 };
 
@@ -15,6 +16,10 @@ function validRevealEvent(value: unknown): value is NewlyRevealedMapPlaces {
     event.eventId.length > 0 &&
     Array.isArray(event.placeIds) &&
     event.placeIds.every((placeId) => typeof placeId === "string" && placeId.length > 0) &&
+    Array.isArray(event.revealedPlaceIds) &&
+    event.revealedPlaceIds.every(
+      (placeId) => typeof placeId === "string" && placeId.length > 0,
+    ) &&
     typeof event.createdAt === "number" &&
     Number.isFinite(event.createdAt)
   );
@@ -28,6 +33,7 @@ function validRevealEvent(value: unknown): value is NewlyRevealedMapPlaces {
 export function publishNewlyRevealedMapPlaces(
   placeIds: readonly string[],
   createdAt = Date.now(),
+  currentlyRevealedPlaceIds: readonly string[] = placeIds,
 ): NewlyRevealedMapPlaces | null {
   if (typeof window === "undefined") return null;
   const uniquePlaceIds = [...new Set(placeIds.filter((placeId) => placeId.length > 0))];
@@ -36,6 +42,11 @@ export function publishNewlyRevealedMapPlaces(
   const event: NewlyRevealedMapPlaces = {
     eventId: `${createdAt}:${revealEventSequence}`,
     placeIds: uniquePlaceIds,
+    revealedPlaceIds: [
+      ...new Set(
+        currentlyRevealedPlaceIds.filter((placeId) => placeId.length > 0),
+      ),
+    ],
     createdAt,
   };
   window.dispatchEvent(new CustomEvent(REVEAL_EVENT_NAME, { detail: event }));

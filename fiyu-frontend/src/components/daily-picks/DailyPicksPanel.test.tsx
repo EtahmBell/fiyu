@@ -253,9 +253,9 @@ describe("Today’s Fiyu Picks panel", () => {
       discoveries: [],
       savedRestaurantIds: [],
     });
-    const revealEvents: string[][] = [];
+    const revealEvents: Array<{ newIds: string[]; revealedIds: string[] }> = [];
     const unsubscribe = subscribeToNewlyRevealedMapPlaces((event) => {
-      revealEvents.push(event.placeIds);
+      revealEvents.push({ newIds: event.placeIds, revealedIds: event.revealedPlaceIds });
     });
 
     render(
@@ -266,13 +266,13 @@ describe("Today’s Fiyu Picks panel", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Tap to reveal restaurant 1" }));
-    expect(revealEvents).toEqual([["one"]]);
+    expect(revealEvents).toEqual([{ newIds: ["one"], revealedIds: ["one"] }]);
     expect(screen.getByRole("status").textContent).toBe(
       "1 newly revealed place added to the map",
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Tap to reveal restaurant 2" }));
-    expect(revealEvents).toEqual([["one"]]);
+    expect(revealEvents).toEqual([{ newIds: ["one"], revealedIds: ["one"] }]);
     expect(screen.getByRole("status").textContent).toBe(
       "1 newly revealed place added to the map",
     );
