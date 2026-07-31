@@ -17,7 +17,7 @@ import {
   type FreeDiscoveryOrigin,
 } from "@/lib/location/origin";
 import {
-  readPicksReturnState,
+  consumePicksReturnState,
   restaurantDetailHref,
   savePicksReturnState,
 } from "@/lib/navigation/restaurantDetail";
@@ -91,8 +91,18 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
   }, []);
 
   const selectFromFeed = useCallback(
-    (restaurant: PublicRestaurant) => select(restaurant, "feed"),
-    [select],
+    (restaurant: PublicRestaurant) => {
+      setSelection((current) =>
+        current?.placeId === restaurant.place_id
+          ? null
+          : {
+              placeId: restaurant.place_id,
+              source: "feed",
+              navigationKey: (current?.navigationKey ?? 0) + 1,
+            },
+      );
+    },
+    [],
   );
   const selectFromMap = useCallback(
     (restaurant: PublicRestaurant) => select(restaurant, "map"),
@@ -117,7 +127,7 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
   );
 
   useEffect(() => {
-    const restore = readPicksReturnState();
+    const restore = consumePicksReturnState();
     const scrollRegion = scrollRegionRef.current;
     if (!restore || !scrollRegion) return;
 

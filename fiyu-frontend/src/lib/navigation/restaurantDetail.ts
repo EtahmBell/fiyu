@@ -36,6 +36,19 @@ export function readPicksReturnState(): PicksReturnState | null {
   }
 }
 
+/**
+ * Read detail-return UI state exactly once.
+ *
+ * A detail Back restores the selected card and list position, but a later trip
+ * through another primary application route must not replay that old highlight.
+ */
+export function consumePicksReturnState(): PicksReturnState | null {
+  if (typeof window === "undefined") return null;
+  const state = readPicksReturnState();
+  window.sessionStorage.removeItem(PICKS_RETURN_STATE_KEY);
+  return state;
+}
+
 export function restaurantDetailHref(placeId: string): string {
   return `/restaurants/${encodeURIComponent(placeId)}`;
 }

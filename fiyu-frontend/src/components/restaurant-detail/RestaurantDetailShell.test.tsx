@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { act } from "react";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { hydrateRoot } from "react-dom/client";
 import { renderToString } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -75,7 +75,7 @@ describe("restaurant detail view", () => {
     expect(screen.getByRole("heading", { level: 2, name: "Signature dishes" })).toBeTruthy();
     expect(screen.getByText("Seasonal nigiri")).toBeTruthy();
     expect(screen.getByRole("heading", { level: 2, name: "Menu and format" })).toBeTruthy();
-    expect(screen.getByText("Counter sushi restaurant")).toBeTruthy();
+    expect(screen.getByText("Counter Sushi Restaurant")).toBeTruthy();
     expect(screen.getByText("Approximate area")).toBeTruthy();
     expect(screen.getByTestId("desktop-detail-map")).toBeTruthy();
     expect(document.querySelectorAll('[data-place-id="detail-place"]')).toHaveLength(2);
@@ -130,14 +130,95 @@ describe("restaurant detail view", () => {
     );
     render(<RestaurantDetailShell restaurant={restaurant} restaurants={[restaurant]} />);
 
-    const saveButtons = await screen.findAllByRole("button", { name: "Save" });
+    const saveButtons = await screen.findAllByRole("button", { name: "Save restaurant" });
+    expect(saveButtons.every((button) => button.textContent === "Save")).toBe(true);
+    expect(saveButtons.every((button) => button.querySelector("svg")?.getAttribute("fill") === "none")).toBe(true);
+    expect(saveButtons.every((button) => !button.className.includes("rounded-chip"))).toBe(true);
+    expect(saveButtons.every((button) => !button.className.includes("border"))).toBe(true);
     fireEvent.click(saveButtons[0]);
-    await waitFor(() => expect(screen.getAllByRole("button", { name: "Saved" }).length).toBeGreaterThan(0));
+    await waitFor(() => {
+      const savedButtons = screen.getAllByRole("button", {
+        name: "Remove restaurant from saved",
+      });
+      expect(savedButtons.length).toBeGreaterThan(0);
+      expect(savedButtons.every((button) => button.textContent === "Saved")).toBe(true);
+      expect(
+        savedButtons.every(
+          (button) => button.querySelector("svg")?.getAttribute("fill") === "currentColor",
+        ),
+      ).toBe(true);
+    });
     expect(JSON.parse(window.localStorage.getItem(DAILY_PICKS_STORAGE_KEY) ?? "null").savedRestaurantIds).toContain("detail-place");
 
     fireEvent.click(screen.getAllByRole("button", { name: "Back to Picks" })[0]);
     expect(router.push).toHaveBeenCalledWith("/picks");
     expect(router.back).not.toHaveBeenCalled();
+  });
+
+  it("title-cases English display tags without mutating stored values or Japanese text", () => {
+    const japaneseTag = "\u5bff\u53f8";
+    const storedTags = [
+      "Okinawa soba",
+      "Okinawa cuisine",
+      "Japanese noodles",
+      "lunch",
+      "NASA ramen",
+      japaneseTag,
+    ];
+    const taggedRestaurant = publicRestaurantDetailSchema.parse({
+      ...restaurant,
+      food_tags: storedTags,
+    });
+    const originalValues = [...taggedRestaurant.food_tags];
+
+    render(
+      <RestaurantDetailShell restaurant={taggedRestaurant} restaurants={[taggedRestaurant]} />,
+    );
+
+    for (const displayed of [
+      "Okinawa Soba",
+      "Okinawa Cuisine",
+      "Japanese Noodles",
+      "Lunch",
+      "NASA Ramen",
+      japaneseTag,
+    ]) {
+      expect(screen.getByText(displayed)).toBeTruthy();
+    }
+    expect(taggedRestaurant.food_tags).toEqual(originalValues);
+    expect(screen.queryByText("Okinawa soba")).toBeNull();
+  });
+
+  it("uses an accessible editorial Information and sources disclosure", () => {
+    render(<RestaurantDetailShell restaurant={restaurant} restaurants={[restaurant]} />);
+
+    const section = screen.getByTestId("information-and-sources");
+    const trigger = within(section).getByRole("button", { name: "Information and sources" });
+    const contentId = trigger.getAttribute("aria-controls");
+    if (!contentId) throw new Error("Expected disclosure content id");
+    const content = document.getElementById(contentId) as HTMLElement;
+
+    expect(section.className).toContain("border-y");
+    expect(section.className).toContain("min-w-0");
+    expect(section.className).not.toContain("rounded-card");
+    expect(section.className).not.toContain("bg-subtle");
+    expect(trigger.className).toContain("justify-center");
+    expect(trigger.getAttribute("aria-expanded")).toBe("false");
+    expect(content.hidden).toBe(true);
+    expect(screen.queryByRole("link", { name: "example.com" })).toBeNull();
+
+    fireEvent.click(trigger);
+
+    expect(trigger.getAttribute("aria-expanded")).toBe("true");
+    expect(content.hidden).toBe(false);
+    expect(screen.getByTestId("information-chevron").className).toContain("rotate-180");
+    expect(screen.getByTestId("information-chevron").className).toContain(
+      "motion-reduce:transition-none",
+    );
+    expect(screen.getByRole("link", { name: "example.com" }).getAttribute("href")).toBe(
+      "https://example.com/editorial-source",
+    );
+    expect(screen.getByRole("link", { name: "OpenStreetMap object" })).toBeTruthy();
   });
 
   it("hydrates without introducing a warning", async () => {

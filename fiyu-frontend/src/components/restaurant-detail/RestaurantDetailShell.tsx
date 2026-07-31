@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
 import { FiyuMap } from "@/components/map/FiyuMap";
 import { MapUnavailable } from "@/components/map/MapUnavailable";
@@ -13,6 +13,7 @@ import type { GooglePhoto, PublicRestaurant, PublicRestaurantDetail } from "@/li
 import { selectionIsActive, browserDailyPicksStorage } from "@/lib/daily-picks/storage";
 import { recentDiscoveries } from "@/lib/daily-picks/history";
 import { resolveNames } from "@/lib/format/language";
+import { formatTagForDisplay } from "@/lib/format/tags";
 import { mappableRestaurants } from "@/lib/geo/mappable";
 import { PICKS_DETAIL_MAP_SESSION_KEY } from "@/lib/map/viewportSession";
 import { readPicksReturnState } from "@/lib/navigation/restaurantDetail";
@@ -63,21 +64,41 @@ function BackIcon() {
   );
 }
 
+function BookmarkIcon({ filled }: { filled: boolean }) {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      className="size-5 shrink-0"
+      fill={filled ? "currentColor" : "none"}
+      stroke="currentColor"
+      strokeWidth="1.75"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      data-bookmark-state={filled ? "saved" : "unsaved"}
+    >
+      <path d="M7 4.75A1.75 1.75 0 0 1 8.75 3h6.5A1.75 1.75 0 0 1 17 4.75v15l-5-3.25-5 3.25v-15Z" />
+    </svg>
+  );
+}
+
 function SaveButton({ saved, onToggle, compact = false }: { saved: boolean; onToggle(): void; compact?: boolean }) {
   return (
     <button
       type="button"
       aria-pressed={saved}
+      aria-label={saved ? "Remove restaurant from saved" : "Save restaurant"}
       onClick={onToggle}
       className={cn(
-        "inline-flex min-h-11 items-center justify-center rounded-chip border px-4 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600",
-        compact && "min-h-10 px-3 text-xs",
+        "inline-flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-md px-2 text-sm font-medium transition-[background-color,color,transform] active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600",
+        compact && "gap-1.5 px-1.5 text-xs",
         saved
-          ? "border-lavender-500 bg-lavender-50 text-lavender-700"
-          : "border-line-strong bg-surface text-ink-muted hover:text-ink",
+          ? "text-plum hover:bg-lavender-50"
+          : "text-ink-muted hover:bg-lavender-50/70 hover:text-plum",
       )}
     >
-      {saved ? "Saved" : "Save"}
+      <BookmarkIcon filled={saved} />
+      <span>{saved ? "Saved" : "Save"}</span>
     </button>
   );
 }
@@ -107,6 +128,8 @@ function InformationAndSources({
   restaurant: PublicRestaurantDetail;
   photos: GooglePhoto[];
 }) {
+  const [expanded, setExpanded] = useState(false);
+  const contentId = useId();
   const editorialSources = restaurant.supporting_source_urls
     .map(safeExternalUrl)
     .filter((value): value is string => value !== null);
@@ -124,14 +147,37 @@ function InformationAndSources({
   if (!hasInformation) return null;
 
   return (
-    <details className="rounded-card border border-line bg-subtle px-4 py-3">
-      <summary className="min-h-8 cursor-pointer text-sm font-medium text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600">
-        Information and sources
-      </summary>
-      <div className="mt-3 space-y-3 border-t border-line pt-3 text-xs leading-relaxed text-ink-muted">
+    <section
+      data-testid="information-and-sources"
+      className="min-w-0 border-y border-line"
+    >
+      <button
+        type="button"
+        aria-expanded={expanded}
+        aria-controls={contentId}
+        onClick={() => setExpanded((current) => !current)}
+        className="flex min-h-11 w-full items-center justify-center gap-2 px-2 py-2 text-center text-sm font-medium text-ink-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600"
+      >
+        <span>Information and sources</span>
+        <span
+          aria-hidden="true"
+          data-testid="information-chevron"
+          className={cn(
+            "text-xs text-lavender-700 transition-transform duration-200 motion-reduce:transition-none",
+            expanded && "rotate-180",
+          )}
+        >
+          {"\u25BE"}
+        </span>
+      </button>
+      <div
+        id={contentId}
+        hidden={!expanded}
+        className="min-w-0 space-y-3 border-t border-line px-2 py-4 text-left text-xs leading-relaxed text-ink-muted"
+      >
         {researched && <p>Editorial research updated {researched}.</p>}
         {editorialSources.length > 0 && (
-          <ul className="space-y-1">
+          <ul className="space-y-2">
             {editorialSources.map((source) => (
               <li key={source}>
                 <a className="text-lavender-700 underline underline-offset-2" href={source} target="_blank" rel="noopener noreferrer nofollow">
@@ -152,7 +198,7 @@ function InformationAndSources({
         )}
         {photoAuthors.length > 0 && <p>Photo attribution: {photoAuthors.join(", ")}.</p>}
       </div>
-    </details>
+    </section>
   );
 }
 
@@ -197,7 +243,9 @@ function RestaurantDetailContent({
           </div>
           <ScoreMark score={restaurant.fiyu_score} size="lg" />
         </div>
-        {restaurant.food_tags.length > 0 && <TagList tags={restaurant.food_tags} />}
+        {restaurant.food_tags.length > 0 && (
+          <TagList tags={restaurant.food_tags} titleCaseEnglish />
+        )}
         <div className="flex flex-wrap items-center gap-3">
           <SaveButton saved={saved} onToggle={onToggleSaved} />
           <OutboundMapActions restaurant={restaurant} />
@@ -224,7 +272,7 @@ function RestaurantDetailContent({
         <section aria-labelledby="menu-format-heading" className="border-t border-line pt-6">
           <h2 id="menu-format-heading" className="font-display text-2xl text-ink">Menu and format</h2>
           <ul className="mt-3 flex flex-wrap gap-2">
-            {formatDetails.map((detail) => <li key={detail} className="rounded-chip border border-line bg-subtle px-3 py-1.5 text-xs text-ink-muted">{detail}</li>)}
+            {formatDetails.map((detail) => <li key={detail} className="rounded-chip border border-line bg-subtle px-3 py-1.5 text-xs text-ink-muted">{formatTagForDisplay(detail)}</li>)}
           </ul>
         </section>
       )}

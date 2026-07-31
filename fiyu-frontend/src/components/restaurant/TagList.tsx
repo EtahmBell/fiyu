@@ -1,16 +1,19 @@
 import { Badge } from "@/components/ui/Badge";
 import { detectTextLang } from "@/lib/format/language";
+import { formatTagForDisplay } from "@/lib/format/tags";
 import { cn } from "@/lib/utils/cn";
 
 export interface TagListProps {
   tags: string[];
   /** Tags beyond this are summarised as "+N". Omit to show all. */
   max?: number;
+  /** Apply presentation-only English title casing without changing stored tags. */
+  titleCaseEnglish?: boolean;
   className?: string;
 }
 
 /**
- * Food tags, rendered exactly as the API returns them.
+ * Food tags rendered from immutable API values.
  *
  * Outlined rather than filled: a row of filled chips is the single most
  * dashboard-looking element on a card. No translation, romanization or
@@ -20,7 +23,7 @@ export interface TagListProps {
  * `detectTextLang` only chooses a `lang` attribute so Japanese gets the right
  * font and kinsoku line-breaking. It never alters the string.
  */
-export function TagList({ tags, max, className }: TagListProps) {
+export function TagList({ tags, max, titleCaseEnglish = false, className }: TagListProps) {
   if (tags.length === 0) return null;
 
   const visible = max === undefined ? tags : tags.slice(0, max);
@@ -32,13 +35,19 @@ export function TagList({ tags, max, className }: TagListProps) {
         // A single long tag must wrap inside the card rather than widen it.
         <li key={tag} className="min-w-0 max-w-full">
           <Badge tone="outline" lang={detectTextLang(tag)} className="max-w-full break-words">
-            {tag}
+            {titleCaseEnglish ? formatTagForDisplay(tag) : tag}
           </Badge>
         </li>
       ))}
       {hidden > 0 && (
         <li className="min-w-0 max-w-full">
-          <Badge tone="quiet" title={tags.slice(visible.length).join(", ")}>
+          <Badge
+            tone="quiet"
+            title={tags
+              .slice(visible.length)
+              .map((tag) => (titleCaseEnglish ? formatTagForDisplay(tag) : tag))
+              .join(", ")}
+          >
             +{hidden}
           </Badge>
         </li>

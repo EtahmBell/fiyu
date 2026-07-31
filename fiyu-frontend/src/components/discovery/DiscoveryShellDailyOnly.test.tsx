@@ -214,6 +214,36 @@ describe("daily-only discovery shell", () => {
     );
   });
 
+  it("toggles a revealed card and its matching pin from a single card activation", () => {
+    const now = Date.now();
+    window.localStorage.setItem(
+      DAILY_PICKS_STORAGE_KEY,
+      JSON.stringify({
+        version: 2,
+        preferences: { categories: [], nonJapanese: "occasionally" },
+        selection: {
+          ...createDailySelection(["one", "two", "three"], now - 1_000),
+          revealedIds: ["one"],
+        },
+        discoveries: [{ restaurantId: "one", revealedAt: new Date(now - 1_000).toISOString() }],
+        savedRestaurantIds: [],
+      }),
+    );
+
+    const { container } = render(<DiscoveryShell restaurants={catalog} areaAnchors={[]} />);
+    const frame = container.querySelector('[data-daily-card-place-id="one"]') as HTMLElement;
+    const card = within(frame).getByTestId("compact-restaurant-card");
+    const pin = container.querySelector('[data-place-id="one"]') as HTMLElement;
+
+    fireEvent.click(card);
+    expect(frame.dataset.selected).toBe("true");
+    expect(pin.getAttribute("aria-pressed")).toBe("true");
+
+    fireEvent.click(card);
+    expect(frame.dataset.selected).toBe("false");
+    expect(pin.getAttribute("aria-pressed")).toBe("false");
+  });
+
   it("opens detail by place_id and restores the selected card and list scroll on return", async () => {
     const now = Date.now();
     window.localStorage.setItem(
@@ -249,6 +279,19 @@ describe("daily-only discovery shell", () => {
       expect(restored.dataset.selected).toBe("true");
       expect(document.activeElement).toBe(restored);
       expect(screen.getByTestId("restaurant-scroll-region").scrollTop).toBe(247);
+    });
+    expect(window.sessionStorage.getItem("fiyu.picks-detail-return.v1")).toBeNull();
+
+    cleanup();
+    render(<DiscoveryShell restaurants={catalog} areaAnchors={[]} />);
+    await waitFor(() => {
+      const returnedAfterPrimaryNavigation = document.querySelector(
+        '[data-daily-card-place-id="one"]',
+      ) as HTMLElement;
+      expect(returnedAfterPrimaryNavigation.dataset.selected).toBe("false");
+      expect(document.querySelector('[data-place-id="one"]')?.getAttribute("aria-pressed")).toBe(
+        "false",
+      );
     });
   });
 
