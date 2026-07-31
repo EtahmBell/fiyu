@@ -21,7 +21,13 @@ import {
   type NonJapanesePreference,
 } from "@/lib/daily-picks/selection";
 import { recentDiscoveries, recordRevealedDiscovery } from "@/lib/daily-picks/history";
+import { UNLIMITED_PICKS_DEV_MODE } from "@/lib/daily-picks/developmentMode";
+import { isMappable } from "@/lib/geo/mappable";
 import type { FreeOriginSetup } from "@/lib/location/origin";
+import {
+  publishNewlyRevealedMapPlaces,
+  subscribeToNewlyRevealedMapPlaces,
+} from "@/lib/map/revealEvents";
 import {
   DAILY_PICKS_DURATION_MS,
   EMPTY_DAILY_PICKS_STATE,
@@ -168,9 +174,8 @@ function PreferenceControls({
  * Neither is invented -- with no active selection the count line is omitted
  * entirely, and with no resolved origin the area prefix simply disappears.
  *
- * Deliberately not a boxed widget: a headline, a supporting line, a hairline
- * rule and one quiet action, so it reads as a masthead standfirst rather than a
- * dashboard summary.
+ * A lightly tinted, compact context strip keeps this distinct from the heavier
+ * restaurant cards while preserving the existing preference action.
  */
 function PicksDiscoveryContext({
   areaLabel,
@@ -183,7 +188,7 @@ function PicksDiscoveryContext({
   tuning: boolean;
   onToggleTuning?: () => void;
 }) {
-  const countLabel = pickCount > 0 ? `${pickCount} picks today` : null;
+  const countLabel = pickCount > 0 ? `${pickCount} picks selected for you today` : null;
   const headline =
     countLabel && areaLabel
       ? `Near ${areaLabel} · ${countLabel}`
@@ -192,17 +197,17 @@ function PicksDiscoveryContext({
   return (
     <div
       data-testid="picks-discovery-context"
-      className="flex min-w-0 items-start justify-between gap-3 border-b border-line pb-3 lg:hidden"
+      className="flex min-w-0 items-start justify-between gap-3 rounded-xl bg-lavender-50/55 px-3 py-3 lg:hidden"
     >
       <div className="min-w-0">
         {headline && (
-          <p className="flex min-w-0 items-center gap-1.5 text-sm leading-5 font-medium text-ink">
+          <p className="flex min-w-0 items-center gap-1.5 text-sm leading-5 font-semibold text-plum">
             <CityHeaderMark cityId={ACTIVE_FIYU_CITY.id} />
             <span className="truncate">{headline}</span>
           </p>
         )}
         <p className="mt-1 text-xs leading-5 text-ink-muted">
-          Selected around your tastes and nearby area
+          Based on your tastes and nearby area
         </p>
       </div>
 
@@ -212,9 +217,9 @@ function PicksDiscoveryContext({
           onClick={onToggleTuning}
           aria-expanded={tuning}
           aria-controls={tuning ? "picks-preference-tuning" : undefined}
-          className="inline-flex min-h-9 shrink-0 items-center rounded-chip border border-line bg-surface px-3.5 text-xs font-medium text-lavender-700 transition-colors duration-200 ease-(--ease-fiyu) hover:border-lavender-600 hover:bg-lavender-50"
+          className="inline-flex min-h-9 shrink-0 items-center rounded-chip border border-lavender-100 bg-white/55 px-3 text-xs font-medium text-lavender-700 transition-colors duration-200 ease-(--ease-fiyu) hover:border-lavender-600 hover:bg-white"
         >
-          Tune
+          Edit preferences
         </button>
       )}
     </div>
@@ -243,7 +248,10 @@ export function DailyPicksPanel({
   const [inventoryMessage, setInventoryMessage] = useState<string | null>(null);
   const [finding, setFinding] = useState(false);
   const [tuning, setTuning] = useState(false);
+  const [newMapPlaceCount, setNewMapPlaceCount] = useState(0);
   const findingTimerRef = useRef<number | null>(null);
+  const mapNoticeTimerRef = useRef<number | null>(null);
+  const developmentGenerationRef = useRef(0);
   const cardRefs = useRef(new Map<string, HTMLDivElement>());
 
   const state = snapshot ?? EMPTY_DAILY_PICKS_STATE;
@@ -297,7 +305,23 @@ export function DailyPicksPanel({
   useEffect(
     () => () => {
       if (findingTimerRef.current !== null) window.clearTimeout(findingTimerRef.current);
+      if (mapNoticeTimerRef.current !== null) window.clearTimeout(mapNoticeTimerRef.current);
     },
+    [],
+  );
+
+  useEffect(
+    () =>
+      subscribeToNewlyRevealedMapPlaces((event) => {
+        setNewMapPlaceCount((current) => current + event.placeIds.length);
+        if (mapNoticeTimerRef.current !== null) {
+          window.clearTimeout(mapNoticeTimerRef.current);
+        }
+        mapNoticeTimerRef.current = window.setTimeout(() => {
+          setNewMapPlaceCount(0);
+          mapNoticeTimerRef.current = null;
+        }, 3_200);
+      }),
     [],
   );
 
@@ -312,12 +336,25 @@ export function DailyPicksPanel({
     persist({ ...state, preferences });
   };
 
-  const generate = () => {
+  const generate = (developmentRefresh = false) => {
     const generatedAt = Date.now();
-    const picks = selectDailyRestaurants(restaurants, state.preferences, {
+    const useDevelopmentRefresh = UNLIMITED_PICKS_DEV_MODE && developmentRefresh;
+    const currentIds = new Set(currentSelection?.restaurantIds ?? []);
+    const freshRestaurants = useDevelopmentRefresh
+      ? restaurants.filter((restaurant) => !currentIds.has(restaurant.place_id))
+      : restaurants;
+    const developmentSeed = generatedAt + developmentGenerationRef.current;
+    if (useDevelopmentRefresh) developmentGenerationRef.current += 1;
+    const options = {
       activeArea,
-      seed: Math.floor(generatedAt / DAILY_PICKS_DURATION_MS),
-    });
+      seed: useDevelopmentRefresh
+        ? developmentSeed
+        : Math.floor(generatedAt / DAILY_PICKS_DURATION_MS),
+    };
+    let picks = selectDailyRestaurants(freshRestaurants, state.preferences, options);
+    if (useDevelopmentRefresh && picks.length !== 3 && freshRestaurants !== restaurants) {
+      picks = selectDailyRestaurants(restaurants, state.preferences, options);
+    }
     if (picks.length !== 3) {
       setInventoryMessage("Not enough matching restaurants are available yet.");
       return;
@@ -347,6 +384,10 @@ export function DailyPicksPanel({
         revealedIds: [...currentSelection.revealedIds, placeId],
       },
     });
+    const restaurant = restaurants.find((candidate) => candidate.place_id === placeId);
+    if (restaurant && isMappable(restaurant)) {
+      publishNewlyRevealedMapPlaces([placeId], revealedAt);
+    }
   };
 
   const toggleSaved = (placeId: string) => {
@@ -361,6 +402,20 @@ export function DailyPicksPanel({
 
   return (
     <>
+      {newMapPlaceCount > 0 && (
+        <p
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+          data-testid="new-map-place-notification"
+          className="fixed top-[calc(var(--spacing-header)+0.75rem)] right-4 z-50 max-w-[calc(100vw-2rem)] rounded-chip border border-lavender-100 bg-plum px-4 py-2.5 text-sm font-medium text-white"
+        >
+          {newMapPlaceCount === 1
+            ? "1 newly revealed place added to the map"
+            : `${newMapPlaceCount} newly revealed places added to the map`}
+        </p>
+      )}
+
       <PicksDiscoveryContext
         areaLabel={activeArea?.trim() ? activeArea.trim() : null}
         pickCount={hasActivePicks ? selectedRestaurants.length : 0}
@@ -436,7 +491,7 @@ export function DailyPicksPanel({
                 ) : (
                   <Button
                     variant="primary"
-                    onClick={generate}
+                    onClick={() => generate()}
                     className="mt-5 min-h-12 w-full px-6 text-sm sm:w-auto"
                   >
                     Find today&apos;s restaurants
@@ -446,12 +501,24 @@ export function DailyPicksPanel({
             )}
 
             {hasActivePicks && currentSelection && (
-              <div className="flex flex-wrap items-center gap-3">
-                <p className="text-xs text-ink-muted" aria-live="polite">
-                  Next selection available in{" "}
-                  {remainingLabel(Date.parse(currentSelection.expiresAt) - now)}
-                </p>
-              </div>
+              UNLIMITED_PICKS_DEV_MODE ? (
+                <div
+                  data-testid="unlimited-picks-dev-controls"
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dashed border-lavender-100 bg-lavender-50/35 p-3"
+                >
+                  <p className="text-xs font-medium text-lavender-700">Development testing mode</p>
+                  <Button size="sm" variant="secondary" onClick={() => generate(true)}>
+                    Generate another test set
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex flex-wrap items-center gap-3">
+                  <p className="text-xs text-ink-muted" aria-live="polite">
+                    Next selection available in{" "}
+                    {remainingLabel(Date.parse(currentSelection.expiresAt) - now)}
+                  </p>
+                </div>
+              )
             )}
 
             {inventoryMessage && (

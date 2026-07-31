@@ -9,6 +9,7 @@ import { DailyPicksPanel } from "@/components/daily-picks/DailyPicksPanel";
 import { publicRestaurantSchema, type PublicRestaurant } from "@/lib/api/schemas";
 import { RECENT_DISCOVERY_DURATION_MS } from "@/lib/daily-picks/history";
 import { createDailyPicksStorage, createDailySelection } from "@/lib/daily-picks/storage";
+import { subscribeToNewlyRevealedMapPlaces } from "@/lib/map/revealEvents";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -155,6 +156,126 @@ describe("Today’s Fiyu Picks panel", () => {
     expect(storage.getSnapshot()?.selection?.restaurantIds).toEqual(selection.restaurantIds);
     expect(screen.queryByTestId("pre-pick-preferences")).toBeNull();
     expect(screen.getAllByTestId("concealed-restaurant-card")).toHaveLength(3);
+  });
+
+  it("presents the mobile discovery context as a light preference module", () => {
+    const now = Date.UTC(2026, 6, 30, 12);
+    vi.useFakeTimers();
+    vi.setSystemTime(now);
+    const storage = createDailyPicksStorage(window.localStorage);
+    storage.save({
+      version: 2,
+      preferences: { categories: [], nonJapanese: "occasionally" },
+      selection: createDailySelection(["one", "two", "three"], now),
+      discoveries: [],
+      savedRestaurantIds: [],
+    });
+
+    render(<DailyPicksPanel restaurants={catalog} storage={storage} activeArea="Shibuya" />);
+
+    const context = screen.getByTestId("picks-discovery-context");
+    expect(
+      within(context).getByText("Near Shibuya · 3 picks selected for you today"),
+    ).toBeTruthy();
+    expect(within(context).getByText("Based on your tastes and nearby area")).toBeTruthy();
+    expect(within(context).queryByText("3 picks today")).toBeNull();
+    expect(within(context).queryByText("Selected around your tastes and nearby area")).toBeNull();
+    expect(context.querySelector('[data-city-signature-mark="tokyo"]')).toBeTruthy();
+    expect(context.className).toContain("rounded-xl");
+    expect(context.className).toContain("bg-lavender-50/55");
+    expect(context.className).not.toContain("border-b");
+    expect(context.className).not.toContain("shadow");
+
+    const editPreferences = within(context).getByRole("button", { name: "Edit preferences" });
+    expect(editPreferences.getAttribute("aria-expanded")).toBe("false");
+    fireEvent.click(editPreferences);
+    expect(editPreferences.getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getByText("Saved for your next picks. Today's selection stays as it is.")).toBeTruthy();
+  });
+
+  it("publishes and temporarily reports only newly revealed map-eligible places", () => {
+    const now = Date.UTC(2026, 6, 30, 12);
+    vi.useFakeTimers();
+    vi.setSystemTime(now);
+    const mappedOne = publicRestaurantSchema.parse({
+      ...catalog[0],
+      latitude: 35.658,
+      longitude: 139.7016,
+      location_precision: "exact",
+      map_display_eligible: true,
+    });
+    const storage = createDailyPicksStorage(window.localStorage);
+    storage.save({
+      version: 2,
+      preferences: { categories: [], nonJapanese: "occasionally" },
+      selection: createDailySelection(["one", "two", "three"], now),
+      discoveries: [],
+      savedRestaurantIds: [],
+    });
+    const revealEvents: string[][] = [];
+    const unsubscribe = subscribeToNewlyRevealedMapPlaces((event) => {
+      revealEvents.push(event.placeIds);
+    });
+
+    render(
+      <DailyPicksPanel
+        restaurants={[mappedOne, ...catalog.slice(1)]}
+        storage={storage}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Tap to reveal restaurant 1" }));
+    expect(revealEvents).toEqual([["one"]]);
+    expect(screen.getByRole("status").textContent).toBe(
+      "1 newly revealed place added to the map",
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Tap to reveal restaurant 2" }));
+    expect(revealEvents).toEqual([["one"]]);
+    expect(screen.getByRole("status").textContent).toBe(
+      "1 newly revealed place added to the map",
+    );
+
+    act(() => vi.advanceTimersByTime(3_200));
+    expect(screen.queryByTestId("new-map-place-notification")).toBeNull();
+    unsubscribe();
+  });
+
+  it("does not publish reveal events from stored hydration state", () => {
+    const now = Date.UTC(2026, 6, 30, 12);
+    vi.useFakeTimers();
+    vi.setSystemTime(now);
+    const mappedOne = publicRestaurantSchema.parse({
+      ...catalog[0],
+      latitude: 35.658,
+      longitude: 139.7016,
+      location_precision: "exact",
+      map_display_eligible: true,
+    });
+    const storage = createDailyPicksStorage(window.localStorage);
+    storage.save({
+      version: 2,
+      preferences: { categories: [], nonJapanese: "occasionally" },
+      selection: {
+        ...createDailySelection(["one", "two", "three"], now),
+        revealedIds: ["one"],
+      },
+      discoveries: [{ restaurantId: "one", revealedAt: new Date(now).toISOString() }],
+      savedRestaurantIds: [],
+    });
+    const listener = vi.fn();
+    const unsubscribe = subscribeToNewlyRevealedMapPlaces(listener);
+
+    render(
+      <DailyPicksPanel
+        restaurants={[mappedOne, ...catalog.slice(1)]}
+        storage={storage}
+      />,
+    );
+
+    expect(listener).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("new-map-place-notification")).toBeNull();
+    unsubscribe();
   });
 
   it("shows only previous revealed restaurants, newest first, without current duplicates", () => {

@@ -14,6 +14,7 @@ import type { MappableRestaurant } from "@/lib/geo/mappable";
 import type { DiscoveryAnchor } from "@/lib/location/anchor";
 import { type MarkerCluster, clusterMarkers } from "@/lib/map/clustering";
 import { detailLevelFor, detailLevelLabel } from "@/lib/map/detail";
+import { subscribeToNewlyRevealedMapPlaces } from "@/lib/map/revealEvents";
 import { type LatLng, VIEWBOX, isWithinBounds, project, unproject } from "@/lib/map/projection";
 import {
   IDENTITY_VIEW,
@@ -66,6 +67,7 @@ const TAP_SLOP = 6;
 
 /** Wheel delta -> zoom factor. Tuned so a trackpad feels smooth, not jumpy. */
 const WHEEL_SENSITIVITY = 0.0015;
+const PIN_SPROUT_STATE_MS = 600;
 
 function distanceBetween(a: PointerEvent, b: PointerEvent): number {
   return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
@@ -96,6 +98,11 @@ export function FiyuMap({
 }: FiyuMapProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [view, setView] = useState<MapView>(IDENTITY_VIEW);
+  const [sproutingPlaceIds, setSproutingPlaceIds] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
+  const seenRevealEventIds = useRef(new Set<string>());
+  const sproutTimers = useRef<number[]>([]);
 
   /** Live pointers, for drag and pinch. */
   const pointers = useRef(new Map<number, PointerEvent>());
@@ -153,6 +160,10 @@ export function FiyuMap({
    * has taken control -- re-framing under someone mid-pan is disorienting.
    */
   const resultKey = plotted.map((restaurant) => restaurant.place_id).join("|");
+  const plottedPlaceIds = useMemo(
+    () => new Set(plotted.map((restaurant) => restaurant.place_id)),
+    [plotted],
+  );
   const lastFitKey = useRef<string | null>(null);
   const userHasInteracted = useRef(false);
 
@@ -165,8 +176,37 @@ export function FiyuMap({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resultKey]);
 
+  useEffect(() => {
+    const unsubscribe = subscribeToNewlyRevealedMapPlaces((event) => {
+      if (seenRevealEventIds.current.has(event.eventId)) return;
+      seenRevealEventIds.current.add(event.eventId);
+      const newlyPlotted = event.placeIds.filter((placeId) =>
+        plottedPlaceIds.has(placeId),
+      );
+      if (newlyPlotted.length === 0) return;
+
+      setSproutingPlaceIds((current) => new Set([...current, ...newlyPlotted]));
+      const timer = window.setTimeout(() => {
+        setSproutingPlaceIds((current) => {
+          const next = new Set(current);
+          for (const placeId of newlyPlotted) next.delete(placeId);
+          return next;
+        });
+        sproutTimers.current = sproutTimers.current.filter((candidate) => candidate !== timer);
+      }, PIN_SPROUT_STATE_MS);
+      sproutTimers.current.push(timer);
+    });
+
+    return () => {
+      unsubscribe();
+      for (const timer of sproutTimers.current) window.clearTimeout(timer);
+      sproutTimers.current = [];
+    };
+  }, [plottedPlaceIds]);
+
   const markInteracted = useCallback(() => {
     userHasInteracted.current = true;
+    setSproutingPlaceIds((current) => (current.size === 0 ? current : new Set()));
   }, []);
 
   const toViewBox = useCallback((clientX: number, clientY: number) => {
@@ -334,6 +374,7 @@ export function FiyuMap({
           <MapMarkers
             clusters={clusters}
             selectedPlaceId={selectedPlaceId}
+            newlyRevealedPlaceIds={sproutingPlaceIds}
             scale={view.k}
             onSelect={onSelect}
             onExpandCluster={expandCluster}

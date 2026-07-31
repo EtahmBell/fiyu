@@ -59,6 +59,15 @@ describe("application navigation", () => {
     ]);
     const log = within(mobile).getByRole("link", { name: "Log a visit" });
     expect(log.textContent).toContain("Log");
+    expect(mobile.className).toContain("h-mobile-nav");
+    for (const link of links) {
+      expect(link.className).toContain("gap-1.5");
+      expect(link.className).toContain("text-[0.8125rem]");
+      expect(link.querySelector("svg")?.classList.contains("size-6")).toBe(true);
+      const label = link.querySelector("span.whitespace-nowrap");
+      expect(label?.classList.contains("leading-4")).toBe(true);
+      expect(label?.classList.contains("truncate")).toBe(false);
+    }
     const logIcon = log.querySelector("svg");
     expect(logIcon?.classList.contains("size-6")).toBe(true);
     expect(logIcon?.querySelectorAll("path")).toHaveLength(1);

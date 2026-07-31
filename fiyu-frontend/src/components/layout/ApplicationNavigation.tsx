@@ -284,12 +284,12 @@ export function ApplicationNavigation() {
               aria-label={item.accessibleLabel}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "relative flex min-h-12 min-w-0 flex-col items-center justify-center gap-1 rounded-lg px-1 text-[0.6875rem] leading-none font-medium transition-colors duration-200 ease-(--ease-fiyu)",
+                "relative flex min-h-12 min-w-0 flex-col items-center justify-center gap-1.5 rounded-lg px-1 text-[0.8125rem] font-medium transition-colors duration-200 ease-(--ease-fiyu)",
                 active ? "text-lavender-700" : "text-ink-muted hover:text-ink",
                 // Log keeps a quiet tinted field instead of a raised centre
                 // action: enough to find by thumb, not enough to shout.
                 log &&
-                  "before:absolute before:inset-x-2.5 before:inset-y-2 before:-z-10 before:rounded-xl before:border before:border-line before:bg-subtle",
+                  "before:absolute before:inset-x-2.5 before:inset-y-2.5 before:-z-10 before:rounded-xl before:border before:border-line before:bg-subtle",
               )}
             >
               {/*
@@ -299,10 +299,10 @@ export function ApplicationNavigation() {
                * the shared icon default rather than leave it alone.
                */}
               <item.icon
-                className={log ? "size-6" : "size-5"}
+                className="size-6"
                 {...(log ? { strokeWidth: 2.1 } : {})}
               />
-              <span className="truncate">{item.label}</span>
+              <span className="whitespace-nowrap leading-4">{item.label}</span>
               {active && (
                 <span
                   aria-hidden="true"

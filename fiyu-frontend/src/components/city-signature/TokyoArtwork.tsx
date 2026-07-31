@@ -104,45 +104,6 @@ export function TokyoMochiIllustration(props: SVGProps<SVGSVGElement>) {
   );
 }
 
-function PatternCanvas({ children, ...props }: SVGProps<SVGSVGElement>) {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 360 176" preserveAspectRatio="none" {...props}>
-      {children}
-    </svg>
-  );
-}
-
-export function TokyoNorenPatternPanels(props: SVGProps<SVGSVGElement>) {
-  return (
-    <PatternCanvas {...props}>
-      <path d="M40 20h280v112H40z" fill="var(--color-lavender-100)" fillOpacity=".55" />
-      <path d="M40 20h280M110 20v110M180 20v82M250 20v110M40 132h125l15-30 15 30h125" {...textileLine} />
-      <TokyoKikuMark x="169" y="38" width="22" height="22" className="text-lavender-700" />
-    </PatternCanvas>
-  );
-}
-
-export function TokyoNorenPatternSeams(props: SVGProps<SVGSVGElement>) {
-  return (
-    <PatternCanvas {...props}>
-      <path d="M48 18h264v116H48z" fill="var(--color-rose-dust)" fillOpacity=".12" />
-      <path d="M48 18h264M92 18v116M136 18v102M180 18v116M224 18v102M268 18v116" {...textileLine} />
-      <path d="M48 134h88l8-14 8 14h72l8-14 8 14h72" {...textileLine} />
-    </PatternCanvas>
-  );
-}
-
-export function TokyoNorenPatternWave(props: SVGProps<SVGSVGElement>) {
-  return (
-    <PatternCanvas {...props}>
-      <path d="M44 20h272v112H44z" fill="var(--color-lavender-100)" fillOpacity=".42" />
-      <path d="M44 20h272M112 20v112M180 20v82M248 20v112" {...textileLine} />
-      <path d="M44 123c17-13 34-13 51 0s34 13 51 0 34-13 51 0 34 13 51 0 34-13 51 0" {...textileLine} />
-      <path d="M44 134c17-13 34-13 51 0s34 13 51 0 34-13 51 0 34 13 51 0 34-13 51 0" {...textileLine} opacity=".55" />
-    </PatternCanvas>
-  );
-}
-
 export function TokyoPicksWatermark(props: SVGProps<SVGSVGElement>) {
   return (
     <svg aria-hidden="true" viewBox="0 0 240 200" {...props}>

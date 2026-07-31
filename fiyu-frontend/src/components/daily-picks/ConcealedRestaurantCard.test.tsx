@@ -1,6 +1,9 @@
 // @vitest-environment jsdom
+import { act } from "react";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 import { ConcealedRestaurantCard } from "@/components/daily-picks/ConcealedRestaurantCard";
 import { publicRestaurantSchema } from "@/lib/api/schemas";
@@ -94,7 +97,7 @@ describe("concealed daily restaurant card", () => {
     expect(screen.getByTestId("concealed-restaurant-card").dataset.goldTreatment).toBe("false");
   });
 
-  it("selects three low-contrast noren variants deterministically by card position", () => {
+  it("keeps every concealed card on one bare face, whatever its position or score", () => {
     const props = {
       restaurant: fixture(88),
       revealed: false,
@@ -102,42 +105,68 @@ describe("concealed daily restaurant card", () => {
       onReveal: () => {},
       onToggleSaved: () => {},
     };
-    const { container, rerender } = render(
-      <ConcealedRestaurantCard {...props} position={1} />,
-    );
-    const pattern = () => container.querySelector("[data-city-concealed-pattern]");
-    expect(pattern()?.getAttribute("data-city-concealed-pattern")).toBe("0");
-    expect(pattern()?.getAttribute("class")).toContain("opacity-[0.16]");
+    const { container, rerender } = render(<ConcealedRestaurantCard {...props} position={1} />);
+    const face = () => screen.getByTestId("concealed-restaurant-card");
 
-    rerender(<ConcealedRestaurantCard {...props} position={2} />);
-    expect(pattern()?.getAttribute("data-city-concealed-pattern")).toBe("1");
-    rerender(<ConcealedRestaurantCard {...props} position={3} />);
-    expect(pattern()?.getAttribute("data-city-concealed-pattern")).toBe("2");
-    rerender(<ConcealedRestaurantCard {...props} position={4} />);
-    expect(pattern()?.getAttribute("data-city-concealed-pattern")).toBe("0");
+    // No pattern artwork, no positional variants: the three daily cards are
+    // identical apart from the gold edge.
+    const baseline = face().className;
+    for (const position of [2, 3, 4]) {
+      rerender(<ConcealedRestaurantCard {...props} position={position} />);
+      expect(container.querySelector("svg")).toBeNull();
+      expect(container.querySelector("[data-city-concealed-pattern]")).toBeNull();
+      expect(face().className).toBe(baseline);
+    }
+
+    // Only the gold edge varies, and it comes from the score rather than the
+    // position.
+    rerender(<ConcealedRestaurantCard {...props} position={2} restaurant={fixture(90)} />);
+    expect(container.querySelector("svg")).toBeNull();
+    expect(face().dataset.goldTreatment).toBe("true");
+    expect(face().className).toContain("border-gold");
+  });
+});
+
+describe("reveal transition", () => {
+  const props = {
+    restaurant: fixture(88),
+    position: 1,
+    saved: false,
+    onReveal: () => {},
+    onToggleSaved: () => {},
+  };
+
+  it("fades the noren face out over a restaurant card that is already mounted", () => {
+    vi.useFakeTimers();
+    const { rerender } = render(<ConcealedRestaurantCard {...props} revealed={false} />);
+    rerender(<ConcealedRestaurantCard {...props} revealed />);
+
+    // The card is not held back by the transition, so its photo request starts
+    // at the moment of the tap.
+    expect(screen.getByText("鮨さいとう")).toBeTruthy();
+
+    const fade = screen.getByTestId("conceal-fade-out");
+    expect(fade.getAttribute("aria-hidden")).toBe("true");
+    expect(fade.className).toContain("pointer-events-none");
+    expect(fade.style.animation).toContain("fiyu-conceal-out");
+    expect(screen.getByTestId("revealed-restaurant-card").firstElementChild).toHaveProperty(
+      "style.animation",
+      expect.stringContaining("fiyu-reveal-in"),
+    );
+
+    // The spent layer drops out once the fade is over; nothing else waits on it.
+    act(() => vi.advanceTimersByTime(200));
+    expect(screen.queryByTestId("conceal-fade-out")).toBeNull();
+    expect(screen.getByText("鮨さいとう")).toBeTruthy();
+    vi.useRealTimers();
   });
 
-  it("does not encode gold treatment into the noren pattern", () => {
-    const shared = {
-      position: 2,
-      revealed: false,
-      saved: false,
-      onReveal: () => {},
-      onToggleSaved: () => {},
-    };
-    const { container, rerender } = render(
-      <ConcealedRestaurantCard {...shared} restaurant={fixture(90)} />,
-    );
-    const patternIndex = () =>
-      container
-        .querySelector("[data-city-concealed-pattern]")
-        ?.getAttribute("data-city-concealed-pattern");
-    expect(patternIndex()).toBe("1");
-    expect(screen.getByTestId("concealed-restaurant-card").dataset.goldTreatment).toBe("true");
+  it("renders a card revealed before mount in its settled state", () => {
+    render(<ConcealedRestaurantCard {...props} revealed />);
 
-    rerender(<ConcealedRestaurantCard {...shared} restaurant={fixture(80)} />);
-    expect(patternIndex()).toBe("1");
-    expect(screen.getByTestId("concealed-restaurant-card").dataset.goldTreatment).toBe("false");
+    expect(screen.queryByTestId("conceal-fade-out")).toBeNull();
+    expect(
+      screen.getByTestId("revealed-restaurant-card").firstElementChild?.getAttribute("style"),
+    ).toBeNull();
   });
-
 });

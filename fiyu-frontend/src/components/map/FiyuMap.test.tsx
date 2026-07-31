@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { FiyuMap } from "@/components/map/FiyuMap";
 import { publicRestaurantSchema } from "@/lib/api/schemas";
 import { type MappableRestaurant, mappableRestaurants } from "@/lib/geo/mappable";
+import { publishNewlyRevealedMapPlaces } from "@/lib/map/revealEvents";
 
 /**
  * Fixture coordinates. These are real Tokyo positions used to drive the
@@ -43,7 +44,10 @@ function mapSurface(): HTMLElement {
   return screen.getByRole("img", { name: /Map of Tokyo/ });
 }
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
 
 describe("map surface", () => {
   it("describes itself and its marker count to assistive tech", () => {
@@ -118,6 +122,63 @@ describe("card and marker selection stay in sync", () => {
     fireEvent.keyDown(marker, { key: "Enter" });
     fireEvent.keyDown(marker, { key: " " });
     expect(onSelect).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("newly revealed map pins", () => {
+  it("sprouts the matching marker once on every map already mounted without changing its viewport", () => {
+    vi.useFakeTimers();
+    render(
+      <>
+        <FiyuMap restaurants={[SHIBUYA, UENO]} selectedPlaceId={null} onSelect={() => {}} />
+        <FiyuMap restaurants={[SHIBUYA, UENO]} selectedPlaceId={null} onSelect={() => {}} />
+      </>,
+    );
+    const maps = screen.getAllByRole("img", { name: /Map of Tokyo/ });
+    const before = maps.map(
+      (map) => map.querySelector("g[transform]")?.getAttribute("transform") ?? "",
+    );
+    const shibuyaPins = screen.getAllByLabelText("渋谷の店");
+    expect(shibuyaPins).toHaveLength(2);
+    expect(shibuyaPins.every((pin) => !pin.hasAttribute("data-newly-revealed"))).toBe(true);
+
+    act(() => {
+      publishNewlyRevealedMapPlaces(["shibuya"], Date.UTC(2026, 6, 30, 12));
+    });
+
+    expect(shibuyaPins.every((pin) => pin.getAttribute("data-newly-revealed") === "true")).toBe(
+      true,
+    );
+    expect(shibuyaPins.every((pin) => pin.classList.contains("fiyu-map-pin-sprout"))).toBe(true);
+    expect(
+      maps.map((map) => map.querySelector("g[transform]")?.getAttribute("transform") ?? ""),
+    ).toEqual(before);
+
+    act(() => vi.advanceTimersByTime(600));
+    expect(shibuyaPins.every((pin) => !pin.hasAttribute("data-newly-revealed"))).toBe(true);
+  });
+
+  it("does not replay an old reveal on a map mounted later", () => {
+    act(() => {
+      publishNewlyRevealedMapPlaces(["shibuya"], Date.UTC(2026, 6, 30, 12));
+    });
+
+    render(<FiyuMap restaurants={[SHIBUYA]} selectedPlaceId={null} onSelect={() => {}} />);
+
+    const marker = screen.getByLabelText("渋谷の店");
+    expect(marker.hasAttribute("data-newly-revealed")).toBe(false);
+    expect(marker.classList.contains("fiyu-map-pin-sprout")).toBe(false);
+  });
+
+  it("ignores reveal events for places not plotted on that map", () => {
+    render(<FiyuMap restaurants={[SHIBUYA]} selectedPlaceId={null} onSelect={() => {}} />);
+    const marker = screen.getByLabelText("渋谷の店");
+
+    act(() => {
+      publishNewlyRevealedMapPlaces(["not-on-this-map"], Date.UTC(2026, 6, 30, 12));
+    });
+
+    expect(marker.hasAttribute("data-newly-revealed")).toBe(false);
   });
 });
 

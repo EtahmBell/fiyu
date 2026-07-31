@@ -50,10 +50,37 @@
 
   /* The app chrome includes device safe areas without changing desktop height. */
   --spacing-header: calc(3.5rem + env(safe-area-inset-top));
-  --spacing-mobile-nav: calc(4.25rem + env(safe-area-inset-bottom));
+  --spacing-mobile-nav: calc(5rem + env(safe-area-inset-bottom));
 
   /* One motion duration, used everywhere. */
   --ease-fiyu: cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+@keyframes fiyu-map-pin-sprout {
+  0% {
+    opacity: 0;
+    transform: translateY(7px) scale(0.58);
+  }
+  72% {
+    opacity: 1;
+    transform: translateY(-1px) scale(1.045);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.fiyu-map-pin-sprout {
+  transform-box: fill-box;
+  transform-origin: center bottom;
+  animation: fiyu-map-pin-sprout 540ms cubic-bezier(0.22, 0.8, 0.28, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fiyu-map-pin-sprout {
+    animation: none;
+  }
 }
 
 :root {
@@ -193,5 +220,33 @@ body {
   }
   to {
     opacity: 1;
+  }
+}
+
+/*
+ * Concealed-to-revealed cross-fade on a daily pick.
+ *
+ * The noren face fades off the top of the restaurant card while the card itself
+ * settles up into place -- roughly 300ms end to end. The reduced-motion rule
+ * above collapses both to an instant swap, which is why the movement lives in a
+ * keyframe rather than in a transform held by a class.
+ */
+@keyframes fiyu-conceal-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes fiyu-reveal-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
   }
 }

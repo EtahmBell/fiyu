@@ -15,6 +15,7 @@ const CLUSTER_RADIUS = 17;
 export interface MapMarkersProps {
   clusters: MarkerCluster<MappableRestaurant>[];
   selectedPlaceId: string | null;
+  newlyRevealedPlaceIds: ReadonlySet<string>;
   scale: number;
   onSelect: (restaurant: MappableRestaurant) => void;
   onExpandCluster: (cluster: MarkerCluster<MappableRestaurant>) => void;
@@ -31,6 +32,7 @@ export interface MapMarkersProps {
 export function MapMarkers({
   clusters,
   selectedPlaceId,
+  newlyRevealedPlaceIds,
   scale,
   onSelect,
   onExpandCluster,
@@ -41,6 +43,9 @@ export function MapMarkers({
     <g>
       {clusters.map((cluster) => {
         const { x, y } = cluster.point;
+        const newlyRevealed = cluster.members.some((member) =>
+          newlyRevealedPlaceIds.has(member.item.place_id),
+        );
 
         if (cluster.members.length > 1) {
           const count = cluster.members.length;
@@ -50,7 +55,11 @@ export function MapMarkers({
               role="button"
               tabIndex={0}
               aria-label={`${count} restaurants in this area. Activate to zoom in.`}
-              className="cursor-pointer focus:outline-none [&:focus-visible>circle:first-child]:opacity-100"
+              data-newly-revealed={newlyRevealed ? "true" : undefined}
+              className={cn(
+                "cursor-pointer focus:outline-none [&:focus-visible>circle:first-child]:opacity-100",
+                newlyRevealed && "fiyu-map-pin-sprout",
+              )}
               onClick={() => onExpandCluster(cluster)}
               onKeyDown={(event) => {
                 if (event.key === "Enter" || event.key === " ") {
@@ -104,10 +113,12 @@ export function MapMarkers({
             aria-label={label}
             aria-pressed={selected}
             data-place-id={restaurant.place_id}
+            data-newly-revealed={newlyRevealed ? "true" : undefined}
             className={cn(
               "cursor-pointer focus:outline-none",
               "[&:focus-visible>circle:first-child]:opacity-100",
               "[&:hover>circle:first-child]:opacity-60",
+              newlyRevealed && "fiyu-map-pin-sprout",
             )}
             onClick={() => onSelect(restaurant)}
             onKeyDown={(event) => {

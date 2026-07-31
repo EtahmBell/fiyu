@@ -56,28 +56,6 @@ export function CityLoadingSequence({ cityId, className }: { cityId: CityId; cla
   );
 }
 
-export function CityConcealedPattern({
-  cityId,
-  position,
-  className,
-}: {
-  cityId: CityId;
-  position: number;
-  className?: string;
-}) {
-  const patterns = citySignatureFor(cityId)?.concealedCardPatterns ?? [];
-  if (patterns.length === 0) return null;
-  const patternIndex = Math.abs(position - 1) % patterns.length;
-  const Pattern = patterns[patternIndex];
-  return (
-    <Pattern
-      aria-hidden="true"
-      data-city-concealed-pattern={patternIndex}
-      className={cn("pointer-events-none absolute inset-0 size-full text-plum opacity-[0.16]", className)}
-    />
-  );
-}
-
 export function CityPicksWatermark({ cityId, className }: { cityId: CityId; className?: string }) {
   const Watermark = citySignatureFor(cityId)?.picksWatermark;
   if (!Watermark) return null;

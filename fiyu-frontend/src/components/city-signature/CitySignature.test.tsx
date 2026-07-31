@@ -32,7 +32,6 @@ describe("Tokyo City Signature", () => {
   it("registers one reusable, complete Tokyo identity", () => {
     expect(citySignatureFor("tokyo")).toBe(TOKYO_CITY_SIGNATURE);
     expect(TOKYO_CITY_SIGNATURE.loadingIllustrations).toHaveLength(5);
-    expect(TOKYO_CITY_SIGNATURE.concealedCardPatterns).toHaveLength(3);
     expect(Object.keys(TOKYO_CITY_SIGNATURE.emptyStateIllustrations ?? {}).sort()).toEqual([
       "discoveries",
       "lists",

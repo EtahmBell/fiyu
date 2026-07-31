@@ -7,9 +7,6 @@ import {
   TokyoListsEmptyIllustration,
   TokyoMochiIllustration,
   TokyoNoodleIllustration,
-  TokyoNorenPatternPanels,
-  TokyoNorenPatternSeams,
-  TokyoNorenPatternWave,
   TokyoOdenIllustration,
   TokyoOnigiriIllustration,
   TokyoPicksWatermark,
@@ -25,7 +22,6 @@ export interface CitySignature {
   cityId: CityId;
   headerMark?: CityArtwork;
   loadingIllustrations?: CityArtwork[];
-  concealedCardPatterns?: CityArtwork[];
   picksWatermark?: CityArtwork;
   emptyStateIllustrations?: Partial<Record<CityEmptyStateKind, CityArtwork>>;
   accentToken?: string;
@@ -40,11 +36,6 @@ export const TOKYO_CITY_SIGNATURE: CitySignature = {
     TokyoOnigiriIllustration,
     TokyoFishIllustration,
     TokyoMochiIllustration,
-  ],
-  concealedCardPatterns: [
-    TokyoNorenPatternPanels,
-    TokyoNorenPatternSeams,
-    TokyoNorenPatternWave,
   ],
   picksWatermark: TokyoPicksWatermark,
   emptyStateIllustrations: {
