@@ -18,6 +18,7 @@ export interface RecentDiscoveriesProps {
   discoveries: RevealedDiscovery[];
   restaurants: PublicRestaurant[];
   savedRestaurantIds: string[];
+  pendingPlaceIds?: string[];
   now: number;
   onOpen?: (restaurant: PublicRestaurant) => void;
   onViewDetails?: (restaurant: PublicRestaurant) => void;
@@ -30,6 +31,7 @@ export function RecentDiscoveries({
   discoveries,
   restaurants,
   savedRestaurantIds,
+  pendingPlaceIds = [],
   now,
   onOpen,
   onViewDetails,
@@ -71,6 +73,7 @@ export function RecentDiscoveries({
               <CompactRestaurantCard
                 restaurant={restaurant}
                 saved={savedRestaurantIds.includes(restaurant.place_id)}
+                savePending={pendingPlaceIds.includes(restaurant.place_id)}
                 expirationLabel={formatExpirationLabel(
                   getDiscoveryExpiration(discovery.revealedAt),
                   now,

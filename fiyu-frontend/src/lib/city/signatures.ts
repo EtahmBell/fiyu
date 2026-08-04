@@ -10,6 +10,7 @@ import {
   TokyoOdenIllustration,
   TokyoOnigiriIllustration,
   TokyoPicksWatermark,
+  TokyoSakuraMark,
   TokyoSavedEmptyIllustration,
   TokyoVisitsEmptyIllustration,
 } from "@/components/city-signature/TokyoArtwork";
@@ -29,7 +30,7 @@ export interface CitySignature {
 
 export const TOKYO_CITY_SIGNATURE: CitySignature = {
   cityId: "tokyo",
-  headerMark: TokyoKikuMark,
+  headerMark: TokyoSakuraMark,
   // Order is the sequence the loading state plays, not an alphabetical list.
   loadingIllustrations: [
     TokyoOdenIllustration,

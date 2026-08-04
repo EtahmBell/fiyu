@@ -37,6 +37,7 @@ import {
   type DailyPicksState,
   type DailyPicksStorage,
 } from "@/lib/daily-picks/storage";
+import { useDefaultList } from "@/lib/lists/useDefaultList";
 
 export interface DailyPicksPanelProps {
   restaurants: PublicRestaurant[];
@@ -104,7 +105,7 @@ function PreferenceControls({
   };
 
   return (
-    <div className="space-y-5" data-testid="pre-pick-preferences">
+    <div className="space-y-4" data-testid="pre-pick-preferences">
       <fieldset>
         <legend className="text-sm font-medium text-ink">
           <span className="mr-2 text-xs font-semibold tracking-[0.1em] text-lavender-700 uppercase">
@@ -125,8 +126,8 @@ function PreferenceControls({
                 onClick={() => toggleCategory(preference.id)}
                 className={
                   selected
-                    ? "min-h-11 rounded-chip border border-lavender-600 bg-lavender-100 px-4 text-sm font-medium text-lavender-800 shadow-sm"
-                    : "min-h-11 rounded-chip border border-line bg-surface px-4 text-sm text-ink-muted hover:border-line-strong disabled:cursor-not-allowed disabled:opacity-40"
+                    ? "inline-flex min-h-9 items-center rounded-lg border border-lavender-600 bg-lavender-100/80 px-3.5 text-[15px] font-medium text-plum focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600"
+                    : "inline-flex min-h-9 items-center rounded-lg border border-lavender-200 bg-surface px-3.5 text-[15px] text-ink-muted hover:border-lavender-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600 disabled:cursor-not-allowed disabled:opacity-40"
                 }
               >
                 {preference.label}
@@ -139,8 +140,8 @@ function PreferenceControls({
             onClick={() => onChange({ ...preferences, categories: [] })}
             className={
               preferences.categories.length === 0
-                ? "min-h-11 rounded-chip border border-plum bg-plum px-4 text-sm font-medium text-white shadow-sm"
-                : "min-h-11 rounded-chip border border-line-strong bg-surface px-4 text-sm font-medium text-plum hover:border-plum"
+                ? "inline-flex min-h-9 items-center rounded-lg border border-plum bg-lavender-100 px-3.5 text-[15px] font-semibold text-plum focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-plum"
+                : "inline-flex min-h-9 items-center rounded-lg border border-lavender-200 bg-surface px-3.5 text-[15px] font-medium text-plum hover:border-plum focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-plum"
             }
           >
             Surprise me
@@ -155,7 +156,7 @@ function PreferenceControls({
           </span>
           Non-Japanese restaurants
         </legend>
-        <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
+        <div className="mt-1.5 grid grid-cols-1 gap-1.5 sm:grid-cols-3">
           {([
             ["japanese-only", "Japanese only"],
             ["occasionally", "Mostly Japanese"],
@@ -171,8 +172,8 @@ function PreferenceControls({
                   onClick={() => onChange({ ...preferences, nonJapanese: value })}
                   className={
                     selected
-                      ? "min-h-11 rounded-lg border border-lavender-600 bg-lavender-100 px-3 text-sm font-medium text-lavender-800 shadow-sm"
-                      : "min-h-11 rounded-lg border border-line bg-surface px-3 text-sm text-ink-muted hover:border-line-strong"
+                      ? "min-h-10 rounded-md border border-lavender-600 bg-lavender-100/80 px-3.5 text-sm font-medium text-lavender-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600"
+                      : "min-h-10 rounded-md border border-line bg-surface px-3.5 text-sm text-ink-muted hover:border-line-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600"
                   }
                 >
                   {label}
@@ -266,6 +267,7 @@ export function DailyPicksPanel({
     storage.getServerSnapshot,
   );
   const now = useSyncExternalStore(subscribeClock, currentMinute, serverMinute);
+  const defaultList = useDefaultList(ACTIVE_FIYU_CITY.id, { enabled: injectedStorage === undefined });
   const [inventoryMessage, setInventoryMessage] = useState<string | null>(null);
   const [phase, setPhase] = useState<DiscoveryPhase>("idle");
   const [tuning, setTuning] = useState(false);
@@ -424,7 +426,17 @@ export function DailyPicksPanel({
     }
   };
 
+  const savedRestaurantIds =
+    injectedStorage === undefined && defaultList.status !== "error"
+      ? defaultList.savedPlaceIds
+      : state.savedRestaurantIds;
+
   const toggleSaved = (placeId: string) => {
+    if (defaultList.pendingPlaceIds.includes(placeId)) return;
+    if (injectedStorage === undefined) {
+      void defaultList.toggle(placeId);
+      return;
+    }
     const saved = state.savedRestaurantIds.includes(placeId);
     persist({
       ...state,
@@ -515,7 +527,8 @@ export function DailyPicksPanel({
                       restaurant={restaurant}
                       position={index + 1}
                       revealed={currentSelection.revealedIds.includes(restaurant.place_id)}
-                      saved={state.savedRestaurantIds.includes(restaurant.place_id)}
+                      saved={savedRestaurantIds.includes(restaurant.place_id)}
+                      savePending={defaultList.pendingPlaceIds.includes(restaurant.place_id)}
                       onReveal={() => reveal(restaurant.place_id, Date.now())}
                       onToggleSaved={() => toggleSaved(restaurant.place_id)}
                       onOpen={onOpenRestaurant}
@@ -572,10 +585,17 @@ export function DailyPicksPanel({
               </p>
             )}
 
+            {defaultList.operationError && (
+              <p role="status" className="text-xs text-dusty-rose">
+                {defaultList.operationError}
+              </p>
+            )}
+
             <RecentDiscoveries
               discoveries={recent}
               restaurants={restaurants}
-              savedRestaurantIds={state.savedRestaurantIds}
+              savedRestaurantIds={savedRestaurantIds}
+              pendingPlaceIds={defaultList.pendingPlaceIds}
               now={now}
               onOpen={onOpenRestaurant}
               onViewDetails={onViewRestaurant}

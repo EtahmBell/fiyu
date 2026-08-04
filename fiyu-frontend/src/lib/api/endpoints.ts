@@ -34,6 +34,10 @@ export const paths = {
     `/public/restaurants/${encodeURIComponent(placeId)}/photo-preview`,
   photos: (placeId: string) => `/public/restaurants/${encodeURIComponent(placeId)}/photos`,
   locationAnchors: "/public/location-anchors",
+  defaultList: "/lists/default",
+  defaultListItems: "/lists/default/items",
+  defaultListMembership: "/lists/default/membership",
+  defaultListSmartViews: "/lists/default/smart-views",
 } as const;
 
 export function restaurantsUrl(limit: number = LIST_LIMIT_DEFAULT): string {
@@ -61,4 +65,43 @@ export function photosUrl(placeId: string, limit: number = PHOTOS_LIMIT_DEFAULT)
 
 export function locationAnchorsUrl(): string {
   return `${getApiBaseUrl()}${paths.locationAnchors}`;
+}
+
+export function defaultListUrl(cityId: string): string {
+  const url = new URL(`${getApiBaseUrl()}${paths.defaultList}`);
+  url.searchParams.set("city_id", cityId);
+  return url.toString();
+}
+
+export function defaultListItemsUrl(): string {
+  return `${getApiBaseUrl()}${paths.defaultListItems}`;
+}
+
+export function defaultListMembershipUrl(cityId: string, placeId: string): string {
+  const url = new URL(`${getApiBaseUrl()}${paths.defaultListMembership}`);
+  url.searchParams.set("city_id", cityId);
+  url.searchParams.set("place_id", placeId);
+  return url.toString();
+}
+
+export function defaultListSmartViewsUrl(cityId: string): string {
+  const url = new URL(`${getApiBaseUrl()}${paths.defaultListSmartViews}`);
+  url.searchParams.set("city_id", cityId);
+  return url.toString();
+}
+
+export function defaultListSmartViewUrl(
+  cityId: string,
+  viewKey: string,
+  options: { originLatitude?: number; originLongitude?: number } = {},
+): string {
+  const url = new URL(`${getApiBaseUrl()}${paths.defaultListSmartViews}/${encodeURIComponent(viewKey)}`);
+  url.searchParams.set("city_id", cityId);
+  if (options.originLatitude !== undefined) {
+    url.searchParams.set("origin_latitude", String(options.originLatitude));
+  }
+  if (options.originLongitude !== undefined) {
+    url.searchParams.set("origin_longitude", String(options.originLongitude));
+  }
+  return url.toString();
 }

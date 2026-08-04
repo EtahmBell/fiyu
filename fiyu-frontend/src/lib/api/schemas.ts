@@ -233,12 +233,100 @@ export const locationAnchorSchema = z.object({
 
 export const locationAnchorListSchema = z.array(locationAnchorSchema);
 
+const savedRestaurantSummarySchema = z.object({
+  place_id: z.string().min(1),
+  name_ja: nullableString,
+  name_en: nullableString,
+  primary_category: nullableString,
+  neighborhood: nullableString,
+  fiyu_score: nullableNumber,
+  score_band: nullableString,
+});
+
+export const defaultListItemSchema = z.object({
+  place_id: z.string().min(1),
+  added_at: z.string().min(1),
+  restaurant: savedRestaurantSummarySchema,
+});
+
+export const defaultListResponseSchema = z.object({
+  list_id: z.number(),
+  city_id: z.string().min(1),
+  name: z.string().min(1),
+  list_kind: z.string().min(1),
+  item_count: z.number(),
+  items: z.array(defaultListItemSchema),
+  created_at: z.string().min(1),
+  updated_at: z.string().min(1),
+});
+
+export const defaultListMutationResponseSchema = z.object({
+  list: defaultListResponseSchema,
+  changed: z.boolean(),
+});
+
+export const defaultListMembershipResponseSchema = z.object({
+  list_id: z.number(),
+  city_id: z.string().min(1),
+  place_id: z.string().min(1),
+  is_saved: z.boolean(),
+});
+
+export const smartViewCatalogEntrySchema = z.object({
+  key: z.string().min(1),
+  label: z.string().min(1),
+  description: z.string().min(1),
+  item_count: z.number(),
+});
+
+export const smartViewCatalogResponseSchema = z.object({
+  city_id: z.string().min(1),
+  views: z.array(smartViewCatalogEntrySchema),
+  generated_at: z.string().min(1),
+});
+
+export const smartViewItemSchema = z.object({
+  place_id: z.string().min(1),
+  added_at: z.string().min(1),
+  is_visited: z.boolean(),
+  distance_km: nullableNumber,
+  restaurant: savedRestaurantSummarySchema,
+});
+
+export const smartViewGroupSchema = z.object({
+  group_key: z.string().min(1),
+  title: z.string().min(1),
+  item_count: z.number(),
+  items: z.array(smartViewItemSchema),
+});
+
+export const smartViewResponseSchema = z.object({
+  city_id: z.string().min(1),
+  view_key: z.string().min(1),
+  label: z.string().min(1),
+  description: z.string().min(1),
+  item_count: z.number(),
+  items: z.array(smartViewItemSchema),
+  groups: z.array(smartViewGroupSchema),
+  generated_at: z.string().min(1),
+});
+
 export type PublicRestaurant = z.infer<typeof publicRestaurantSchema>;
 export type PublicRestaurantDetail = z.infer<typeof publicRestaurantDetailSchema>;
 export type PublicRestaurantList = z.infer<typeof publicRestaurantListSchema>;
 export type GooglePhoto = z.infer<typeof googlePhotoSchema>;
 export type PhotoAttribution = z.infer<typeof photoAttributionSchema>;
 export type LocationAnchor = z.infer<typeof locationAnchorSchema>;
+export type SavedRestaurantSummary = z.infer<typeof savedRestaurantSummarySchema>;
+export type DefaultListItem = z.infer<typeof defaultListItemSchema>;
+export type DefaultListResponse = z.infer<typeof defaultListResponseSchema>;
+export type DefaultListMutationResponse = z.infer<typeof defaultListMutationResponseSchema>;
+export type DefaultListMembershipResponse = z.infer<typeof defaultListMembershipResponseSchema>;
+export type SmartViewCatalogEntry = z.infer<typeof smartViewCatalogEntrySchema>;
+export type SmartViewCatalogResponse = z.infer<typeof smartViewCatalogResponseSchema>;
+export type SmartViewItem = z.infer<typeof smartViewItemSchema>;
+export type SmartViewGroup = z.infer<typeof smartViewGroupSchema>;
+export type SmartViewResponse = z.infer<typeof smartViewResponseSchema>;
 
 /** Compact, log-safe description of why a payload failed validation. */
 export function describeZodIssues(error: z.ZodError): string {

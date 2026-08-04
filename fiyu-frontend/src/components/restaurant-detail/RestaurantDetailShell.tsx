@@ -17,6 +17,7 @@ import { formatTagForDisplay } from "@/lib/format/tags";
 import { mappableRestaurants } from "@/lib/geo/mappable";
 import { PICKS_DETAIL_MAP_SESSION_KEY } from "@/lib/map/viewportSession";
 import { readPicksReturnState } from "@/lib/navigation/restaurantDetail";
+import { useDefaultList } from "@/lib/lists/useDefaultList";
 import { cn } from "@/lib/utils/cn";
 
 const subscribeClock = (listener: () => void) => {
@@ -205,11 +206,13 @@ function InformationAndSources({
 function RestaurantDetailContent({
   restaurant,
   saved,
+  saveError,
   onToggleSaved,
   mapRestaurants,
 }: {
   restaurant: PublicRestaurantDetail;
   saved: boolean;
+  saveError: string | null;
   onToggleSaved(): void;
   mapRestaurants: PublicRestaurant[];
 }) {
@@ -250,6 +253,7 @@ function RestaurantDetailContent({
           <SaveButton saved={saved} onToggle={onToggleSaved} />
           <OutboundMapActions restaurant={restaurant} />
         </div>
+        {saveError && <p role="status" className="text-xs text-dusty-rose">{saveError}</p>}
       </section>
 
       {restaurant.description_en && (
@@ -310,6 +314,7 @@ export function RestaurantDetailShell({
   const storage = useMemo(() => browserDailyPicksStorage(), []);
   const snapshot = useSyncExternalStore(storage.subscribe, storage.getSnapshot, storage.getServerSnapshot);
   const now = useSyncExternalStore(subscribeClock, currentMinute, serverMinute);
+  const defaultList = useDefaultList("tokyo");
   const names = resolveNames(restaurant);
   const title = names.primary?.text ?? "Restaurant";
 
@@ -332,8 +337,16 @@ export function RestaurantDetailShell({
     return restaurants.filter((candidate) => ids.has(candidate.place_id));
   }, [now, restaurant.place_id, restaurants, snapshot]);
 
-  const saved = snapshot?.savedRestaurantIds.includes(restaurant.place_id) ?? false;
+  const saved =
+    defaultList.status !== "error"
+      ? defaultList.isSaved(restaurant.place_id)
+      : (snapshot?.savedRestaurantIds.includes(restaurant.place_id) ?? false);
   const toggleSaved = () => {
+    if (defaultList.pendingPlaceIds.includes(restaurant.place_id)) return;
+    if (defaultList.status !== "error") {
+      void defaultList.toggle(restaurant.place_id);
+      return;
+    }
     if (!snapshot) return;
     storage.save({
       ...snapshot,
@@ -368,7 +381,13 @@ export function RestaurantDetailShell({
           <button type="button" onClick={backToPicks} className="mb-6 hidden min-h-11 items-center gap-1 rounded-lg text-sm font-medium text-lavender-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600 lg:inline-flex">
             <BackIcon /> Back to Picks
           </button>
-          <RestaurantDetailContent restaurant={restaurant} saved={saved} onToggleSaved={toggleSaved} mapRestaurants={visibleRestaurants} />
+          <RestaurantDetailContent
+            restaurant={restaurant}
+            saved={saved}
+            saveError={defaultList.operationError}
+            onToggleSaved={toggleSaved}
+            mapRestaurants={visibleRestaurants}
+          />
         </div>
       </section>
 

@@ -35,6 +35,7 @@ function BookmarkIcon({ filled }: { filled: boolean }) {
 export interface CompactRestaurantCardProps {
   restaurant: PublicRestaurant;
   saved: boolean;
+  savePending?: boolean;
   expirationLabel?: string;
   onOpen?: (restaurant: PublicRestaurant) => void;
   onViewDetails?: (restaurant: PublicRestaurant) => void;
@@ -60,6 +61,7 @@ function hasFinePointer(): boolean {
 export function CompactRestaurantCard({
   restaurant,
   saved,
+  savePending = false,
   expirationLabel,
   onOpen,
   onViewDetails,
@@ -180,15 +182,24 @@ export function CompactRestaurantCard({
             type="button"
             aria-pressed={saved}
             aria-label={saved ? "Remove restaurant from saved" : "Save restaurant"}
+            disabled={savePending}
+            data-no-card-navigation="true"
             onClick={(event) => {
+              event.preventDefault();
               event.stopPropagation();
+              if (savePending) return;
               onToggleSaved();
+            }}
+            onDoubleClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
             }}
             className={cn(
               "relative z-10 ml-auto inline-flex size-11 shrink-0 items-center justify-center",
               "transition-[color,transform] duration-[180ms]",
               "ease-(--ease-fiyu) active:scale-[0.98]",
               "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600",
+              "disabled:cursor-not-allowed disabled:opacity-60",
               saved
                 ? "text-plum hover:text-lavender-900"
                 : "text-ink-muted hover:text-plum",

@@ -1,0 +1,181 @@
+Polish the completed Fiyu `/lists` page.
+
+The backend list API, Save synchronization, anonymous identity, optimistic
+updates, retry behavior, and legacy migration already work. Do not modify or
+reimplement them.
+
+CREDIT LIMITS
+
+- Start at `/lists`.
+- Inspect only the Lists page, its directly rendered components, and directly
+  related styles.
+- Do not inspect backend files, APIs, database code, maps, recommendations,
+  authentication, migration logic, or unrelated routes.
+- Make one cohesive visual pass; do not propose alternatives or audit the repo.
+- Reuse existing Fiyu components and design tokens.
+- Do not install packages.
+
+PRODUCT RULES
+
+- Free users currently have one automatic list per available city.
+- Tokyo is the only available city.
+- Saving adds a restaurant to the Tokyo list.
+- Removing Saved removes it.
+- Newest saves appear first.
+- No custom lists, sharing, collaboration, Premium, or payment UI.
+
+DESIGN
+
+Make the Lists page feel polished, calm, editorial, and consistent with Picks.
+
+Preserve:
+
+- cream background
+- plum/lavender accents
+- serif headings
+- compact bookmark Save controls
+- existing functionality and routes
+
+Avoid:
+
+- shoji/noren illustrations
+- oversized empty-state cards
+- excessive pills
+- heavy shadows
+- gradients
+- generic dashboard styling
+
+PAGE HEADER
+
+Use:
+
+Eyebrow:
+`Tokyo edition`
+
+Heading:
+`Your Tokyo list`
+
+Supporting copy:
+`Restaurants you save in Tokyo appear here.`
+
+Show a saved-place count only when derived from loaded backend data.
+
+EMPTY STATE
+
+Use:
+
+`No saved places yet`
+
+`Save a restaurant from your daily Picks and it will appear here.`
+
+Action:
+`Explore today’s Picks`
+
+Keep it compact and text-led. A small bookmark icon is acceptable. Do not use a
+large illustration or placeholder panel.
+
+POPULATED STATE
+
+Display saved restaurants using an existing compact restaurant card or row.
+
+Show only real fields:
+
+- photo or existing placeholder
+- Japanese name
+- English name
+- Fiyu Score
+- compact title-cased tags
+- `View restaurant →`
+- filled bookmark/remove control
+
+Keep tags compact and limit visual clutter. Do not show long descriptions,
+`why_fiyu`, fabricated dates, popularity, or activity.
+
+Mobile: use one compact column.
+
+Desktop: use a restrained two-column grid or a wide editorial list, whichever
+requires fewer changes and best matches existing components.
+
+SAVE CONTROL
+
+Preserve the working backend-connected behavior.
+
+Use:
+
+- filled plum bookmark for saved items
+- accessible label `Remove restaurant from saved`
+- no large Remove pill
+
+Do not change mutation, rollback, persistence, or synchronization logic.
+
+LOADING
+
+Use lightweight skeleton rows matching the final layout.
+
+Do not show the empty state before loading finishes.
+
+ERROR
+
+Use:
+
+`We couldn’t load your Tokyo list.`
+
+`Try again in a moment.`
+
+Button:
+`Retry`
+
+Keep API failure visually distinct from an empty list. Preserve existing retry
+logic.
+
+RESPONSIVE
+
+Check:
+
+- 390 × 844
+- 430 × 932
+- 1440 × 900
+
+Ensure:
+
+- no horizontal overflow
+- names do not collide with score
+- tags wrap cleanly
+- View restaurant and bookmark remain accessible
+- mobile navigation does not cover content
+- desktop content does not become excessively wide
+
+ACCESSIBILITY
+
+Preserve semantic headings, keyboard focus, bookmark labels, retry semantics,
+loading/error announcements, image alt text, contrast, and reduced motion.
+
+DO NOT MODIFY
+
+- API adapters or requests
+- backend code
+- owner/client identity
+- legacy migration
+- optimistic Save logic
+- restaurant data or scoring
+- Picks, restaurant details, maps, navigation, landing page, or routes
+
+VALIDATION
+
+Run only:
+
+- focused Lists-page frontend tests
+- frontend lint
+- frontend type-check
+
+Run the production build only if shared layout/card styles change.
+
+Do not commit or push.
+
+Report only:
+
+1. Files changed
+2. Empty and populated-state treatment
+3. Loading and error treatment
+4. Responsive checks
+5. Validation results

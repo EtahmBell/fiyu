@@ -7,6 +7,11 @@ import {
   kindForStatus,
 } from "@/lib/api/errors";
 import {
+  defaultListItemsUrl,
+  defaultListSmartViewUrl,
+  defaultListSmartViewsUrl,
+  defaultListMembershipUrl,
+  defaultListUrl,
   LIST_LIMIT_DEFAULT,
   PHOTOS_LIMIT_DEFAULT,
   locationAnchorsUrl,
@@ -17,16 +22,26 @@ import {
   restaurantsUrl,
 } from "@/lib/api/endpoints";
 import {
+  type DefaultListMembershipResponse,
+  type DefaultListMutationResponse,
+  type DefaultListResponse,
   type GooglePhoto,
   type LocationAnchor,
   type ParsedRestaurantList,
   type PublicRestaurantDetail,
+  type SmartViewCatalogResponse,
+  type SmartViewResponse,
+  defaultListMembershipResponseSchema,
+  defaultListMutationResponseSchema,
+  defaultListResponseSchema,
   describeZodIssues,
   googlePhotoListSchema,
   googlePhotoSchema,
   locationAnchorListSchema,
   parseRestaurantList,
   publicRestaurantDetailSchema,
+  smartViewCatalogResponseSchema,
+  smartViewResponseSchema,
 } from "@/lib/api/schemas";
 
 /**
@@ -50,6 +65,9 @@ export interface RequestOptions {
   revalidate?: number | false;
   /** Server-side cache tags, for targeted revalidation. Ignored in the browser. */
   tags?: string[];
+  method?: "GET" | "POST" | "DELETE";
+  headers?: Record<string, string>;
+  body?: unknown;
 }
 
 /**
@@ -93,6 +111,14 @@ async function requestRaw(
   options: RequestOptions = {},
 ): Promise<{ payload: unknown; status: number }> {
   const { signal, revalidate, tags } = options;
+  const method = options.method ?? "GET";
+  const requestHeaders: Record<string, string> = {
+    Accept: "application/json",
+    ...(options.headers ?? {}),
+  };
+  const hasBody = options.body !== undefined;
+  const body = hasBody ? JSON.stringify(options.body) : undefined;
+  if (hasBody) requestHeaders["Content-Type"] = "application/json";
 
   const next = {
     ...(revalidate === undefined ? {} : { revalidate }),
@@ -102,9 +128,10 @@ async function requestRaw(
   let response: Response;
   try {
     response = await fetch(url, {
-      method: "GET",
-      headers: { Accept: "application/json" },
+      method,
+      headers: requestHeaders,
       signal,
+      ...(body === undefined ? {} : { body }),
       ...(Object.keys(next).length === 0 ? {} : { next }),
     });
   } catch (cause) {
@@ -250,4 +277,104 @@ export function fetchLocationAnchors(options: RequestOptions = {}): Promise<Loca
     revalidate: ANCHOR_REVALIDATE_SECONDS,
     ...options,
   });
+}
+
+export interface ListIdentity {
+  clientId: string;
+}
+
+function listHeaders(identity: ListIdentity): Record<string, string> {
+  return { "X-Fiyu-Client-Id": identity.clientId };
+}
+
+export function fetchDefaultList(
+  cityId: string,
+  identity: ListIdentity,
+  options: RequestOptions = {},
+): Promise<DefaultListResponse> {
+  return requestJson(defaultListUrl(cityId), paths.defaultList, defaultListResponseSchema, {
+    ...options,
+    headers: { ...listHeaders(identity), ...(options.headers ?? {}) },
+  });
+}
+
+export function addRestaurantToDefaultList(
+  cityId: string,
+  placeId: string,
+  identity: ListIdentity,
+  options: RequestOptions = {},
+): Promise<DefaultListMutationResponse> {
+  return requestJson(defaultListItemsUrl(), paths.defaultListItems, defaultListMutationResponseSchema, {
+    ...options,
+    method: "POST",
+    body: { city_id: cityId, place_id: placeId },
+    headers: { ...listHeaders(identity), ...(options.headers ?? {}) },
+  });
+}
+
+export function removeRestaurantFromDefaultList(
+  cityId: string,
+  placeId: string,
+  identity: ListIdentity,
+  options: RequestOptions = {},
+): Promise<DefaultListMutationResponse> {
+  return requestJson(defaultListItemsUrl(), paths.defaultListItems, defaultListMutationResponseSchema, {
+    ...options,
+    method: "DELETE",
+    body: { city_id: cityId, place_id: placeId },
+    headers: { ...listHeaders(identity), ...(options.headers ?? {}) },
+  });
+}
+
+export function fetchDefaultListMembership(
+  cityId: string,
+  placeId: string,
+  identity: ListIdentity,
+  options: RequestOptions = {},
+): Promise<DefaultListMembershipResponse> {
+  return requestJson(
+    defaultListMembershipUrl(cityId, placeId),
+    paths.defaultListMembership,
+    defaultListMembershipResponseSchema,
+    {
+      ...options,
+      headers: { ...listHeaders(identity), ...(options.headers ?? {}) },
+    },
+  );
+}
+
+export function fetchDefaultListSmartViews(
+  cityId: string,
+  identity: ListIdentity,
+  options: RequestOptions = {},
+): Promise<SmartViewCatalogResponse> {
+  return requestJson(
+    defaultListSmartViewsUrl(cityId),
+    paths.defaultListSmartViews,
+    smartViewCatalogResponseSchema,
+    {
+      ...options,
+      headers: { ...listHeaders(identity), ...(options.headers ?? {}) },
+    },
+  );
+}
+
+export function fetchDefaultListSmartView(
+  cityId: string,
+  viewKey: string,
+  identity: ListIdentity,
+  options: RequestOptions & { originLatitude?: number; originLongitude?: number } = {},
+): Promise<SmartViewResponse> {
+  return requestJson(
+    defaultListSmartViewUrl(cityId, viewKey, {
+      originLatitude: options.originLatitude,
+      originLongitude: options.originLongitude,
+    }),
+    `${paths.defaultListSmartViews}/${viewKey}`,
+    smartViewResponseSchema,
+    {
+      ...options,
+      headers: { ...listHeaders(identity), ...(options.headers ?? {}) },
+    },
+  );
 }

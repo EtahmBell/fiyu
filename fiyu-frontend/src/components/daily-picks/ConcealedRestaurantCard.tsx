@@ -12,6 +12,7 @@ export interface ConcealedRestaurantCardProps {
   position: number;
   revealed: boolean;
   saved: boolean;
+  savePending?: boolean;
   onReveal(): void;
   onToggleSaved(): void;
   onOpen?: (restaurant: PublicRestaurant) => void;
@@ -59,6 +60,7 @@ export function ConcealedRestaurantCard({
   position,
   revealed,
   saved,
+  savePending = false,
   onReveal,
   onToggleSaved,
   onOpen,
@@ -122,6 +124,7 @@ export function ConcealedRestaurantCard({
         <CompactRestaurantCard
           restaurant={restaurant}
           saved={saved}
+          savePending={savePending}
           onOpen={onOpen}
           onViewDetails={onViewDetails}
           onToggleSaved={onToggleSaved}

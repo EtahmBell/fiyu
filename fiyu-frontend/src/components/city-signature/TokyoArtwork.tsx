@@ -55,6 +55,69 @@ export function TokyoKikuMark(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+export function TokyoSakuraMark(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" {...props}>
+      <path
+        d="
+          M12 11.2
+          C10.8 9.8 9.2 8.4 9.2 6.2
+          C9.2 4.2 10.5 2.6 12 1.7
+          C13.5 2.6 14.8 4.2 14.8 6.2
+          C14.8 8.4 13.2 9.8 12 11.2
+
+          M12.8 11.6
+          C14.3 10.8 16.2 9.8 18.3 10.5
+          C20.2 11.1 21.3 12.8 21.6 14.5
+          C20.3 15.7 18.4 16.4 16.5 15.8
+          C14.5 15.2 13.5 13.4 12.8 11.6
+
+          M11.2 11.6
+          C9.7 10.8 7.8 9.8 5.7 10.5
+          C3.8 11.1 2.7 12.8 2.4 14.5
+          C3.7 15.7 5.6 16.4 7.5 15.8
+          C9.5 15.2 10.5 13.4 11.2 11.6
+
+          M11.3 12.4
+          C10.4 14 9.4 15.9 10.1 18
+          C10.7 19.9 12.3 21 14 21.4
+          C15.2 20.1 15.9 18.2 15.3 16.3
+          C14.7 14.4 13 13.3 11.3 12.4
+
+          M12.7 12.4
+          C13.6 14 14.6 15.9 13.9 18
+          C13.3 19.9 11.7 21 10 21.4
+          C8.8 20.1 8.1 18.2 8.7 16.3
+          C9.3 14.4 11 13.3 12.7 12.4
+        "
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+
+      <circle cx="12" cy="12" r="1.1" fill="currentColor" />
+
+      <path
+        d="M12 10.2V8.9
+           M13.1 10.7L14 9.8
+           M13.4 12H14.7
+           M10.9 10.7L10 9.8
+           M10.6 12H9.3"
+        stroke="currentColor"
+        strokeWidth="1"
+        strokeLinecap="round"
+      />
+
+      <circle cx="12" cy="8.7" r="0.55" fill="currentColor" />
+      <circle cx="14.2" cy="9.6" r="0.55" fill="currentColor" />
+      <circle cx="14.9" cy="12" r="0.55" fill="currentColor" />
+      <circle cx="9.8" cy="9.6" r="0.55" fill="currentColor" />
+      <circle cx="9.1" cy="12" r="0.55" fill="currentColor" />
+    </svg>
+  );
+}
+
 function FoodCanvas({ children, ...props }: SVGProps<SVGSVGElement>) {
   return (
     <svg aria-hidden="true" viewBox="0 0 120 96" {...props}>
@@ -189,10 +252,23 @@ export function TokyoSavedEmptyIllustration(props: SVGProps<SVGSVGElement>) {
 
 export function TokyoDiscoveriesEmptyIllustration(props: SVGProps<SVGSVGElement>) {
   return (
-    <EmptyNorenCanvas {...props}>
-      <ellipse cx="80" cy="94" rx="19" ry="5" fill="var(--color-rose-dust)" fillOpacity=".35" stroke="var(--color-plum)" strokeWidth="2" />
-      <path d="m119 45 2 5 5 2-5 2-2 5-2-5-5-2 5-2 2-5Z" fill="var(--color-lavender-500)" />
-    </EmptyNorenCanvas>
+    <svg aria-hidden="true" viewBox="0 0 160 120" {...props}>
+      <path d="M20 96h120" fill="none" stroke="var(--color-plum)" strokeWidth="2.25" strokeLinecap="round" />
+
+      <path d="M24 96V70h16v26M40 96V62h20v34M60 96V74h14v22" fill="var(--color-lavender-100)" fillOpacity="0.3" />
+      <path d="M24 96V70h16v26M40 96V62h20v34M60 96V74h14v22" fill="none" stroke="var(--color-plum)" strokeWidth="2" strokeLinejoin="round" />
+
+      <path d="M78 96V64h14v32M92 96V58h18v38M110 96V68h12v28M122 96V72h14v24" fill="var(--color-lavender-100)" fillOpacity="0.24" />
+      <path d="M78 96V64h14v32M92 96V58h18v38M110 96V68h12v28M122 96V72h14v24" fill="none" stroke="var(--color-plum)" strokeWidth="2" strokeLinejoin="round" />
+
+      <path d="M46 62h8M96 58h7M126 72h5" fill="none" stroke="var(--color-plum)" strokeWidth="1.5" strokeLinecap="round" opacity="0.62" />
+      <path d="M82 74h5M82 82h5M98 68h6M98 76h6" fill="none" stroke="var(--color-plum)" strokeWidth="1.25" strokeLinecap="round" opacity="0.4" />
+
+      <path d="M74 96V78" fill="none" stroke="var(--color-plum)" strokeWidth="2" />
+      <path d="M74 78 69 94h10Z" fill="var(--color-lavender-100)" fillOpacity="0.34" stroke="var(--color-plum)" strokeWidth="2" strokeLinejoin="round" />
+      <path d="M74 70 70.5 78h7Z" fill="none" stroke="var(--color-plum)" strokeWidth="2" strokeLinejoin="round" />
+      <path d="M70.5 86h7" fill="none" stroke="var(--color-plum)" strokeWidth="1.25" strokeLinecap="round" opacity="0.72" />
+    </svg>
   );
 }
 
