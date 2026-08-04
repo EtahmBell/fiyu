@@ -5,10 +5,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SmartViewDetailPage } from "@/components/lists/SmartViewDetailPage";
 
 const smartApi = vi.hoisted(() => ({
+  fetchRestaurants: vi.fn(),
   fetchDefaultListSmartView: vi.fn(),
 }));
 
 vi.mock("@/lib/api/client", () => ({
+  fetchRestaurants: smartApi.fetchRestaurants,
   fetchDefaultListSmartView: smartApi.fetchDefaultListSmartView,
 }));
 
@@ -24,7 +26,9 @@ afterEach(() => {
 });
 
 beforeEach(() => {
+  smartApi.fetchRestaurants.mockReset();
   smartApi.fetchDefaultListSmartView.mockReset();
+  smartApi.fetchRestaurants.mockResolvedValue({ restaurants: [], rejected: [] });
 });
 
 describe("SmartViewDetailPage", () => {

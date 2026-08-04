@@ -7,7 +7,7 @@ import { RestaurantPhoto } from "@/components/restaurant/RestaurantPhoto";
 import { TagList } from "@/components/restaurant/TagList";
 import { ScoreMark } from "@/components/ui/ScoreMark";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { fetchDefaultListSmartViews } from "@/lib/api/client";
+import { fetchDefaultListSmartViews, fetchRestaurants } from "@/lib/api/client";
 import { DestinationPage } from "@/components/destinations/DestinationPage";
 import { ACTIVE_FIYU_CITY } from "@/lib/city/editions";
 import { FiyuApiError } from "@/lib/api/errors";
@@ -17,6 +17,7 @@ import { getOrCreateAnonymousOwnerKey } from "@/lib/lists/identity";
 import { cn } from "@/lib/utils/cn";
 import { ListTabs } from "@/components/lists/ListTabs";
 import { SmartViewCard } from "@/components/lists/SmartViewCard";
+import { buildListTagLookup, resolveListTags, type ListTagLookup } from "@/components/lists/listTags";
 import {
   SMART_VIEW_ORDER,
   smartViewTintClass,
@@ -55,10 +56,12 @@ function newestFirst(items: DefaultListItem[]): DefaultListItem[] {
  */
 function SavedRow({
   item,
+  tags,
   pending,
   onRemove,
 }: {
   item: DefaultListItem;
+  tags: string[];
   pending: boolean;
   onRemove(): void;
 }) {
@@ -66,9 +69,6 @@ function SavedRow({
   const nameEn = item.restaurant.name_en?.trim() || null;
   const title = nameJa ?? nameEn ?? "Unnamed restaurant";
   const subtitle = nameEn && nameEn !== title ? nameEn : null;
-  const tags = [item.restaurant.primary_category, item.restaurant.neighborhood].filter(
-    (tag): tag is string => Boolean(tag?.trim()),
-  );
 
   return (
     <li className="min-w-0">
@@ -106,34 +106,21 @@ function SavedRow({
               </div>
 
               <div className="flex shrink-0 items-start gap-1">
-                {/*
-                 * A faint lavender panel frames the score rather than badging
-                 * it: same typography and same /10, just lifted off the white
-                 * card so the one number on the row is not floating.
-                 */}
-                <ScoreMark
-                  score={item.restaurant.fiyu_score}
-                  size="md"
-                  className="rounded-lg bg-lavender-50/70 px-2.5 py-1.5"
-                />
+                <ScoreMark score={item.restaurant.fiyu_score} size="md" />
                 <button
                   type="button"
                   aria-label="Remove restaurant from saved"
                   aria-pressed={true}
                   disabled={pending}
                   onClick={onRemove}
-                  className="inline-flex size-11 shrink-0 items-center justify-center rounded-full bg-lavender-50/70 text-plum transition-[background-color,transform] duration-[180ms] ease-(--ease-fiyu) hover:bg-lavender-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+                  className="inline-flex size-11 shrink-0 items-center justify-center text-plum transition-[background-color,color,transform] duration-[180ms] ease-(--ease-fiyu) hover:bg-lavender-50/55 hover:text-lavender-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   <BookmarkIcon filled={true} />
                 </button>
               </div>
             </div>
 
-            {tags.length > 0 && (
-              // Tinted rather than outlined here: on a page of white rows a pale
-              // lavender pill reads as part of the card, an outline as a border.
-              <TagList tags={tags} max={2} titleCaseEnglish tone="lavender" className="mt-2.5" />
-            )}
+            {tags.length > 0 && <TagList tags={tags} max={3} titleCaseEnglish className="mt-2.5" />}
 
             <div className="mt-auto flex min-w-0 items-center gap-3 pt-3">
               <Link
@@ -190,11 +177,31 @@ function SavedRowSkeleton() {
  */
 function SavedCollectionStrip({ countLabel }: { countLabel: string }) {
   return (
-    <div className="mb-5 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 rounded-lg bg-lavender-50/70 px-4 py-3">
-      <p className="font-display text-lg leading-tight text-ink">Your Tokyo collection</p>
-      <p className="text-xs font-medium tracking-[0.1em] text-lavender-700 uppercase">
-        {countLabel}
-      </p>
+    <div className="relative mb-5 overflow-hidden rounded-lg bg-lavender-50/40 px-4 py-3">
+      <svg
+        aria-hidden="true"
+        viewBox="0 0 160 56"
+        className="pointer-events-none absolute right-1 top-1 hidden h-12 text-lavender-600/30 sm:block"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M10 45h138" />
+        <path d="M22 45V30h10v15M35 45V24h13v21M50 45V28h9v17" />
+        <path d="M66 45V25h11v20M79 45V18h14v27M95 45V22h10v23" />
+        <path d="M112 45V20" />
+        <path d="M112 20 106 33h12Z" />
+        <path d="M112 12 108 20h8Z" />
+        <path d="M124 45V26h8v19M133 45V30h9v15" />
+      </svg>
+      <div className="relative flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <p className="font-display text-lg leading-tight text-ink">Your Tokyo collection</p>
+        <p className="text-xs font-medium tracking-[0.1em] text-lavender-700 uppercase">
+          {countLabel}
+        </p>
+      </div>
     </div>
   );
 }
@@ -222,22 +229,39 @@ const SAVED_PAGE_HEADER = {
 const SMART_PAGE_HEADER = {
   eyebrow: "Tokyo edition",
   title: "Smart views",
-  description: "Rediscover your saved places in different ways.",
+  description: "Your saved places, reorganized for different ways of exploring Tokyo.",
 } as const;
 
-function readInitialTab(): "saved" | "smart" {
-  if (typeof window === "undefined") return "saved";
-  const params = new URLSearchParams(window.location.search);
-  return params.get("tab") === "smart" ? "smart" : "saved";
-}
-
-export function TokyoListPage() {
+export function TokyoListPage({ initialTab = "saved" }: { initialTab?: "saved" | "smart" }) {
   const cityId = ACTIVE_FIYU_CITY.id;
   const list = useDefaultList(cityId);
-  const [activeTab, setActiveTab] = useState<"saved" | "smart">(() => readInitialTab());
+  const [activeTab, setActiveTab] = useState<"saved" | "smart">(initialTab);
   const [smartLoading, setSmartLoading] = useState(false);
   const [smartError, setSmartError] = useState<string | null>(null);
   const [smartViews, setSmartViews] = useState<SmartViewCatalogEntry[]>([]);
+  const [tagLookup, setTagLookup] = useState<ListTagLookup>(new Map());
+
+  useEffect(() => {
+    if (list.status !== "ready") return;
+    if ((list.list?.item_count ?? 0) === 0) return;
+    if (tagLookup.size > 0) return;
+
+    let cancelled = false;
+    const loadTags = async () => {
+      try {
+        const catalog = await fetchRestaurants(100);
+        if (cancelled) return;
+        setTagLookup(buildListTagLookup(catalog.restaurants));
+      } catch {
+        if (!cancelled) setTagLookup(new Map());
+      }
+    };
+
+    void loadTags();
+    return () => {
+      cancelled = true;
+    };
+  }, [list.list?.item_count, list.status, tagLookup.size]);
 
   useEffect(() => {
     if (activeTab !== "smart") return;
@@ -293,7 +317,9 @@ export function TokyoListPage() {
 
   return (
     <DestinationPage {...heading}>
-      <ListTabs activeTab={activeTab} onChange={setActiveTab} />
+      <div className={cn(activeTab === "smart" ? "-mt-3" : "")}> 
+        <ListTabs activeTab={activeTab} onChange={setActiveTab} />
+      </div>
 
       {activeTab === "smart" ? (
         <section
@@ -402,6 +428,7 @@ export function TokyoListPage() {
                   <SavedRow
                     key={item.place_id}
                     item={item}
+                    tags={resolveListTags(tagLookup, item.place_id, item.restaurant.primary_category)}
                     pending={list.pendingPlaceIds.includes(item.place_id)}
                     onRemove={() => void list.toggle(item.place_id)}
                   />

@@ -8,10 +8,11 @@ import { RestaurantPhoto } from "@/components/restaurant/RestaurantPhoto";
 import { TagList } from "@/components/restaurant/TagList";
 import { ScoreMark } from "@/components/ui/ScoreMark";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { fetchDefaultListSmartView } from "@/lib/api/client";
+import { fetchDefaultListSmartView, fetchRestaurants } from "@/lib/api/client";
 import { FiyuApiError } from "@/lib/api/errors";
 import type { SmartViewItem, SmartViewResponse } from "@/lib/api/schemas";
 import { getOrCreateAnonymousOwnerKey } from "@/lib/lists/identity";
+import { buildListTagLookup, resolveListTags, type ListTagLookup } from "@/components/lists/listTags";
 import {
   isKnownSmartViewKey,
   NEARBY_FALLBACK_ORIGIN,
@@ -20,14 +21,11 @@ import {
   smartViewTitleFromKey,
 } from "@/components/lists/smartViewPresentation";
 
-function SmartViewItemRow({ item }: { item: SmartViewItem }) {
+function SmartViewItemRow({ item, tags }: { item: SmartViewItem; tags: string[] }) {
   const nameJa = item.restaurant.name_ja?.trim() || null;
   const nameEn = item.restaurant.name_en?.trim() || null;
   const title = nameJa ?? nameEn ?? "Unnamed restaurant";
   const subtitle = nameEn && nameEn !== title ? nameEn : null;
-  const tags = [item.restaurant.primary_category, item.restaurant.neighborhood].filter(
-    (tag): tag is string => Boolean(tag?.trim()),
-  );
 
   return (
     <li className="min-w-0 rounded-card border border-line bg-surface p-3 sm:p-3.5">
@@ -54,7 +52,7 @@ function SmartViewItemRow({ item }: { item: SmartViewItem }) {
             </div>
           </div>
 
-          {tags.length > 0 && <TagList tags={tags} max={2} titleCaseEnglish className="mt-2.5" />}
+          {tags.length > 0 && <TagList tags={tags} max={3} titleCaseEnglish className="mt-2.5" />}
 
           <div className="mt-auto pt-3">
             <Link
@@ -96,6 +94,7 @@ export function SmartViewDetailPage({ viewKey }: { viewKey: string }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<SmartViewResponse | null>(null);
+  const [tagLookup, setTagLookup] = useState<ListTagLookup>(new Map());
 
   const fallbackTitle = useMemo(() => smartViewTitleFromKey(viewKey), [viewKey]);
 
@@ -133,6 +132,24 @@ export function SmartViewDetailPage({ viewKey }: { viewKey: string }) {
       cancelled = true;
     };
   }, [invalidViewKey, viewKey]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadTags = async () => {
+      try {
+        const catalog = await fetchRestaurants(100);
+        if (cancelled) return;
+        setTagLookup(buildListTagLookup(catalog.restaurants));
+      } catch {
+        if (!cancelled) setTagLookup(new Map());
+      }
+    };
+
+    void loadTags();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const resolvedError = invalidViewKey ? "Unknown Smart View" : error;
   const countLabel =
@@ -201,7 +218,11 @@ export function SmartViewDetailPage({ viewKey }: { viewKey: string }) {
                   </div>
                   <ul className="space-y-3">
                     {group.items.map((item) => (
-                      <SmartViewItemRow key={item.place_id} item={item} />
+                      <SmartViewItemRow
+                        key={item.place_id}
+                        item={item}
+                        tags={resolveListTags(tagLookup, item.place_id, item.restaurant.primary_category)}
+                      />
                     ))}
                   </ul>
                 </section>
@@ -212,7 +233,11 @@ export function SmartViewDetailPage({ viewKey }: { viewKey: string }) {
               {view && view.items.length > 0 ? (
                 <ul className="space-y-3">
                   {view.items.map((item) => (
-                    <SmartViewItemRow key={item.place_id} item={item} />
+                    <SmartViewItemRow
+                      key={item.place_id}
+                      item={item}
+                      tags={resolveListTags(tagLookup, item.place_id, item.restaurant.primary_category)}
+                    />
                   ))}
                 </ul>
               ) : (

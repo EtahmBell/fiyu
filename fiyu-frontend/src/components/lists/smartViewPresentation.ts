@@ -30,6 +30,9 @@ export function smartViewDescriptionForCard(entry: SmartViewCatalogEntry): strin
   if (entry.key === "fiyu_9_plus") {
     return "Saved restaurants with a 9.0+ Fiyu Score.";
   }
+  if (entry.key === "nearby") {
+    return "Saved places around your current discovery area.";
+  }
   return entry.description;
 }
 
@@ -55,22 +58,15 @@ export function smartViewDisplayLabel(viewKey: string, fallbackLabel: string): s
  *
  * Returns one of the Lists tint classes defined in `globals.css`; the class
  * sets the card surface, icon disk and hairline edge together, so a card never
- * ends up with a champagne face and a lavender disk.
+ * ends up with one hue on its face and another on its disk.
+ *
+ * Every Smart card uses the same near-cream paper so the screen reads as one
+ * cohesive editorial surface. Nearby is special through span and motif, not a
+ * separate background color.
  */
 export function smartViewTintClass(viewKey: string): string {
-  switch (viewKey) {
-    case "fiyu_9_plus":
-      return "fiyu-tint-champagne";
-    case "not_visited":
-      return "fiyu-tint-mist";
-    case "by_neighborhood":
-      return "fiyu-tint-blush";
-    case "nearby":
-      return "fiyu-tint-spatial";
-    case "recently_saved":
-    default:
-      return "fiyu-tint-lavender";
-  }
+  void viewKey;
+  return "fiyu-tint-paper";
 }
 
 export function smartViewCountLabel(count: number): string {

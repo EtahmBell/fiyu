@@ -40,6 +40,7 @@ const defaultList = vi.hoisted(() => ({
 }));
 
 const smartApi = vi.hoisted(() => ({
+  fetchRestaurants: vi.fn(),
   fetchDefaultListSmartViews: vi.fn(),
   fetchDefaultListSmartView: vi.fn(),
 }));
@@ -55,6 +56,7 @@ vi.mock("@/lib/lists/useDefaultList", () => ({
 }));
 
 vi.mock("@/lib/api/client", () => ({
+  fetchRestaurants: smartApi.fetchRestaurants,
   fetchDefaultListSmartViews: smartApi.fetchDefaultListSmartViews,
   fetchDefaultListSmartView: smartApi.fetchDefaultListSmartView,
 }));
@@ -73,8 +75,10 @@ afterEach(() => {
 beforeEach(() => {
   defaultList.retry.mockReset();
   defaultList.toggle.mockReset();
+  smartApi.fetchRestaurants.mockReset();
   smartApi.fetchDefaultListSmartViews.mockReset();
   smartApi.fetchDefaultListSmartView.mockReset();
+  smartApi.fetchRestaurants.mockResolvedValue({ restaurants: [], rejected: [] });
   smartApi.fetchDefaultListSmartViews.mockResolvedValue({
     city_id: "tokyo",
     generated_at: "now",
@@ -148,6 +152,15 @@ describe("lists page", () => {
     expect(document.body.textContent).not.toContain("noren");
   });
 
+  it("renders Smart heading immediately when tab=smart is requested", async () => {
+    render(<ListsPage searchParams={{ tab: "smart" }} />);
+
+    expect(await screen.findByRole("heading", { name: "Smart views" })).toBeTruthy();
+    expect(
+      screen.getByText("Your saved places, reorganized for different ways of exploring Tokyo."),
+    ).toBeTruthy();
+  });
+
   it("renders saved restaurants newest first", () => {
     defaultList.state.list = {
       ...defaultList.state.list,
@@ -215,6 +228,7 @@ describe("lists page", () => {
     expect(screen.getByText("1 saved place")).toBeTruthy();
     // Presentation-only title casing, straight from the stored tag value.
     expect(screen.getByText("Sushi")).toBeTruthy();
+    expect(screen.queryByText("Asakusa")).toBeNull();
     expect(screen.getByRole("button", { name: "Remove restaurant from saved" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "View restaurant" })).toBeTruthy();
   });
@@ -274,7 +288,7 @@ describe("lists page", () => {
 
     expect(await screen.findByRole("heading", { name: "Smart views" })).toBeTruthy();
     expect(
-      screen.getByText("Rediscover your saved places in different ways."),
+      screen.getByText("Your saved places, reorganized for different ways of exploring Tokyo."),
     ).toBeTruthy();
 
     expect(await screen.findByText("Recently saved")).toBeTruthy();

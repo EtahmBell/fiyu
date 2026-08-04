@@ -151,39 +151,25 @@
   --fiyu-tint-edge: var(--color-line);
 }
 
-/* Recently saved -- the house lavender. */
-.fiyu-tint-lavender {
+/* Monochrome Smart paper: one shared base keeps the grid editorial. */
+.fiyu-tint-smart {
   --fiyu-tint-surface: #faf8ff;
   --fiyu-tint-disk: #efeafd;
   --fiyu-tint-edge: #e4dcf7;
 }
 
-/* Fiyu 9+ -- warm champagne, a half-step from the existing gold-soft. */
-.fiyu-tint-champagne {
-  --fiyu-tint-surface: #fdfaf3;
-  --fiyu-tint-disk: #f6eeda;
-  --fiyu-tint-edge: #ebdfc7;
-}
-
-/* Not visited -- cool mist, the only genuinely cool paper in the set. */
-.fiyu-tint-mist {
-  --fiyu-tint-surface: #f7f9fb;
-  --fiyu-tint-disk: #e9eef4;
-  --fiyu-tint-edge: #dde4ec;
-}
-
-/* By neighbourhood -- dusty blush, drawn down from rose-dust. */
-.fiyu-tint-blush {
-  --fiyu-tint-surface: #fdf8f8;
-  --fiyu-tint-disk: #f7e9ea;
-  --fiyu-tint-edge: #eed9dc;
-}
-
-/* Nearby -- lavender pulled toward sage-grey, so the feature card sits apart. */
-.fiyu-tint-spatial {
-  --fiyu-tint-surface: #f7f7fa;
-  --fiyu-tint-disk: #e9e9f3;
-  --fiyu-tint-edge: #dcdcea;
+/*
+ * The four standard Smart Views sit on near-cream paper instead.
+ *
+ * Four lavender-washed cards in one grid stacked up into a purple field. The
+ * lavender is kept, but spent only where it does work: the icon disk and the
+ * hairline motif. The Nearby feature card keeps the tinted paper above, which
+ * is now also what sets it apart.
+ */
+.fiyu-tint-paper {
+  --fiyu-tint-surface: #fdfcfa;
+  --fiyu-tint-disk: #f3effb;
+  --fiyu-tint-edge: #e9e4e4;
 }
 
 html {

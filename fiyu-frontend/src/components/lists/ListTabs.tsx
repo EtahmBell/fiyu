@@ -29,8 +29,8 @@ export function ListTabs({
   onChange(tab: "saved" | "smart"): void;
 }) {
   return (
-    <div className="mb-5 border-b border-line">
-      <div role="tablist" aria-label="List sections" className="flex items-center gap-5">
+    <div className="mb-4 border-b border-line">
+      <div role="tablist" aria-label="List sections" className="flex items-center gap-4">
         <button
           type="button"
           role="tab"

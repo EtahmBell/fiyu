@@ -13,28 +13,37 @@ export function FreeOriginOnboarding({ setup }: { setup: FreeOriginSetup }) {
   if (setup.origin) return null;
 
   return (
-    <div className="rounded-card border border-line bg-lavender-50/40 p-3.5 sm:p-4">
-      <h3 className="text-sm font-medium text-ink">Choose your discovery origin</h3>
-      <p className="mt-1 text-xs leading-relaxed text-ink-muted">
-        Fiyu uses one nearby area to shape your first daily selection. Your precise location
-        stays in this browser and is never saved or sent to Fiyu.
-      </p>
+    <section aria-label="Discovery origin" className="space-y-3">
+      <div className="sm:flex sm:items-start sm:justify-between sm:gap-4">
+        <div className="min-w-0">
+          <h3 className="text-sm font-medium text-ink">Discovery origin</h3>
+          <p className="mt-1 max-w-[40ch] text-xs leading-relaxed text-ink-muted">
+            Use a nearby area to shape your first selection. Your precise location stays in this
+            browser and is never saved or sent to Fiyu.
+          </p>
+        </div>
 
-      {!explained && setup.geolocation.status === "idle" && (
-        <Button variant="secondary" size="sm" className="mt-3" onClick={() => setExplained(true)}>
-          Set up location
-        </Button>
-      )}
+        {!explained && setup.geolocation.status === "idle" && (
+          <Button
+            variant="secondary"
+            size="sm"
+            className="mt-3 sm:mt-0"
+            onClick={() => setExplained(true)}
+          >
+            Set up location
+          </Button>
+        )}
+      </div>
 
       {explained && setup.geolocation.status === "idle" && (
-        <div className="mt-2.5">
+        <div className="space-y-1.5">
           <p className="text-xs text-ink-muted">
             Your browser will ask once for permission. Fiyu only keeps the result for this visit.
           </p>
           <Button
             variant="primary"
             size="sm"
-            className="mt-1.5"
+            className="w-full sm:w-auto"
             onClick={setup.requestCurrentLocation}
           >
             Continue with current location
@@ -43,13 +52,13 @@ export function FreeOriginOnboarding({ setup }: { setup: FreeOriginSetup }) {
       )}
 
       {setup.geolocation.status === "requesting" && (
-        <p role="status" className="mt-3 text-xs text-ink-muted">
+        <p role="status" className="text-xs text-ink-muted">
           Finding your location…
         </p>
       )}
 
       {failed && (
-        <div className="mt-2.5 space-y-1.5">
+        <div className="space-y-1.5">
           <p role="status" className="text-xs text-ink-muted">
             Location is unavailable. Choose one home area instead; Fiyu will not ask again.
           </p>
@@ -88,6 +97,6 @@ export function FreeOriginOnboarding({ setup }: { setup: FreeOriginSetup }) {
           )}
         </div>
       )}
-    </div>
+    </section>
   );
 }

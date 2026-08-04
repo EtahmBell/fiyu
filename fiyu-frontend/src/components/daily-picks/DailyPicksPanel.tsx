@@ -105,16 +105,16 @@ function PreferenceControls({
   };
 
   return (
-    <div className="space-y-4" data-testid="pre-pick-preferences">
+    <div className="space-y-5" data-testid="pre-pick-preferences">
       <fieldset>
-        <legend className="text-sm font-medium text-ink">
-          <span className="mr-2 text-xs font-semibold tracking-[0.1em] text-lavender-700 uppercase">
+        <legend className="flex items-baseline gap-2 text-sm text-ink">
+          <span className="text-[0.68rem] font-semibold tracking-[0.12em] text-lavender-700 uppercase">
             Step 1
           </span>
-          Food interests
+          <span className="font-medium text-ink">Food interests</span>
         </legend>
         <p className="mt-1 text-xs text-ink-muted">Choose up to three, or let Fiyu surprise you.</p>
-        <div className="mt-2 flex flex-wrap gap-2">
+        <div className="mt-2.5 flex flex-wrap gap-2">
           {JAPANESE_FOOD_PREFERENCES.map((preference) => {
             const selected = preferences.categories.includes(preference.id);
             return (
@@ -126,8 +126,8 @@ function PreferenceControls({
                 onClick={() => toggleCategory(preference.id)}
                 className={
                   selected
-                    ? "inline-flex min-h-9 items-center rounded-lg border border-lavender-600 bg-lavender-100/80 px-3.5 text-[15px] font-medium text-plum focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600"
-                    : "inline-flex min-h-9 items-center rounded-lg border border-lavender-200 bg-surface px-3.5 text-[15px] text-ink-muted hover:border-lavender-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600 disabled:cursor-not-allowed disabled:opacity-40"
+                    ? "inline-flex min-h-9 items-center rounded-lg border border-lavender-500 bg-lavender-100/65 px-3.5 text-sm font-medium text-plum focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600"
+                    : "inline-flex min-h-9 items-center rounded-lg border border-line bg-surface px-3.5 text-sm text-ink-muted hover:border-lavender-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600 disabled:cursor-not-allowed disabled:opacity-40"
                 }
               >
                 {preference.label}
@@ -140,8 +140,8 @@ function PreferenceControls({
             onClick={() => onChange({ ...preferences, categories: [] })}
             className={
               preferences.categories.length === 0
-                ? "inline-flex min-h-9 items-center rounded-lg border border-plum bg-lavender-100 px-3.5 text-[15px] font-semibold text-plum focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-plum"
-                : "inline-flex min-h-9 items-center rounded-lg border border-lavender-200 bg-surface px-3.5 text-[15px] font-medium text-plum hover:border-plum focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-plum"
+                ? "inline-flex min-h-9 items-center rounded-lg border border-plum bg-lavender-100/65 px-3.5 text-sm font-medium text-plum focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-plum"
+                : "inline-flex min-h-9 items-center rounded-lg border border-line bg-surface px-3.5 text-sm font-medium text-plum hover:border-plum focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-plum"
             }
           >
             Surprise me
@@ -150,19 +150,25 @@ function PreferenceControls({
       </fieldset>
 
       <fieldset>
-        <legend className="text-sm font-medium text-ink">
-          <span className="mr-2 text-xs font-semibold tracking-[0.1em] text-lavender-700 uppercase">
+        <legend className="flex items-baseline gap-2 text-sm text-ink">
+          <span className="text-[0.68rem] font-semibold tracking-[0.12em] text-lavender-700 uppercase">
             Step 2
           </span>
-          Non-Japanese restaurants
+          <span className="font-medium text-ink">Non-Japanese restaurants</span>
         </legend>
-        <div className="mt-1.5 grid grid-cols-1 gap-1.5 sm:grid-cols-3">
+        {/*
+         * A grid, not inline-flex thirds: three `w-1/3` inline-level buttons
+         * are separated by collapsible whitespace, so the row overran its
+         * container and the selected fill broke across the wrap. Grid tracks
+         * divide the width exactly and stretch every segment to one height.
+         */}
+        <div className="mt-2.5 grid min-w-0 grid-cols-1 overflow-hidden rounded-lg border border-line bg-surface sm:grid-cols-3">
           {([
             ["japanese-only", "Japanese only"],
             ["occasionally", "Mostly Japanese"],
             ["yes", "Open to anything"],
           ] as const satisfies readonly (readonly [NonJapanesePreference, string])[]).map(
-            ([value, label]) => {
+            ([value, label], index) => {
               const selected = preferences.nonJapanese === value;
               return (
                 <button
@@ -170,11 +176,16 @@ function PreferenceControls({
                   type="button"
                   aria-pressed={selected}
                   onClick={() => onChange({ ...preferences, nonJapanese: value })}
-                  className={
+                  className={[
+                    "flex min-h-11 min-w-0 items-center justify-center px-2.5 text-center text-sm leading-tight transition-colors sm:px-3",
+                    // Inset ring: an offset outline would be clipped by the
+                    // control's own overflow-hidden corners.
+                    "focus-visible:relative focus-visible:z-10 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-lavender-600",
+                    index > 0 ? "border-t border-line sm:border-t-0 sm:border-l" : "",
                     selected
-                      ? "min-h-10 rounded-md border border-lavender-600 bg-lavender-100/80 px-3.5 text-sm font-medium text-lavender-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600"
-                      : "min-h-10 rounded-md border border-line bg-surface px-3.5 text-sm text-ink-muted hover:border-line-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600"
-                  }
+                      ? "bg-lavender-100/65 font-medium text-plum"
+                      : "text-ink-muted hover:bg-subtle",
+                  ].join(" ")}
                 >
                   {label}
                 </button>
@@ -540,21 +551,32 @@ export function DailyPicksPanel({
             )}
 
             {!hasActivePicks && (
-              <div className="rounded-card border border-line bg-lavender-50/35 p-4 sm:p-5">
-                <PreferenceControls preferences={state.preferences} onChange={updatePreferences} />
+              <div className="space-y-4 px-0.5 sm:space-y-5">
+                <div className="rounded-card border border-lavender-100/85 bg-surface px-4 py-4 sm:px-5 sm:py-4.5">
+                  <PreferenceControls preferences={state.preferences} onChange={updatePreferences} />
+                </div>
+
                 {originSetup && !originSetup.origin ? (
-                  <div className="mt-5">
+                  <div className="rounded-xl border border-lavender-100/75 bg-surface px-4 py-3.5 sm:px-5 sm:py-4">
                     <FreeOriginOnboarding setup={originSetup} />
                   </div>
-                ) : (
+                ) : null}
+
+                {/*
+                 * The primary action closes the flow in every state. It used to
+                 * be withheld while the origin card was open, which read as the
+                 * button having vanished; setting an origin shapes the
+                 * selection but has never been required to make one.
+                 */}
+                <div className="pt-0.5">
                   <Button
                     variant="primary"
                     onClick={() => generate()}
-                    className="mt-5 min-h-12 w-full px-6 text-sm sm:w-auto"
+                    className="min-h-12 w-full px-6 text-sm sm:w-auto"
                   >
                     Find today&apos;s restaurants
                   </Button>
-                )}
+                </div>
               </div>
             )}
 
@@ -591,21 +613,32 @@ export function DailyPicksPanel({
               </p>
             )}
 
-            <RecentDiscoveries
-              discoveries={recent}
-              restaurants={restaurants}
-              savedRestaurantIds={savedRestaurantIds}
-              pendingPlaceIds={defaultList.pendingPlaceIds}
-              now={now}
-              onOpen={onOpenRestaurant}
-              onViewDetails={onViewRestaurant}
-              onToggleSaved={toggleSaved}
-              selectedPlaceId={selectedPlaceId}
-              registerCardRef={registerCardRef}
-            />
           </div>
         )}
       </section>
+
+      {/*
+       * Recent Discoveries is its own section on the page background, not a
+       * panel inside the preferences card. The rule that used to stand in for
+       * this separation sat inside the same box, so the preference flow and the
+       * discovery history still read as one object.
+       */}
+      {snapshot !== null && phase === "idle" && (
+        <div className="mt-6 min-w-0 w-full sm:mt-8">
+          <RecentDiscoveries
+            discoveries={recent}
+            restaurants={restaurants}
+            savedRestaurantIds={savedRestaurantIds}
+            pendingPlaceIds={defaultList.pendingPlaceIds}
+            now={now}
+            onOpen={onOpenRestaurant}
+            onViewDetails={onViewRestaurant}
+            onToggleSaved={toggleSaved}
+            selectedPlaceId={selectedPlaceId}
+            registerCardRef={registerCardRef}
+          />
+        </div>
+      )}
     </>
   );
 }
