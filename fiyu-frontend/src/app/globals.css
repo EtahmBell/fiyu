@@ -132,6 +132,60 @@
   --map-user-marker: #5a3f78;
 }
 
+/*
+ * Lists tint set.
+ *
+ * Lists is the one screen where several sibling cards have to be told apart at
+ * a glance. Rather than colour-coding them, each Smart View gets the same paper
+ * laid over a different brand hue at roughly four to six percent, with a
+ * matching icon disk and hairline edge cut from the same mix.
+ *
+ * These are tints, not colours: none should read as "the blue card" or "the
+ * pink card", only as warm, cool or neutral paper. Grouped as classes rather
+ * than @theme colours so a card sets one class and its three surfaces stay in
+ * step -- and so nothing outside Lists is affected.
+ */
+:root {
+  --fiyu-tint-surface: var(--color-surface);
+  --fiyu-tint-disk: var(--color-lavender-50);
+  --fiyu-tint-edge: var(--color-line);
+}
+
+/* Recently saved -- the house lavender. */
+.fiyu-tint-lavender {
+  --fiyu-tint-surface: #faf8ff;
+  --fiyu-tint-disk: #efeafd;
+  --fiyu-tint-edge: #e4dcf7;
+}
+
+/* Fiyu 9+ -- warm champagne, a half-step from the existing gold-soft. */
+.fiyu-tint-champagne {
+  --fiyu-tint-surface: #fdfaf3;
+  --fiyu-tint-disk: #f6eeda;
+  --fiyu-tint-edge: #ebdfc7;
+}
+
+/* Not visited -- cool mist, the only genuinely cool paper in the set. */
+.fiyu-tint-mist {
+  --fiyu-tint-surface: #f7f9fb;
+  --fiyu-tint-disk: #e9eef4;
+  --fiyu-tint-edge: #dde4ec;
+}
+
+/* By neighbourhood -- dusty blush, drawn down from rose-dust. */
+.fiyu-tint-blush {
+  --fiyu-tint-surface: #fdf8f8;
+  --fiyu-tint-disk: #f7e9ea;
+  --fiyu-tint-edge: #eed9dc;
+}
+
+/* Nearby -- lavender pulled toward sage-grey, so the feature card sits apart. */
+.fiyu-tint-spatial {
+  --fiyu-tint-surface: #f7f7fa;
+  --fiyu-tint-disk: #e9e9f3;
+  --fiyu-tint-edge: #dcdcea;
+}
+
 html {
   -webkit-text-size-adjust: 100%;
   /* Nothing in this layout may scroll sideways. */

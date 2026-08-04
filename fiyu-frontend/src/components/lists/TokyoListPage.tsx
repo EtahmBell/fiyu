@@ -7,19 +7,21 @@ import { RestaurantPhoto } from "@/components/restaurant/RestaurantPhoto";
 import { TagList } from "@/components/restaurant/TagList";
 import { ScoreMark } from "@/components/ui/ScoreMark";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { fetchDefaultListSmartView, fetchDefaultListSmartViews } from "@/lib/api/client";
+import { fetchDefaultListSmartViews } from "@/lib/api/client";
 import { DestinationPage } from "@/components/destinations/DestinationPage";
 import { ACTIVE_FIYU_CITY } from "@/lib/city/editions";
 import { FiyuApiError } from "@/lib/api/errors";
-import type { DefaultListItem, SmartViewCatalogEntry, SmartViewResponse } from "@/lib/api/schemas";
+import type { DefaultListItem, SmartViewCatalogEntry } from "@/lib/api/schemas";
 import { useDefaultList } from "@/lib/lists/useDefaultList";
 import { getOrCreateAnonymousOwnerKey } from "@/lib/lists/identity";
 import { cn } from "@/lib/utils/cn";
-
-const NEARBY_FALLBACK_ORIGIN = {
-  latitude: 35.681236,
-  longitude: 139.767125,
-} as const;
+import { ListTabs } from "@/components/lists/ListTabs";
+import { SmartViewCard } from "@/components/lists/SmartViewCard";
+import {
+  SMART_VIEW_ORDER,
+  smartViewTintClass,
+  sortSmartViews,
+} from "@/components/lists/smartViewPresentation";
 
 function BookmarkIcon({ filled, className }: { filled: boolean; className?: string }) {
   return (
@@ -104,21 +106,34 @@ function SavedRow({
               </div>
 
               <div className="flex shrink-0 items-start gap-1">
-                <ScoreMark score={item.restaurant.fiyu_score} size="md" />
+                {/*
+                 * A faint lavender panel frames the score rather than badging
+                 * it: same typography and same /10, just lifted off the white
+                 * card so the one number on the row is not floating.
+                 */}
+                <ScoreMark
+                  score={item.restaurant.fiyu_score}
+                  size="md"
+                  className="rounded-lg bg-lavender-50/70 px-2.5 py-1.5"
+                />
                 <button
                   type="button"
                   aria-label="Remove restaurant from saved"
                   aria-pressed={true}
                   disabled={pending}
                   onClick={onRemove}
-                  className="inline-flex size-11 shrink-0 items-center justify-center text-plum transition-[color,transform] duration-[180ms] ease-(--ease-fiyu) hover:bg-lavender-50 hover:text-lavender-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+                  className="inline-flex size-11 shrink-0 items-center justify-center rounded-full bg-lavender-50/70 text-plum transition-[background-color,transform] duration-[180ms] ease-(--ease-fiyu) hover:bg-lavender-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   <BookmarkIcon filled={true} />
                 </button>
               </div>
             </div>
 
-            {tags.length > 0 && <TagList tags={tags} max={2} titleCaseEnglish className="mt-2.5" />}
+            {tags.length > 0 && (
+              // Tinted rather than outlined here: on a page of white rows a pale
+              // lavender pill reads as part of the card, an outline as a border.
+              <TagList tags={tags} max={2} titleCaseEnglish tone="lavender" className="mt-2.5" />
+            )}
 
             <div className="mt-auto flex min-w-0 items-center gap-3 pt-3">
               <Link
@@ -165,22 +180,64 @@ function SavedRowSkeleton() {
   );
 }
 
-const PAGE_HEADER = {
+/**
+ * Contextual strip above the saved rows.
+ *
+ * The count is the loaded list's own length and the title is a fixed label --
+ * nothing here is a computed statistic. A pale lavender wash rather than a
+ * card: it exists to break the cream field and give the list a shoulder to sit
+ * under, so it stays lighter than anything below it.
+ */
+function SavedCollectionStrip({ countLabel }: { countLabel: string }) {
+  return (
+    <div className="mb-5 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 rounded-lg bg-lavender-50/70 px-4 py-3">
+      <p className="font-display text-lg leading-tight text-ink">Your Tokyo collection</p>
+      <p className="text-xs font-medium tracking-[0.1em] text-lavender-700 uppercase">
+        {countLabel}
+      </p>
+    </div>
+  );
+}
+
+/** Smart View card geometry in its own tint, so the grid arrives already composed. */
+function SmartViewCardSkeleton({ viewKey }: { viewKey: string }) {
+  return (
+    <li className={cn(smartViewTintClass(viewKey), viewKey === "nearby" && "sm:col-span-2")}>
+      <div className="flex min-h-[10.5rem] h-full flex-col rounded-card border border-[color:var(--fiyu-tint-edge)] bg-[color:var(--fiyu-tint-surface)] px-4 py-4">
+        <div className="size-9 rounded-full bg-[color:var(--fiyu-tint-disk)]" />
+        <Skeleton className="mt-4 h-6 w-2/5" />
+        <Skeleton className="mt-3 h-3.5 w-4/5" />
+        <Skeleton className="mt-auto h-3.5 w-24" />
+      </div>
+    </li>
+  );
+}
+
+const SAVED_PAGE_HEADER = {
   eyebrow: "Tokyo edition",
   title: "Your Tokyo list",
   description: "Restaurants you save in Tokyo appear here.",
 } as const;
 
+const SMART_PAGE_HEADER = {
+  eyebrow: "Tokyo edition",
+  title: "Smart views",
+  description: "Rediscover your saved places in different ways.",
+} as const;
+
+function readInitialTab(): "saved" | "smart" {
+  if (typeof window === "undefined") return "saved";
+  const params = new URLSearchParams(window.location.search);
+  return params.get("tab") === "smart" ? "smart" : "saved";
+}
+
 export function TokyoListPage() {
   const cityId = ACTIVE_FIYU_CITY.id;
   const list = useDefaultList(cityId);
-  const [activeTab, setActiveTab] = useState<"saved" | "smart">("saved");
+  const [activeTab, setActiveTab] = useState<"saved" | "smart">(() => readInitialTab());
   const [smartLoading, setSmartLoading] = useState(false);
   const [smartError, setSmartError] = useState<string | null>(null);
   const [smartViews, setSmartViews] = useState<SmartViewCatalogEntry[]>([]);
-  const [openedViewKey, setOpenedViewKey] = useState<string | null>(null);
-  const [openedView, setOpenedView] = useState<SmartViewResponse | null>(null);
-  const [viewLoading, setViewLoading] = useState(false);
 
   useEffect(() => {
     if (activeTab !== "smart") return;
@@ -194,7 +251,7 @@ export function TokyoListPage() {
         const identity = { clientId: getOrCreateAnonymousOwnerKey() };
         const payload = await fetchDefaultListSmartViews(cityId, identity);
         if (cancelled) return;
-        setSmartViews(payload.views);
+        setSmartViews(sortSmartViews(payload.views));
       } catch (error) {
         if (cancelled) return;
         const message = error instanceof FiyuApiError ? error.detail : "Could not load Smart Views";
@@ -210,33 +267,9 @@ export function TokyoListPage() {
     };
   }, [activeTab, cityId, smartViews.length]);
 
-  const openSmartView = async (viewKey: string) => {
-    setOpenedViewKey(viewKey);
-    setViewLoading(true);
-    setSmartError(null);
-    try {
-      const identity = { clientId: getOrCreateAnonymousOwnerKey() };
-      const response = await fetchDefaultListSmartView(cityId, viewKey, identity, {
-        ...(viewKey === "nearby"
-          ? {
-              originLatitude: NEARBY_FALLBACK_ORIGIN.latitude,
-              originLongitude: NEARBY_FALLBACK_ORIGIN.longitude,
-            }
-          : {}),
-      });
-      setOpenedView(response);
-    } catch (error) {
-      const message = error instanceof FiyuApiError ? error.detail : "Could not open Smart View";
-      setSmartError(message ?? "Could not open Smart View");
-      setOpenedView(null);
-    } finally {
-      setViewLoading(false);
-    }
-  };
-
   if (cityId !== "tokyo") {
     return (
-      <DestinationPage {...PAGE_HEADER}>
+      <DestinationPage {...SAVED_PAGE_HEADER}>
         <section role="status" aria-live="polite" className="max-w-md">
           <h2 className="font-display text-2xl leading-tight text-ink">
             Lists are unavailable in this city
@@ -256,115 +289,53 @@ export function TokyoListPage() {
     list.status === "ready" && items.length > 0
       ? `${items.length} saved ${items.length === 1 ? "place" : "places"}`
       : null;
+  const heading = activeTab === "smart" ? SMART_PAGE_HEADER : SAVED_PAGE_HEADER;
 
   return (
-    <DestinationPage {...PAGE_HEADER}>
-      <div className="mb-4 flex items-center gap-2 border-b border-line pb-3">
-        <button
-          type="button"
-          aria-pressed={activeTab === "saved"}
-          onClick={() => setActiveTab("saved")}
-          className={cn(
-            "min-h-10 rounded-md border px-3 text-sm",
-            activeTab === "saved"
-              ? "border-plum bg-lavender-100 text-plum"
-              : "border-line bg-surface text-ink-muted",
-          )}
-        >
-          Saved
-        </button>
-        <button
-          type="button"
-          aria-pressed={activeTab === "smart"}
-          onClick={() => setActiveTab("smart")}
-          className={cn(
-            "min-h-10 rounded-md border px-3 text-sm",
-            activeTab === "smart"
-              ? "border-plum bg-lavender-100 text-plum"
-              : "border-line bg-surface text-ink-muted",
-          )}
-        >
-          Smart
-        </button>
-      </div>
+    <DestinationPage {...heading}>
+      <ListTabs activeTab={activeTab} onChange={setActiveTab} />
 
       {activeTab === "smart" ? (
-        <section aria-label="Smart Views" className="space-y-3">
+        <section
+          role="tabpanel"
+          id="lists-panel-smart"
+          aria-labelledby="lists-tab-smart"
+          aria-label="Smart Views"
+          className="space-y-4"
+        >
           {smartLoading ? (
-            <p role="status" className="text-sm text-ink-muted">
-              Loading Smart Views...
-            </p>
+            <>
+              <p role="status" aria-live="polite" className="sr-only">
+                Loading Smart Views…
+              </p>
+              <ul aria-hidden="true" className="grid gap-3 sm:grid-cols-2 sm:gap-4">
+                {SMART_VIEW_ORDER.map((key) => (
+                  <SmartViewCardSkeleton key={key} viewKey={key} />
+                ))}
+              </ul>
+            </>
           ) : (
-            <ul className="space-y-2">
+            <ul className="grid gap-3 sm:grid-cols-2 sm:gap-4" role="list">
               {smartViews.map((view) => (
-                <li key={view.key} className="rounded-card border border-line bg-surface p-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-semibold text-ink">{view.label}</p>
-                      <p className="text-xs text-ink-muted">{view.description}</p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => void openSmartView(view.key)}
-                      className="min-h-10 rounded-md border border-line px-3 text-sm text-plum"
-                    >
-                      Open ({view.item_count})
-                    </button>
-                  </div>
-                </li>
+                <SmartViewCard key={view.key} view={view} />
               ))}
             </ul>
           )}
 
-          {viewLoading && (
-            <p role="status" className="text-sm text-ink-muted">
-              Opening view...
-            </p>
-          )}
-
-          {openedView && openedViewKey === openedView.view_key && (
-            <section className="rounded-card border border-line bg-surface p-3" aria-label="Opened Smart View">
-              <h2 className="font-display text-xl text-ink">{openedView.label}</h2>
-              <p className="text-sm text-ink-muted">{openedView.description}</p>
-              {openedView.groups.length > 0 ? (
-                <ul className="mt-3 space-y-3">
-                  {openedView.groups.map((group) => (
-                    <li key={group.group_key}>
-                      <h3 className="text-sm font-semibold text-ink">{group.title}</h3>
-                      <ul className="mt-1 space-y-1 text-sm text-ink-muted">
-                        {group.items.map((item) => (
-                          <li key={item.place_id}>{item.restaurant.name_ja ?? item.restaurant.name_en ?? item.place_id}</li>
-                        ))}
-                      </ul>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <ul className="mt-3 space-y-1 text-sm text-ink-muted">
-                  {openedView.items.map((item) => (
-                    <li key={item.place_id}>
-                      {item.restaurant.name_ja ?? item.restaurant.name_en ?? item.place_id}
-                      {item.distance_km !== null ? ` (${item.distance_km} km)` : ""}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </section>
-          )}
-
           {smartError && (
-            <p role="status" className="text-xs text-dusty-rose">
+            <p role="status" className="text-xs text-rose-dust">
               {smartError}
             </p>
           )}
         </section>
       ) : (
-        <>
-          {countLabel && (
-            <p className="mb-4 border-b border-line pb-3 text-xs font-medium tracking-[0.1em] text-ink-faint uppercase">
-              {countLabel}
-            </p>
-          )}
+        <section
+          role="tabpanel"
+          id="lists-panel-saved"
+          aria-labelledby="lists-tab-saved"
+          aria-label="Saved restaurants"
+        >
+          {countLabel && <SavedCollectionStrip countLabel={countLabel} />}
 
           {loading ? (
             <section role="status" aria-busy="true" aria-live="polite" aria-label="Loading your Tokyo list">
@@ -396,7 +367,7 @@ export function TokyoListPage() {
               </button>
             </section>
           ) : items.length === 0 ? (
-            <section role="status" aria-live="polite" className="max-w-xl rounded-card border border-line bg-lavender-50/20 p-4 sm:p-5">
+            <section role="status" aria-live="polite" className="max-w-xl rounded-card border border-line bg-lavender-50/60 p-4 sm:p-5">
               <div aria-hidden="true" className="rounded-lg border border-line bg-surface p-3">
                 <div className="grid grid-cols-[5.75rem_minmax(0,1fr)] gap-3">
                   <div className="h-16 rounded-md bg-lavender-100/50" />
@@ -437,13 +408,13 @@ export function TokyoListPage() {
                 ))}
               </ul>
               {list.operationError && (
-                <p role="status" className="mt-3 text-xs text-dusty-rose">
+                <p role="status" className="mt-3 text-xs text-rose-dust">
                   {list.operationError}
                 </p>
               )}
             </section>
           )}
-        </>
+        </section>
       )}
     </DestinationPage>
   );

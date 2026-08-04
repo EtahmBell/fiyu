@@ -1,4 +1,4 @@
-import { Badge } from "@/components/ui/Badge";
+import { Badge, type BadgeTone } from "@/components/ui/Badge";
 import { detectTextLang } from "@/lib/format/language";
 import { formatTagForDisplay } from "@/lib/format/tags";
 import { cn } from "@/lib/utils/cn";
@@ -9,6 +9,8 @@ export interface TagListProps {
   max?: number;
   /** Apply presentation-only English title casing without changing stored tags. */
   titleCaseEnglish?: boolean;
+  /** Badge treatment. Outlined by default; `lavender` tints the pill instead. */
+  tone?: BadgeTone;
   className?: string;
 }
 
@@ -23,7 +25,13 @@ export interface TagListProps {
  * `detectTextLang` only chooses a `lang` attribute so Japanese gets the right
  * font and kinsoku line-breaking. It never alters the string.
  */
-export function TagList({ tags, max, titleCaseEnglish = false, className }: TagListProps) {
+export function TagList({
+  tags,
+  max,
+  titleCaseEnglish = false,
+  tone = "outline",
+  className,
+}: TagListProps) {
   if (tags.length === 0) return null;
 
   const visible = max === undefined ? tags : tags.slice(0, max);
@@ -34,7 +42,7 @@ export function TagList({ tags, max, titleCaseEnglish = false, className }: TagL
       {visible.map((tag) => (
         // A single long tag must wrap inside the card rather than widen it.
         <li key={tag} className="min-w-0 max-w-full">
-          <Badge tone="outline" lang={detectTextLang(tag)} className="max-w-full break-words">
+          <Badge tone={tone} lang={detectTextLang(tag)} className="max-w-full break-words">
             {titleCaseEnglish ? formatTagForDisplay(tag) : tag}
           </Badge>
         </li>

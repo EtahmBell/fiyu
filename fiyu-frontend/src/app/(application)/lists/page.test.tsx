@@ -267,19 +267,26 @@ describe("lists page", () => {
     expect(messages).toEqual([]);
   });
 
-  it("loads and opens free Smart Views", async () => {
+  it("loads Smart Views as card links with Smart heading copy", async () => {
     render(<ListsPage />);
 
-    fireEvent.click(screen.getAllByRole("button", { name: "Smart" })[0]);
+    fireEvent.click(screen.getAllByRole("tab", { name: "Smart" })[0]);
+
+    expect(await screen.findByRole("heading", { name: "Smart views" })).toBeTruthy();
+    expect(
+      screen.getByText("Rediscover your saved places in different ways."),
+    ).toBeTruthy();
 
     expect(await screen.findByText("Recently saved")).toBeTruthy();
     expect(await screen.findByText("Fiyu 9+")).toBeTruthy();
     expect(await screen.findByText("Not visited")).toBeTruthy();
-    expect(await screen.findByText("By neighborhood")).toBeTruthy();
+    expect(await screen.findByText("By neighbourhood")).toBeTruthy();
     expect(await screen.findByText("Nearby")).toBeTruthy();
 
-    fireEvent.click(screen.getAllByRole("button", { name: "Open (2)" })[0]);
-    expect(await screen.findByRole("heading", { name: "Recently saved" })).toBeTruthy();
-    expect(await screen.findByText("店一")).toBeTruthy();
+    expect(screen.getByRole("link", { name: /Recently saved/i }).getAttribute("href")).toBe(
+      "/lists/smart/recently_saved",
+    );
+    expect(screen.getAllByText("2 places →").length).toBeGreaterThan(0);
+    expect(screen.getByText("1 place →")).toBeTruthy();
   });
 });
