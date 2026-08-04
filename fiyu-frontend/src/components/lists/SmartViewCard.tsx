@@ -4,7 +4,7 @@ import Link from "next/link";
 import type { SmartViewCatalogEntry } from "@/lib/api/schemas";
 import { cn } from "@/lib/utils/cn";
 import {
-  smartViewCountLabel,
+  smartViewCountLabelMaybe,
   smartViewDescriptionForCard,
   smartViewDisplayLabel,
   smartViewTintClass,
@@ -235,6 +235,7 @@ function CardCornerAccent() {
 export function SmartViewCard({ view }: { view: SmartViewCatalogEntry }) {
   const prominentNearby = view.key === "nearby";
   const label = smartViewDisplayLabel(view.key, view.label);
+  const countLabel = smartViewCountLabelMaybe(view.item_count);
 
   return (
     <li className={cn(smartViewTintClass(view.key), prominentNearby && "sm:col-span-2")}>
@@ -270,14 +271,16 @@ export function SmartViewCard({ view }: { view: SmartViewCatalogEntry }) {
             {smartViewDescriptionForCard(view)}
           </p>
 
-          <p
-            className={cn(
-              "mt-auto pt-5 text-sm font-semibold",
-              view.item_count > 0 ? "text-plum" : "text-ink-muted",
-            )}
-          >
-            {smartViewCountLabel(view.item_count)}
-          </p>
+          {countLabel && (
+            <p
+              className={cn(
+                "mt-auto pt-5 text-sm font-semibold",
+                view.item_count && view.item_count > 0 ? "text-plum" : "text-ink-muted",
+              )}
+            >
+              {countLabel}
+            </p>
+          )}
         </div>
       </Link>
     </li>

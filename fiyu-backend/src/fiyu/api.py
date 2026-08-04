@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 from .database import connect, decode_restaurant_row
 from .entitlements import (
     CAPABILITY_CUSTOM_LISTS,
+    CAPABILITY_PREMIUM_SMART_VIEWS,
     EntitlementError,
     resolve_owner_capabilities,
 )
@@ -52,8 +53,10 @@ from .restaurant_lists import (
 from .smart_views import (
     SMART_VIEW_KEYS,
     SMART_VIEW_META,
+    list_available_smart_view_keys,
     list_smart_view_counts,
     list_smart_view_entries,
+    smart_view_definition,
     utc_now_iso,
 )
 from .utils import haversine_km
@@ -254,6 +257,9 @@ class SmartViewCatalogEntryResponse(BaseModel):
     key: str
     label: str
     description: str
+    tier: str
+    collection_type: str
+    required_capability: str | None = None
     item_count: int
 
 
@@ -287,6 +293,9 @@ class SmartViewResponse(BaseModel):
     view_key: str
     label: str
     description: str
+    tier: str
+    collection_type: str
+    required_capability: str | None = None
     item_count: int
     items: list[SmartViewItemResponse] = Field(default_factory=list)
     groups: list[SmartViewGroupResponse] = Field(default_factory=list)
@@ -574,12 +583,16 @@ def _smart_view_response(
     if groups:
         item_count = sum(group.item_count for group in groups)
 
+    definition = smart_view_definition(view_key)
     meta = SMART_VIEW_META[view_key]
     return SmartViewResponse(
         city_id=city_id,
         view_key=view_key,
         label=meta["label"],
         description=meta["description"],
+        tier=definition.tier,
+        collection_type=definition.collection_type,
+        required_capability=definition.required_capability,
         item_count=item_count,
         items=items,
         groups=groups,
@@ -827,6 +840,8 @@ def get_default_list_smart_view_catalog(
     _ensure_database()
     ensure_public_schema(DB_PATH)
     resolved_city_id = _normalize_list_city(city_id)
+    capabilities = resolve_owner_capabilities(owner_id)
+    available_keys = list_available_smart_view_keys(capabilities)
     counts = list_smart_view_counts(DB_PATH, owner_id=owner_id, city_id=resolved_city_id)
     return SmartViewCatalogResponse(
         city_id=resolved_city_id,
@@ -835,9 +850,12 @@ def get_default_list_smart_view_catalog(
                 key=key,
                 label=SMART_VIEW_META[key]["label"],
                 description=SMART_VIEW_META[key]["description"],
+                tier=smart_view_definition(key).tier,
+                collection_type=smart_view_definition(key).collection_type,
+                required_capability=smart_view_definition(key).required_capability,
                 item_count=counts[key],
             )
-            for key in SMART_VIEW_KEYS
+            for key in available_keys
         ],
         generated_at=utc_now_iso(),
     )
@@ -856,6 +874,9 @@ def get_default_list_smart_view(
     resolved_city_id = _normalize_list_city(city_id)
     if view_key not in SMART_VIEW_KEYS:
         raise HTTPException(status_code=404, detail="Unknown smart view key")
+    definition = smart_view_definition(view_key)
+    if definition.required_capability == CAPABILITY_PREMIUM_SMART_VIEWS:
+        _require_owner_capability(owner_id, CAPABILITY_PREMIUM_SMART_VIEWS)
 
     try:
         payload = list_smart_view_entries(

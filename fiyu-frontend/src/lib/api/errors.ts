@@ -98,6 +98,11 @@ export function extractDetail(body: unknown): string | undefined {
     return messages.length > 0 ? messages.join("; ") : undefined;
   }
 
+  if (typeof detail === "object" && detail !== null) {
+    const message = (detail as { message?: unknown }).message;
+    if (typeof message === "string" && message.length > 0) return message;
+  }
+
   return undefined;
 }
 

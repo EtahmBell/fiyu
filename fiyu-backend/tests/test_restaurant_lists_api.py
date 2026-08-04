@@ -44,6 +44,9 @@ def lists_db(tmp_path, monkeypatch):
             [
                 ("tokyo-a", "Tokyo A", "Suginami City", "Asakusa"),
                 ("tokyo-b", "Tokyo B", "Tokyo", "Ueno"),
+                ("tokyo-c", "Tokyo C", "Shibuya City", "Shibuya"),
+                ("tokyo-d", "Tokyo D", "Tokyo", "Kameari"),
+                ("tokyo-e", "Tokyo E", "Tokyo", "Kagurazaka"),
                 ("osaka-a", "Osaka A", "Osaka", "Namba"),
                 ("tokyo-hidden", "Tokyo Hidden", "Tokyo", "Kanda"),
             ],
@@ -63,6 +66,9 @@ def lists_db(tmp_path, monkeypatch):
             [
                 ("tokyo-a", "東京A", "Tokyo A", "sushi", 91.0, "excellent", 35.7120, 139.7800, 1),
                 ("tokyo-b", "東京B", "Tokyo B", "ramen", 84.0, "strong", 35.7168, 139.7967, 1),
+                ("tokyo-c", "東京C", "Tokyo C", "ramen", 87.0, "strong", 35.6595, 139.7005, 1),
+                ("tokyo-d", "東京D", "Tokyo D", "soba", 89.0, "excellent", 35.7677, 139.8480, 1),
+                ("tokyo-e", "東京E", "Tokyo E", "tempura", 93.0, "excellent", 35.6895, 139.7020, 1),
                 ("osaka-a", "大阪A", "Osaka A", "okonomiyaki", 88.0, "excellent", 34.6937, 135.5023, 1),
                 ("tokyo-hidden", "東京Hidden", "Tokyo Hidden", "yakitori", 82.0, "strong", 35.6900, 139.7000, 0),
             ],
@@ -430,7 +436,7 @@ def test_schema_contains_expected_list_tables(lists_db):
     assert "idx_restaurant_lists_owner_city_default" in index_names
 
 
-def test_smart_view_catalog_returns_five_views(lists_db):
+def test_smart_view_catalog_returns_five_free_views_for_non_premium_owner(lists_db):
     client = TestClient(api.app)
     owner = _owner_id()
 
@@ -461,6 +467,41 @@ def test_smart_view_catalog_returns_five_views(lists_db):
         "by_neighborhood",
         "nearby",
     ]
+    assert all(view["tier"] == "free" for view in body["views"])
+    assert all(view["collection_type"] == "deterministic" for view in body["views"])
+
+
+def test_smart_view_catalog_includes_premium_collections_for_premium_owner(lists_db, monkeypatch):
+    client = TestClient(api.app)
+    owner = _owner_id()
+    _enable_premium_for_owner(monkeypatch, owner)
+
+    response = client.get(
+        "/lists/default/smart-views",
+        params={"city_id": "tokyo"},
+        headers={"X-Fiyu-Client-Id": owner},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    keys = [view["key"] for view in body["views"]]
+    assert keys == [
+        "recently_saved",
+        "fiyu_9_plus",
+        "not_visited",
+        "by_neighborhood",
+        "nearby",
+        "ramen_in_shibuya",
+        "out_of_the_way_gems",
+        "worth_the_detour",
+    ]
+    premium_entries = [view for view in body["views"] if view["tier"] == "premium"]
+    assert [entry["key"] for entry in premium_entries] == [
+        "ramen_in_shibuya",
+        "out_of_the_way_gems",
+        "worth_the_detour",
+    ]
+    assert all(entry["required_capability"] == "premium_smart_views" for entry in premium_entries)
 
 
 def test_recently_saved_view_is_reverse_chronological(lists_db):
@@ -611,6 +652,95 @@ def test_nearby_view_orders_by_distance(lists_db):
     body = response.json()
     assert [item["place_id"] for item in body["items"]] == ["tokyo-a", "tokyo-b"]
     assert body["items"][0]["distance_km"] == 0.0
+
+
+def test_non_premium_owner_cannot_access_premium_smart_collection(lists_db):
+    client = TestClient(api.app)
+    owner = _owner_id()
+
+    response = client.get(
+        "/lists/default/smart-views/ramen_in_shibuya",
+        params={"city_id": "tokyo"},
+        headers={"X-Fiyu-Client-Id": owner},
+    )
+
+    assert response.status_code == 403
+    body = response.json()
+    assert body["detail"]["code"] == "premium_required"
+    assert body["detail"]["capability"] == "premium_smart_views"
+
+
+def test_ramen_in_shibuya_collection_is_deterministic(lists_db, monkeypatch):
+    client = TestClient(api.app)
+    owner = _owner_id()
+    _enable_premium_for_owner(monkeypatch, owner)
+
+    for place_id in ["tokyo-a", "tokyo-b", "tokyo-c"]:
+        client.post(
+            "/lists/default/items",
+            headers={"X-Fiyu-Client-Id": owner},
+            json={"city_id": "tokyo", "place_id": place_id},
+        )
+
+    response = client.get(
+        "/lists/default/smart-views/ramen_in_shibuya",
+        params={"city_id": "tokyo"},
+        headers={"X-Fiyu-Client-Id": owner},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["tier"] == "premium"
+    assert body["collection_type"] == "deterministic"
+    assert body["required_capability"] == "premium_smart_views"
+    assert [item["place_id"] for item in body["items"]] == ["tokyo-c"]
+
+
+def test_out_of_the_way_gems_collection_uses_distance_and_score(lists_db, monkeypatch):
+    client = TestClient(api.app)
+    owner = _owner_id()
+    _enable_premium_for_owner(monkeypatch, owner)
+
+    for place_id in ["tokyo-c", "tokyo-d", "tokyo-e"]:
+        client.post(
+            "/lists/default/items",
+            headers={"X-Fiyu-Client-Id": owner},
+            json={"city_id": "tokyo", "place_id": place_id},
+        )
+
+    response = client.get(
+        "/lists/default/smart-views/out_of_the_way_gems",
+        params={"city_id": "tokyo"},
+        headers={"X-Fiyu-Client-Id": owner},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert [item["place_id"] for item in body["items"]] == ["tokyo-d"]
+    assert body["items"][0]["distance_km"] is not None
+
+
+def test_worth_the_detour_collection_orders_by_score_desc(lists_db, monkeypatch):
+    client = TestClient(api.app)
+    owner = _owner_id()
+    _enable_premium_for_owner(monkeypatch, owner)
+
+    for place_id in ["tokyo-a", "tokyo-d", "tokyo-e"]:
+        client.post(
+            "/lists/default/items",
+            headers={"X-Fiyu-Client-Id": owner},
+            json={"city_id": "tokyo", "place_id": place_id},
+        )
+
+    response = client.get(
+        "/lists/default/smart-views/worth_the_detour",
+        params={"city_id": "tokyo"},
+        headers={"X-Fiyu-Client-Id": owner},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert [item["place_id"] for item in body["items"]] == ["tokyo-e", "tokyo-a", "tokyo-d"]
 
 
 def test_premium_user_can_create_custom_list(lists_db, monkeypatch):

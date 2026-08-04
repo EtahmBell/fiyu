@@ -274,10 +274,20 @@ export const defaultListMembershipResponseSchema = z.object({
 
 export const smartViewCatalogEntrySchema = z.object({
   key: z.string().min(1),
-  label: z.string().min(1),
+  label: z.string().min(1).optional(),
+  title: z.string().min(1).optional(),
   description: z.string().min(1),
-  item_count: z.number(),
-});
+  tier: z.enum(["free", "premium"]).nullish().transform((value) => value ?? "free"),
+  locked: z.boolean().nullish().transform((value) => value ?? false),
+  available: z.boolean().nullish().transform((value) => (value === undefined ? null : value)),
+  item_count: nullableNumber,
+  required_capability: nullableString,
+  unavailable_reason: nullableString,
+  collection_type: nullableString,
+}).transform((value) => ({
+  ...value,
+  label: value.title ?? value.label ?? "Smart view",
+}));
 
 export const smartViewCatalogResponseSchema = z.object({
   city_id: z.string().min(1),
@@ -303,13 +313,23 @@ export const smartViewGroupSchema = z.object({
 export const smartViewResponseSchema = z.object({
   city_id: z.string().min(1),
   view_key: z.string().min(1),
-  label: z.string().min(1),
+  label: z.string().min(1).optional(),
+  title: z.string().min(1).optional(),
   description: z.string().min(1),
-  item_count: z.number(),
+  tier: z.enum(["free", "premium"]).nullish().transform((value) => value ?? "free"),
+  locked: z.boolean().nullish().transform((value) => value ?? false),
+  available: z.boolean().nullish().transform((value) => (value === undefined ? null : value)),
+  item_count: nullableNumber,
+  required_capability: nullableString,
+  unavailable_reason: nullableString,
+  collection_type: nullableString,
   items: z.array(smartViewItemSchema),
   groups: z.array(smartViewGroupSchema),
   generated_at: z.string().min(1),
-});
+}).transform((value) => ({
+  ...value,
+  label: value.title ?? value.label ?? "Smart view",
+}));
 
 export type PublicRestaurant = z.infer<typeof publicRestaurantSchema>;
 export type PublicRestaurantDetail = z.infer<typeof publicRestaurantDetailSchema>;

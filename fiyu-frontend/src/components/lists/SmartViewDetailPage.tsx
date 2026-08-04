@@ -119,7 +119,10 @@ export function SmartViewDetailPage({ viewKey }: { viewKey: string }) {
         setView(payload);
       } catch (cause) {
         if (cancelled) return;
-        const message = cause instanceof FiyuApiError ? cause.detail : "Could not load this Smart View";
+        let message = cause instanceof FiyuApiError ? cause.detail : "Could not load this Smart View";
+        if (typeof message === "string" && message.toLowerCase().includes("premium")) {
+          message = "This Premium collection is unavailable for this account.";
+        }
         setError(message ?? "Could not load this Smart View");
         setView(null);
       } finally {
@@ -153,14 +156,13 @@ export function SmartViewDetailPage({ viewKey }: { viewKey: string }) {
 
   const resolvedError = invalidViewKey ? "Unknown Smart View" : error;
   const countLabel =
-    view && view.item_count > 0
+    view && view.item_count !== null && view.item_count > 0
       ? `${view.item_count} ${view.item_count === 1 ? "place" : "places"}`
       : null;
   const title = view ? smartViewDisplayLabel(view.view_key, view.label) : fallbackTitle;
   const description = view
     ? smartViewDescriptionForCard({
         key: view.view_key,
-        label: view.label,
         description: view.description,
         item_count: view.item_count,
       })
@@ -204,7 +206,9 @@ export function SmartViewDetailPage({ viewKey }: { viewKey: string }) {
           ) : resolvedError ? (
             <section role="status" aria-live="polite" className="max-w-md rounded-card border border-line bg-surface p-4 sm:p-5">
               <h2 className="font-display text-2xl leading-tight text-ink">We couldn&apos;t load this Smart View.</h2>
-              <p className="mt-2 text-sm leading-6 text-ink-muted">Try again in a moment.</p>
+              <p className="mt-2 text-sm leading-6 text-ink-muted">
+                {resolvedError === "Could not load this Smart View" ? "Try again in a moment." : resolvedError}
+              </p>
             </section>
           ) : view?.groups.length ? (
             <section aria-label="Neighbourhood groups" className="space-y-5">
@@ -230,7 +234,21 @@ export function SmartViewDetailPage({ viewKey }: { viewKey: string }) {
             </section>
           ) : (
             <section aria-label="Smart View restaurants">
-              {view && view.items.length > 0 ? (
+              {view?.available === false ? (
+                <div className="max-w-xl rounded-card border border-line bg-lavender-50/20 p-4 sm:p-5">
+                  <h2 className="font-display text-2xl leading-tight text-ink">This collection is unavailable</h2>
+                  <p className="mt-2 text-sm leading-6 text-ink-muted">
+                    {view.unavailable_reason ?? "Set a discovery origin to use this collection."}
+                  </p>
+                  <Link
+                    href="/picks"
+                    className="mt-3 inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold text-plum underline decoration-transparent underline-offset-4 transition-colors hover:decoration-lavender-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600"
+                  >
+                    <span>Set discovery origin</span>
+                    <span aria-hidden="true">→</span>
+                  </Link>
+                </div>
+              ) : view && view.items.length > 0 ? (
                 <ul className="space-y-3">
                   {view.items.map((item) => (
                     <SmartViewItemRow

@@ -11,6 +11,23 @@ export const SMART_VIEW_ORDER = [
   "not_visited",
   "by_neighborhood",
   "nearby",
+  "ramen_in_shibuya",
+  "out_of_the_way_gems",
+  "worth_the_detour",
+] as const;
+
+export const FREE_SMART_VIEW_KEYS = [
+  "recently_saved",
+  "fiyu_9_plus",
+  "not_visited",
+  "by_neighborhood",
+  "nearby",
+] as const;
+
+export const PREMIUM_SMART_VIEW_KEYS = [
+  "ramen_in_shibuya",
+  "out_of_the_way_gems",
+  "worth_the_detour",
 ] as const;
 
 export type KnownSmartViewKey = (typeof SMART_VIEW_ORDER)[number];
@@ -26,7 +43,9 @@ export function sortSmartViews(views: SmartViewCatalogEntry[]): SmartViewCatalog
   });
 }
 
-export function smartViewDescriptionForCard(entry: SmartViewCatalogEntry): string {
+export function smartViewDescriptionForCard(
+  entry: Pick<SmartViewCatalogEntry, "key" | "description" | "item_count">,
+): string {
   if (entry.key === "fiyu_9_plus") {
     return "Saved restaurants with a 9.0+ Fiyu Score.";
   }
@@ -48,6 +67,12 @@ export function smartViewDisplayLabel(viewKey: string, fallbackLabel: string): s
       return "By neighbourhood";
     case "nearby":
       return "Nearby";
+    case "ramen_in_shibuya":
+      return "Ramen in Shibuya";
+    case "out_of_the_way_gems":
+      return "Out-of-the-way gems";
+    case "worth_the_detour":
+      return "Worth the detour";
     default:
       return fallbackLabel;
   }
@@ -73,6 +98,23 @@ export function smartViewCountLabel(count: number): string {
   if (count === 0) return "No places yet";
   if (count === 1) return "1 place →";
   return `${count} places →`;
+}
+
+export function smartViewCountLabelMaybe(count: number | null): string | null {
+  if (count === null) return null;
+  if (count === 0) return "No places yet";
+  if (count === 1) return "1 place →";
+  return `${count} places →`;
+}
+
+export function isPremiumSmartView(entry: SmartViewCatalogEntry): boolean {
+  return entry.tier === "premium";
+}
+
+export function isUnavailableForMissingArea(entry: SmartViewCatalogEntry): boolean {
+  if (entry.available !== false) return false;
+  const reason = entry.unavailable_reason?.toLowerCase() ?? "";
+  return reason.includes("origin") || reason.includes("discovery area") || reason.includes("area");
 }
 
 export function isKnownSmartViewKey(value: string): value is KnownSmartViewKey {

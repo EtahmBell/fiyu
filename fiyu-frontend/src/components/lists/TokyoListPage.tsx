@@ -17,9 +17,11 @@ import { getOrCreateAnonymousOwnerKey } from "@/lib/lists/identity";
 import { cn } from "@/lib/utils/cn";
 import { ListTabs } from "@/components/lists/ListTabs";
 import { SmartViewCard } from "@/components/lists/SmartViewCard";
+import { PremiumSmartCollectionCard } from "@/components/lists/PremiumSmartCollectionCard";
 import { buildListTagLookup, resolveListTags, type ListTagLookup } from "@/components/lists/listTags";
 import {
   SMART_VIEW_ORDER,
+  isPremiumSmartView,
   smartViewTintClass,
   sortSmartViews,
 } from "@/components/lists/smartViewPresentation";
@@ -239,6 +241,7 @@ export function TokyoListPage({ initialTab = "saved" }: { initialTab?: "saved" |
   const [smartLoading, setSmartLoading] = useState(false);
   const [smartError, setSmartError] = useState<string | null>(null);
   const [smartViews, setSmartViews] = useState<SmartViewCatalogEntry[]>([]);
+  const [lockedPremiumView, setLockedPremiumView] = useState<SmartViewCatalogEntry | null>(null);
   const [tagLookup, setTagLookup] = useState<ListTagLookup>(new Map());
 
   useEffect(() => {
@@ -314,6 +317,8 @@ export function TokyoListPage({ initialTab = "saved" }: { initialTab?: "saved" |
       ? `${items.length} saved ${items.length === 1 ? "place" : "places"}`
       : null;
   const heading = activeTab === "smart" ? SMART_PAGE_HEADER : SAVED_PAGE_HEADER;
+  const freeSmartViews = smartViews.filter((view) => !isPremiumSmartView(view));
+  const premiumSmartViews = smartViews.filter((view) => isPremiumSmartView(view));
 
   return (
     <DestinationPage {...heading}>
@@ -327,31 +332,91 @@ export function TokyoListPage({ initialTab = "saved" }: { initialTab?: "saved" |
           id="lists-panel-smart"
           aria-labelledby="lists-tab-smart"
           aria-label="Smart Views"
-          className="space-y-4"
+          className="space-y-7"
         >
-          {smartLoading ? (
-            <>
-              <p role="status" aria-live="polite" className="sr-only">
-                Loading Smart Views…
-              </p>
-              <ul aria-hidden="true" className="grid gap-3 sm:grid-cols-2 sm:gap-4">
-                {SMART_VIEW_ORDER.map((key) => (
-                  <SmartViewCardSkeleton key={key} viewKey={key} />
+          <section aria-label="Free Smart Views" className="space-y-3">
+            {smartLoading ? (
+              <>
+                <p role="status" aria-live="polite" className="sr-only">
+                  Loading Smart Views…
+                </p>
+                <ul aria-hidden="true" className="grid gap-3 sm:grid-cols-2 sm:gap-4">
+                  {SMART_VIEW_ORDER.slice(0, 5).map((key) => (
+                    <SmartViewCardSkeleton key={key} viewKey={key} />
+                  ))}
+                </ul>
+              </>
+            ) : (
+              <ul className="grid gap-3 sm:grid-cols-2 sm:gap-4" role="list">
+                {freeSmartViews.map((view) => (
+                  <SmartViewCard key={view.key} view={view} />
                 ))}
               </ul>
-            </>
-          ) : (
-            <ul className="grid gap-3 sm:grid-cols-2 sm:gap-4" role="list">
-              {smartViews.map((view) => (
-                <SmartViewCard key={view.key} view={view} />
-              ))}
-            </ul>
+            )}
+          </section>
+
+          {(smartLoading || premiumSmartViews.length > 0) && (
+            <section aria-label="Fiyu Premium" className="space-y-3 border-t border-line pt-5">
+              <header>
+                <p className="text-[0.68rem] font-semibold tracking-[0.12em] text-lavender-700 uppercase">
+                  Fiyu Premium
+                </p>
+                <h2 className="mt-1 font-display text-2xl leading-tight text-ink">Made for you</h2>
+                <p className="mt-1 text-sm leading-6 text-ink-muted">
+                  Dynamic collections shaped from your saved places.
+                </p>
+              </header>
+
+              {smartLoading ? (
+                <ul aria-hidden="true" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 sm:gap-4">
+                  {SMART_VIEW_ORDER.slice(5).map((key) => (
+                    <SmartViewCardSkeleton key={key} viewKey={key} />
+                  ))}
+                </ul>
+              ) : (
+                <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 sm:gap-4" role="list">
+                  {premiumSmartViews.map((view) => (
+                    <PremiumSmartCollectionCard
+                      key={view.key}
+                      view={view}
+                      onLockedOpen={(lockedView) => setLockedPremiumView(lockedView)}
+                    />
+                  ))}
+                </ul>
+              )}
+            </section>
           )}
 
           {smartError && (
             <p role="status" className="text-xs text-rose-dust">
               {smartError}
             </p>
+          )}
+
+          {lockedPremiumView && (
+            <section
+              role="dialog"
+              aria-modal="true"
+              aria-label="Premium collection"
+              className="fixed inset-0 z-40 flex items-end justify-center bg-black/25 px-4 py-6 sm:items-center"
+            >
+              <div className="w-full max-w-md rounded-card border border-line bg-surface p-4 shadow-[0_10px_32px_-24px_rgba(49,40,61,0.4)] sm:p-5">
+                <p className="text-[0.68rem] font-semibold tracking-[0.12em] text-lavender-700 uppercase">
+                  Premium collection
+                </p>
+                <h3 className="mt-1 font-display text-2xl leading-tight text-ink">{lockedPremiumView.label}</h3>
+                <p className="mt-2 text-sm leading-6 text-ink-muted">
+                  Fiyu Premium turns your saved restaurants into more personalized collections and plans.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setLockedPremiumView(null)}
+                  className="mt-4 inline-flex min-h-11 items-center rounded-lg border border-line px-4 text-sm font-medium text-plum transition-colors hover:border-lavender-600 hover:bg-lavender-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600"
+                >
+                  Close
+                </button>
+              </div>
+            </section>
           )}
         </section>
       ) : (

@@ -155,7 +155,7 @@ describe("lists page", () => {
   it("renders Smart heading immediately when tab=smart is requested", async () => {
     render(<ListsPage searchParams={{ tab: "smart" }} />);
 
-    expect(await screen.findByRole("heading", { name: "Smart views" })).toBeTruthy();
+    expect((await screen.findAllByRole("heading", { name: "Smart views" })).length).toBeGreaterThan(0);
     expect(
       screen.getByText("Your saved places, reorganized for different ways of exploring Tokyo."),
     ).toBeTruthy();
@@ -286,7 +286,7 @@ describe("lists page", () => {
 
     fireEvent.click(screen.getAllByRole("tab", { name: "Smart" })[0]);
 
-    expect(await screen.findByRole("heading", { name: "Smart views" })).toBeTruthy();
+    expect((await screen.findAllByRole("heading", { name: "Smart views" })).length).toBeGreaterThan(0);
     expect(
       screen.getByText("Your saved places, reorganized for different ways of exploring Tokyo."),
     ).toBeTruthy();
@@ -302,5 +302,141 @@ describe("lists page", () => {
     );
     expect(screen.getAllByText("2 places →").length).toBeGreaterThan(0);
     expect(screen.getByText("1 place →")).toBeTruthy();
+  });
+
+  it("keeps free Smart Views visible and renders Premium locked cards in a separate section", async () => {
+    smartApi.fetchDefaultListSmartViews.mockResolvedValueOnce({
+      city_id: "tokyo",
+      generated_at: "now",
+      views: [
+        { key: "recently_saved", label: "Recently saved", description: "desc", item_count: 2, tier: "free" },
+        { key: "fiyu_9_plus", label: "Fiyu 9+", description: "desc", item_count: 1, tier: "free" },
+        { key: "not_visited", label: "Not visited", description: "desc", item_count: 2, tier: "free" },
+        { key: "by_neighborhood", label: "By neighborhood", description: "desc", item_count: 2, tier: "free" },
+        { key: "nearby", label: "Nearby", description: "desc", item_count: 2, tier: "free" },
+        {
+          key: "ramen_in_shibuya",
+          title: "Ramen in Shibuya",
+          description: "Saved ramen spots in Shibuya.",
+          tier: "premium",
+          locked: true,
+          available: true,
+          item_count: null,
+          required_capability: "premium_smart_views",
+        },
+        {
+          key: "out_of_the_way_gems",
+          title: "Out-of-the-way gems",
+          description: "Saved restaurants farther from central Shibuya.",
+          tier: "premium",
+          locked: true,
+          available: true,
+          item_count: null,
+          required_capability: "premium_smart_views",
+        },
+        {
+          key: "worth_the_detour",
+          title: "Worth the detour",
+          description: "Saved restaurants with standout Fiyu scores.",
+          tier: "premium",
+          locked: true,
+          available: true,
+          item_count: null,
+          required_capability: "premium_smart_views",
+        },
+      ],
+    });
+
+    render(<ListsPage searchParams={{ tab: "smart" }} />);
+
+    expect((await screen.findAllByRole("heading", { name: "Smart views" })).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Recently saved").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Nearby").length).toBeGreaterThan(0);
+    expect(screen.getByText("Made for you")).toBeTruthy();
+    expect(screen.getByText("Ramen in Shibuya")).toBeTruthy();
+    expect(screen.getByText("Out-of-the-way gems")).toBeTruthy();
+    expect(screen.getByText("Worth the detour")).toBeTruthy();
+    expect(screen.getAllByText(/\d+ places? →/).length).toBeGreaterThan(0);
+    expect(screen.queryByText("No places yet")).toBeNull();
+
+    const lockedAction = screen.getAllByRole("button", { name: "Explore with Premium →" })[0];
+    fireEvent.click(lockedAction);
+    expect(screen.getByRole("dialog", { name: "Premium collection" })).toBeTruthy();
+    expect(screen.getByText(/Fiyu Premium turns your saved restaurants/i)).toBeTruthy();
+    expect(smartApi.fetchDefaultListSmartView).not.toHaveBeenCalled();
+  });
+
+  it("shows unlocked Premium counts and detail links for premium-capable users", async () => {
+    smartApi.fetchDefaultListSmartViews.mockResolvedValueOnce({
+      city_id: "tokyo",
+      generated_at: "now",
+      views: [
+        { key: "recently_saved", label: "Recently saved", description: "desc", item_count: 2, tier: "free" },
+        {
+          key: "ramen_in_shibuya",
+          title: "Ramen in Shibuya",
+          description: "Saved ramen spots in Shibuya.",
+          tier: "premium",
+          locked: false,
+          available: true,
+          item_count: 4,
+        },
+        {
+          key: "out_of_the_way_gems",
+          title: "Out-of-the-way gems",
+          description: "Saved restaurants farther from central Shibuya.",
+          tier: "premium",
+          locked: false,
+          available: true,
+          item_count: 1,
+        },
+        {
+          key: "worth_the_detour",
+          title: "Worth the detour",
+          description: "Saved restaurants with standout Fiyu scores.",
+          tier: "premium",
+          locked: false,
+          available: true,
+          item_count: 0,
+        },
+      ],
+    });
+
+    render(<ListsPage searchParams={{ tab: "smart" }} />);
+
+    expect(await screen.findByText("4 places →")).toBeTruthy();
+    expect(screen.getAllByText("1 place →").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("No places yet").length).toBeGreaterThan(0);
+    expect(screen.getByRole("link", { name: /Ramen in Shibuya/i }).getAttribute("href")).toBe(
+      "/lists/smart/ramen_in_shibuya",
+    );
+  });
+
+  it("shows missing-area state distinctly from locked or empty", async () => {
+    smartApi.fetchDefaultListSmartViews.mockResolvedValueOnce({
+      city_id: "tokyo",
+      generated_at: "now",
+      views: [
+        { key: "recently_saved", label: "Recently saved", description: "desc", item_count: 2, tier: "free" },
+        {
+          key: "ramen_in_shibuya",
+          title: "Ramen in Shibuya",
+          description: "Saved ramen spots in Shibuya.",
+          tier: "premium",
+          locked: false,
+          available: false,
+          item_count: null,
+          unavailable_reason: "Set a discovery origin to use this collection.",
+        },
+      ],
+    });
+
+    render(<ListsPage searchParams={{ tab: "smart" }} />);
+
+    expect(await screen.findByText("Set a discovery origin to use this collection.")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Set discovery origin →" }).getAttribute("href")).toBe(
+      "/picks",
+    );
+    expect(screen.queryByText("Explore with Premium →")).toBeNull();
   });
 });
