@@ -34,11 +34,26 @@ export const paths = {
     `/public/restaurants/${encodeURIComponent(placeId)}/photo-preview`,
   photos: (placeId: string) => `/public/restaurants/${encodeURIComponent(placeId)}/photos`,
   locationAnchors: "/public/location-anchors",
+  dailyPicksAssign: "/daily-picks/assign",
+  log: "/log",
+  logVisit: (visitId: string) => `/log/${encodeURIComponent(visitId)}`,
   defaultList: "/lists/default",
   defaultListItems: "/lists/default/items",
   defaultListMembership: "/lists/default/membership",
   defaultListSmartViews: "/lists/default/smart-views",
 } as const;
+
+export function dailyPicksAssignUrl(): string {
+  return `${getApiBaseUrl()}${paths.dailyPicksAssign}`;
+}
+
+export function logUrl(): string {
+  return `${getApiBaseUrl()}${paths.log}`;
+}
+
+export function logVisitUrl(visitId: string): string {
+  return `${getApiBaseUrl()}${paths.logVisit(visitId)}`;
+}
 
 export function restaurantsUrl(limit: number = LIST_LIMIT_DEFAULT): string {
   const url = new URL(paths.restaurants, `${getApiBaseUrl()}/`);

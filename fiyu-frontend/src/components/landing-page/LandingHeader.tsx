@@ -7,9 +7,9 @@ import { LANDING_MEASURE } from "@/components/landing-page/landingSystem";
 import { cn } from "@/lib/utils/cn";
 
 const navigation = [
-  { href: "#explore", label: "Explore" },
-  { href: "#how-it-works", label: "How it works" },
-  { href: "#why-few", label: "Why only a few?" },
+  { href: "/about", label: "About" },
+  { href: "/contact", label: "Contact" },
+  { href: "/signin", label: "Sign in" },
 ] as const;
 
 /**
@@ -66,29 +66,23 @@ export function LandingHeader() {
 
         <nav aria-label="Landing page" className="ml-auto hidden items-center gap-8 md:flex">
           {navigation.map((item) => (
-            <a
+            <Link
               key={item.href}
               className="text-[0.9375rem] text-ink-muted underline decoration-transparent decoration-1 underline-offset-[6px] transition-colors duration-200 ease-(--ease-fiyu) hover:text-ink hover:decoration-rose-dust"
               href={item.href}
             >
               {item.label}
-            </a>
+            </Link>
           ))}
           <span aria-hidden="true" className="ml-1 h-4 w-px bg-line-strong" />
           <Link
-            href="/picks"
+            href="/signup"
             className="inline-flex min-h-11 items-center rounded-chip bg-plum px-6 text-sm font-medium text-white transition-colors duration-200 ease-(--ease-fiyu) hover:bg-lavender-700"
           >
-            Explore Tokyo
+            Sign up
           </Link>
         </nav>
 
-        <Link
-          href="/picks"
-          className="ml-auto hidden min-h-10 items-center rounded-chip bg-plum px-4 text-sm font-medium text-white transition-colors duration-200 ease-(--ease-fiyu) hover:bg-lavender-700 min-[390px]:inline-flex md:hidden"
-        >
-          Explore Tokyo
-        </Link>
         <button
           ref={menuButtonRef}
           type="button"
@@ -129,7 +123,7 @@ export function LandingHeader() {
       >
         <div className="flex flex-col">
           {navigation.map((item, index) => (
-            <a
+            <Link
               key={item.href}
               ref={index === 0 ? firstMenuLinkRef : undefined}
               href={item.href}
@@ -137,14 +131,14 @@ export function LandingHeader() {
               className="flex min-h-12 items-center border-b border-line text-base text-ink last:border-b-0"
             >
               {item.label}
-            </a>
+            </Link>
           ))}
           <Link
-            href="/picks"
+            href="/signup"
             onClick={closeMenu}
-            className="mt-5 inline-flex min-h-12 items-center justify-center rounded-chip bg-plum px-6 text-sm font-medium text-white min-[390px]:hidden"
+            className="mt-5 inline-flex min-h-12 items-center justify-center rounded-chip bg-plum px-6 text-sm font-medium text-white"
           >
-            Explore Tokyo
+            Sign up
           </Link>
         </div>
       </nav>

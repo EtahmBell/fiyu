@@ -32,11 +32,17 @@ export function LandingFooter() {
             aria-label="Landing footer"
             className="flex flex-col gap-4 text-sm sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-8"
           >
-            <Link className={footerLink} href="/picks">
-              Explore Tokyo
+            <Link className={footerLink} href="/about">
+              About
             </Link>
-            <Link className={footerLink} href="/profile#privacy">
+            <Link className={footerLink} href="/contact">
+              Contact
+            </Link>
+            <Link className={footerLink} href="/privacy">
               Privacy
+            </Link>
+            <Link className={footerLink} href="/terms">
+              Terms
             </Link>
           </nav>
         </div>

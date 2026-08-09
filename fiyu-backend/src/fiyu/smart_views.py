@@ -1,13 +1,15 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Iterable, Literal
+from typing import Literal
 
 from .database import connect
 from .entitlements import CAPABILITY_PREMIUM_SMART_VIEWS, Capability
 from .restaurant_lists import get_or_create_default_list
+from .restaurant_visits import visited_place_ids
 from .utils import haversine_km
 
 SmartViewKey = Literal[
@@ -213,7 +215,7 @@ def _smart_item(row: dict[str, object], *, distance_km: float | None = None) -> 
     item: dict[str, object] = {
         "place_id": str(row["place_id"]),
         "added_at": str(row["added_at"]),
-        "is_visited": False,
+        "is_visited": bool(row.get("is_visited", False)),
         "restaurant": {
             "place_id": str(row["place_id"]),
             "name_ja": row.get("name_ja"),
@@ -239,6 +241,9 @@ def list_smart_view_entries(
     origin_longitude: float | None = None,
 ) -> dict[str, object]:
     rows = _fetch_saved_rows(db_path, owner_id=owner_id, city_id=city_id)
+    visited = visited_place_ids(db_path, owner_id=owner_id)
+    for row in rows:
+        row["is_visited"] = str(row["place_id"]) in visited
 
     definition = SMART_VIEW_DEFINITIONS[view_key]
     if definition.requires_origin and (origin_latitude is None or origin_longitude is None):
@@ -252,9 +257,10 @@ def list_smart_view_entries(
         return {"items": [_smart_item(row) for row in filtered], "groups": []}
 
     if view_key == "not_visited":
-        # Visit state is not persisted server-side yet, so every saved item
-        # currently qualifies as not visited.
-        return {"items": [_smart_item(row) for row in rows], "groups": []}
+        return {
+            "items": [_smart_item(row) for row in rows if not bool(row["is_visited"])],
+            "groups": [],
+        }
 
     if view_key == "by_neighborhood":
         grouped: dict[str, list[dict[str, object]]] = {}
@@ -338,6 +344,7 @@ def list_smart_view_counts(
     city_id: str,
 ) -> dict[SmartViewKey, int]:
     rows = _fetch_saved_rows(db_path, owner_id=owner_id, city_id=city_id)
+    visited = visited_place_ids(db_path, owner_id=owner_id)
     nine_plus = [row for row in rows if (_as_float(row.get("fiyu_score")) or 0.0) >= 90.0]
     by_neighborhood_count = len(
         {
@@ -363,7 +370,7 @@ def list_smart_view_counts(
     return {
         "recently_saved": len(rows),
         "fiyu_9_plus": len(nine_plus),
-        "not_visited": len(rows),
+        "not_visited": sum(str(row["place_id"]) not in visited for row in rows),
         "by_neighborhood": by_neighborhood_count,
         "nearby": len(rows),
         "ramen_in_shibuya": len(ramen_in_shibuya),

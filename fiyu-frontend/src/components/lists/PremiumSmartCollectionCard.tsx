@@ -104,11 +104,11 @@ export function PremiumSmartCollectionCard({
   view: SmartViewCatalogEntry;
   onLockedOpen(view: SmartViewCatalogEntry): void;
 }) {
-  const label = smartViewDisplayLabel(view.key, view.label);
+  const label = smartViewDisplayLabel(view.key, view.title ?? view.label);
   const unavailableForArea = isUnavailableForMissingArea(view);
   const countLabel = smartViewCountLabelMaybe(view.item_count);
 
-  if (unavailableForArea) {
+  if (view.available === false) {
     return (
       <li>
         <article className="relative min-h-[10.5rem] overflow-hidden rounded-card border border-lavender-200/85 bg-surface px-4 py-4">
@@ -120,14 +120,16 @@ export function PremiumSmartCollectionCard({
             </p>
             <h3 className="mt-3 font-display text-2xl leading-tight text-ink">{label}</h3>
             <p className="mt-2 text-sm leading-6 text-ink-muted">
-              Set a discovery origin to use this collection.
+              {view.unavailable_reason ?? "This collection is currently unavailable."}
             </p>
-            <Link
-              href="/picks"
-              className="mt-auto pt-4 text-sm font-semibold text-plum underline decoration-transparent underline-offset-4 transition-colors hover:decoration-lavender-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600"
-            >
-              Set discovery origin →
-            </Link>
+            {unavailableForArea && (
+              <Link
+                href="/picks"
+                className="mt-auto pt-4 text-sm font-semibold text-plum underline decoration-transparent underline-offset-4 transition-colors hover:decoration-lavender-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600"
+              >
+                Set discovery origin →
+              </Link>
+            )}
           </div>
         </article>
       </li>

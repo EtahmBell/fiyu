@@ -2,7 +2,11 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { DAILY_PICKS_DURATION_MS, DAILY_PICKS_STORAGE_KEY } from "@/lib/daily-picks/storage";
+import {
+  DAILY_PICKS_DURATION_MS,
+  DAILY_PICKS_STORAGE_KEY,
+  parseDailyPicksState,
+} from "@/lib/daily-picks/storage";
 import { publicRestaurantSchema, type PublicRestaurant } from "@/lib/api/schemas";
 
 function restaurant(placeId: string): PublicRestaurant {
@@ -97,6 +101,50 @@ afterEach(() => {
 });
 
 describe("/picks revealed-card save bookmark", () => {
+  it("requests an owner-scoped backend assignment and mirrors all assigned IDs as served", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.includes("/daily-picks/assign")) {
+        return json(200, {
+          round_id: "round-one",
+          city_id: "tokyo",
+          place_ids: ["one", "two", "three"],
+          assigned_at: new Date().toISOString(),
+        });
+      }
+      if (url.includes("/lists/default")) return json(200, listBody([]));
+      throw new Error(`Unexpected request: ${url}`);
+    });
+    const DailyPicksPanel = await loadDailyPicksPanel();
+    const restaurants = ["one", "two", "three", "four", "five", "six"].map(restaurant);
+
+    render(<DailyPicksPanel restaurants={restaurants} />);
+    fireEvent.click(screen.getByRole("button", { name: /Find today's restaurants/i }));
+
+    expect(screen.getAllByTestId("daily-picks-loader-dot")).toHaveLength(3);
+    expect(screen.queryByTestId("city-loading-sequence")).toBeNull();
+    await waitFor(() => {
+      expect(screen.getAllByTestId("concealed-restaurant-card")).toHaveLength(3);
+    });
+
+    const assignmentCall = fetchMock.mock.calls.find(([input]) =>
+      String(input).includes("/daily-picks/assign"),
+    );
+    expect(assignmentCall).toBeTruthy();
+    const [, init] = assignmentCall as [RequestInfo | URL, RequestInit | undefined];
+    const body = JSON.parse(String(init?.body)) as {
+      candidate_place_ids: string[];
+      legacy_served_place_ids: string[];
+    };
+    expect(body.candidate_place_ids).toEqual(["one", "two", "three", "four", "five", "six"]);
+    expect(body.legacy_served_place_ids).toEqual([]);
+    expect(new Headers(init?.headers).get("X-Fiyu-Client-Id")).toBeTruthy();
+    expect(
+      parseDailyPicksState(window.localStorage.getItem(DAILY_PICKS_STORAGE_KEY))
+        .servedRestaurantIds,
+    ).toEqual(["one", "two", "three"]);
+  });
+
   it("uses the shared save mutation with tokyo city and owner header, then toggles remove", async () => {
     seedRevealedPicks();
     const fetchMock = vi.spyOn(globalThis, "fetch");

@@ -14,7 +14,12 @@ import {
 } from "@/lib/daily-picks/storage";
 
 const router = vi.hoisted(() => ({ push: vi.fn() }));
+const dailyApi = vi.hoisted(() => ({ assignDailyPicks: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => router }));
+vi.mock("@/lib/api/client", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/api/client")>();
+  return { ...actual, assignDailyPicks: dailyApi.assignDailyPicks };
+});
 
 const catalog = [
   ["one", "Sushi", 35.66, 139.70],
@@ -45,6 +50,13 @@ beforeEach(() => {
   window.localStorage.clear();
   window.sessionStorage.clear();
   router.push.mockReset();
+  dailyApi.assignDailyPicks.mockReset();
+  dailyApi.assignDailyPicks.mockResolvedValue({
+    round_id: "round-one",
+    city_id: "tokyo",
+    place_ids: ["one", "two", "three"],
+    assigned_at: new Date().toISOString(),
+  });
   Object.defineProperty(window, "matchMedia", {
     configurable: true,
     value: () => ({
@@ -111,7 +123,7 @@ describe("daily-only discovery shell", () => {
     expect(document.querySelector('[data-city-picks-watermark="tokyo"]')).toBeNull();
   });
 
-  it("does not expose the full catalog below the daily feed or through map pins", () => {
+  it("does not expose concealed assignments through map pins", async () => {
     vi.useFakeTimers();
     const { container } = render(<DiscoveryShell restaurants={catalog} areaAnchors={[]} />);
 
@@ -128,7 +140,11 @@ describe("daily-only discovery shell", () => {
     fireEvent.click(screen.getByRole("button", { name: "Continue without location" }));
     fireEvent.click(screen.getByRole("button", { name: /Find today's restaurants/i }));
     expect(screen.getByText("Finding today’s restaurants…")).toBeTruthy();
-    act(() => vi.advanceTimersByTime(3_000));
+    await act(async () => {
+      vi.advanceTimersByTime(490);
+      await Promise.resolve();
+    });
+    act(() => vi.advanceTimersByTime(160));
     fireEvent.click(screen.getByRole("button", { name: "Tap to reveal restaurant 1" }));
 
     const state = parseDailyPicksState(window.localStorage.getItem(DAILY_PICKS_STORAGE_KEY));
@@ -136,10 +152,12 @@ describe("daily-only discovery shell", () => {
     const revealed = catalog.find((restaurant) => restaurant.place_id === revealedId);
     expect(revealed?.name_en).toBeTruthy();
     expect(screen.getAllByText(revealed?.name_en ?? "")).toHaveLength(1);
-    expect(container.querySelectorAll("[data-place-id]")).toHaveLength(3);
+    expect(container.querySelectorAll("[data-place-id]")).toHaveLength(1);
+    expect(container.querySelector('[data-place-id="two"]')).toBeNull();
+    expect(container.querySelector('[data-place-id="three"]')).toBeNull();
   });
 
-  it("synchronizes five pins with current and recent cards by place_id", () => {
+  it("restores revealed pins and adds concealed current picks independently", () => {
     const now = Date.now();
     window.localStorage.setItem(
       DAILY_PICKS_STORAGE_KEY,
@@ -160,7 +178,7 @@ describe("daily-only discovery shell", () => {
     );
 
     const { container } = render(<DiscoveryShell restaurants={catalog} areaAnchors={[]} />);
-    expect(container.querySelectorAll("[data-place-id]")).toHaveLength(5);
+    expect(container.querySelectorAll("[data-place-id]")).toHaveLength(3);
     expect(screen.getAllByRole("heading", { level: 1, name: "Picks" })).toHaveLength(1);
     expect(screen.getByRole("heading", { level: 2, name: "Today’s Fiyu Picks" })).toBeTruthy();
     const dailyPanel = document.querySelector('[aria-labelledby="daily-picks-heading"]');
@@ -183,7 +201,12 @@ describe("daily-only discovery shell", () => {
     fireEvent.keyDown(window, { key: "Escape" });
     expect(panel.dataset.expanded).toBe("false");
 
+    expect(container.querySelector('[data-place-id="two"]')).toBeNull();
+    expect(container.querySelector('[data-place-id="three"]')).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Tap to reveal restaurant 2" }));
     const concealedPin = container.querySelector('[data-place-id="two"]') as HTMLElement;
+    expect(concealedPin).toBeTruthy();
+    expect(container.querySelector('[data-place-id="three"]')).toBeNull();
     fireEvent.click(concealedPin);
     const concealedCard = container.querySelector(
       '[data-daily-card-place-id="two"]',
@@ -196,7 +219,7 @@ describe("daily-only discovery shell", () => {
       behavior: "smooth",
       block: "center",
     });
-    expect(screen.queryByText("Restaurant two")).toBeNull();
+    expect(screen.getByText("Restaurant two")).toBeTruthy();
     expect(concealedPin.getAttribute("aria-pressed")).toBe("true");
 
     const recentPin = container.querySelector('[data-place-id="four"]') as HTMLElement;

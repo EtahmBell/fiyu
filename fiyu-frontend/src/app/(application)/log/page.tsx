@@ -1,25 +1,25 @@
 import type { Metadata } from "next";
 
-import { CityEmptyState } from "@/components/city-signature/CitySignature";
 import { DestinationPage } from "@/components/destinations/DestinationPage";
-import { ACTIVE_FIYU_CITY } from "@/lib/city/editions";
+import { LogWorkspace } from "@/components/log/LogWorkspace";
 
 export const metadata: Metadata = {
-  title: "Log a Visit",
+  title: "Log a visit",
 };
 
+/**
+ * The Tokyo edition eyebrow, masthead type and header spacing come from
+ * DestinationPage, shared with Picks and Lists, so Log only supplies its title
+ * and one supporting line.
+ */
 export default function LogPage() {
   return (
     <DestinationPage
-      title="Log a Visit"
-      description="A personal restaurant log is planned here. This first shell does not publish reviews or share activity."
+      title="Log a visit"
+      description="A private record of every restaurant you’ve visited."
+      hideHeaderOnMobile
     >
-      <CityEmptyState
-        cityId={ACTIVE_FIYU_CITY.id}
-        kind="visits"
-        title="No visits logged"
-        description="Visit logging is not available yet. Future entries will begin as private records."
-      />
+      <LogWorkspace mobileMode="form" />
     </DestinationPage>
   );
 }

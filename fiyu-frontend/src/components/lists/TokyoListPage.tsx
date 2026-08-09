@@ -404,7 +404,9 @@ export function TokyoListPage({ initialTab = "saved" }: { initialTab?: "saved" |
                 <p className="text-[0.68rem] font-semibold tracking-[0.12em] text-lavender-700 uppercase">
                   Premium collection
                 </p>
-                <h3 className="mt-1 font-display text-2xl leading-tight text-ink">{lockedPremiumView.label}</h3>
+                <h3 className="mt-1 font-display text-2xl leading-tight text-ink">
+                  {lockedPremiumView.title ?? lockedPremiumView.label}
+                </h3>
                 <p className="mt-2 text-sm leading-6 text-ink-muted">
                   Fiyu Premium turns your saved restaurants into more personalized collections and plans.
                 </p>

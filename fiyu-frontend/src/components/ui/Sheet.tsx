@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { useEffect, useRef } from "react";
 
+import { useIsDesktop } from "@/lib/hooks/useMediaQuery";
 import { cn } from "@/lib/utils/cn";
 
 export interface SheetProps {
@@ -12,6 +13,8 @@ export interface SheetProps {
   title: string;
   children: ReactNode;
   className?: string;
+  /** Render the shared contents in normal page flow below the desktop breakpoint. */
+  inlineOnMobile?: boolean;
 }
 
 /**
@@ -22,7 +25,15 @@ export interface SheetProps {
  * background content, Escape handling and top-layer stacking without a focus
  * management library or a portal.
  */
-export function Sheet({ open, onClose, title, children, className }: SheetProps) {
+export function Sheet({
+  open,
+  onClose,
+  title,
+  children,
+  className,
+  inlineOnMobile = false,
+}: SheetProps) {
+  const isDesktop = useIsDesktop();
   const dialogRef = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
@@ -34,7 +45,11 @@ export function Sheet({ open, onClose, title, children, className }: SheetProps)
     } else if (!open && dialog.open) {
       dialog.close();
     }
-  }, [open]);
+  }, [open, inlineOnMobile, isDesktop]);
+
+  if (inlineOnMobile && !isDesktop) {
+    return <div className={cn("w-full", className)}>{children}</div>;
+  }
 
   return (
     <dialog

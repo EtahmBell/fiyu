@@ -7,11 +7,13 @@ import { FiyuApiError } from "@/lib/api/errors";
 
 const smartApi = vi.hoisted(() => ({
   fetchRestaurants: vi.fn(),
+  fetchDefaultListSmartViews: vi.fn(),
   fetchDefaultListSmartView: vi.fn(),
 }));
 
 vi.mock("@/lib/api/client", () => ({
   fetchRestaurants: smartApi.fetchRestaurants,
+  fetchDefaultListSmartViews: smartApi.fetchDefaultListSmartViews,
   fetchDefaultListSmartView: smartApi.fetchDefaultListSmartView,
 }));
 
@@ -28,8 +30,19 @@ afterEach(() => {
 
 beforeEach(() => {
   smartApi.fetchRestaurants.mockReset();
+  smartApi.fetchDefaultListSmartViews.mockReset();
   smartApi.fetchDefaultListSmartView.mockReset();
   smartApi.fetchRestaurants.mockResolvedValue({ restaurants: [], rejected: [] });
+  smartApi.fetchDefaultListSmartViews.mockResolvedValue({
+    city_id: "tokyo",
+    generated_at: "now",
+    views: [
+      { key: "recently_saved", label: "Recently saved", description: "Most recently saved restaurants first.", tier: "free", locked: false, available: true, item_count: 1 },
+      { key: "by_neighborhood", label: "By neighborhood", description: "Saved restaurants grouped by neighborhood.", tier: "free", locked: false, available: true, item_count: 2 },
+      { key: "ramen_in_shibuya", label: "Ramen in Shibuya", description: "Saved ramen spots in Shibuya.", tier: "premium", locked: false, available: true, item_count: 0 },
+      { key: "worth_the_detour", label: "Worth the detour", description: "Saved restaurants with standout Fiyu scores.", tier: "premium", locked: false, available: true, item_count: 1 },
+    ],
+  });
 });
 
 describe("SmartViewDetailPage", () => {
@@ -174,6 +187,33 @@ describe("SmartViewDetailPage", () => {
       "/lists?tab=smart",
     );
     expect(screen.getByRole("heading", { level: 2, name: "店一" })).toBeTruthy();
+    expect(smartApi.fetchDefaultListSmartView).toHaveBeenCalledOnce();
+  });
+
+  it("does not fetch Premium collection contents when the catalog marks it locked", async () => {
+    smartApi.fetchDefaultListSmartViews.mockResolvedValueOnce({
+      city_id: "tokyo",
+      generated_at: "now",
+      views: [
+        {
+          key: "worth_the_detour",
+          label: "Worth the detour",
+          description: "Saved restaurants with standout Fiyu scores.",
+          tier: "premium",
+          locked: true,
+          available: true,
+          item_count: null,
+          required_capability: "premium_smart_views",
+        },
+      ],
+    });
+
+    render(<SmartViewDetailPage viewKey="worth_the_detour" />);
+
+    expect(await screen.findByRole("heading", { name: "Premium collection" })).toBeTruthy();
+    expect(screen.getByText(/Fiyu Premium turns your saved restaurants/i)).toBeTruthy();
+    expect(smartApi.fetchDefaultListSmartView).not.toHaveBeenCalled();
+    expect(smartApi.fetchRestaurants).not.toHaveBeenCalled();
   });
 
   it("handles premium entitlement errors with a clean message", async () => {
@@ -192,19 +232,21 @@ describe("SmartViewDetailPage", () => {
   });
 
   it("shows unavailable collections distinctly from empty collections", async () => {
-    smartApi.fetchDefaultListSmartView.mockResolvedValueOnce({
+    smartApi.fetchDefaultListSmartViews.mockResolvedValueOnce({
       city_id: "tokyo",
-      view_key: "ramen_in_shibuya",
-      label: "Ramen in Shibuya",
-      description: "Saved ramen spots in Shibuya.",
-      tier: "premium",
-      locked: false,
-      available: false,
-      unavailable_reason: "Set a discovery origin to use this collection.",
-      item_count: null,
-      items: [],
-      groups: [],
       generated_at: "now",
+      views: [
+        {
+          key: "ramen_in_shibuya",
+          label: "Ramen in Shibuya",
+          description: "Saved ramen spots in Shibuya.",
+          tier: "premium",
+          locked: false,
+          available: false,
+          unavailable_reason: "Set a discovery origin to use this collection.",
+          item_count: null,
+        },
+      ],
     });
 
     render(<SmartViewDetailPage viewKey="ramen_in_shibuya" />);
@@ -214,5 +256,6 @@ describe("SmartViewDetailPage", () => {
       "/picks",
     );
     expect(screen.queryByRole("heading", { name: "No places yet" })).toBeNull();
+    expect(smartApi.fetchDefaultListSmartView).not.toHaveBeenCalled();
   });
 });

@@ -2,16 +2,23 @@ from __future__ import annotations
 
 import logging
 import os
+import re
+from datetime import UTC, datetime
 from math import cos, radians
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import UUID
 
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
+from .daily_picks import (
+    InsufficientUnseenPoolError,
+    assign_daily_picks,
+    seed_served_history,
+)
 from .database import connect, decode_restaurant_row
 from .entitlements import (
     CAPABILITY_CUSTOM_LISTS,
@@ -50,6 +57,13 @@ from .restaurant_lists import (
     remove_item,
     rename_list,
 )
+from .restaurant_visits import (
+    create_visit,
+    delete_visit,
+    get_visit,
+    list_visits,
+    update_visit,
+)
 from .smart_views import (
     SMART_VIEW_KEYS,
     SMART_VIEW_META,
@@ -58,6 +72,23 @@ from .smart_views import (
     list_smart_view_entries,
     smart_view_definition,
     utc_now_iso,
+)
+from .supabase_auth import (
+    SupabaseAuthError,
+    SupabaseConfigurationError,
+    authenticated_supabase_user,
+    sign_in_with_supabase,
+    sign_up_with_supabase,
+)
+from .user_accounts import (
+    create_contact_submission,
+    create_profile,
+    ensure_account_schema,
+    get_profile,
+    link_profile_auth_email,
+    resolve_auth_email,
+    update_profile,
+    username_available,
 )
 from .utils import haversine_km
 
@@ -176,6 +207,191 @@ class SavedRestaurantSummary(BaseModel):
     score_band: str | None = None
 
 
+class CreateVisitRequest(BaseModel):
+    place_id: str = Field(min_length=1, max_length=256)
+    visited_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    reaction: Literal["love_it", "like_it", "not_for_me"]
+    private_note: str | None = Field(default=None, max_length=2000)
+
+    @field_validator("visited_at")
+    @classmethod
+    def validate_visited_at(cls, value: datetime) -> datetime:
+        if value.tzinfo is None or value.utcoffset() is None:
+            raise ValueError("visited_at must include a timezone")
+        return value
+
+    @field_validator("place_id")
+    @classmethod
+    def normalize_place_id(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("place_id is required")
+        return value
+
+    @field_validator("private_note")
+    @classmethod
+    def normalize_private_note(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return value.strip() or None
+
+
+class UpdateVisitRequest(BaseModel):
+    visited_at: datetime | None = None
+    reaction: Literal["love_it", "like_it", "not_for_me"] | None = None
+    private_note: str | None = Field(default=None, max_length=2000)
+
+    @field_validator("visited_at")
+    @classmethod
+    def validate_visited_at(cls, value: datetime | None) -> datetime | None:
+        if value is not None and (value.tzinfo is None or value.utcoffset() is None):
+            raise ValueError("visited_at must include a timezone")
+        return value
+
+    @field_validator("private_note")
+    @classmethod
+    def normalize_private_note(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return value.strip() or None
+
+
+class RestaurantVisitResponse(BaseModel):
+    id: str
+    place_id: str
+    visited_at: str
+    reaction: Literal["love_it", "like_it", "not_for_me"] | None = None
+    private_note: str | None = None
+    created_at: str
+    updated_at: str
+    restaurant: SavedRestaurantSummary
+
+
+class DeleteVisitResponse(BaseModel):
+    deleted: bool
+
+
+USERNAME_PATTERN = re.compile(r"^[a-z0-9_]{3,30}$")
+EMAIL_PATTERN = re.compile(r"[^\s@]+@[^\s@]+\.[^\s@]+")
+
+
+def _normalized_username(value: str) -> str:
+    normalized = value.strip().lower().removeprefix("@")
+    if not USERNAME_PATTERN.fullmatch(normalized):
+        raise ValueError("username must use 3-30 letters, numbers, or underscores")
+    return normalized
+
+
+def _normalized_email(value: str) -> str:
+    normalized = value.strip().lower()
+    if not EMAIL_PATTERN.fullmatch(normalized):
+        raise ValueError("valid email is required")
+    return normalized
+
+
+class ContactRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+    email: str = Field(min_length=3, max_length=320)
+    message: str = Field(min_length=1, max_length=4000)
+
+    @field_validator("name", "message")
+    @classmethod
+    def normalize_required_text(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("field is required")
+        return value
+
+    @field_validator("email")
+    @classmethod
+    def normalize_email(cls, value: str) -> str:
+        return _normalized_email(value)
+
+
+class ContactResponse(BaseModel):
+    id: str
+    status: Literal["new"]
+    created_at: str
+
+
+class SignupRequest(BaseModel):
+    email: str = Field(min_length=3, max_length=320)
+    password: str = Field(min_length=1, max_length=256)
+    username: str
+
+    @field_validator("email")
+    @classmethod
+    def normalize_email(cls, value: str) -> str:
+        return _normalized_email(value)
+
+    @field_validator("username")
+    @classmethod
+    def normalize_username(cls, value: str) -> str:
+        return _normalized_username(value)
+
+
+class AuthSessionResponse(BaseModel):
+    access_token: str
+    refresh_token: str
+    expires_in: int | None = None
+    token_type: str | None = None
+
+
+class SignupResponse(BaseModel):
+    status: Literal["authenticated", "verification_required"]
+    user_id: str
+    email: str
+    username: str
+    session: AuthSessionResponse | None = None
+    email_verification_required: bool
+
+
+class SigninRequest(BaseModel):
+    identifier: str = Field(min_length=1, max_length=320)
+    password: str = Field(min_length=1, max_length=256)
+
+    @field_validator("identifier")
+    @classmethod
+    def normalize_identifier(cls, value: str) -> str:
+        normalized = value.strip()
+        if EMAIL_PATTERN.fullmatch(normalized.lower()):
+            return normalized.lower()
+        return _normalized_username(normalized)
+
+
+class SigninResponse(BaseModel):
+    user_id: str
+    session: AuthSessionResponse
+
+
+class UserProfileResponse(BaseModel):
+    user_id: str
+    username: str
+    display_name: str | None = None
+    bio: str | None = None
+    avatar_url: str | None = None
+    created_at: str
+    updated_at: str
+
+
+class UpdateUserProfileRequest(BaseModel):
+    username: str
+    display_name: str | None = Field(default=None, max_length=50)
+    bio: str | None = Field(default=None, max_length=160)
+
+    @field_validator("username")
+    @classmethod
+    def normalize_username(cls, value: str) -> str:
+        return _normalized_username(value)
+
+    @field_validator("display_name", "bio")
+    @classmethod
+    def normalize_optional_text(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return value.strip() or None
+
+
 class RestaurantListItemResponse(BaseModel):
     place_id: str
     added_at: str
@@ -240,6 +456,26 @@ class DefaultListMembershipResponse(BaseModel):
     city_id: str
     place_id: str
     is_saved: bool
+
+
+class DailyPickAssignmentRequest(BaseModel):
+    city_id: str = Field(min_length=1, max_length=64)
+    candidate_place_ids: list[str] = Field(min_length=3, max_length=200)
+    legacy_served_place_ids: list[str] = Field(default_factory=list, max_length=500)
+    categories: list[
+        Literal["sushi", "izakaya", "noodles", "yakiniku", "yakitori", "tempura"]
+    ] = Field(default_factory=list, max_length=3)
+    non_japanese: Literal["yes", "occasionally", "japanese-only"] = "occasionally"
+    active_area: str | None = Field(default=None, max_length=120)
+    seed: int
+    requested_count: Literal[3] = 3
+
+
+class DailyPickAssignmentResponse(BaseModel):
+    round_id: str
+    city_id: str
+    place_ids: list[str]
+    assigned_at: str
 
 
 class ListItemMutationResponse(BaseModel):
@@ -315,7 +551,10 @@ def _ensure_database() -> None:
 
 def _owner_id_from_header(
     x_fiyu_client_id: Annotated[str | None, Header(alias="X-Fiyu-Client-Id")] = None,
+    authorization: Annotated[str | None, Header()] = None,
 ) -> str:
+    if authorization:
+        return _authenticated_user_id(authorization)
     if x_fiyu_client_id is None:
         raise HTTPException(status_code=400, detail="Missing X-Fiyu-Client-Id header")
     value = x_fiyu_client_id.strip()
@@ -474,6 +713,27 @@ def _default_list_response(owner_id: str, city_id: str) -> RestaurantListRespons
     )
 
 
+def _visit_response_from_row(row: dict[str, object]) -> RestaurantVisitResponse:
+    return RestaurantVisitResponse(
+        id=str(row["id"]),
+        place_id=str(row["place_id"]),
+        visited_at=str(row["visited_at"]),
+        reaction=row.get("reaction"),
+        private_note=str(row["private_note"]) if row.get("private_note") is not None else None,
+        created_at=str(row["created_at"]),
+        updated_at=str(row["updated_at"]),
+        restaurant=SavedRestaurantSummary(
+            place_id=str(row["place_id"]),
+            name_ja=row.get("name_ja"),
+            name_en=row.get("name_en"),
+            primary_category=row.get("primary_category"),
+            neighborhood=row.get("neighborhood"),
+            fiyu_score=row.get("fiyu_score"),
+            score_band=row.get("score_band"),
+        ),
+    )
+
+
 def _list_response_from_row(row: dict[str, object]) -> RestaurantListResponse:
     items = list_items(DB_PATH, list_id=int(row["id"]))
     return RestaurantListResponse(
@@ -606,6 +866,345 @@ def public_restaurants(
 ) -> list[dict[str, object]]:
     _ensure_database()
     return list_published_restaurants(DB_PATH, limit=limit)
+
+
+@app.post("/daily-picks/assign", response_model=DailyPickAssignmentResponse)
+def create_daily_pick_assignment(
+    request: DailyPickAssignmentRequest,
+    owner_id: Annotated[str, Depends(_owner_id_from_header)],
+) -> DailyPickAssignmentResponse:
+    _ensure_database()
+    ensure_public_schema(DB_PATH)
+    city_id = _normalize_list_city(request.city_id)
+    seed_served_history(
+        DB_PATH,
+        owner_id=owner_id,
+        place_ids=request.legacy_served_place_ids,
+    )
+    try:
+        assignment = assign_daily_picks(
+            DB_PATH,
+            owner_id=owner_id,
+            city_id=city_id,
+            candidate_place_ids=request.candidate_place_ids,
+            categories=request.categories,
+            non_japanese=request.non_japanese,
+            active_area=request.active_area,
+            seed=request.seed,
+            requested_count=request.requested_count,
+        )
+    except InsufficientUnseenPoolError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "insufficient_unseen_pool",
+                "message": "Not enough unseen restaurants are available for a new daily selection.",
+                "available_count": exc.available_count,
+                "required_count": exc.required_count,
+            },
+        ) from None
+    return DailyPickAssignmentResponse(
+        round_id=assignment.round_id,
+        city_id=city_id,
+        place_ids=list(assignment.place_ids),
+        assigned_at=assignment.assigned_at,
+    )
+
+
+def _authenticated_user_id(
+    authorization: Annotated[str | None, Header()] = None,
+) -> str:
+    try:
+        return str(authenticated_supabase_user(authorization)["id"])
+    except SupabaseConfigurationError:
+        raise HTTPException(status_code=503, detail="Authentication is not configured") from None
+    except SupabaseAuthError:
+        raise HTTPException(status_code=401, detail="Invalid or expired session") from None
+
+
+def _profile_response(row: dict[str, object]) -> UserProfileResponse:
+    return UserProfileResponse(
+        user_id=str(row["user_id"]),
+        username=str(row["username"]),
+        display_name=str(row["display_name"]) if row.get("display_name") is not None else None,
+        bio=str(row["bio"]) if row.get("bio") is not None else None,
+        avatar_url=str(row["avatar_url"]) if row.get("avatar_url") is not None else None,
+        created_at=str(row["created_at"]),
+        updated_at=str(row["updated_at"]),
+    )
+
+
+def _auth_user(result: dict[str, object]) -> dict[str, object] | None:
+    nested = result.get("user")
+    if isinstance(nested, dict):
+        return nested
+    if "id" in result:
+        return result
+    return None
+
+
+def _auth_session(result: dict[str, object]) -> AuthSessionResponse | None:
+    nested = result.get("session")
+    if isinstance(nested, dict):
+        return AuthSessionResponse.model_validate(nested)
+    if "access_token" in result and "refresh_token" in result:
+        return AuthSessionResponse.model_validate(result)
+    return None
+
+
+def _provision_profile_after_signin(
+    *,
+    user: dict[str, object],
+    user_id: str,
+    auth_email: str,
+) -> None:
+    if get_profile(DB_PATH, user_id=user_id) is not None:
+        link_profile_auth_email(DB_PATH, user_id=user_id, auth_email=auth_email)
+        return
+    metadata = user.get("user_metadata")
+    raw_username = metadata.get("username") if isinstance(metadata, dict) else None
+    if not isinstance(raw_username, str):
+        return
+    try:
+        username = _normalized_username(raw_username)
+    except ValueError:
+        return
+    create_profile(
+        DB_PATH,
+        user_id=user_id,
+        username=username,
+        auth_email=auth_email,
+    )
+
+
+@app.post("/contact", response_model=ContactResponse, status_code=201)
+def submit_contact(payload: ContactRequest) -> ContactResponse:
+    _ensure_database()
+    row = create_contact_submission(
+        DB_PATH,
+        name=payload.name,
+        email=payload.email,
+        message=payload.message,
+    )
+    return ContactResponse(**row)
+
+
+@app.post("/auth/signup", response_model=SignupResponse, status_code=201)
+def signup(payload: SignupRequest) -> SignupResponse:
+    _ensure_database()
+    ensure_account_schema(DB_PATH)
+    if not username_available(DB_PATH, username=payload.username):
+        raise HTTPException(status_code=409, detail="Username is unavailable")
+    try:
+        result = sign_up_with_supabase(
+            email=payload.email,
+            password=payload.password,
+            username=payload.username,
+        )
+    except SupabaseConfigurationError:
+        raise HTTPException(status_code=503, detail="Authentication is not configured") from None
+    except SupabaseAuthError as exc:
+        message = str(exc).lower()
+        if "already" in message or "registered" in message:
+            raise HTTPException(status_code=409, detail="An account already exists for this email") from None
+        raise HTTPException(status_code=400, detail="Unable to create account") from None
+
+    user = _auth_user(result)
+    if user is None:
+        raise HTTPException(status_code=502, detail="Authentication provider returned an invalid response")
+    try:
+        user_id = str(UUID(str(user["id"])))
+    except (KeyError, ValueError):
+        raise HTTPException(status_code=502, detail="Authentication provider returned an invalid response") from None
+    email = str(user.get("email") or payload.email).strip().lower()
+    profile = create_profile(
+        DB_PATH,
+        user_id=user_id,
+        username=payload.username,
+        auth_email=email,
+    )
+    if profile is None:
+        raise HTTPException(status_code=409, detail="Username is unavailable")
+
+    session = _auth_session(result)
+    return SignupResponse(
+        status="verification_required" if session is None else "authenticated",
+        user_id=user_id,
+        email=email,
+        username=payload.username,
+        session=session,
+        email_verification_required=session is None,
+    )
+
+
+@app.post("/auth/signin", response_model=SigninResponse)
+def signin(payload: SigninRequest) -> SigninResponse:
+    _ensure_database()
+    ensure_account_schema(DB_PATH)
+    if EMAIL_PATTERN.fullmatch(payload.identifier):
+        auth_email = payload.identifier
+    else:
+        auth_email = resolve_auth_email(DB_PATH, username=payload.identifier)
+        if auth_email is None:
+            raise HTTPException(
+                status_code=401,
+                detail="Incorrect email/username or password.",
+            )
+    try:
+        result = sign_in_with_supabase(email=auth_email, password=payload.password)
+    except SupabaseConfigurationError:
+        raise HTTPException(status_code=503, detail="Authentication is not configured") from None
+    except SupabaseAuthError as exc:
+        message = str(exc).lower()
+        if "confirm" in message or "verif" in message:
+            raise HTTPException(
+                status_code=403,
+                detail="Please verify your email before signing in. Check your inbox for the verification link.",
+            ) from None
+        raise HTTPException(
+            status_code=401,
+            detail="Incorrect email/username or password.",
+        ) from None
+
+    user = _auth_user(result)
+    session = _auth_session(result)
+    if user is None or session is None:
+        raise HTTPException(status_code=401, detail="Incorrect email/username or password.")
+    try:
+        user_id = str(UUID(str(user["id"])))
+    except (KeyError, ValueError):
+        raise HTTPException(status_code=502, detail="Authentication provider returned an invalid response") from None
+    signed_in_email = str(user.get("email") or auth_email).strip().lower()
+    _provision_profile_after_signin(
+        user=user,
+        user_id=user_id,
+        auth_email=signed_in_email,
+    )
+    return SigninResponse(user_id=user_id, session=session)
+
+
+@app.get("/profiles/me", response_model=UserProfileResponse)
+def get_my_profile(
+    user_id: Annotated[str, Depends(_authenticated_user_id)],
+) -> UserProfileResponse:
+    _ensure_database()
+    row = get_profile(DB_PATH, user_id=user_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Profile not found")
+    return _profile_response(row)
+
+
+@app.patch("/profiles/me", response_model=UserProfileResponse)
+def update_my_profile(
+    payload: UpdateUserProfileRequest,
+    user_id: Annotated[str, Depends(_authenticated_user_id)],
+) -> UserProfileResponse:
+    _ensure_database()
+    if get_profile(DB_PATH, user_id=user_id) is None:
+        raise HTTPException(status_code=404, detail="Profile not found")
+    row = update_profile(
+        DB_PATH,
+        user_id=user_id,
+        username=payload.username,
+        display_name=payload.display_name,
+        bio=payload.bio,
+    )
+    if row is None:
+        raise HTTPException(status_code=409, detail="Username is unavailable")
+    return _profile_response(row)
+
+
+@app.get("/log", response_model=list[RestaurantVisitResponse])
+def get_restaurant_log(
+    owner_id: Annotated[str, Depends(_owner_id_from_header)],
+) -> list[RestaurantVisitResponse]:
+    _ensure_database()
+    ensure_public_schema(DB_PATH)
+    return [_visit_response_from_row(row) for row in list_visits(DB_PATH, owner_id=owner_id)]
+
+
+@app.post("/log", response_model=RestaurantVisitResponse, status_code=201)
+def create_restaurant_log_visit(
+    payload: CreateVisitRequest,
+    owner_id: Annotated[str, Depends(_owner_id_from_header)],
+) -> RestaurantVisitResponse:
+    _ensure_database()
+    ensure_public_schema(DB_PATH)
+    row = create_visit(
+        DB_PATH,
+        owner_id=owner_id,
+        place_id=payload.place_id,
+        visited_at=payload.visited_at.astimezone(UTC).isoformat(),
+        reaction=payload.reaction,
+        private_note=payload.private_note,
+    )
+    if row is None:
+        raise HTTPException(status_code=404, detail="Published restaurant not found")
+    return _visit_response_from_row(row)
+
+
+@app.get("/log/{visit_id}", response_model=RestaurantVisitResponse)
+def get_restaurant_log_visit(
+    visit_id: str,
+    owner_id: Annotated[str, Depends(_owner_id_from_header)],
+) -> RestaurantVisitResponse:
+    _ensure_database()
+    ensure_public_schema(DB_PATH)
+    row = get_visit(DB_PATH, owner_id=owner_id, visit_id=visit_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Visit not found")
+    return _visit_response_from_row(row)
+
+
+@app.patch("/log/{visit_id}", response_model=RestaurantVisitResponse)
+def update_restaurant_log_visit(
+    visit_id: str,
+    payload: UpdateVisitRequest,
+    owner_id: Annotated[str, Depends(_owner_id_from_header)],
+) -> RestaurantVisitResponse:
+    _ensure_database()
+    ensure_public_schema(DB_PATH)
+    update_visited_at = "visited_at" in payload.model_fields_set
+    if update_visited_at and payload.visited_at is None:
+        raise HTTPException(status_code=422, detail="visited_at cannot be null")
+    update_reaction = "reaction" in payload.model_fields_set
+    if update_reaction and payload.reaction is None:
+        raise HTTPException(status_code=422, detail="reaction cannot be null")
+    existing = get_visit(DB_PATH, owner_id=owner_id, visit_id=visit_id)
+    if existing is None:
+        raise HTTPException(status_code=404, detail="Visit not found")
+    if not update_reaction and existing.get("reaction") is None:
+        raise HTTPException(status_code=422, detail="reaction is required")
+    row = update_visit(
+        DB_PATH,
+        owner_id=owner_id,
+        visit_id=visit_id,
+        visited_at=(
+            payload.visited_at.astimezone(UTC).isoformat()
+            if payload.visited_at is not None
+            else None
+        ),
+        reaction=payload.reaction,
+        private_note=payload.private_note,
+        update_visited_at=update_visited_at,
+        update_reaction=update_reaction,
+        update_private_note="private_note" in payload.model_fields_set,
+    )
+    if row is None:
+        raise HTTPException(status_code=404, detail="Visit not found")
+    return _visit_response_from_row(row)
+
+
+@app.delete("/log/{visit_id}", response_model=DeleteVisitResponse)
+def delete_restaurant_log_visit(
+    visit_id: str,
+    owner_id: Annotated[str, Depends(_owner_id_from_header)],
+) -> DeleteVisitResponse:
+    _ensure_database()
+    ensure_public_schema(DB_PATH)
+    if not delete_visit(DB_PATH, owner_id=owner_id, visit_id=visit_id):
+        raise HTTPException(status_code=404, detail="Visit not found")
+    return DeleteVisitResponse(deleted=True)
 
 
 @app.get("/lists", response_model=RestaurantListCollectionResponse)

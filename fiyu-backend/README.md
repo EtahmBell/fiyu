@@ -40,6 +40,25 @@ The weights and thresholds are configurable in `scoring.example.json` or with CL
 
 ## Setup in VS Code
 
+### Account and Contact configuration
+
+The existing SQLite database stores Fiyu profile records and private Contact
+submissions. Supabase Auth provides email/password identity; Fiyu does not store
+passwords or mint its own auth tokens.
+
+Copy `.env.example` to `.env` and set `SUPABASE_URL` and
+`SUPABASE_ANON_KEY` to the same project configured by the web client. The API
+uses the public Auth endpoints to create accounts and validate bearer sessions;
+no service-role key is required. Tables are created additively in the configured
+`FIYU_DB_PATH` on first use. After pulling schema changes, run:
+
+```powershell
+python -m fiyu.cli demo
+```
+
+An Expo client can later authenticate with the same Supabase project and send
+its access token to this API, producing the same stable Supabase user UUID.
+
 ### Windows PowerShell
 
 ```powershell

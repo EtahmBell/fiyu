@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
 import { ConcealedRestaurantCard } from "@/components/daily-picks/ConcealedRestaurantCard";
-import { CityHeaderMark, CityLoadingSequence } from "@/components/city-signature/CitySignature";
+import { CityHeaderMark } from "@/components/city-signature/CitySignature";
 import {
   DailyCardFrame,
   type DailyCardRefRegistrar,
@@ -11,6 +11,8 @@ import {
 import { RecentDiscoveries } from "@/components/daily-picks/RecentDiscoveries";
 import { FreeOriginOnboarding } from "@/components/location/FreeOriginOnboarding";
 import { Button } from "@/components/ui/Button";
+import { assignDailyPicks } from "@/lib/api/client";
+import { FiyuApiError } from "@/lib/api/errors";
 import type { PublicRestaurant } from "@/lib/api/schemas";
 import { ACTIVE_FIYU_CITY } from "@/lib/city/editions";
 import {
@@ -38,6 +40,8 @@ import {
   type DailyPicksStorage,
 } from "@/lib/daily-picks/storage";
 import { useDefaultList } from "@/lib/lists/useDefaultList";
+import { getOrCreateAnonymousOwnerKey } from "@/lib/lists/identity";
+import { useMediaQuery } from "@/lib/hooks/useMediaQuery";
 
 export interface DailyPicksPanelProps {
   restaurants: PublicRestaurant[];
@@ -61,15 +65,36 @@ export interface DailyPicksPanelProps {
  * alongside each other -- the equivalent of awaiting both together. Nothing is
  * waiting on a network call that this could be shortening.
  *
- * Five illustrations at 600ms fill it exactly once, ending on the mochi.
+ * The request and this short presentation floor run concurrently.
  */
-const DISCOVERY_SEQUENCE_MS = 3_000;
+const DISCOVERY_MIN_VISIBLE_MS = 650;
 
 /** The tail of that window, during which the loading state fades out. */
-const DISCOVERY_SETTLE_MS = 220;
+const DISCOVERY_SETTLE_MS = 160;
 
 /** `settling` is the fade; picks mount when the phase returns to `idle`. */
 type DiscoveryPhase = "idle" | "finding" | "settling";
+
+function InkDotWave() {
+  const reducedMotion = useMediaQuery("(prefers-reduced-motion: reduce)");
+  return (
+    <span
+      aria-hidden="true"
+      data-testid="daily-picks-dot-loader"
+      data-motion={reducedMotion ? "static" : "wave"}
+      className="inline-flex h-5 items-end gap-2"
+    >
+      {[0, 1, 2].map((index) => (
+        <span
+          key={index}
+          data-testid="daily-picks-loader-dot"
+          className={reducedMotion ? "size-2 rounded-[54%_46%_52%_48%] bg-plum" : "fiyu-ink-dot size-2 bg-plum"}
+          style={reducedMotion ? undefined : { animationDelay: `${index * 140}ms` }}
+        />
+      ))}
+    </span>
+  );
+}
 
 const subscribeClock = (listener: () => void) => {
   const timer = window.setInterval(listener, 60_000);
@@ -286,6 +311,7 @@ export function DailyPicksPanel({
   const findingTimerRef = useRef<number | null>(null);
   const mapNoticeTimerRef = useRef<number | null>(null);
   const developmentGenerationRef = useRef(0);
+  const assignmentGenerationRef = useRef(0);
   const cardRefs = useRef(new Map<string, HTMLDivElement>());
 
   const state = snapshot ?? EMPTY_DAILY_PICKS_STATE;
@@ -312,10 +338,10 @@ export function DailyPicksPanel({
   const visibleRestaurantIds = useMemo(
     () =>
       [...new Set([
-        ...(currentSelection?.restaurantIds ?? []),
+        ...(currentSelection?.revealedIds ?? []),
         ...recent.map((discovery) => discovery.restaurantId),
       ])].sort(),
-    [currentSelection?.restaurantIds, recent],
+    [currentSelection?.revealedIds, recent],
   );
 
   const registerCardRef = useCallback<DailyCardRefRegistrar>((placeId, node) => {
@@ -338,6 +364,7 @@ export function DailyPicksPanel({
 
   useEffect(
     () => () => {
+      assignmentGenerationRef.current += 1;
       if (findingTimerRef.current !== null) window.clearTimeout(findingTimerRef.current);
       if (mapNoticeTimerRef.current !== null) window.clearTimeout(mapNoticeTimerRef.current);
     },
@@ -347,7 +374,7 @@ export function DailyPicksPanel({
   useEffect(
     () =>
       subscribeToNewlyRevealedMapPlaces((event) => {
-        setNewMapPlaceCount((current) => current + event.placeIds.length);
+        setNewMapPlaceCount(event.placeIds.length);
         if (mapNoticeTimerRef.current !== null) {
           window.clearTimeout(mapNoticeTimerRef.current);
         }
@@ -370,13 +397,83 @@ export function DailyPicksPanel({
     persist({ ...state, preferences });
   };
 
+  const finishDiscovery = (generation: number) => {
+    if (generation !== assignmentGenerationRef.current) return;
+    setPhase("settling");
+    findingTimerRef.current = window.setTimeout(() => {
+      if (generation !== assignmentGenerationRef.current) return;
+      setPhase("idle");
+      findingTimerRef.current = null;
+    }, DISCOVERY_SETTLE_MS);
+  };
+
   const generate = (developmentRefresh = false) => {
     const generatedAt = Date.now();
     const useDevelopmentRefresh = UNLIMITED_PICKS_DEV_MODE && developmentRefresh;
+    const generation = assignmentGenerationRef.current + 1;
+    assignmentGenerationRef.current = generation;
+    const legacyServedIds = [
+      ...new Set([
+        ...(state.servedRestaurantIds ?? []),
+        ...(state.selection?.restaurantIds ?? []),
+        ...state.discoveries.map((discovery) => discovery.restaurantId),
+      ]),
+    ];
+
+    setInventoryMessage(null);
+    setPhase("finding");
+
+    if (injectedStorage === undefined && !useDevelopmentRefresh) {
+      const assignment = assignDailyPicks(
+        {
+          city_id: ACTIVE_FIYU_CITY.id,
+          candidate_place_ids: restaurants.map((restaurant) => restaurant.place_id),
+          legacy_served_place_ids: legacyServedIds,
+          categories: state.preferences.categories,
+          non_japanese: state.preferences.nonJapanese,
+          active_area: activeArea,
+          seed: Math.floor(generatedAt / DAILY_PICKS_DURATION_MS),
+          requested_count: 3,
+        },
+        { clientId: getOrCreateAnonymousOwnerKey() },
+      );
+      const minimum = new Promise<void>((resolve) => {
+        findingTimerRef.current = window.setTimeout(
+          resolve,
+          DISCOVERY_MIN_VISIBLE_MS - DISCOVERY_SETTLE_MS,
+        );
+      });
+      void Promise.allSettled([assignment, minimum]).then(([result]) => {
+        if (generation !== assignmentGenerationRef.current) return;
+        if (result.status === "rejected") {
+          setInventoryMessage(
+            result.reason instanceof FiyuApiError && result.reason.status === 409
+              ? "You’ve discovered every currently available restaurant."
+              : "Could not find today’s restaurants. Try again in a moment.",
+          );
+          finishDiscovery(generation);
+          return;
+        }
+        const assignedAt = Date.parse(result.value.assigned_at);
+        persist({
+          ...state,
+          version: 3,
+          servedRestaurantIds: [...new Set([...legacyServedIds, ...result.value.place_ids])],
+          selection: createDailySelection(
+            result.value.place_ids,
+            Number.isFinite(assignedAt) ? assignedAt : generatedAt,
+          ),
+        });
+        finishDiscovery(generation);
+      });
+      return;
+    }
+
     const currentIds = new Set(currentSelection?.restaurantIds ?? []);
-    const freshRestaurants = useDevelopmentRefresh
-      ? restaurants.filter((restaurant) => !currentIds.has(restaurant.place_id))
-      : restaurants;
+    const servedIds = new Set(useDevelopmentRefresh ? currentIds : legacyServedIds);
+    const freshRestaurants = restaurants.filter(
+      (restaurant) => !servedIds.has(restaurant.place_id),
+    );
     const developmentSeed = generatedAt + developmentGenerationRef.current;
     if (useDevelopmentRefresh) developmentGenerationRef.current += 1;
     const options = {
@@ -386,31 +483,24 @@ export function DailyPicksPanel({
         : Math.floor(generatedAt / DAILY_PICKS_DURATION_MS),
     };
     let picks = selectDailyRestaurants(freshRestaurants, state.preferences, options);
-    if (useDevelopmentRefresh && picks.length !== 3 && freshRestaurants !== restaurants) {
+    if (useDevelopmentRefresh && picks.length !== 3) {
       picks = selectDailyRestaurants(restaurants, state.preferences, options);
     }
     if (picks.length !== 3) {
       setInventoryMessage("Not enough matching restaurants are available yet.");
+      setPhase("idle");
       return;
     }
-    setInventoryMessage(null);
-    setPhase("finding");
-    // Persisted first, before either timer: the selection is already made and
-    // saved while the sequence plays, so the wait is presentation only.
+    const pickIds = picks.map((restaurant) => restaurant.place_id);
     persist({
       ...state,
-      selection: createDailySelection(
-        picks.map((restaurant) => restaurant.place_id),
-        generatedAt,
-      ),
+      version: 3,
+      servedRestaurantIds: [...new Set([...legacyServedIds, ...pickIds])],
+      selection: createDailySelection(pickIds, generatedAt),
     });
     findingTimerRef.current = window.setTimeout(() => {
-      setPhase("settling");
-      findingTimerRef.current = window.setTimeout(() => {
-        setPhase("idle");
-        findingTimerRef.current = null;
-      }, DISCOVERY_SETTLE_MS);
-    }, DISCOVERY_SEQUENCE_MS - DISCOVERY_SETTLE_MS);
+      finishDiscovery(generation);
+    }, DISCOVERY_MIN_VISIBLE_MS - DISCOVERY_SETTLE_MS);
   };
 
   const reveal = (placeId: string, revealedAt: number) => {
@@ -468,8 +558,8 @@ export function DailyPicksPanel({
           className="fixed top-[calc(var(--spacing-header)+0.75rem)] right-4 z-50 max-w-[calc(100vw-2rem)] rounded-chip border border-lavender-100 bg-plum px-4 py-2.5 text-sm font-medium text-white"
         >
           {newMapPlaceCount === 1
-            ? "1 newly revealed place added to the map"
-            : `${newMapPlaceCount} newly revealed places added to the map`}
+            ? "1 new place added to your map"
+            : `${newMapPlaceCount} new places added to your map`}
         </p>
       )}
 
@@ -514,7 +604,7 @@ export function DailyPicksPanel({
                 : undefined
             }
           >
-            <CityLoadingSequence cityId={ACTIVE_FIYU_CITY.id} />
+            <InkDotWave />
             <p className="mt-2 text-sm font-medium text-ink-muted">
               {phase === "idle" ? "Loading today’s selection…" : "Finding today’s restaurants…"}
             </p>

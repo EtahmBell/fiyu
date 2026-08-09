@@ -8,13 +8,22 @@ import { RestaurantPhoto } from "@/components/restaurant/RestaurantPhoto";
 import { TagList } from "@/components/restaurant/TagList";
 import { ScoreMark } from "@/components/ui/ScoreMark";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { fetchDefaultListSmartView, fetchRestaurants } from "@/lib/api/client";
+import {
+  fetchDefaultListSmartView,
+  fetchDefaultListSmartViews,
+  fetchRestaurants,
+} from "@/lib/api/client";
 import { FiyuApiError } from "@/lib/api/errors";
-import type { SmartViewItem, SmartViewResponse } from "@/lib/api/schemas";
+import type {
+  SmartViewCatalogEntry,
+  SmartViewItem,
+  SmartViewResponse,
+} from "@/lib/api/schemas";
 import { getOrCreateAnonymousOwnerKey } from "@/lib/lists/identity";
 import { buildListTagLookup, resolveListTags, type ListTagLookup } from "@/components/lists/listTags";
 import {
   isKnownSmartViewKey,
+  isUnavailableForMissingArea,
   NEARBY_FALLBACK_ORIGIN,
   smartViewDisplayLabel,
   smartViewDescriptionForCard,
@@ -93,6 +102,7 @@ export function SmartViewDetailPage({ viewKey }: { viewKey: string }) {
   const invalidViewKey = !isKnownSmartViewKey(viewKey);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [catalogEntry, setCatalogEntry] = useState<SmartViewCatalogEntry | null>(null);
   const [view, setView] = useState<SmartViewResponse | null>(null);
   const [tagLookup, setTagLookup] = useState<ListTagLookup>(new Map());
 
@@ -107,6 +117,20 @@ export function SmartViewDetailPage({ viewKey }: { viewKey: string }) {
       setError(null);
       try {
         const identity = { clientId: getOrCreateAnonymousOwnerKey() };
+        const catalog = await fetchDefaultListSmartViews("tokyo", identity);
+        if (cancelled) return;
+        const entry = catalog.views.find((candidate) => candidate.key === viewKey) ?? null;
+        if (!entry) {
+          setCatalogEntry(null);
+          setView(null);
+          setError("Unknown Smart View");
+          return;
+        }
+        setCatalogEntry(entry);
+        if (entry.locked || entry.available === false) {
+          setView(null);
+          return;
+        }
         const payload = await fetchDefaultListSmartView("tokyo", viewKey, identity, {
           ...(viewKey === "nearby"
             ? {
@@ -137,6 +161,9 @@ export function SmartViewDetailPage({ viewKey }: { viewKey: string }) {
   }, [invalidViewKey, viewKey]);
 
   useEffect(() => {
+    const hasItems = Boolean(view && (view.items.length > 0 || view.groups.some((group) => group.items.length > 0)));
+    if (!hasItems) return;
+
     let cancelled = false;
     const loadTags = async () => {
       try {
@@ -152,21 +179,28 @@ export function SmartViewDetailPage({ viewKey }: { viewKey: string }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [view]);
 
   const resolvedError = invalidViewKey ? "Unknown Smart View" : error;
   const countLabel =
     view && view.item_count !== null && view.item_count > 0
       ? `${view.item_count} ${view.item_count === 1 ? "place" : "places"}`
       : null;
-  const title = view ? smartViewDisplayLabel(view.view_key, view.label) : fallbackTitle;
+  const titleSource = view ?? catalogEntry;
+  const title = titleSource
+    ? smartViewDisplayLabel(
+        "view_key" in titleSource ? titleSource.view_key : titleSource.key,
+        titleSource.title ?? titleSource.label,
+      )
+    : fallbackTitle;
   const description = view
     ? smartViewDescriptionForCard({
         key: view.view_key,
         description: view.description,
         item_count: view.item_count,
       })
-    : "Rediscover your saved places in different ways.";
+    : catalogEntry?.description ?? "Rediscover your saved places in different ways.";
+  const unavailableForArea = catalogEntry ? isUnavailableForMissingArea(catalogEntry) : false;
 
   return (
     <DestinationPage
@@ -210,6 +244,13 @@ export function SmartViewDetailPage({ viewKey }: { viewKey: string }) {
                 {resolvedError === "Could not load this Smart View" ? "Try again in a moment." : resolvedError}
               </p>
             </section>
+          ) : catalogEntry?.locked ? (
+            <section role="status" aria-live="polite" className="max-w-xl rounded-card border border-line bg-lavender-50/20 p-4 sm:p-5">
+              <h2 className="font-display text-2xl leading-tight text-ink">Premium collection</h2>
+              <p className="mt-2 text-sm leading-6 text-ink-muted">
+                Fiyu Premium turns your saved restaurants into more personalized collections and plans.
+              </p>
+            </section>
           ) : view?.groups.length ? (
             <section aria-label="Neighbourhood groups" className="space-y-5">
               {view.groups.map((group) => (
@@ -234,19 +275,21 @@ export function SmartViewDetailPage({ viewKey }: { viewKey: string }) {
             </section>
           ) : (
             <section aria-label="Smart View restaurants">
-              {view?.available === false ? (
+              {catalogEntry?.available === false ? (
                 <div className="max-w-xl rounded-card border border-line bg-lavender-50/20 p-4 sm:p-5">
                   <h2 className="font-display text-2xl leading-tight text-ink">This collection is unavailable</h2>
                   <p className="mt-2 text-sm leading-6 text-ink-muted">
-                    {view.unavailable_reason ?? "Set a discovery origin to use this collection."}
+                    {catalogEntry.unavailable_reason ?? "This collection is currently unavailable."}
                   </p>
-                  <Link
-                    href="/picks"
-                    className="mt-3 inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold text-plum underline decoration-transparent underline-offset-4 transition-colors hover:decoration-lavender-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600"
-                  >
-                    <span>Set discovery origin</span>
-                    <span aria-hidden="true">→</span>
-                  </Link>
+                  {unavailableForArea && (
+                    <Link
+                      href="/picks"
+                      className="mt-3 inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold text-plum underline decoration-transparent underline-offset-4 transition-colors hover:decoration-lavender-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600"
+                    >
+                      <span>Set discovery origin</span>
+                      <span aria-hidden="true">→</span>
+                    </Link>
+                  )}
                 </div>
               ) : view && view.items.length > 0 ? (
                 <ul className="space-y-3">

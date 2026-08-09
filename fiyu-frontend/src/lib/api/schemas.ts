@@ -272,6 +272,32 @@ export const defaultListMembershipResponseSchema = z.object({
   is_saved: z.boolean(),
 });
 
+export const dailyPickAssignmentResponseSchema = z.object({
+  round_id: z.string().min(1),
+  city_id: z.string().min(1),
+  place_ids: z.array(z.string().min(1)).length(3),
+  assigned_at: z.string().min(1),
+});
+
+export const visitReactionSchema = z.enum(["love_it", "like_it", "not_for_me"]);
+
+export const restaurantVisitSchema = z.object({
+  id: z.string().min(1),
+  place_id: z.string().min(1),
+  visited_at: z.string().min(1),
+  reaction: visitReactionSchema.nullable(),
+  private_note: nullableString,
+  created_at: z.string().min(1),
+  updated_at: z.string().min(1),
+  restaurant: savedRestaurantSummarySchema,
+});
+
+export const restaurantVisitListSchema = z.array(restaurantVisitSchema);
+
+export const deleteRestaurantVisitResponseSchema = z.object({
+  deleted: z.boolean(),
+});
+
 export const smartViewCatalogEntrySchema = z.object({
   key: z.string().min(1),
   label: z.string().min(1).optional(),
@@ -342,6 +368,10 @@ export type DefaultListItem = z.infer<typeof defaultListItemSchema>;
 export type DefaultListResponse = z.infer<typeof defaultListResponseSchema>;
 export type DefaultListMutationResponse = z.infer<typeof defaultListMutationResponseSchema>;
 export type DefaultListMembershipResponse = z.infer<typeof defaultListMembershipResponseSchema>;
+export type DailyPickAssignmentResponse = z.infer<typeof dailyPickAssignmentResponseSchema>;
+export type RestaurantVisit = z.infer<typeof restaurantVisitSchema>;
+export type VisitReaction = z.infer<typeof visitReactionSchema>;
+export type DeleteRestaurantVisitResponse = z.infer<typeof deleteRestaurantVisitResponseSchema>;
 export type SmartViewCatalogEntry = z.infer<typeof smartViewCatalogEntrySchema>;
 export type SmartViewCatalogResponse = z.infer<typeof smartViewCatalogResponseSchema>;
 export type SmartViewItem = z.infer<typeof smartViewItemSchema>;

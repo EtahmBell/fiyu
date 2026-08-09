@@ -18,19 +18,22 @@ export interface DailyRestaurantSelection {
 }
 
 export interface DailyPicksState {
-  version: 2;
+  version: 2 | 3;
   preferences: DailyPreferences;
   selection: DailyRestaurantSelection | null;
   discoveries: RevealedDiscovery[];
   savedRestaurantIds: string[];
+  /** Local mirror/legacy seed only; backend history is authoritative in production. */
+  servedRestaurantIds?: string[];
 }
 
 export const EMPTY_DAILY_PICKS_STATE: DailyPicksState = {
-  version: 2,
+  version: 3,
   preferences: DEFAULT_DAILY_PREFERENCES,
   selection: null,
   discoveries: [],
   savedRestaurantIds: [],
+  servedRestaurantIds: [],
 };
 
 export interface DailyPicksStorage {
@@ -130,12 +133,21 @@ export function parseDailyPicksState(raw: string | null): DailyPicksState {
             restaurantId,
             revealedAt: selection.generatedAt,
           }));
+    const explicitServedIds = stringList(value.servedRestaurantIds);
+    const servedRestaurantIds = [
+      ...new Set([
+        ...explicitServedIds,
+        ...(selection?.restaurantIds ?? []),
+        ...discoveries.map((discovery) => discovery.restaurantId),
+      ]),
+    ];
     return {
-      version: 2,
+      version: 3,
       preferences: validPreferences(value.preferences),
       selection,
       discoveries,
       savedRestaurantIds: stringList(value.savedRestaurantIds),
+      servedRestaurantIds,
     };
   } catch {
     return EMPTY_DAILY_PICKS_STATE;

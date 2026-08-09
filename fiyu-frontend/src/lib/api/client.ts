@@ -1,5 +1,6 @@
 import type { z } from "zod";
 
+import { authService } from "@/lib/auth/authService";
 import {
   FiyuApiError,
   extractDetail,
@@ -7,6 +8,7 @@ import {
   kindForStatus,
 } from "@/lib/api/errors";
 import {
+  dailyPicksAssignUrl,
   defaultListItemsUrl,
   defaultListSmartViewUrl,
   defaultListSmartViewsUrl,
@@ -15,6 +17,8 @@ import {
   LIST_LIMIT_DEFAULT,
   PHOTOS_LIMIT_DEFAULT,
   locationAnchorsUrl,
+  logUrl,
+  logVisitUrl,
   paths,
   photoPreviewUrl,
   photosUrl,
@@ -22,6 +26,7 @@ import {
   restaurantsUrl,
 } from "@/lib/api/endpoints";
 import {
+  type DailyPickAssignmentResponse,
   type DefaultListMembershipResponse,
   type DefaultListMutationResponse,
   type DefaultListResponse,
@@ -29,17 +34,24 @@ import {
   type LocationAnchor,
   type ParsedRestaurantList,
   type PublicRestaurantDetail,
+  type DeleteRestaurantVisitResponse,
+  type RestaurantVisit,
+  type VisitReaction,
   type SmartViewCatalogResponse,
   type SmartViewResponse,
   defaultListMembershipResponseSchema,
+  dailyPickAssignmentResponseSchema,
   defaultListMutationResponseSchema,
   defaultListResponseSchema,
   describeZodIssues,
+  deleteRestaurantVisitResponseSchema,
   googlePhotoListSchema,
   googlePhotoSchema,
   locationAnchorListSchema,
   parseRestaurantList,
   publicRestaurantDetailSchema,
+  restaurantVisitListSchema,
+  restaurantVisitSchema,
   smartViewCatalogResponseSchema,
   smartViewResponseSchema,
 } from "@/lib/api/schemas";
@@ -65,7 +77,8 @@ export interface RequestOptions {
   revalidate?: number | false;
   /** Server-side cache tags, for targeted revalidation. Ignored in the browser. */
   tags?: string[];
-  method?: "GET" | "POST" | "DELETE";
+  method?: "GET" | "POST" | "DELETE" | "PATCH";
+  cache?: RequestCache;
   headers?: Record<string, string>;
   body?: unknown;
 }
@@ -110,12 +123,16 @@ async function requestRaw(
   endpoint: string,
   options: RequestOptions = {},
 ): Promise<{ payload: unknown; status: number }> {
-  const { signal, revalidate, tags } = options;
+  const { signal, revalidate, tags, cache } = options;
   const method = options.method ?? "GET";
   const requestHeaders: Record<string, string> = {
     Accept: "application/json",
     ...(options.headers ?? {}),
   };
+  if (typeof window !== "undefined" && !requestHeaders.Authorization) {
+    const accessToken = await authService.getAccessToken();
+    if (accessToken) requestHeaders.Authorization = `Bearer ${accessToken}`;
+  }
   const hasBody = options.body !== undefined;
   const body = hasBody ? JSON.stringify(options.body) : undefined;
   if (hasBody) requestHeaders["Content-Type"] = "application/json";
@@ -131,6 +148,7 @@ async function requestRaw(
       method,
       headers: requestHeaders,
       signal,
+      ...(cache === undefined ? {} : { cache }),
       ...(body === undefined ? {} : { body }),
       ...(Object.keys(next).length === 0 ? {} : { next }),
     });
@@ -283,8 +301,100 @@ export interface ListIdentity {
   clientId: string;
 }
 
+export interface DailyPickAssignmentRequest {
+  city_id: string;
+  candidate_place_ids: string[];
+  legacy_served_place_ids: string[];
+  categories: string[];
+  non_japanese: "yes" | "occasionally" | "japanese-only";
+  active_area: string | null;
+  seed: number;
+  requested_count: 3;
+}
+
 function listHeaders(identity: ListIdentity): Record<string, string> {
   return { "X-Fiyu-Client-Id": identity.clientId };
+}
+
+export interface CreateRestaurantVisitRequest {
+  place_id: string;
+  visited_at: string;
+  reaction: VisitReaction;
+  private_note: string | null;
+}
+
+export interface UpdateRestaurantVisitRequest {
+  visited_at?: string;
+  reaction?: VisitReaction;
+  private_note?: string | null;
+}
+
+export function fetchRestaurantLog(
+  identity: ListIdentity,
+  options: RequestOptions = {},
+): Promise<RestaurantVisit[]> {
+  return requestJson(logUrl(), paths.log, restaurantVisitListSchema, {
+    ...options,
+    cache: options.cache ?? "no-store",
+    headers: { ...listHeaders(identity), ...(options.headers ?? {}) },
+  });
+}
+
+export function createRestaurantVisit(
+  request: CreateRestaurantVisitRequest,
+  identity: ListIdentity,
+  options: RequestOptions = {},
+): Promise<RestaurantVisit> {
+  return requestJson(logUrl(), paths.log, restaurantVisitSchema, {
+    ...options,
+    method: "POST",
+    body: request,
+    headers: { ...listHeaders(identity), ...(options.headers ?? {}) },
+  });
+}
+
+export function updateRestaurantVisit(
+  visitId: string,
+  request: UpdateRestaurantVisitRequest,
+  identity: ListIdentity,
+  options: RequestOptions = {},
+): Promise<RestaurantVisit> {
+  return requestJson(logVisitUrl(visitId), paths.logVisit(visitId), restaurantVisitSchema, {
+    ...options,
+    method: "PATCH",
+    body: request,
+    headers: { ...listHeaders(identity), ...(options.headers ?? {}) },
+  });
+}
+
+export function deleteRestaurantVisit(
+  visitId: string,
+  identity: ListIdentity,
+  options: RequestOptions = {},
+): Promise<DeleteRestaurantVisitResponse> {
+  return requestJson(
+    logVisitUrl(visitId),
+    paths.logVisit(visitId),
+    deleteRestaurantVisitResponseSchema,
+    {
+      ...options,
+      method: "DELETE",
+      headers: { ...listHeaders(identity), ...(options.headers ?? {}) },
+    },
+  );
+}
+
+export function assignDailyPicks(
+  request: DailyPickAssignmentRequest,
+  identity: ListIdentity,
+  options: RequestOptions = {},
+): Promise<DailyPickAssignmentResponse> {
+  return requestJson(dailyPicksAssignUrl(), paths.dailyPicksAssign, dailyPickAssignmentResponseSchema, {
+    ...options,
+    method: "POST",
+    body: request,
+    headers: { ...listHeaders(identity), ...(options.headers ?? {}) },
+  });
 }
 
 export function fetchDefaultList(
@@ -354,6 +464,7 @@ export function fetchDefaultListSmartViews(
     smartViewCatalogResponseSchema,
     {
       ...options,
+      cache: options.cache ?? "no-store",
       headers: { ...listHeaders(identity), ...(options.headers ?? {}) },
     },
   );
@@ -374,6 +485,7 @@ export function fetchDefaultListSmartView(
     smartViewResponseSchema,
     {
       ...options,
+      cache: options.cache ?? "no-store",
       headers: { ...listHeaders(identity), ...(options.headers ?? {}) },
     },
   );

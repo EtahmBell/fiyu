@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -13,6 +14,7 @@ import {
   navigationItem,
 } from "@/lib/navigation/appNavigation";
 import { cn } from "@/lib/utils/cn";
+import { useProfileIdentity } from "@/lib/profile/profileIdentity";
 
 function ChevronIcon() {
   return (
@@ -170,17 +172,60 @@ function MobileMenu() {
         aria-label="More"
         className="absolute top-[calc(100%+0.5rem)] right-0 z-50 w-48 rounded-card border border-line bg-surface p-2 shadow-xl"
       >
-        <Link href="/profile#settings" className="flex min-h-11 items-center rounded-lg px-3 text-sm text-ink hover:bg-subtle">
+        <Link href="/profile" className="flex min-h-11 items-center rounded-lg px-3 text-sm text-ink hover:bg-subtle">
           Settings
         </Link>
-        <Link href="/profile#help" className="flex min-h-11 items-center rounded-lg px-3 text-sm text-ink hover:bg-subtle">
+        <Link href="/profile/help" className="flex min-h-11 items-center rounded-lg px-3 text-sm text-ink hover:bg-subtle">
           Help
         </Link>
-        <Link href="/profile#privacy" className="flex min-h-11 items-center rounded-lg px-3 text-sm text-ink hover:bg-subtle">
+        <Link href="/profile/privacy" className="flex min-h-11 items-center rounded-lg px-3 text-sm text-ink hover:bg-subtle">
           Privacy
         </Link>
       </nav>
     </details>
+  );
+}
+
+function ProfileIdentityLink({ active }: { active: boolean }) {
+  const identity = useProfileIdentity();
+  const profile = identity.profile;
+  const displayName = profile?.display_name?.trim() || "";
+  const username = profile?.username?.trim() || "";
+  const label = displayName || username || "Profile";
+  const initial = (
+    username[0] || displayName[0] || identity.email?.trim()[0] || "F"
+  ).toUpperCase();
+
+  return (
+    <Link
+      href="/profile"
+      aria-label={label === "Profile" ? "Profile" : `Profile: ${label}`}
+      aria-current={active ? "page" : undefined}
+      className={cn(
+        "hidden min-h-11 items-center gap-2 rounded-lg px-3 text-sm font-medium transition-colors lg:flex",
+        active
+          ? "bg-lavender-100 text-lavender-700"
+          : "text-ink-muted hover:bg-subtle hover:text-ink",
+      )}
+    >
+      {identity.status === "loading" ? (
+        <>
+          <span aria-hidden="true" className="size-7 animate-pulse rounded-full bg-subtle" />
+          <span aria-hidden="true" className="h-3 w-16 animate-pulse rounded-full bg-subtle" />
+        </>
+      ) : (
+        <>
+          <span className="relative flex size-7 shrink-0 items-center justify-center overflow-hidden rounded-full border border-line bg-lavender-50 font-display text-sm text-lavender-700">
+            {identity.profileImage ? (
+              <Image src={identity.profileImage} alt="" fill unoptimized className="object-cover" />
+            ) : (
+              <span aria-hidden="true">{initial}</span>
+            )}
+          </span>
+          <span className="max-w-40 truncate">{label}</span>
+        </>
+      )}
+    </Link>
   );
 }
 
@@ -236,7 +281,7 @@ export function ApplicationNavigation() {
                       : "text-ink-muted hover:bg-subtle hover:text-ink",
                   )}
                 >
-                  {item.id === "log" ? "Log a Visit" : item.label}
+                  {item.label}
                 </Link>
               );
             })}
@@ -248,22 +293,7 @@ export function ApplicationNavigation() {
             {(() => {
               const profile = navigationItem("profile");
               const active = navigationIsActive(pathname, profile);
-              return (
-                <Link
-                  href={profile.href}
-                  aria-label={profile.accessibleLabel}
-                  aria-current={active ? "page" : undefined}
-                  className={cn(
-                    "hidden min-h-11 items-center gap-2 rounded-lg px-3 text-sm font-medium transition-colors lg:flex",
-                    active
-                      ? "bg-lavender-100 text-lavender-700"
-                      : "text-ink-muted hover:bg-subtle hover:text-ink",
-                  )}
-                >
-                  <profile.icon className="size-5" />
-                  Profile
-                </Link>
-              );
+              return <ProfileIdentityLink active={active} />;
             })()}
           </div>
         </div>

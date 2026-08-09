@@ -67,12 +67,6 @@ export function smartViewDisplayLabel(viewKey: string, fallbackLabel: string): s
       return "By neighbourhood";
     case "nearby":
       return "Nearby";
-    case "ramen_in_shibuya":
-      return "Ramen in Shibuya";
-    case "out_of_the_way_gems":
-      return "Out-of-the-way gems";
-    case "worth_the_detour":
-      return "Worth the detour";
     default:
       return fallbackLabel;
   }

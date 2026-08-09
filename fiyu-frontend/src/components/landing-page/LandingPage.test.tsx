@@ -53,7 +53,10 @@ describe("public landing experience", () => {
     expect(within(header).getByRole("link", { name: "Fiyu home" }).getAttribute("href")).toBe(
       "/",
     );
-    expect(within(header).getAllByRole("link", { name: "Explore Tokyo" })).not.toHaveLength(0);
+    expect(within(header).getByRole("link", { name: "About" }).getAttribute("href")).toBe("/about");
+    expect(within(header).getByRole("link", { name: "Contact" }).getAttribute("href")).toBe("/contact");
+    expect(within(header).getByRole("link", { name: "Sign in" }).getAttribute("href")).toBe("/signin");
+    expect(within(header).getByRole("link", { name: "Sign up" }).getAttribute("href")).toBe("/signup");
     for (const action of screen.getAllByRole("link", { name: "Explore Tokyo" })) {
       expect(action.getAttribute("href")).toBe("/picks");
     }
@@ -70,7 +73,7 @@ describe("public landing experience", () => {
     expect(links).toHaveLength(1);
     expect(
       within(links[0]).getAllByRole("link").map((link) => link.getAttribute("href")),
-    ).toEqual(["/picks", "/profile#privacy"]);
+    ).toEqual(["/about", "/contact", "/privacy", "/terms"]);
 
     // Same-page section anchors belong in the header, not the footer.
     expect(footer.queryByRole("link", { name: "How Fiyu works" })).toBeNull();
@@ -221,7 +224,7 @@ describe("public landing experience", () => {
     fireEvent.click(trigger);
     const menu = screen.getByRole("navigation", { name: "Landing page mobile" });
     expect(trigger.getAttribute("aria-expanded")).toBe("true");
-    expect(within(menu).getByRole("link", { name: "Explore" })).toBe(document.activeElement);
+    expect(within(menu).getByRole("link", { name: "About" })).toBe(document.activeElement);
     fireEvent.keyDown(window, { key: "Escape" });
     expect(trigger.getAttribute("aria-expanded")).toBe("false");
     expect(document.activeElement).toBe(trigger);

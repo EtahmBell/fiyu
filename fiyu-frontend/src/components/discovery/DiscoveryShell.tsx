@@ -233,9 +233,9 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
         )}
       >
         {/*
-         * The map receives current daily picks (including concealed cards) and
-         * active Recent Discoveries that the backend marked map-eligible. A pin
-         * can therefore navigate to a concealed card without revealing it.
+         * The map receives individually revealed current picks and active
+         * Recent Discoveries that the backend marked map-eligible. Concealed
+         * assignments stay absent until their own reveal action.
          *
          * With nothing mapped there is no map to interact with, so the
          * placeholder is shown instead of an empty illustration.

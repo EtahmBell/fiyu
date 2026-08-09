@@ -34,13 +34,20 @@ cp .env.example .env.local
 ```
 
 `.env.local` is git-ignored. Edit it if your backend is not on the default
-address, and add a Google Maps browser key when you have one.
+address and add the public credentials for the same Supabase project used by
+the backend.
 
 | Variable | Required | Purpose |
 | --- | --- | --- |
 | `NEXT_PUBLIC_FIYU_API_URL` | No (defaults to `http://127.0.0.1:8000`) | Backend base URL |
-| `NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY` | No | Browser map. Without it the UI shows a documented placeholder and stays fully usable. |
-| `NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID` | No | Map styling and Advanced Markers (Phase 4) |
+| `NEXT_PUBLIC_SUPABASE_URL` | Yes for accounts | Public Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes for accounts | Public Supabase anon key; never use a service-role key here |
+
+In Supabase, enable Email authentication and set the Site URL to the web origin
+(for local development, `http://localhost:3000`). Add
+`http://localhost:3000/signin` and the corresponding production URL to the
+allowed redirect URLs. Email confirmation may remain enabled; signup handles
+both immediate sessions and verification-required responses.
 
 Every variable is `NEXT_PUBLIC_`, meaning it is inlined into the browser bundle.
 Never put a secret in this file. In particular `GOOGLE_PLACES_SERVER_KEY` is a

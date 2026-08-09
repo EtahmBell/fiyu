@@ -7,6 +7,10 @@ import { cleanup, fireEvent, render, screen, within } from "@testing-library/rea
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ApplicationNavigation } from "@/components/layout/ApplicationNavigation";
+import {
+  clearProfileIdentity,
+  publishProfileIdentity,
+} from "@/lib/profile/profileIdentity";
 
 const route = vi.hoisted(() => ({ pathname: "/picks" }));
 const navigation = vi.hoisted(() => ({ push: vi.fn() }));
@@ -35,6 +39,7 @@ afterEach(() => {
   route.pathname = "/picks";
   navigation.push.mockReset();
   vi.restoreAllMocks();
+  clearProfileIdentity();
 });
 
 describe("application navigation", () => {
@@ -89,7 +94,7 @@ describe("application navigation", () => {
       "Picks",
       "Map",
       "Lists",
-      "Log a Visit",
+      "Log",
     ]);
     expect(within(desktop).getByRole("link", { name: "Map" }).getAttribute("aria-current")).toBe(
       "page",
@@ -99,6 +104,53 @@ describe("application navigation", () => {
       "/profile",
     );
     expect(screen.queryByText("Sign out")).toBeNull();
+  });
+
+  it("shows the authenticated profile name and username-first avatar fallback", () => {
+    publishProfileIdentity({
+      user_id: "user-1",
+      username: "etahm",
+      display_name: "Ethan Bell",
+      bio: null,
+      avatar_url: null,
+      created_at: "2026-08-08T00:00:00Z",
+      updated_at: "2026-08-08T00:00:00Z",
+    });
+
+    render(<ApplicationNavigation />);
+
+    const link = screen.getByRole("link", { name: "Profile: Ethan Bell" });
+    expect(link.textContent).toContain("Ethan Bell");
+    expect(link.textContent).toContain("E");
+    expect(link.textContent).not.toContain("@");
+
+    act(() => {
+      publishProfileIdentity({
+        user_id: "user-1",
+        username: "newname",
+        display_name: null,
+        bio: null,
+        avatar_url: null,
+        created_at: "2026-08-08T00:00:00Z",
+        updated_at: "2026-08-08T01:00:00Z",
+      });
+    });
+    const usernameFallback = screen.getByRole("link", { name: "Profile: newname" });
+    expect(usernameFallback.textContent).toContain("newname");
+    expect(usernameFallback.textContent).toContain("N");
+
+    act(() => {
+      publishProfileIdentity({
+        user_id: "user-1",
+        username: "newname",
+        display_name: "New Name",
+        bio: null,
+        avatar_url: null,
+        created_at: "2026-08-08T00:00:00Z",
+        updated_at: "2026-08-08T02:00:00Z",
+      }, "data:image/png;base64,aGVsbG8=");
+    });
+    expect(screen.getByRole("link", { name: "Profile: New Name" }).querySelector("img")).toBeTruthy();
   });
 
   it("provides city, notification, and meaningful menu surfaces", () => {
@@ -115,7 +167,13 @@ describe("application navigation", () => {
     expect(screen.getByLabelText("Notifications")).toBeTruthy();
     expect(screen.getByLabelText("Open menu")).toBeTruthy();
     expect(screen.getByRole("link", { name: "Settings" }).getAttribute("href")).toBe(
-      "/profile#settings",
+      "/profile",
+    );
+    expect(screen.getByRole("link", { name: "Help" }).getAttribute("href")).toBe(
+      "/profile/help",
+    );
+    expect(screen.getByRole("link", { name: "Privacy" }).getAttribute("href")).toBe(
+      "/profile/privacy",
     );
     expect(screen.getByText("Nothing new right now.")).toBeTruthy();
     expect(screen.queryByText(/\d+ notifications?/i)).toBeNull();

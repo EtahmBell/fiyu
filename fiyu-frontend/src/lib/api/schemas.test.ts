@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  dailyPickAssignmentResponseSchema,
   googlePhotoSchema,
   locationAnchorListSchema,
   parseRestaurantList,
@@ -312,5 +313,49 @@ describe("locationAnchorListSchema", () => {
         },
       ]).success,
     ).toBe(false);
+  });
+});
+
+describe("dailyPickAssignmentResponseSchema", () => {
+  it("requires exactly three backend-assigned restaurant IDs", () => {
+    const response = {
+      round_id: "round-one",
+      city_id: "tokyo",
+      place_ids: ["one", "two", "three"],
+      assigned_at: "2026-08-07T12:00:00Z",
+    };
+    expect(dailyPickAssignmentResponseSchema.parse(response).place_ids).toEqual(response.place_ids);
+    expect(
+      dailyPickAssignmentResponseSchema.safeParse({ ...response, place_ids: ["one", "two"] })
+        .success,
+    ).toBe(false);
+  });
+});
+
+describe("restaurantVisitSchema", () => {
+  it("accepts the compact private Log response without internal restaurant fields", async () => {
+    const { restaurantVisitSchema } = await import("@/lib/api/schemas");
+    const parsed = restaurantVisitSchema.parse({
+      id: "visit-one",
+      place_id: "tokyo-a",
+      visited_at: "2026-08-08T12:00:00+00:00",
+      reaction: "love_it",
+      private_note: "Private note",
+      created_at: "2026-08-08T12:00:00+00:00",
+      updated_at: "2026-08-08T12:00:00+00:00",
+      restaurant: {
+        place_id: "tokyo-a",
+        name_ja: "Tokyo A",
+        name_en: "Tokyo A",
+        primary_category: "sushi",
+        neighborhood: "Asakusa",
+        fiyu_score: 91,
+        score_band: "excellent",
+      },
+    });
+
+    expect(parsed.private_note).toBe("Private note");
+    expect(parsed.reaction).toBe("love_it");
+    expect(parsed.restaurant).not.toHaveProperty("why_fiyu");
   });
 });

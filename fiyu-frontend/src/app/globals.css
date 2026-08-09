@@ -74,6 +74,20 @@
   }
 }
 
+@keyframes fiyu-ink-dot-wave {
+  0%, 48%, 100% {
+    transform: translateY(0);
+  }
+  24% {
+    transform: translateY(-6px);
+  }
+}
+
+.fiyu-ink-dot {
+  border-radius: 54% 46% 52% 48%;
+  animation: fiyu-ink-dot-wave 880ms var(--ease-fiyu) infinite;
+}
+
 .fiyu-map-pin-sprout {
   transform-box: fill-box;
   transform-origin: center bottom;
@@ -81,6 +95,11 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .fiyu-ink-dot {
+    animation: none;
+    transform: none;
+  }
+
   .fiyu-map-pin-sprout {
     animation: none;
   }

@@ -56,6 +56,7 @@ describe("daily picks storage", () => {
     expect(reloaded?.selection).toEqual(selection);
     expect(reloaded?.preferences.categories).toEqual(["sushi"]);
     expect(reloaded?.savedRestaurantIds).toEqual(["b"]);
+    expect(reloaded?.servedRestaurantIds).toEqual(["a", "b", "c"]);
   });
 
   it("migrates old revealed IDs using selection creation time", () => {
