@@ -49,3 +49,15 @@ fiyu-backend/.pytest_cache/
 # Node dependencies
 node_modules/
 **/node_modules/
+
+node_modules/
+**/node_modules/
+
+.env
+.env.*
+!.env.example
+
+.venv/
+venv/
+__pycache__/
+*.pyc
