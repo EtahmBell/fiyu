@@ -3,23 +3,32 @@ from __future__ import annotations
 import logging
 import os
 import re
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from math import cos, radians
 from pathlib import Path
 from typing import Annotated, Literal
+from urllib.parse import urlsplit, urlunsplit
 from uuid import UUID
 
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, Header, HTTPException, Query
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, field_validator
 
+from . import supabase_user_data as shared_user_data
 from .daily_picks import (
     InsufficientUnseenPoolError,
     assign_daily_picks,
     seed_served_history,
+    served_place_ids,
 )
 from .database import connect, decode_restaurant_row
+from .discovery_location import (
+    TOKYO_SERVICE_AREA,
+    can_change_location_freely,
+    nearest_tokyo_anchor,
+)
 from .entitlements import (
     CAPABILITY_CUSTOM_LISTS,
     CAPABILITY_PREMIUM_SMART_VIEWS,
@@ -82,13 +91,7 @@ from .supabase_auth import (
 )
 from .user_accounts import (
     create_contact_submission,
-    create_profile,
     ensure_account_schema,
-    get_profile,
-    link_profile_auth_email,
-    resolve_auth_email,
-    update_profile,
-    username_available,
 )
 from .utils import haversine_km
 
@@ -116,9 +119,24 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=False,
-    allow_methods=["GET", "POST", "DELETE", "PATCH"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH"],
     allow_headers=["*"],
 )
+
+
+@app.exception_handler(shared_user_data.SharedUserDataError)
+async def shared_user_data_unavailable(
+    _request: Request, _error: shared_user_data.SharedUserDataError
+) -> JSONResponse:
+    logger.exception("Authenticated account storage request failed")
+    return JSONResponse(status_code=503, content={"detail": "Account data is unavailable"})
+
+
+@app.exception_handler(shared_user_data.SharedUserDataConflict)
+async def shared_user_data_conflict(
+    _request: Request, _error: shared_user_data.SharedUserDataConflict
+) -> JSONResponse:
+    return JSONResponse(status_code=409, content={"detail": "Username is unavailable"})
 
 
 class PublicRestaurantSummary(BaseModel):
@@ -195,6 +213,36 @@ class LocationAnchorResponse(BaseModel):
     longitude: float
     precision: str
     qualifier: str
+
+
+class DiscoveryLocationResponse(BaseModel):
+    configured: bool
+    location_mode: Literal["current", "preview", "manual"] | None = None
+    discovery_latitude: float | None = None
+    discovery_longitude: float | None = None
+    discovery_label: str | None = None
+    arrival_date: date | None = None
+    last_location_check_at: datetime | None = None
+    updated_at: datetime | None = None
+    can_change_location_freely: bool = False
+
+
+class CheckCurrentLocationRequest(BaseModel):
+    latitude: float = Field(ge=-90, le=90)
+    longitude: float = Field(ge=-180, le=180)
+
+
+class CurrentLocationCheckResponse(BaseModel):
+    inside_service_area: bool
+    location: DiscoveryLocationResponse
+
+
+class SaveManualLocationRequest(BaseModel):
+    location_mode: Literal["preview", "manual"]
+    discovery_label: str = Field(min_length=1, max_length=120)
+    discovery_latitude: float = Field(ge=-90, le=90)
+    discovery_longitude: float = Field(ge=-180, le=180)
+    arrival_date: date | None = None
 
 
 class SavedRestaurantSummary(BaseModel):
@@ -392,6 +440,17 @@ class UpdateUserProfileRequest(BaseModel):
         return value.strip() or None
 
 
+class UpdateUserAvatarRequest(BaseModel):
+    avatar_url: str | None = Field(default=None, max_length=2048)
+
+    @field_validator("avatar_url")
+    @classmethod
+    def normalize_avatar_url(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return value.strip() or None
+
+
 class RestaurantListItemResponse(BaseModel):
     place_id: str
     added_at: str
@@ -467,6 +526,8 @@ class DailyPickAssignmentRequest(BaseModel):
     ] = Field(default_factory=list, max_length=3)
     non_japanese: Literal["yes", "occasionally", "japanese-only"] = "occasionally"
     active_area: str | None = Field(default=None, max_length=120)
+    discovery_latitude: float | None = Field(default=None, ge=-90, le=90)
+    discovery_longitude: float | None = Field(default=None, ge=-180, le=180)
     seed: int
     requested_count: Literal[3] = 3
 
@@ -476,6 +537,10 @@ class DailyPickAssignmentResponse(BaseModel):
     city_id: str
     place_ids: list[str]
     assigned_at: str
+
+
+class SeenRestaurantsResponse(BaseModel):
+    place_ids: list[str]
 
 
 class ListItemMutationResponse(BaseModel):
@@ -549,19 +614,28 @@ def _ensure_database() -> None:
         )
 
 
+class OwnerIdentity(str):
+    authenticated: bool
+
+    def __new__(cls, value: str, *, authenticated: bool):
+        instance = super().__new__(cls, value)
+        instance.authenticated = authenticated
+        return instance
+
+
 def _owner_id_from_header(
     x_fiyu_client_id: Annotated[str | None, Header(alias="X-Fiyu-Client-Id")] = None,
     authorization: Annotated[str | None, Header()] = None,
 ) -> str:
     if authorization:
-        return _authenticated_user_id(authorization)
+        return OwnerIdentity(_authenticated_user_id(authorization), authenticated=True)
     if x_fiyu_client_id is None:
         raise HTTPException(status_code=400, detail="Missing X-Fiyu-Client-Id header")
     value = x_fiyu_client_id.strip()
     if not value:
         raise HTTPException(status_code=400, detail="Missing X-Fiyu-Client-Id header")
     try:
-        return str(UUID(value))
+        return OwnerIdentity(str(UUID(value)), authenticated=False)
     except ValueError:
         raise HTTPException(
             status_code=400,
@@ -683,9 +757,45 @@ def _city_matches_list(
     return normalized == city_id
 
 
+def _catalog_enriched(rows: list[dict[str, object]]) -> list[dict[str, object]]:
+    if not rows:
+        return []
+    place_ids = list(dict.fromkeys(str(row["place_id"]) for row in rows))
+    placeholders = ",".join("?" for _ in place_ids)
+    with connect(DB_PATH) as connection:
+        catalog_rows = connection.execute(
+            f"""
+            SELECT p.place_id, p.name_ja, p.name_en, p.primary_category,
+                   r.neighborhood, p.fiyu_score, p.score_band
+            FROM public_restaurants p
+            LEFT JOIN restaurants r ON r.place_id = p.place_id
+            WHERE p.place_id IN ({placeholders})
+            """,
+            place_ids,
+        ).fetchall()
+    catalog = {str(row["place_id"]): dict(row) for row in catalog_rows}
+    return [{**row, **catalog.get(str(row["place_id"]), {})} for row in rows]
+
+
+def _items_for_list(owner_id: str, list_id: int) -> list[dict[str, object]]:
+    if _shared_owner(owner_id):
+        return _catalog_enriched(
+            shared_user_data.list_items(user_id=str(owner_id), list_id=list_id)
+        )
+    return list_items(DB_PATH, list_id=list_id)
+
+
+def _default_list_row(owner_id: str, city_id: str) -> dict[str, object]:
+    if _shared_owner(owner_id):
+        return shared_user_data.get_or_create_default_list(
+            user_id=str(owner_id), city_id=city_id
+        )
+    return get_or_create_default_list(DB_PATH, owner_id=owner_id, city_id=city_id)
+
+
 def _default_list_response(owner_id: str, city_id: str) -> RestaurantListResponse:
-    row = get_or_create_default_list(DB_PATH, owner_id=owner_id, city_id=city_id)
-    items = list_items(DB_PATH, list_id=int(row["id"]))
+    row = _default_list_row(owner_id, city_id)
+    items = _items_for_list(owner_id, int(row["id"]))
     return RestaurantListResponse(
         list_id=int(row["id"]),
         city_id=str(row["city_id"]),
@@ -734,8 +844,8 @@ def _visit_response_from_row(row: dict[str, object]) -> RestaurantVisitResponse:
     )
 
 
-def _list_response_from_row(row: dict[str, object]) -> RestaurantListResponse:
-    items = list_items(DB_PATH, list_id=int(row["id"]))
+def _list_response_from_row(owner_id: str, row: dict[str, object]) -> RestaurantListResponse:
+    items = _items_for_list(owner_id, int(row["id"]))
     return RestaurantListResponse(
         list_id=int(row["id"]),
         city_id=str(row["city_id"]),
@@ -763,20 +873,30 @@ def _list_response_from_row(row: dict[str, object]) -> RestaurantListResponse:
     )
 
 
-def _list_summary_response_from_row(row: dict[str, object]) -> RestaurantListSummaryResponse:
+def _list_summary_response_from_row(
+    owner_id: str, row: dict[str, object]
+) -> RestaurantListSummaryResponse:
     return RestaurantListSummaryResponse(
         list_id=int(row["id"]),
         city_id=str(row["city_id"]),
         name=str(row["name"]),
         list_kind=str(row["list_kind"]),
-        item_count=count_items(DB_PATH, list_id=int(row["id"])),
+        item_count=(
+            len(_items_for_list(owner_id, int(row["id"])))
+            if _shared_owner(owner_id)
+            else count_items(DB_PATH, list_id=int(row["id"]))
+        ),
         created_at=str(row["created_at"]),
         updated_at=str(row["updated_at"]),
     )
 
 
 def _owned_list_or_404(owner_id: str, list_id: int) -> dict[str, object]:
-    row = get_list_by_id(DB_PATH, owner_id=owner_id, list_id=list_id)
+    row = (
+        shared_user_data.get_list(user_id=str(owner_id), list_id=list_id)
+        if _shared_owner(owner_id)
+        else get_list_by_id(DB_PATH, owner_id=owner_id, list_id=list_id)
+    )
     if row is None:
         raise HTTPException(status_code=404, detail="List not found")
     return row
@@ -876,11 +996,25 @@ def create_daily_pick_assignment(
     _ensure_database()
     ensure_public_schema(DB_PATH)
     city_id = _normalize_list_city(request.city_id)
+    shared_seen = (
+        shared_user_data.seen_place_ids(user_id=str(owner_id))
+        if _shared_owner(owner_id)
+        else []
+    )
     seed_served_history(
         DB_PATH,
         owner_id=owner_id,
-        place_ids=request.legacy_served_place_ids,
+        place_ids=[*shared_seen, *request.legacy_served_place_ids],
     )
+    active_area = request.active_area
+    discovery_latitude = request.discovery_latitude
+    discovery_longitude = request.discovery_longitude
+    if _shared_owner(owner_id):
+        saved_location = shared_user_data.get_discovery_location(user_id=str(owner_id))
+        if saved_location and saved_location.get("location_mode"):
+            active_area = str(saved_location["discovery_label"])
+            discovery_latitude = float(saved_location["discovery_latitude"])
+            discovery_longitude = float(saved_location["discovery_longitude"])
     try:
         assignment = assign_daily_picks(
             DB_PATH,
@@ -889,7 +1023,9 @@ def create_daily_pick_assignment(
             candidate_place_ids=request.candidate_place_ids,
             categories=request.categories,
             non_japanese=request.non_japanese,
-            active_area=request.active_area,
+            active_area=active_area,
+            discovery_latitude=discovery_latitude,
+            discovery_longitude=discovery_longitude,
             seed=request.seed,
             requested_count=request.requested_count,
         )
@@ -903,6 +1039,12 @@ def create_daily_pick_assignment(
                 "required_count": exc.required_count,
             },
         ) from None
+
+    if _shared_owner(owner_id):
+        shared_user_data.record_seen(
+            user_id=str(owner_id),
+            place_ids=[*request.legacy_served_place_ids, *assignment.place_ids],
+        )
     return DailyPickAssignmentResponse(
         round_id=assignment.round_id,
         city_id=city_id,
@@ -911,27 +1053,68 @@ def create_daily_pick_assignment(
     )
 
 
-def _authenticated_user_id(
+@app.get("/seen/restaurants", response_model=SeenRestaurantsResponse)
+def get_seen_restaurants(
+    owner_id: Annotated[str, Depends(_owner_id_from_header)],
+) -> SeenRestaurantsResponse:
+    _ensure_database()
+    place_ids = (
+        shared_user_data.seen_place_ids(user_id=str(owner_id))
+        if _shared_owner(owner_id)
+        else served_place_ids(DB_PATH, owner_id=owner_id)
+    )
+    return SeenRestaurantsResponse(place_ids=place_ids)
+
+
+def _shared_owner(owner_id: str) -> bool:
+    return (
+        isinstance(owner_id, OwnerIdentity)
+        and owner_id.authenticated
+        and shared_user_data.configured()
+    )
+
+
+def _authenticated_user(
     authorization: Annotated[str | None, Header()] = None,
-) -> str:
+) -> dict[str, object]:
     try:
-        return str(authenticated_supabase_user(authorization)["id"])
+        return authenticated_supabase_user(authorization)
     except SupabaseConfigurationError:
         raise HTTPException(status_code=503, detail="Authentication is not configured") from None
     except SupabaseAuthError:
         raise HTTPException(status_code=401, detail="Invalid or expired session") from None
 
 
+def _authenticated_user_id(
+    authorization: Annotated[str | None, Header()] = None,
+) -> str:
+    return str(_authenticated_user(authorization)["id"])
+
+
 def _profile_response(row: dict[str, object]) -> UserProfileResponse:
     return UserProfileResponse(
         user_id=str(row["user_id"]),
-        username=str(row["username"]),
+        username=str(row["username"] or ""),
         display_name=str(row["display_name"]) if row.get("display_name") is not None else None,
         bio=str(row["bio"]) if row.get("bio") is not None else None,
         avatar_url=str(row["avatar_url"]) if row.get("avatar_url") is not None else None,
         created_at=str(row["created_at"]),
         updated_at=str(row["updated_at"]),
     )
+
+
+def _validated_avatar_url(*, user_id: str, avatar_url: str | None) -> str | None:
+    if avatar_url is None:
+        return None
+    supabase_url = os.getenv("SUPABASE_URL", "").strip().rstrip("/")
+    if not supabase_url:
+        raise HTTPException(status_code=503, detail="Avatar storage is not configured")
+    supplied = urlsplit(avatar_url)
+    canonical_supplied = urlunsplit((supplied.scheme, supplied.netloc, supplied.path, "", ""))
+    expected = f"{supabase_url}/storage/v1/object/public/avatars/{user_id}/avatar.webp"
+    if canonical_supplied != expected or supplied.fragment:
+        raise HTTPException(status_code=422, detail="Invalid avatar reference")
+    return avatar_url
 
 
 def _auth_user(result: dict[str, object]) -> dict[str, object] | None:
@@ -952,29 +1135,81 @@ def _auth_session(result: dict[str, object]) -> AuthSessionResponse | None:
     return None
 
 
+def _profile_username_from_auth_user(
+    user: dict[str, object], *, preferred_username: str | None = None
+) -> str | None:
+    raw_username: object = preferred_username
+    if raw_username is None:
+        metadata = user.get("user_metadata")
+        raw_username = metadata.get("username") if isinstance(metadata, dict) else None
+    if not isinstance(raw_username, str):
+        return None
+    try:
+        return _normalized_username(raw_username)
+    except ValueError:
+        return None
+
+
+def _ensure_authenticated_profile(
+    user: dict[str, object],
+    *,
+    preferred_username: str | None = None,
+    auth_email: str | None = None,
+) -> dict[str, object]:
+    try:
+        user_id = str(UUID(str(user["id"])))
+    except (KeyError, ValueError):
+        raise HTTPException(
+            status_code=502, detail="Authentication provider returned an invalid response"
+        ) from None
+    if not shared_user_data.configured():
+        raise shared_user_data.SharedUserDataError(
+            "Authenticated profile storage is not configured"
+        )
+    email_value = auth_email or (
+        str(user["email"]).strip().lower() if user.get("email") else None
+    )
+    return shared_user_data.ensure_profile(
+        user_id=user_id,
+        username=_profile_username_from_auth_user(
+            user, preferred_username=preferred_username
+        ),
+        auth_email=email_value,
+    )
+
+
+def _auth_user_subject(user: dict[str, object]) -> str:
+    try:
+        return str(UUID(str(user["id"])))
+    except (KeyError, ValueError):
+        raise HTTPException(
+            status_code=502, detail="Authentication provider returned an invalid response"
+        ) from None
+
+
+def _location_response(row: dict[str, object] | None) -> DiscoveryLocationResponse:
+    return DiscoveryLocationResponse(
+        configured=bool(row and row.get("location_mode")),
+        location_mode=row.get("location_mode") if row else None,
+        discovery_latitude=row.get("discovery_latitude") if row else None,
+        discovery_longitude=row.get("discovery_longitude") if row else None,
+        discovery_label=row.get("discovery_label") if row else None,
+        arrival_date=row.get("arrival_date") if row else None,
+        last_location_check_at=row.get("last_location_check_at") if row else None,
+        updated_at=row.get("updated_at") if row else None,
+        can_change_location_freely=can_change_location_freely(()),
+    )
+
+
 def _provision_profile_after_signin(
     *,
     user: dict[str, object],
     user_id: str,
     auth_email: str,
 ) -> None:
-    if get_profile(DB_PATH, user_id=user_id) is not None:
-        link_profile_auth_email(DB_PATH, user_id=user_id, auth_email=auth_email)
-        return
-    metadata = user.get("user_metadata")
-    raw_username = metadata.get("username") if isinstance(metadata, dict) else None
-    if not isinstance(raw_username, str):
-        return
-    try:
-        username = _normalized_username(raw_username)
-    except ValueError:
-        return
-    create_profile(
-        DB_PATH,
-        user_id=user_id,
-        username=username,
-        auth_email=auth_email,
-    )
+    ensured = _ensure_authenticated_profile(user, auth_email=auth_email)
+    if str(ensured["user_id"]) != user_id:
+        raise shared_user_data.SharedUserDataError("Profile ownership mismatch")
 
 
 @app.post("/contact", response_model=ContactResponse, status_code=201)
@@ -993,7 +1228,12 @@ def submit_contact(payload: ContactRequest) -> ContactResponse:
 def signup(payload: SignupRequest) -> SignupResponse:
     _ensure_database()
     ensure_account_schema(DB_PATH)
-    if not username_available(DB_PATH, username=payload.username):
+    if not shared_user_data.configured():
+        raise shared_user_data.SharedUserDataError(
+            "Authenticated profile storage is not configured"
+        )
+    available = shared_user_data.username_available(username=payload.username)
+    if not available:
         raise HTTPException(status_code=409, detail="Username is unavailable")
     try:
         result = sign_up_with_supabase(
@@ -1017,10 +1257,9 @@ def signup(payload: SignupRequest) -> SignupResponse:
     except (KeyError, ValueError):
         raise HTTPException(status_code=502, detail="Authentication provider returned an invalid response") from None
     email = str(user.get("email") or payload.email).strip().lower()
-    profile = create_profile(
-        DB_PATH,
-        user_id=user_id,
-        username=payload.username,
+    profile = _ensure_authenticated_profile(
+        user,
+        preferred_username=payload.username,
         auth_email=email,
     )
     if profile is None:
@@ -1041,10 +1280,14 @@ def signup(payload: SignupRequest) -> SignupResponse:
 def signin(payload: SigninRequest) -> SigninResponse:
     _ensure_database()
     ensure_account_schema(DB_PATH)
+    if not shared_user_data.configured():
+        raise shared_user_data.SharedUserDataError(
+            "Authenticated profile storage is not configured"
+        )
     if EMAIL_PATTERN.fullmatch(payload.identifier):
         auth_email = payload.identifier
     else:
-        auth_email = resolve_auth_email(DB_PATH, username=payload.identifier)
+        auth_email = shared_user_data.resolve_auth_email(username=payload.identifier)
         if auth_email is None:
             raise HTTPException(
                 status_code=401,
@@ -1085,25 +1328,22 @@ def signin(payload: SigninRequest) -> SigninResponse:
 
 @app.get("/profiles/me", response_model=UserProfileResponse)
 def get_my_profile(
-    user_id: Annotated[str, Depends(_authenticated_user_id)],
+    auth_user: Annotated[dict[str, object], Depends(_authenticated_user)],
 ) -> UserProfileResponse:
     _ensure_database()
-    row = get_profile(DB_PATH, user_id=user_id)
-    if row is None:
-        raise HTTPException(status_code=404, detail="Profile not found")
+    row = _ensure_authenticated_profile(auth_user)
     return _profile_response(row)
 
 
 @app.patch("/profiles/me", response_model=UserProfileResponse)
 def update_my_profile(
     payload: UpdateUserProfileRequest,
-    user_id: Annotated[str, Depends(_authenticated_user_id)],
+    auth_user: Annotated[dict[str, object], Depends(_authenticated_user)],
 ) -> UserProfileResponse:
     _ensure_database()
-    if get_profile(DB_PATH, user_id=user_id) is None:
-        raise HTTPException(status_code=404, detail="Profile not found")
-    row = update_profile(
-        DB_PATH,
+    existing = _ensure_authenticated_profile(auth_user)
+    user_id = str(existing["user_id"])
+    row = shared_user_data.update_profile(
         user_id=user_id,
         username=payload.username,
         display_name=payload.display_name,
@@ -1114,13 +1354,102 @@ def update_my_profile(
     return _profile_response(row)
 
 
+@app.patch("/profiles/me/avatar", response_model=UserProfileResponse)
+def update_my_avatar(
+    payload: UpdateUserAvatarRequest,
+    auth_user: Annotated[dict[str, object], Depends(_authenticated_user)],
+) -> UserProfileResponse:
+    _ensure_database()
+    existing = _ensure_authenticated_profile(auth_user)
+    user_id = str(existing["user_id"])
+    avatar_url = _validated_avatar_url(user_id=user_id, avatar_url=payload.avatar_url)
+    row = shared_user_data.update_avatar(user_id=user_id, avatar_url=avatar_url)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Profile not found")
+    return _profile_response(row)
+
+
+@app.get("/profiles/me/discovery-location", response_model=DiscoveryLocationResponse)
+def get_my_discovery_location(
+    auth_user: Annotated[dict[str, object], Depends(_authenticated_user)],
+) -> DiscoveryLocationResponse:
+    user_id = _auth_user_subject(auth_user)
+    if not shared_user_data.configured():
+        raise shared_user_data.SharedUserDataError("Discovery location storage is not configured")
+    return _location_response(shared_user_data.get_discovery_location(user_id=user_id))
+
+
+@app.post(
+    "/profiles/me/discovery-location/check-current",
+    response_model=CurrentLocationCheckResponse,
+)
+def check_my_current_location(
+    payload: CheckCurrentLocationRequest,
+    auth_user: Annotated[dict[str, object], Depends(_authenticated_user)],
+) -> CurrentLocationCheckResponse:
+    user_id = _auth_user_subject(auth_user)
+    checked_at = datetime.now(UTC).isoformat()
+    inside = TOKYO_SERVICE_AREA.contains(payload.latitude, payload.longitude)
+    changes: dict[str, object] = {"last_location_check_at": checked_at}
+    if inside:
+        anchor = nearest_tokyo_anchor(payload.latitude, payload.longitude)
+        changes.update(
+            location_mode="current",
+            discovery_latitude=payload.latitude,
+            discovery_longitude=payload.longitude,
+            discovery_label=anchor["area_name"],
+            arrival_date=None,
+        )
+    row = shared_user_data.upsert_discovery_location(user_id=user_id, changes=changes)
+    return CurrentLocationCheckResponse(
+        inside_service_area=inside,
+        location=_location_response(row),
+    )
+
+
+@app.put("/profiles/me/discovery-location", response_model=DiscoveryLocationResponse)
+def save_my_manual_discovery_location(
+    payload: SaveManualLocationRequest,
+    auth_user: Annotated[dict[str, object], Depends(_authenticated_user)],
+) -> DiscoveryLocationResponse:
+    user_id = _auth_user_subject(auth_user)
+    anchor = next(
+        (
+            item
+            for item in load_location_anchors()
+            if payload.discovery_label in {item["area_name"], item["display_name"]}
+            and abs(float(item["latitude"]) - payload.discovery_latitude) < 0.000001
+            and abs(float(item["longitude"]) - payload.discovery_longitude) < 0.000001
+        ),
+        None,
+    )
+    if anchor is None:
+        raise HTTPException(status_code=422, detail="Choose a supported Tokyo area")
+    row = shared_user_data.upsert_discovery_location(
+        user_id=user_id,
+        changes={
+            "location_mode": payload.location_mode,
+            "discovery_latitude": anchor["latitude"],
+            "discovery_longitude": anchor["longitude"],
+            "discovery_label": anchor["area_name"],
+            "arrival_date": payload.arrival_date.isoformat() if payload.arrival_date else None,
+        },
+    )
+    return _location_response(row)
+
+
 @app.get("/log", response_model=list[RestaurantVisitResponse])
 def get_restaurant_log(
     owner_id: Annotated[str, Depends(_owner_id_from_header)],
 ) -> list[RestaurantVisitResponse]:
     _ensure_database()
     ensure_public_schema(DB_PATH)
-    return [_visit_response_from_row(row) for row in list_visits(DB_PATH, owner_id=owner_id)]
+    rows = (
+        _catalog_enriched(shared_user_data.list_visits(user_id=str(owner_id)))
+        if _shared_owner(owner_id)
+        else list_visits(DB_PATH, owner_id=owner_id)
+    )
+    return [_visit_response_from_row(row) for row in rows]
 
 
 @app.post("/log", response_model=RestaurantVisitResponse, status_code=201)
@@ -1130,14 +1459,22 @@ def create_restaurant_log_visit(
 ) -> RestaurantVisitResponse:
     _ensure_database()
     ensure_public_schema(DB_PATH)
-    row = create_visit(
-        DB_PATH,
-        owner_id=owner_id,
-        place_id=payload.place_id,
-        visited_at=payload.visited_at.astimezone(UTC).isoformat(),
-        reaction=payload.reaction,
-        private_note=payload.private_note,
-    )
+    if _shared_owner(owner_id):
+        if get_published_restaurant_city(DB_PATH, place_id=payload.place_id) is None:
+            raise HTTPException(status_code=404, detail="Published restaurant not found")
+        row = _catalog_enriched([
+            shared_user_data.create_visit(
+                user_id=str(owner_id), place_id=payload.place_id,
+                visited_at=payload.visited_at.astimezone(UTC).isoformat(),
+                reaction=payload.reaction, private_note=payload.private_note,
+            )
+        ])[0]
+    else:
+        row = create_visit(
+            DB_PATH, owner_id=owner_id, place_id=payload.place_id,
+            visited_at=payload.visited_at.astimezone(UTC).isoformat(),
+            reaction=payload.reaction, private_note=payload.private_note,
+        )
     if row is None:
         raise HTTPException(status_code=404, detail="Published restaurant not found")
     return _visit_response_from_row(row)
@@ -1150,10 +1487,14 @@ def get_restaurant_log_visit(
 ) -> RestaurantVisitResponse:
     _ensure_database()
     ensure_public_schema(DB_PATH)
-    row = get_visit(DB_PATH, owner_id=owner_id, visit_id=visit_id)
+    row = (
+        shared_user_data.get_visit(user_id=str(owner_id), visit_id=visit_id)
+        if _shared_owner(owner_id)
+        else get_visit(DB_PATH, owner_id=owner_id, visit_id=visit_id)
+    )
     if row is None:
         raise HTTPException(status_code=404, detail="Visit not found")
-    return _visit_response_from_row(row)
+    return _visit_response_from_row(_catalog_enriched([row])[0] if _shared_owner(owner_id) else row)
 
 
 @app.patch("/log/{visit_id}", response_model=RestaurantVisitResponse)
@@ -1170,26 +1511,36 @@ def update_restaurant_log_visit(
     update_reaction = "reaction" in payload.model_fields_set
     if update_reaction and payload.reaction is None:
         raise HTTPException(status_code=422, detail="reaction cannot be null")
-    existing = get_visit(DB_PATH, owner_id=owner_id, visit_id=visit_id)
+    existing = (
+        shared_user_data.get_visit(user_id=str(owner_id), visit_id=visit_id)
+        if _shared_owner(owner_id)
+        else get_visit(DB_PATH, owner_id=owner_id, visit_id=visit_id)
+    )
     if existing is None:
         raise HTTPException(status_code=404, detail="Visit not found")
     if not update_reaction and existing.get("reaction") is None:
         raise HTTPException(status_code=422, detail="reaction is required")
-    row = update_visit(
-        DB_PATH,
-        owner_id=owner_id,
-        visit_id=visit_id,
-        visited_at=(
-            payload.visited_at.astimezone(UTC).isoformat()
-            if payload.visited_at is not None
-            else None
-        ),
-        reaction=payload.reaction,
-        private_note=payload.private_note,
-        update_visited_at=update_visited_at,
-        update_reaction=update_reaction,
-        update_private_note="private_note" in payload.model_fields_set,
-    )
+    if _shared_owner(owner_id):
+        changes: dict[str, object] = {}
+        if update_visited_at:
+            changes["visited_at"] = payload.visited_at.astimezone(UTC).isoformat()
+        if update_reaction:
+            changes["reaction"] = payload.reaction
+        if "private_note" in payload.model_fields_set:
+            changes["private_note"] = payload.private_note
+        row = shared_user_data.update_visit(
+            user_id=str(owner_id), visit_id=visit_id, changes=changes
+        )
+        if row is not None:
+            row = _catalog_enriched([row])[0]
+    else:
+        row = update_visit(
+            DB_PATH, owner_id=owner_id, visit_id=visit_id,
+            visited_at=(payload.visited_at.astimezone(UTC).isoformat() if payload.visited_at is not None else None),
+            reaction=payload.reaction, private_note=payload.private_note,
+            update_visited_at=update_visited_at, update_reaction=update_reaction,
+            update_private_note="private_note" in payload.model_fields_set,
+        )
     if row is None:
         raise HTTPException(status_code=404, detail="Visit not found")
     return _visit_response_from_row(row)
@@ -1202,7 +1553,12 @@ def delete_restaurant_log_visit(
 ) -> DeleteVisitResponse:
     _ensure_database()
     ensure_public_schema(DB_PATH)
-    if not delete_visit(DB_PATH, owner_id=owner_id, visit_id=visit_id):
+    deleted = (
+        shared_user_data.delete_visit(user_id=str(owner_id), visit_id=visit_id)
+        if _shared_owner(owner_id)
+        else delete_visit(DB_PATH, owner_id=owner_id, visit_id=visit_id)
+    )
+    if not deleted:
         raise HTTPException(status_code=404, detail="Visit not found")
     return DeleteVisitResponse(deleted=True)
 
@@ -1221,15 +1577,22 @@ def get_lists(
         resolved_city_ids = [_normalize_list_city(city_id)]
 
     for resolved_city_id in resolved_city_ids:
-        get_or_create_default_list(DB_PATH, owner_id=owner_id, city_id=resolved_city_id)
+        _default_list_row(owner_id, resolved_city_id)
 
-    rows = list_lists_for_owner(
-        DB_PATH,
-        owner_id=owner_id,
-        city_id=resolved_city_ids[0] if len(resolved_city_ids) == 1 else None,
+    rows = (
+        shared_user_data.list_lists(
+            user_id=str(owner_id),
+            city_id=resolved_city_ids[0] if len(resolved_city_ids) == 1 else None,
+        )
+        if _shared_owner(owner_id)
+        else list_lists_for_owner(
+            DB_PATH,
+            owner_id=owner_id,
+            city_id=resolved_city_ids[0] if len(resolved_city_ids) == 1 else None,
+        )
     )
     return RestaurantListCollectionResponse(
-        lists=[_list_summary_response_from_row(row) for row in rows],
+        lists=[_list_summary_response_from_row(owner_id, row) for row in rows],
     )
 
 
@@ -1247,13 +1610,16 @@ def create_list(
     if not name:
         raise HTTPException(status_code=422, detail="name is required")
 
-    row = create_custom_list(
-        DB_PATH,
-        owner_id=owner_id,
-        city_id=resolved_city_id,
-        name=name,
+    row = (
+        shared_user_data.create_list(
+            user_id=str(owner_id), city_id=resolved_city_id, name=name
+        )
+        if _shared_owner(owner_id)
+        else create_custom_list(
+            DB_PATH, owner_id=owner_id, city_id=resolved_city_id, name=name
+        )
     )
-    return _list_response_from_row(row)
+    return _list_response_from_row(owner_id, row)
 
 
 @app.get("/lists/{list_id:int}", response_model=RestaurantListResponse)
@@ -1264,7 +1630,7 @@ def get_list(
     _ensure_database()
     ensure_public_schema(DB_PATH)
     row = _owned_list_or_404(owner_id, list_id)
-    return _list_response_from_row(row)
+    return _list_response_from_row(owner_id, row)
 
 
 @app.patch("/lists/{list_id:int}", response_model=RestaurantListResponse)
@@ -1285,10 +1651,16 @@ def rename_custom_list(
     if not name:
         raise HTTPException(status_code=422, detail="name is required")
 
-    renamed = rename_list(DB_PATH, owner_id=owner_id, list_id=list_id, name=name)
+    renamed = (
+        shared_user_data.rename_list(
+            user_id=str(owner_id), list_id=list_id, name=name
+        )
+        if _shared_owner(owner_id)
+        else rename_list(DB_PATH, owner_id=owner_id, list_id=list_id, name=name)
+    )
     if renamed is None:
         raise HTTPException(status_code=404, detail="List not found")
-    return _list_response_from_row(renamed)
+    return _list_response_from_row(owner_id, renamed)
 
 
 @app.delete("/lists/{list_id:int}")
@@ -1304,7 +1676,11 @@ def delete_custom_list(
     if str(row["list_kind"]) != CUSTOM_LIST_KIND:
         raise HTTPException(status_code=400, detail="Default list cannot be deleted")
 
-    changed = delete_list(DB_PATH, owner_id=owner_id, list_id=list_id)
+    changed = (
+        shared_user_data.delete_list(user_id=str(owner_id), list_id=list_id)
+        if _shared_owner(owner_id)
+        else delete_list(DB_PATH, owner_id=owner_id, list_id=list_id)
+    )
     return {"changed": changed}
 
 
@@ -1332,9 +1708,17 @@ def add_list_item(
     if not _city_matches_list(city_id=str(row["city_id"]), restaurant_city=restaurant_city):
         raise HTTPException(status_code=400, detail="Restaurant does not belong to the requested city")
 
-    changed = add_item(DB_PATH, list_id=int(row["id"]), place_id=place_id)
+    changed = (
+        shared_user_data.add_item(
+            user_id=str(owner_id), list_id=int(row["id"]), place_id=place_id
+        )
+        if _shared_owner(owner_id)
+        else add_item(DB_PATH, list_id=int(row["id"]), place_id=place_id)
+    )
     latest = _owned_list_or_404(owner_id, list_id)
-    return ListItemMutationResponse(list=_list_response_from_row(latest), changed=changed)
+    return ListItemMutationResponse(
+        list=_list_response_from_row(owner_id, latest), changed=changed
+    )
 
 
 @app.delete("/lists/{list_id:int}/items/{place_id}", response_model=ListItemMutationResponse)
@@ -1351,9 +1735,17 @@ def remove_list_item(
     if str(row["list_kind"]) != CUSTOM_LIST_KIND:
         raise HTTPException(status_code=400, detail="Use /lists/default/items for default list saves")
 
-    changed = remove_item(DB_PATH, list_id=int(row["id"]), place_id=place_id)
+    changed = (
+        shared_user_data.remove_item(
+            user_id=str(owner_id), list_id=int(row["id"]), place_id=place_id
+        )
+        if _shared_owner(owner_id)
+        else remove_item(DB_PATH, list_id=int(row["id"]), place_id=place_id)
+    )
     latest = _owned_list_or_404(owner_id, list_id)
-    return ListItemMutationResponse(list=_list_response_from_row(latest), changed=changed)
+    return ListItemMutationResponse(
+        list=_list_response_from_row(owner_id, latest), changed=changed
+    )
 
 
 @app.get("/lists/default", response_model=RestaurantListResponse)
@@ -1385,8 +1777,14 @@ def add_default_list_item(
     if not _city_matches_list(city_id=resolved_city_id, restaurant_city=restaurant_city):
         raise HTTPException(status_code=400, detail="Restaurant does not belong to the requested city")
 
-    row = get_or_create_default_list(DB_PATH, owner_id=owner_id, city_id=resolved_city_id)
-    changed = add_item(DB_PATH, list_id=int(row["id"]), place_id=place_id)
+    row = _default_list_row(owner_id, resolved_city_id)
+    changed = (
+        shared_user_data.add_item(
+            user_id=str(owner_id), list_id=int(row["id"]), place_id=place_id
+        )
+        if _shared_owner(owner_id)
+        else add_item(DB_PATH, list_id=int(row["id"]), place_id=place_id)
+    )
     return DefaultListItemMutationResponse(
         list=_default_list_response(owner_id, resolved_city_id),
         changed=changed,
@@ -1405,8 +1803,14 @@ def remove_default_list_item(
     if not place_id:
         raise HTTPException(status_code=422, detail="place_id is required")
 
-    row = get_or_create_default_list(DB_PATH, owner_id=owner_id, city_id=resolved_city_id)
-    changed = remove_item(DB_PATH, list_id=int(row["id"]), place_id=place_id)
+    row = _default_list_row(owner_id, resolved_city_id)
+    changed = (
+        shared_user_data.remove_item(
+            user_id=str(owner_id), list_id=int(row["id"]), place_id=place_id
+        )
+        if _shared_owner(owner_id)
+        else remove_item(DB_PATH, list_id=int(row["id"]), place_id=place_id)
+    )
     return DefaultListItemMutationResponse(
         list=_default_list_response(owner_id, resolved_city_id),
         changed=changed,
@@ -1422,12 +1826,23 @@ def get_default_list_membership(
     _ensure_database()
     ensure_public_schema(DB_PATH)
     resolved_city_id = _normalize_list_city(city_id)
-    row = get_or_create_default_list(DB_PATH, owner_id=owner_id, city_id=resolved_city_id)
+    row = _default_list_row(owner_id, resolved_city_id)
+    if _shared_owner(owner_id):
+        is_saved = any(
+            item["place_id"] == place_id
+            for item in shared_user_data.list_items(
+                user_id=str(owner_id), list_id=int(row["id"])
+            )
+        )
+    else:
+        is_saved = contains_place_id(
+            DB_PATH, list_id=int(row["id"]), place_id=place_id
+        )
     return DefaultListMembershipResponse(
         list_id=int(row["id"]),
         city_id=resolved_city_id,
         place_id=place_id,
-        is_saved=contains_place_id(DB_PATH, list_id=int(row["id"]), place_id=place_id),
+        is_saved=is_saved,
     )
 
 

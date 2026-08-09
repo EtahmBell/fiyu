@@ -13,14 +13,11 @@ import {
   deleteRestaurantVisit,
   fetchRestaurantLog,
   fetchRestaurant,
+  fetchSeenRestaurantIds,
   updateRestaurantVisit,
 } from "@/lib/api/client";
 import { FiyuApiError } from "@/lib/api/errors";
 import type { PublicRestaurant, RestaurantVisit, VisitReaction } from "@/lib/api/schemas";
-import {
-  DAILY_PICKS_STORAGE_KEY,
-  parseDailyPicksState,
-} from "@/lib/daily-picks/storage";
 import { useIsDesktop } from "@/lib/hooks/useMediaQuery";
 import { getOrCreateAnonymousOwnerKey } from "@/lib/lists/identity";
 
@@ -217,14 +214,13 @@ export function LogWorkspace({
     catalogRequested.current = true;
     setCatalogLoading(true);
     setCatalogError(null);
-    const picksState = parseDailyPicksState(
-      window.localStorage.getItem(DAILY_PICKS_STORAGE_KEY),
-    );
-    const seenPlaceIds = [...picksState.discoveries]
-      .sort((left, right) => Date.parse(right.revealedAt) - Date.parse(left.revealedAt))
-      .map((discovery) => discovery.restaurantId);
-    Promise.allSettled(seenPlaceIds.map((seenPlaceId) => fetchRestaurant(seenPlaceId)))
-      .then((results) => {
+    const identity = { clientId: getOrCreateAnonymousOwnerKey() };
+    fetchSeenRestaurantIds(identity)
+      .then((seenPlaceIds) =>
+        Promise.allSettled(seenPlaceIds.map((seenPlaceId) => fetchRestaurant(seenPlaceId)))
+          .then((results) => ({ results, seenPlaceIds })),
+      )
+      .then(({ results, seenPlaceIds }) => {
         if (cancelled) return;
         const loaded = results.flatMap((result) =>
           result.status === "fulfilled" ? [result.value] : [],

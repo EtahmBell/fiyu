@@ -9,6 +9,72 @@ from fiyu import api
 from fiyu.database import SCHEMA, connect
 
 
+@pytest.fixture(autouse=True)
+def shared_profile_store(monkeypatch):
+    profiles: dict[str, dict[str, object]] = {}
+
+    def ensure_profile(*, user_id, username, auth_email):
+        if user_id in profiles:
+            return profiles[user_id]
+        row = {
+            "user_id": user_id,
+            "username": username,
+            "auth_email": auth_email,
+            "display_name": None,
+            "bio": None,
+            "avatar_url": None,
+            "created_at": "2026-08-09T00:00:00+00:00",
+            "updated_at": "2026-08-09T00:00:00+00:00",
+        }
+        profiles[user_id] = row
+        return row
+
+    def update_profile(*, user_id, username, display_name, bio):
+        row = profiles.get(user_id)
+        if row is None:
+            return None
+        row.update(
+            username=username,
+            display_name=display_name,
+            bio=bio,
+            updated_at="2026-08-09T01:00:00+00:00",
+        )
+        return row
+
+    def update_avatar(*, user_id, avatar_url):
+        row = profiles.get(user_id)
+        if row is None:
+            return None
+        row.update(avatar_url=avatar_url, updated_at="2026-08-09T02:00:00+00:00")
+        return row
+
+    monkeypatch.setattr(api.shared_user_data, "configured", lambda: True)
+    monkeypatch.setattr(api.shared_user_data, "ensure_profile", ensure_profile)
+    monkeypatch.setattr(
+        api.shared_user_data,
+        "username_available",
+        lambda *, username: not any(
+            str(row.get("username") or "").lower() == username.lower()
+            for row in profiles.values()
+        ),
+    )
+    monkeypatch.setattr(
+        api.shared_user_data,
+        "resolve_auth_email",
+        lambda *, username: next(
+            (
+                str(row["auth_email"])
+                for row in profiles.values()
+                if str(row.get("username") or "").lower() == username.lower()
+            ),
+            None,
+        ),
+    )
+    monkeypatch.setattr(api.shared_user_data, "update_profile", update_profile)
+    monkeypatch.setattr(api.shared_user_data, "update_avatar", update_avatar)
+    return profiles
+
+
 @pytest.fixture
 def account_db(tmp_path, monkeypatch):
     path = tmp_path / "accounts.db"
@@ -43,7 +109,9 @@ def test_contact_submission_is_validated_normalized_and_private(account_db):
     assert row["message"] == "A restaurant suggestion."
 
 
-def test_signup_uses_supabase_id_and_enforces_case_insensitive_username(account_db, monkeypatch):
+def test_signup_uses_supabase_id_and_enforces_case_insensitive_username(
+    account_db, monkeypatch, shared_profile_store
+):
     client = TestClient(api.app)
     first_user_id = str(uuid4())
     monkeypatch.setattr(
@@ -75,15 +143,14 @@ def test_signup_uses_supabase_id_and_enforces_case_insensitive_username(account_
         "email_verification_required": True,
     }
     assert duplicate.status_code == 409
-    with connect(account_db) as connection:
-        profile = connection.execute("SELECT * FROM user_profiles").fetchone()
+    profile = shared_profile_store[first_user_id]
     assert profile["user_id"] == first_user_id
     assert profile["username"] == "tokyofan"
     assert profile["auth_email"] == "first@example.com"
 
 
 def test_signin_accepts_email_username_and_at_prefix_without_exposing_email(
-    account_db, monkeypatch
+    account_db, monkeypatch, shared_profile_store
 ):
     client = TestClient(api.app)
     user_id = str(uuid4())
@@ -122,6 +189,7 @@ def test_signin_accepts_email_username_and_at_prefix_without_exposing_email(
     assert calls == ["person@example.com", "person@example.com", "person@example.com"]
     assert all("email" not in response.json() for response in responses)
     assert all(response.json()["user_id"] == user_id for response in responses)
+    assert list(shared_profile_store) == [user_id]
 
 
 def test_signin_uses_generic_errors_and_identifies_unverified_accounts(account_db, monkeypatch):
@@ -201,3 +269,139 @@ def test_authenticated_profile_read_update_and_owner_identity(account_db, monkey
     assert updated.json()["display_name"] == "Person"
     assert updated.json()["bio"] == "Notes"
     assert api._owner_id_from_header(authorization="Bearer valid") == user_id
+
+
+def test_avatar_reference_is_limited_to_authenticated_users_storage_path(
+    account_db, monkeypatch, shared_profile_store
+):
+    client = TestClient(api.app)
+    user_id = str(uuid4())
+    other_user_id = str(uuid4())
+    monkeypatch.setenv("SUPABASE_URL", "https://project.supabase.co")
+    monkeypatch.setattr(
+        api,
+        "authenticated_supabase_user",
+        lambda _: {
+            "id": user_id,
+            "email": "avatar@example.com",
+            "user_metadata": {"username": "avatar_user"},
+        },
+    )
+    headers = {"Authorization": "Bearer valid"}
+    own_url = (
+        "https://project.supabase.co/storage/v1/object/public/avatars/"
+        f"{user_id}/avatar.webp?v=123"
+    )
+    other_url = (
+        "https://project.supabase.co/storage/v1/object/public/avatars/"
+        f"{other_user_id}/avatar.webp"
+    )
+
+    updated = client.patch(
+        "/profiles/me/avatar", headers=headers, json={"avatar_url": own_url}
+    )
+    rejected = client.patch(
+        "/profiles/me/avatar", headers=headers, json={"avatar_url": other_url}
+    )
+    removed = client.patch(
+        "/profiles/me/avatar", headers=headers, json={"avatar_url": None}
+    )
+
+    assert updated.status_code == 200
+    assert updated.json()["avatar_url"] == own_url
+    assert rejected.status_code == 422
+    assert removed.status_code == 200
+    assert removed.json()["avatar_url"] is None
+    assert shared_profile_store[user_id]["avatar_url"] is None
+
+
+def test_missing_profile_is_idempotently_backfilled_then_persists_edits(
+    account_db, monkeypatch, shared_profile_store
+):
+    client = TestClient(api.app)
+    user_id = str(uuid4())
+    auth_user = {
+        "id": user_id,
+        "email": "existing@example.com",
+        "user_metadata": {"username": "existing_user"},
+    }
+    monkeypatch.setattr(api, "authenticated_supabase_user", lambda _: auth_user)
+    headers = {"Authorization": "Bearer existing"}
+
+    first = client.get("/profiles/me", headers=headers)
+    second = client.get("/profiles/me", headers=headers)
+    saved = client.patch(
+        "/profiles/me",
+        headers=headers,
+        json={
+            "username": "confirmed_user",
+            "display_name": "Existing User",
+            "bio": "Tokyo profile",
+        },
+    )
+    hydrated = client.get("/profiles/me", headers=headers)
+
+    assert first.status_code == second.status_code == saved.status_code == 200
+    assert len(shared_profile_store) == 1
+    assert first.json()["username"] == "existing_user"
+    assert hydrated.json()["username"] == "confirmed_user"
+    assert hydrated.json()["display_name"] == "Existing User"
+    assert hydrated.json()["bio"] == "Tokyo profile"
+
+
+def test_missing_profile_without_username_is_created_without_inventing_one(
+    account_db, monkeypatch, shared_profile_store
+):
+    client = TestClient(api.app)
+    user_id = str(uuid4())
+    monkeypatch.setattr(
+        api,
+        "authenticated_supabase_user",
+        lambda _: {"id": user_id, "email": "legacy@example.com", "user_metadata": {}},
+    )
+
+    response = client.get(
+        "/profiles/me", headers={"Authorization": "Bearer existing"}
+    )
+
+    assert response.status_code == 200
+    assert response.json()["username"] == ""
+    assert shared_profile_store[user_id]["username"] is None
+
+
+def test_avatar_storage_migration_enforces_uuid_folder_ownership():
+    migration = (
+        api.BACKEND_ROOT
+        / "supabase"
+        / "migrations"
+        / "202608090002_profile_avatars.sql"
+    ).read_text(encoding="utf-8")
+
+    assert "'avatars'" in migration
+    assert "public = excluded.public" in migration
+    assert migration.count("(storage.foldername(name))[1] = (select auth.uid()::text)") == 5
+    assert "for insert to authenticated" in migration
+    assert "for select to authenticated" in migration
+    assert "for update to authenticated" in migration
+    assert "for delete to authenticated" in migration
+
+
+def test_profile_provisioning_migration_backfills_and_enforces_one_auth_profile():
+    initial = (
+        api.BACKEND_ROOT
+        / "supabase"
+        / "migrations"
+        / "202608090001_authenticated_user_data.sql"
+    ).read_text(encoding="utf-8")
+    provisioning = (
+        api.BACKEND_ROOT
+        / "supabase"
+        / "migrations"
+        / "202608090003_profile_provisioning.sql"
+    ).read_text(encoding="utf-8")
+
+    assert "user_id uuid primary key references auth.users(id)" in initial
+    assert "after insert on auth.users" in provisioning
+    assert "from auth.users as users" in provisioning
+    assert "on conflict (user_id) do nothing" in provisioning
+    assert "alter column username drop not null" in provisioning

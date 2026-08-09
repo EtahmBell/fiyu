@@ -18,6 +18,7 @@ import {
   publishProfileIdentity,
   useProfileIdentity,
 } from "@/lib/profile/profileIdentity";
+import { prepareAvatarImage } from "@/lib/profile/avatarImage";
 import { cn } from "@/lib/utils/cn";
 
 export type ProfileSection = "profile" | "account" | "notifications" | "privacy" | "help" | "about";
@@ -98,7 +99,7 @@ function MobileProfileHome() {
         display_name: accountProfile.display_name ?? "",
         username: accountProfile.username,
         bio: accountProfile.bio ?? "",
-        profile_image: profile.profile_image,
+        profile_image: accountProfile.avatar_url,
       }
     : profile;
 
@@ -206,6 +207,7 @@ function ProfileForm({ mobile }: { mobile: boolean }) {
   const [imageError, setImageError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const identity = useProfileIdentity();
   const accountProfile = identity.profile;
@@ -216,7 +218,7 @@ function ProfileForm({ mobile }: { mobile: boolean }) {
         display_name: accountProfile.display_name ?? "",
         username: accountProfile.username,
         bio: accountProfile.bio ?? "",
-        profile_image: savedProfile.profile_image,
+        profile_image: accountProfile.avatar_url,
       }
     : savedProfile;
   const draft = draftOverride ?? persistedProfile;
@@ -251,8 +253,8 @@ function ProfileForm({ mobile }: { mobile: boolean }) {
           display_name: normalizedDraft.display_name || null,
           bio: normalizedDraft.bio || null,
         });
-        storage.save({ ...savedProfile, profile_image: normalizedDraft.profile_image });
-        publishProfileIdentity(updated, normalizedDraft.profile_image);
+        storage.save({ ...savedProfile, profile_image: null });
+        publishProfileIdentity(updated);
       } else {
         storage.save(normalizedDraft);
       }
@@ -280,12 +282,36 @@ function ProfileForm({ mobile }: { mobile: boolean }) {
     );
   }
 
-  const selectImage = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const selectImage = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
-    if (!file.type.startsWith("image/") || file.size > 500_000) {
-      setImageError("Choose a JPG, PNG, or WebP image under 500 KB.");
+    const sizeLimit = accountProfile ? 10_000_000 : 500_000;
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type) || file.size > sizeLimit) {
+      setImageError(
+        accountProfile
+          ? "Choose a JPG, PNG, or WebP image under 10 MB."
+          : "Choose a JPG, PNG, or WebP image under 500 KB.",
+      );
+      return;
+    }
+    if (accountProfile) {
+      setUploadingImage(true);
+      setImageError(null);
+      try {
+        const image = await prepareAvatarImage(file);
+        const updated = await authService.uploadProfileAvatar(image);
+        storage.save({ ...savedProfile, profile_image: null });
+        publishProfileIdentity(updated);
+        setDraft((current) => ({
+          ...(current ?? persistedProfile),
+          profile_image: updated.avatar_url,
+        }));
+      } catch (cause) {
+        setImageError(cause instanceof Error ? cause.message : "Unable to upload your photo.");
+      } finally {
+        setUploadingImage(false);
+      }
       return;
     }
     const reader = new FileReader();
@@ -298,6 +324,31 @@ function ProfileForm({ mobile }: { mobile: boolean }) {
     reader.readAsDataURL(file);
   };
 
+  const removeImage = async () => {
+    setImageError(null);
+    setSaved(false);
+    if (accountProfile) {
+      const previousImage = draft.profile_image;
+      setUploadingImage(true);
+      setDraft((current) => ({ ...(current ?? persistedProfile), profile_image: null }));
+      publishProfileIdentity({ ...accountProfile, avatar_url: null });
+      try {
+        const updated = await authService.removeProfileAvatar(previousImage);
+        storage.save({ ...savedProfile, profile_image: null });
+        publishProfileIdentity(updated);
+      } catch (cause) {
+        setDraft((current) => ({ ...(current ?? persistedProfile), profile_image: previousImage }));
+        publishProfileIdentity(accountProfile);
+        setImageError(cause instanceof Error ? cause.message : "Unable to remove your photo.");
+      } finally {
+        setUploadingImage(false);
+      }
+      return;
+    }
+    storage.save({ ...savedProfile, profile_image: null });
+    setDraft((current) => ({ ...(current ?? persistedProfile), profile_image: null }));
+  };
+
   return (
     <div className="max-w-xl">
       {!mobile && (
@@ -306,7 +357,7 @@ function ProfileForm({ mobile }: { mobile: boolean }) {
       <form onSubmit={save} className={cn(!mobile && "mt-8")}>
         <div className="flex items-center gap-4 border-b border-line pb-7">
           <ProfileAvatar profile={draft} />
-          <div>
+          <div className="flex flex-col items-start gap-1.5">
             <input
               ref={fileInputRef}
               type="file"
@@ -318,11 +369,21 @@ function ProfileForm({ mobile }: { mobile: boolean }) {
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="min-h-11 text-sm font-semibold text-plum underline decoration-transparent underline-offset-4 hover:decoration-lavender-500"
+              disabled={uploadingImage}
+              className="inline-flex min-h-10 items-center rounded-md border border-line bg-surface px-3.5 text-sm font-semibold text-ink transition-colors hover:border-line-strong hover:bg-subtle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600 disabled:cursor-wait disabled:opacity-60"
             >
-              Change photo
+              {uploadingImage ? "Uploading…" : "Change photo"}
             </button>
-            <p className="text-xs leading-5 text-ink-faint">Stored only on this device.</p>
+            {draft.profile_image && (
+              <button
+                type="button"
+                onClick={() => void removeImage()}
+                disabled={uploadingImage}
+                className="rounded-sm px-1 py-1 text-xs font-medium text-ink-faint transition-colors hover:text-ink-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600 disabled:cursor-wait disabled:opacity-60"
+              >
+                Remove photo
+              </button>
+            )}
           </div>
         </div>
         {imageError && <p role="alert" className="mt-2 text-xs text-rose-dust">{imageError}</p>}

@@ -82,13 +82,13 @@ describe("daily-only discovery shell", () => {
     [390, 844],
     [430, 932],
     [768, 1024],
-  ])("renders a floating collapsed mini-map beside the primary feed at %ix%i", (width, height) => {
+  ])("renders a floating collapsed mini-map beside the primary feed at %ix%i", async (width, height) => {
     Object.defineProperty(window, "innerWidth", { configurable: true, value: width });
     Object.defineProperty(window, "innerHeight", { configurable: true, value: height });
 
     render(<DiscoveryShell restaurants={catalog} areaAnchors={[]} />);
 
-    expect(screen.getByTestId("discovery-layout").className).toContain(
+    expect((await screen.findByTestId("discovery-layout")).className).toContain(
       "grid-rows-[minmax(0,1fr)]",
     );
     const desktopIntro = screen.getByTestId("desktop-page-intro");

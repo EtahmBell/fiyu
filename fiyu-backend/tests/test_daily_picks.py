@@ -150,3 +150,27 @@ def test_reliable_legacy_assignment_is_excluded_before_selection(daily_picks_db)
 
     assert response.status_code == 200
     assert {"one", "two", "three"}.isdisjoint(response.json()["place_ids"])
+
+
+def test_discovery_coordinates_prioritize_nearby_restaurants_without_changing_scores(
+    daily_picks_db,
+):
+    with connect(daily_picks_db) as connection:
+        connection.executemany(
+            "UPDATE public_restaurants SET latitude = ?, longitude = ? WHERE place_id = ?",
+            [
+                (35.6580, 139.7016, "one"),
+                (35.6590, 139.7020, "two"),
+                (35.6600, 139.7030, "three"),
+                (35.8000, 139.9000, "four"),
+            ],
+        )
+        connection.commit()
+    payload = _payload(["one", "two", "three", "four"])
+    payload["discovery_latitude"] = 35.6580
+    payload["discovery_longitude"] = 139.7016
+
+    response = _assign(TestClient(api.app), _owner(), payload)
+
+    assert response.status_code == 200
+    assert set(response.json()["place_ids"]) == {"one", "two", "three"}

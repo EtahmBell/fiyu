@@ -233,6 +233,23 @@ export const locationAnchorSchema = z.object({
 
 export const locationAnchorListSchema = z.array(locationAnchorSchema);
 
+export const discoveryLocationSchema = z.object({
+  configured: z.boolean(),
+  location_mode: z.enum(["current", "preview", "manual"]).nullable(),
+  discovery_latitude: nullableNumber,
+  discovery_longitude: nullableNumber,
+  discovery_label: nullableString,
+  arrival_date: nullableString,
+  last_location_check_at: nullableString,
+  updated_at: nullableString,
+  can_change_location_freely: z.boolean(),
+});
+
+export const currentLocationCheckSchema = z.object({
+  inside_service_area: z.boolean(),
+  location: discoveryLocationSchema,
+});
+
 const savedRestaurantSummarySchema = z.object({
   place_id: z.string().min(1),
   name_ja: nullableString,
@@ -293,6 +310,12 @@ export const restaurantVisitSchema = z.object({
 });
 
 export const restaurantVisitListSchema = z.array(restaurantVisitSchema);
+
+export const seenRestaurantsResponseSchema = z.object({
+  place_ids: z.array(z.string()),
+});
+
+export type SeenRestaurantsResponse = z.infer<typeof seenRestaurantsResponseSchema>;
 
 export const deleteRestaurantVisitResponseSchema = z.object({
   deleted: z.boolean(),
@@ -363,6 +386,8 @@ export type PublicRestaurantList = z.infer<typeof publicRestaurantListSchema>;
 export type GooglePhoto = z.infer<typeof googlePhotoSchema>;
 export type PhotoAttribution = z.infer<typeof photoAttributionSchema>;
 export type LocationAnchor = z.infer<typeof locationAnchorSchema>;
+export type DiscoveryLocation = z.infer<typeof discoveryLocationSchema>;
+export type CurrentLocationCheck = z.infer<typeof currentLocationCheckSchema>;
 export type SavedRestaurantSummary = z.infer<typeof savedRestaurantSummarySchema>;
 export type DefaultListItem = z.infer<typeof defaultListItemSchema>;
 export type DefaultListResponse = z.infer<typeof defaultListResponseSchema>;

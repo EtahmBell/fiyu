@@ -22,6 +22,7 @@ const SERVER_SNAPSHOT: ProfileIdentitySnapshot = {
 let snapshot = SERVER_SNAPSHOT;
 let loading: Promise<void> | null = null;
 let storageUnsubscribe: (() => void) | null = null;
+let accountChangeSubscribed = false;
 const listeners = new Set<() => void>();
 
 function emit(next: ProfileIdentitySnapshot) {
@@ -30,12 +31,28 @@ function emit(next: ProfileIdentitySnapshot) {
 }
 
 function ensureImageSubscription() {
-  if (storageUnsubscribe || typeof window === "undefined") return;
-  const storage = browserProfileStorage();
-  storageUnsubscribe = storage.subscribe(() => {
-    const profileImage = storage.getSnapshot().profile_image;
-    if (profileImage !== snapshot.profileImage) emit({ ...snapshot, profileImage });
-  });
+  if (typeof window === "undefined") return;
+  if (!storageUnsubscribe) {
+    const storage = browserProfileStorage();
+    storageUnsubscribe = storage.subscribe(() => {
+      const profileImage = storage.getSnapshot().profile_image;
+      if (
+        snapshot.profile === null &&
+        snapshot.email === null &&
+        profileImage !== snapshot.profileImage
+      ) {
+        emit({ ...snapshot, profileImage });
+      }
+    });
+  }
+  if (!accountChangeSubscribed) {
+    accountChangeSubscribed = true;
+    window.addEventListener("fiyu:account-changed", () => {
+      emit({ ...snapshot, status: "loading" });
+      const pending = loading ?? Promise.resolve();
+      void pending.finally(() => refreshProfileIdentity(true));
+    });
+  }
 }
 
 export function refreshProfileIdentity(force = false): Promise<void> {
@@ -44,16 +61,30 @@ export function refreshProfileIdentity(force = false): Promise<void> {
   if (!force && snapshot.status === "ready") return Promise.resolve();
   const profileImage = browserProfileStorage().getSnapshot().profile_image;
   loading = (async () => {
+    let authenticated = false;
+    let authenticatedEmail: string | null = null;
     try {
       const session = await authService.getSession();
       if (!session) {
         emit({ status: "ready", profile: null, email: null, profileImage });
         return;
       }
+      authenticated = true;
+      authenticatedEmail = session.email || "";
       const profile = await authService.getProfile();
-      emit({ status: "ready", profile, email: session.email || null, profileImage });
+      emit({
+        status: "ready",
+        profile,
+        email: authenticatedEmail,
+        profileImage: profile?.avatar_url ?? null,
+      });
     } catch {
-      emit({ status: "ready", profile: null, email: null, profileImage });
+      emit({
+        status: "ready",
+        profile: null,
+        email: authenticatedEmail,
+        profileImage: authenticated ? null : profileImage,
+      });
     } finally {
       loading = null;
     }
@@ -63,7 +94,7 @@ export function refreshProfileIdentity(force = false): Promise<void> {
 
 export function publishProfileIdentity(
   profile: FiyuAccountProfile,
-  profileImage: string | null = snapshot.profileImage,
+  profileImage: string | null = profile.avatar_url,
 ) {
   emit({ ...snapshot, status: "ready", profile, profileImage });
 }

@@ -10,15 +10,16 @@ import {
   deleteRestaurantVisit,
   fetchRestaurantLog,
   fetchRestaurant,
+  fetchSeenRestaurantIds,
   updateRestaurantVisit,
 } from "@/lib/api/client";
-import { DAILY_PICKS_STORAGE_KEY } from "@/lib/daily-picks/storage";
 
 vi.mock("@/lib/api/client", () => ({
   createRestaurantVisit: vi.fn(),
   deleteRestaurantVisit: vi.fn(),
   fetchRestaurantLog: vi.fn(),
   fetchRestaurant: vi.fn(),
+  fetchSeenRestaurantIds: vi.fn(),
   updateRestaurantVisit: vi.fn(),
 }));
 
@@ -88,21 +89,8 @@ const catalogRestaurant = {
 
 let desktopViewport = true;
 
-function seedSeenRestaurants(placeIds: string[], servedPlaceIds: string[] = placeIds) {
-  window.localStorage.setItem(
-    DAILY_PICKS_STORAGE_KEY,
-    JSON.stringify({
-      version: 3,
-      preferences: { categories: [], nonJapanese: "occasionally" },
-      selection: null,
-      discoveries: placeIds.map((restaurantId, index) => ({
-        restaurantId,
-        revealedAt: new Date(Date.UTC(2026, 7, 10 - index)).toISOString(),
-      })),
-      savedRestaurantIds: [],
-      servedRestaurantIds: servedPlaceIds,
-    }),
-  );
+function seedSeenRestaurants(placeIds: string[]) {
+  vi.mocked(fetchSeenRestaurantIds).mockResolvedValue(placeIds);
 }
 
 function visit(overrides: Partial<RestaurantVisit> = {}): RestaurantVisit {
@@ -138,12 +126,13 @@ beforeEach(() => {
     })),
   });
   window.localStorage.clear();
-  seedSeenRestaurants(["tokyo-a"]);
   vi.mocked(fetchRestaurantLog).mockReset();
   vi.mocked(fetchRestaurant).mockReset();
+  vi.mocked(fetchSeenRestaurantIds).mockReset();
   vi.mocked(createRestaurantVisit).mockReset();
   vi.mocked(updateRestaurantVisit).mockReset();
   vi.mocked(deleteRestaurantVisit).mockReset();
+  seedSeenRestaurants(["tokyo-a"]);
   vi.mocked(fetchRestaurant).mockResolvedValue(catalogRestaurant);
   Object.defineProperty(HTMLDialogElement.prototype, "showModal", {
     configurable: true,
@@ -185,7 +174,7 @@ describe("LogWorkspace", () => {
   });
 
   it("creates a visit from the published restaurant selector", async () => {
-    seedSeenRestaurants(["tokyo-a"], ["tokyo-a", "tokyo-concealed"]);
+    seedSeenRestaurants(["tokyo-a"]);
     vi.mocked(fetchRestaurantLog).mockResolvedValue([]);
     vi.mocked(createRestaurantVisit).mockResolvedValue(visit());
     render(<LogWorkspace />);

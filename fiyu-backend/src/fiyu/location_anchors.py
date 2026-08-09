@@ -21,8 +21,8 @@ class LocationAnchor(BaseModel):
     qualifier: str = Field(min_length=1)
     source: str = Field(min_length=1)
     source_reference: str = Field(min_length=1)
-    osm_type: str = Field(pattern="^(node|way|relation)$")
-    osm_id: int = Field(gt=0)
+    osm_type: str | None = Field(default=None, pattern="^(node|way|relation)$")
+    osm_id: int | None = Field(default=None, gt=0)
     verified_at: date
     reviewed: bool
 

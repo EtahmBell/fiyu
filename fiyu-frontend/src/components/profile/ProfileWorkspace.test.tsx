@@ -17,6 +17,10 @@ import {
 } from "@/lib/profile/profileIdentity";
 import { PROFILE_STORAGE_KEY } from "@/lib/profile/profileStorage";
 
+vi.mock("@/lib/profile/avatarImage", () => ({
+  prepareAvatarImage: vi.fn(async () => new Blob(["avatar"], { type: "image/webp" })),
+}));
+
 let desktopViewport = false;
 
 beforeEach(() => {
@@ -109,6 +113,95 @@ describe("ProfileWorkspace", () => {
       username: "ethan",
       bio: "Tokyo notes.",
     });
+  });
+
+  it("removes a custom photo immediately and persists the initial avatar fallback", () => {
+    window.localStorage.setItem(
+      PROFILE_STORAGE_KEY,
+      JSON.stringify({
+        display_name: "Ethan Bell",
+        username: "ethan",
+        bio: "",
+        profile_image: "data:image/png;base64,avatar",
+      }),
+    );
+
+    render(<ProfileWorkspace section="profile" />);
+
+    expect(screen.getByRole("button", { name: "Change photo" })).toBeTruthy();
+    expect(screen.queryByText("Stored only on this device.")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Remove photo" }));
+
+    expect(screen.queryByRole("button", { name: "Remove photo" })).toBeNull();
+    expect(screen.getByLabelText("Default profile avatar").textContent).toBe("E");
+    expect(JSON.parse(window.localStorage.getItem(PROFILE_STORAGE_KEY) ?? "null")).toMatchObject({
+      profile_image: null,
+    });
+  });
+
+  it("uses and removes the authenticated server avatar without local photo state", async () => {
+    const profile = {
+      user_id: "user-1",
+      username: "etahm",
+      display_name: "Ethan Bell",
+      bio: null,
+      avatar_url: "https://project.supabase.co/storage/v1/object/public/avatars/user-1/avatar.webp?v=1",
+      created_at: "2026-08-08T00:00:00Z",
+      updated_at: "2026-08-08T00:00:00Z",
+    };
+    publishProfileIdentity(profile);
+    vi.spyOn(authService, "removeProfileAvatar").mockResolvedValue({
+      ...profile,
+      avatar_url: null,
+      updated_at: "2026-08-08T01:00:00Z",
+    });
+
+    render(
+      <>
+        <ApplicationNavigation />
+        <ProfileWorkspace section="profile" />
+      </>,
+    );
+
+    expect(screen.getByAltText("Profile").getAttribute("src")).toContain("avatar.webp?v=1");
+    fireEvent.click(screen.getByRole("button", { name: "Remove photo" }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole("button", { name: "Remove photo" })).toBeNull();
+      expect(screen.getByLabelText("Default profile avatar").textContent).toBe("E");
+      expect(screen.getByRole("link", { name: "Profile: Ethan Bell" }).textContent).toContain("E");
+    });
+    expect(authService.removeProfileAvatar).toHaveBeenCalledWith(profile.avatar_url);
+    expect(window.localStorage.getItem(PROFILE_STORAGE_KEY)).toContain('"profile_image":null');
+  });
+
+  it("uploads an authenticated avatar immediately without Save changes", async () => {
+    const profile = {
+      user_id: "user-1",
+      username: "etahm",
+      display_name: "Ethan Bell",
+      bio: null,
+      avatar_url: null,
+      created_at: "2026-08-08T00:00:00Z",
+      updated_at: "2026-08-08T00:00:00Z",
+    };
+    const uploaded = {
+      ...profile,
+      avatar_url: "https://project.supabase.co/storage/v1/object/public/avatars/user-1/avatar.webp?v=2",
+    };
+    publishProfileIdentity(profile);
+    vi.spyOn(authService, "uploadProfileAvatar").mockResolvedValue(uploaded);
+    render(<ProfileWorkspace section="profile" />);
+
+    fireEvent.change(screen.getByLabelText("Choose profile photo"), {
+      target: { files: [new File(["photo"], "photo.png", { type: "image/png" })] },
+    });
+
+    await waitFor(() => {
+      expect(authService.uploadProfileAvatar).toHaveBeenCalledOnce();
+      expect(screen.getByAltText("Profile").getAttribute("src")).toContain("avatar.webp?v=2");
+    });
+    expect(screen.getByRole("button", { name: "Remove photo" })).toBeTruthy();
   });
 
   it("uses the two-column settings application on desktop", () => {

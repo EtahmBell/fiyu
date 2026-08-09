@@ -42,15 +42,24 @@ The weights and thresholds are configurable in `scoring.example.json` or with CL
 
 ### Account and Contact configuration
 
-The existing SQLite database stores Fiyu profile records and private Contact
-submissions. Supabase Auth provides email/password identity; Fiyu does not store
-passwords or mint its own auth tokens.
+Supabase Auth provides email/password identity; Fiyu does not store passwords
+or mint its own auth tokens. Authenticated profiles, Lists/saves, Log visits and
+seen-restaurant history are stored in Supabase Postgres under the stable Auth
+user UUID. The restaurant catalog and anonymous-owner data remain in SQLite.
 
 Copy `.env.example` to `.env` and set `SUPABASE_URL` and
-`SUPABASE_ANON_KEY` to the same project configured by the web client. The API
-uses the public Auth endpoints to create accounts and validate bearer sessions;
-no service-role key is required. Tables are created additively in the configured
-`FIYU_DB_PATH` on first use. After pulling schema changes, run:
+`SUPABASE_ANON_KEY` to the same project configured by the web client. Also set
+`SUPABASE_SERVICE_ROLE_KEY` on the backend only. The service-role key must never
+be placed in a `NEXT_PUBLIC_*` variable or mobile/web client bundle.
+
+Apply the checked-in shared-data migration to the linked Supabase project:
+
+```powershell
+supabase db push
+```
+
+Then run the additive local SQLite schema setup used by the catalog and
+anonymous flow:
 
 ```powershell
 python -m fiyu.cli demo
@@ -58,6 +67,21 @@ python -m fiyu.cli demo
 
 An Expo client can later authenticate with the same Supabase project and send
 its access token to this API, producing the same stable Supabase user UUID.
+The API verifies that bearer token first and scopes every shared-data operation
+to the derived UUID; it never accepts a user ID from a request body or query.
+
+Authenticated profile photos use the public-read Supabase Storage bucket
+`avatars`. Browser writes use the signed-in Supabase session and are restricted
+by Storage policies to `<auth user UUID>/avatar.webp`; the profile stores the
+versioned public URL in `fiyu_user_profiles.avatar_url`. The bucket and policies
+are created by the checked-in migrations applied through `supabase db push`.
+
+Profile provisioning is idempotent. A database trigger creates a profile for
+new `auth.users` rows, the provisioning migration backfills existing Auth users,
+and authenticated profile reads/saves ensure the row exists before continuing.
+The backend intentionally does not fall back to local SQLite when
+`SUPABASE_SERVICE_ROLE_KEY` is missing; authenticated profile requests return a
+configuration error instead of appearing to save data outside Supabase.
 
 ### Windows PowerShell
 

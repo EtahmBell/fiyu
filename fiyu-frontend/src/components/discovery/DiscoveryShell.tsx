@@ -4,12 +4,15 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { DailyPicksPanel } from "@/components/daily-picks/DailyPicksPanel";
+import { AuthenticatedLocationSetup } from "@/components/location/AuthenticatedLocationSetup";
 import { PageIntro, SiteFooter } from "@/components/layout/SiteHeader";
 import { FiyuMap } from "@/components/map/FiyuMap";
 import { MapUnavailable } from "@/components/map/MapUnavailable";
-import type { PublicRestaurant } from "@/lib/api/schemas";
+import { fetchDiscoveryLocation } from "@/lib/api/client";
+import type { DiscoveryLocation, PublicRestaurant } from "@/lib/api/schemas";
 import { mappableRestaurants } from "@/lib/geo/mappable";
 import { useGeolocation } from "@/lib/hooks/useGeolocation";
+import { useProfileIdentity } from "@/lib/profile/profileIdentity";
 import type { LocationAnchor } from "@/lib/api/schemas";
 import {
   originAreaName,
@@ -56,6 +59,16 @@ interface Selection {
  */
 export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps) {
   const router = useRouter();
+  const identity = useProfileIdentity();
+  const [loadedAccountLocation, setLoadedAccountLocation] = useState<{
+    userId: string;
+    location: DiscoveryLocation | null;
+  } | null>(null);
+  const accountLocation = identity.profile
+    ? loadedAccountLocation?.userId === identity.profile.user_id
+      ? loadedAccountLocation.location
+      : undefined
+    : null;
   const [selection, setSelection] = useState<Selection | null>(null);
   const [visibleRestaurantIds, setVisibleRestaurantIds] = useState<string[]>([]);
   const [homeArea, setHomeArea] = useState<LocationAnchor | null>(null);
@@ -65,16 +78,29 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
 
   const geolocation = useGeolocation();
 
+  useEffect(() => {
+    if (identity.status !== "ready") return;
+    if (!identity.profile) return;
+    const userId = identity.profile.user_id;
+    const controller = new AbortController();
+    void fetchDiscoveryLocation({ signal: controller.signal })
+      .then((location) => setLoadedAccountLocation({ userId, location }))
+      .catch(() => setLoadedAccountLocation({ userId, location: null }));
+    return () => controller.abort();
+  }, [identity.profile, identity.status]);
+
   const origin = useMemo<FreeDiscoveryOrigin | null>(() => {
     const current = originFromGeolocation(geolocation.state);
     if (current) return current;
     if (homeArea) return { kind: "home-area", area: homeArea };
     return continuedWithoutLocation ? { kind: "unavailable" } : null;
   }, [continuedWithoutLocation, geolocation.state, homeArea]);
-  const activeArea = useMemo(
-    () => originAreaName(origin, areaAnchors),
-    [areaAnchors, origin],
-  );
+  const activeArea = useMemo(() => {
+    if (identity.profile && accountLocation?.configured) {
+      return accountLocation.discovery_label;
+    }
+    return originAreaName(origin, areaAnchors);
+  }, [accountLocation, areaAnchors, identity.profile, origin]);
 
   const visibleRestaurants = useMemo(() => {
     const visible = new Set(visibleRestaurantIds);
@@ -164,6 +190,22 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
     return () => window.removeEventListener("keydown", collapseOnEscape);
   }, [mapExpanded]);
 
+  if (identity.status === "loading" || (identity.profile && accountLocation === undefined)) {
+    return <div className="min-h-[calc(100dvh-var(--spacing-header))] bg-canvas" />;
+  }
+
+  if (identity.profile && !accountLocation?.configured) {
+    return (
+      <AuthenticatedLocationSetup
+        anchors={areaAnchors}
+        geolocation={geolocation}
+        onConfigured={(location) =>
+          setLoadedAccountLocation({ userId: identity.profile!.user_id, location })
+        }
+      />
+    );
+  }
+
   return (
     <div
       data-testid="discovery-layout"
@@ -196,20 +238,34 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
               <DailyPicksPanel
                 restaurants={restaurants}
                 activeArea={activeArea}
+                discoveryPoint={
+                  accountLocation?.configured &&
+                  accountLocation.discovery_latitude !== null &&
+                  accountLocation.discovery_longitude !== null
+                    ? {
+                        latitude: accountLocation.discovery_latitude,
+                        longitude: accountLocation.discovery_longitude,
+                      }
+                    : null
+                }
                 onOpenRestaurant={selectFromFeed}
                 onViewRestaurant={openRestaurantDetail}
                 onVisibleRestaurantIdsChange={setVisibleRestaurantIds}
                 selectedPlaceId={selection?.placeId ?? null}
                 scrollToPlaceId={selection?.source === "map" ? selection.placeId : null}
                 scrollRequestKey={selection?.navigationKey ?? 0}
-                originSetup={{
-                  origin,
-                  geolocation: geolocation.state,
-                  areaAnchors,
-                  requestCurrentLocation: geolocation.request,
-                  chooseHomeArea: setHomeArea,
-                  continueWithoutLocation: () => setContinuedWithoutLocation(true),
-                }}
+                originSetup={
+                  identity.profile
+                    ? undefined
+                    : {
+                        origin,
+                        geolocation: geolocation.state,
+                        areaAnchors,
+                        requestCurrentLocation: geolocation.request,
+                        chooseHomeArea: setHomeArea,
+                        continueWithoutLocation: () => setContinuedWithoutLocation(true),
+                      }
+                }
               />
             </div>
 

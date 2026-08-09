@@ -99,6 +99,13 @@ export class DefaultListStore {
     return () => this.listeners.delete(listener);
   };
 
+  resetAccountState(): void {
+    this.loadingPromise = null;
+    this.mutationInFlight.clear();
+    this.snapshot = { ...this.serverSnapshot };
+    this.emit();
+  }
+
   private emit(): void {
     for (const listener of this.listeners) listener();
   }
@@ -325,6 +332,12 @@ export class DefaultListStore {
 }
 
 const storeByCity = new Map<string, DefaultListStore>();
+
+if (typeof window !== "undefined") {
+  window.addEventListener("fiyu:account-changed", () => {
+    for (const store of storeByCity.values()) store.resetAccountState();
+  });
+}
 
 export function defaultListStoreForCity(cityId: string): DefaultListStore {
   const normalized = cityId.trim().toLowerCase();

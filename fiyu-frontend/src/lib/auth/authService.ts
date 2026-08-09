@@ -49,6 +49,17 @@ export class AuthRequestError extends Error {
 }
 
 let browserClient: SupabaseClient | null = null;
+const AVATAR_BUCKET = "avatars";
+
+function avatarPath(userId: string): string {
+  return `${userId}/avatar.webp`;
+}
+
+function announceAccountChange(): void {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event("fiyu:account-changed"));
+  }
+}
 
 function supabaseClient(): SupabaseClient {
   if (browserClient) return browserClient;
@@ -122,6 +133,7 @@ export const authService = {
         refresh_token: payload.session.refresh_token,
       });
       if (error) throw new AuthRequestError("Account created, but the session could not be started.");
+      announceAccountChange();
     }
     return {
       email: payload.email,
@@ -150,6 +162,7 @@ export const authService = {
       refresh_token: payload.session.refresh_token,
     });
     if (error || !data.session) throw new AuthRequestError("Unable to start your session.");
+    announceAccountChange();
     return {
       userId: payload.user_id,
       email: data.user?.email ?? "",
@@ -161,6 +174,7 @@ export const authService = {
     if (!this.isConfigured()) return;
     const { error } = await supabaseClient().auth.signOut();
     if (error) throw new AuthRequestError("Unable to sign out.");
+    announceAccountChange();
   },
 
   async requestPasswordReset(email: string): Promise<void> {
@@ -212,5 +226,50 @@ export const authService = {
       throw new AuthRequestError(await responseDetail(response, "Unable to save your profile."));
     }
     return (await response.json()) as FiyuAccountProfile;
+  },
+
+  async updateProfileAvatar(avatarUrl: string | null): Promise<FiyuAccountProfile> {
+    const token = await this.getAccessToken();
+    if (!token) throw new AuthRequestError("Sign in to update your profile photo.");
+    const response = await fetch(`${getApiBaseUrl()}/profiles/me/avatar`, {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ avatar_url: avatarUrl }),
+    });
+    if (!response.ok) {
+      throw new AuthRequestError(
+        await responseDetail(response, "Unable to update your profile photo."),
+      );
+    }
+    return (await response.json()) as FiyuAccountProfile;
+  },
+
+  async uploadProfileAvatar(image: Blob): Promise<FiyuAccountProfile> {
+    const session = await this.getSession();
+    if (!session) throw new AuthRequestError("Sign in to update your profile photo.");
+    const path = avatarPath(session.userId);
+    const { error } = await supabaseClient().storage.from(AVATAR_BUCKET).upload(path, image, {
+      contentType: "image/webp",
+      cacheControl: "3600",
+      upsert: true,
+    });
+    if (error) throw new AuthRequestError("Unable to upload your profile photo.");
+    const { data } = supabaseClient().storage.from(AVATAR_BUCKET).getPublicUrl(path);
+    const versionedUrl = `${data.publicUrl}?v=${Date.now()}`;
+    return this.updateProfileAvatar(versionedUrl);
+  },
+
+  async removeProfileAvatar(previousAvatarUrl: string | null): Promise<FiyuAccountProfile> {
+    const session = await this.getSession();
+    if (!session) throw new AuthRequestError("Sign in to remove your profile photo.");
+    const updated = await this.updateProfileAvatar(null);
+    const { error } = await supabaseClient().storage
+      .from(AVATAR_BUCKET)
+      .remove([avatarPath(session.userId)]);
+    if (error) {
+      if (previousAvatarUrl) await this.updateProfileAvatar(previousAvatarUrl);
+      throw new AuthRequestError("Unable to remove your profile photo.");
+    }
+    return updated;
   },
 };

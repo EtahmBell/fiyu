@@ -34,7 +34,10 @@ export const paths = {
     `/public/restaurants/${encodeURIComponent(placeId)}/photo-preview`,
   photos: (placeId: string) => `/public/restaurants/${encodeURIComponent(placeId)}/photos`,
   locationAnchors: "/public/location-anchors",
+  discoveryLocation: "/profiles/me/discovery-location",
+  discoveryLocationCheck: "/profiles/me/discovery-location/check-current",
   dailyPicksAssign: "/daily-picks/assign",
+  seenRestaurants: "/seen/restaurants",
   log: "/log",
   logVisit: (visitId: string) => `/log/${encodeURIComponent(visitId)}`,
   defaultList: "/lists/default",
@@ -45,6 +48,10 @@ export const paths = {
 
 export function dailyPicksAssignUrl(): string {
   return `${getApiBaseUrl()}${paths.dailyPicksAssign}`;
+}
+
+export function seenRestaurantsUrl(): string {
+  return `${getApiBaseUrl()}${paths.seenRestaurants}`;
 }
 
 export function logUrl(): string {
@@ -80,6 +87,14 @@ export function photosUrl(placeId: string, limit: number = PHOTOS_LIMIT_DEFAULT)
 
 export function locationAnchorsUrl(): string {
   return `${getApiBaseUrl()}${paths.locationAnchors}`;
+}
+
+export function discoveryLocationUrl(): string {
+  return `${getApiBaseUrl()}${paths.discoveryLocation}`;
+}
+
+export function discoveryLocationCheckUrl(): string {
+  return `${getApiBaseUrl()}${paths.discoveryLocationCheck}`;
 }
 
 export function defaultListUrl(cityId: string): string {

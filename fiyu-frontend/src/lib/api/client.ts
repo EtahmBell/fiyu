@@ -9,6 +9,8 @@ import {
 } from "@/lib/api/errors";
 import {
   dailyPicksAssignUrl,
+  discoveryLocationCheckUrl,
+  discoveryLocationUrl,
   defaultListItemsUrl,
   defaultListSmartViewUrl,
   defaultListSmartViewsUrl,
@@ -24,9 +26,12 @@ import {
   photosUrl,
   restaurantUrl,
   restaurantsUrl,
+  seenRestaurantsUrl,
 } from "@/lib/api/endpoints";
 import {
   type DailyPickAssignmentResponse,
+  type DiscoveryLocation,
+  type CurrentLocationCheck,
   type DefaultListMembershipResponse,
   type DefaultListMutationResponse,
   type DefaultListResponse,
@@ -41,6 +46,8 @@ import {
   type SmartViewResponse,
   defaultListMembershipResponseSchema,
   dailyPickAssignmentResponseSchema,
+  discoveryLocationSchema,
+  currentLocationCheckSchema,
   defaultListMutationResponseSchema,
   defaultListResponseSchema,
   describeZodIssues,
@@ -52,6 +59,7 @@ import {
   publicRestaurantDetailSchema,
   restaurantVisitListSchema,
   restaurantVisitSchema,
+  seenRestaurantsResponseSchema,
   smartViewCatalogResponseSchema,
   smartViewResponseSchema,
 } from "@/lib/api/schemas";
@@ -77,7 +85,7 @@ export interface RequestOptions {
   revalidate?: number | false;
   /** Server-side cache tags, for targeted revalidation. Ignored in the browser. */
   tags?: string[];
-  method?: "GET" | "POST" | "DELETE" | "PATCH";
+  method?: "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
   cache?: RequestCache;
   headers?: Record<string, string>;
   body?: unknown;
@@ -308,8 +316,50 @@ export interface DailyPickAssignmentRequest {
   categories: string[];
   non_japanese: "yes" | "occasionally" | "japanese-only";
   active_area: string | null;
+  discovery_latitude?: number | null;
+  discovery_longitude?: number | null;
   seed: number;
   requested_count: 3;
+}
+
+export function fetchDiscoveryLocation(options: RequestOptions = {}): Promise<DiscoveryLocation> {
+  return requestJson(
+    discoveryLocationUrl(),
+    paths.discoveryLocation,
+    discoveryLocationSchema,
+    { ...options, cache: "no-store" },
+  );
+}
+
+export function checkCurrentDiscoveryLocation(
+  latitude: number,
+  longitude: number,
+  options: RequestOptions = {},
+): Promise<CurrentLocationCheck> {
+  return requestJson(
+    discoveryLocationCheckUrl(),
+    paths.discoveryLocationCheck,
+    currentLocationCheckSchema,
+    { ...options, method: "POST", body: { latitude, longitude } },
+  );
+}
+
+export function saveManualDiscoveryLocation(
+  input: {
+    location_mode: "preview" | "manual";
+    discovery_label: string;
+    discovery_latitude: number;
+    discovery_longitude: number;
+    arrival_date: string | null;
+  },
+  options: RequestOptions = {},
+): Promise<DiscoveryLocation> {
+  return requestJson(
+    discoveryLocationUrl(),
+    paths.discoveryLocation,
+    discoveryLocationSchema,
+    { ...options, method: "PUT", body: input },
+  );
 }
 
 function listHeaders(identity: ListIdentity): Record<string, string> {
@@ -338,6 +388,22 @@ export function fetchRestaurantLog(
     cache: options.cache ?? "no-store",
     headers: { ...listHeaders(identity), ...(options.headers ?? {}) },
   });
+}
+
+export function fetchSeenRestaurantIds(
+  identity: ListIdentity,
+  options: RequestOptions = {},
+): Promise<string[]> {
+  return requestJson(
+    seenRestaurantsUrl(),
+    paths.seenRestaurants,
+    seenRestaurantsResponseSchema,
+    {
+      ...options,
+      cache: options.cache ?? "no-store",
+      headers: { ...listHeaders(identity), ...(options.headers ?? {}) },
+    },
+  ).then((response) => response.place_ids);
 }
 
 export function createRestaurantVisit(

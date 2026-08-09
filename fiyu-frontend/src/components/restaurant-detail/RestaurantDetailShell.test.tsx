@@ -77,6 +77,8 @@ describe("restaurant detail view", () => {
     expect(screen.getByRole("heading", { level: 2, name: "Menu and format" })).toBeTruthy();
     expect(screen.getByText("Counter Sushi Restaurant")).toBeTruthy();
     expect(screen.getByText("Approximate area")).toBeTruthy();
+    expect(screen.getAllByRole("link", { name: "Open in Google Maps" }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("link", { name: "Open in Apple Maps" }).length).toBeGreaterThan(0);
     expect(screen.getByTestId("desktop-detail-map")).toBeTruthy();
     expect(document.querySelectorAll('[data-place-id="detail-place"]')).toHaveLength(2);
 

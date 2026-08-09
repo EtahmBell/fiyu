@@ -10,8 +10,9 @@ import type { LatLng } from "@/lib/map/projection";
  * This hook never asks for a position on mount. The permission prompt appears
  * solely because someone pressed the button, after the UI has explained why.
  *
- * The position is held in React state and nowhere else: it is not written to
- * storage, not put in the URL, and never sent to the backend.
+ * The position is held in React state. A caller may submit a successful point
+ * as the account's single active discovery center; this hook never stores or
+ * tracks a history itself.
  */
 
 export type GeolocationState =
@@ -70,7 +71,7 @@ export function useGeolocation(): UseGeolocation {
             setState({ status: "unavailable" });
         }
       },
-      { enableHighAccuracy: true, timeout: TIMEOUT_MS, maximumAge: 0 },
+      { enableHighAccuracy: false, timeout: TIMEOUT_MS, maximumAge: 300_000 },
     );
   }, []);
 

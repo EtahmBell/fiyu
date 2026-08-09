@@ -1,0 +1,362 @@
+from __future__ import annotations
+
+import json
+import os
+from datetime import UTC, datetime
+from typing import Any
+from urllib.error import HTTPError, URLError
+from urllib.parse import urlencode
+from urllib.request import Request, urlopen
+from uuid import uuid4
+
+
+class SharedUserDataError(RuntimeError):
+    pass
+
+
+class SharedUserDataConflict(SharedUserDataError):
+    pass
+
+
+def configured() -> bool:
+    return bool(
+        os.getenv("SUPABASE_URL", "").strip() and os.getenv("SUPABASE_SERVICE_ROLE_KEY", "").strip()
+    )
+
+
+def _request(
+    path: str,
+    *,
+    method: str = "GET",
+    query: dict[str, str] | None = None,
+    body: object | None = None,
+    prefer: str | None = None,
+) -> Any:
+    url = os.getenv("SUPABASE_URL", "").strip().rstrip("/")
+    key = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "").strip()
+    if not url or not key:
+        raise SharedUserDataError("Shared user data is not configured")
+    suffix = f"?{urlencode(query)}" if query else ""
+    headers = {"apikey": key, "Authorization": f"Bearer {key}", "Content-Type": "application/json"}
+    if prefer:
+        headers["Prefer"] = prefer
+    data = json.dumps(body).encode() if body is not None else None
+    request = Request(f"{url}/rest/v1/{path}{suffix}", data=data, headers=headers, method=method)
+    try:
+        with urlopen(request, timeout=10) as response:
+            raw = response.read()
+    except HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")
+        if exc.code == 409 or "23505" in detail:
+            raise SharedUserDataConflict("Shared account value is already in use") from None
+        raise SharedUserDataError(
+            f"Shared user data request failed ({exc.code}): {detail[:300]}"
+        ) from None
+    except (URLError, TimeoutError):
+        raise SharedUserDataError("Shared user data is unavailable") from None
+    return json.loads(raw) if raw else None
+
+
+def _rows(table: str, **filters: object) -> list[dict[str, Any]]:
+    query = {"select": "*", **{key: f"eq.{value}" for key, value in filters.items()}}
+    result = _request(table, query=query)
+    return result if isinstance(result, list) else []
+
+
+def get_profile(*, user_id: str) -> dict[str, Any] | None:
+    rows = _rows("fiyu_user_profiles", user_id=user_id)
+    return rows[0] if rows else None
+
+
+def resolve_auth_email(*, username: str) -> str | None:
+    rows = _rows("fiyu_user_profiles", username=username.lower())
+    return str(rows[0]["auth_email"]) if rows and rows[0].get("auth_email") else None
+
+
+def username_available(*, username: str) -> bool:
+    return not _rows("fiyu_user_profiles", username=username.lower())
+
+
+def ensure_profile(
+    *, user_id: str, username: str | None, auth_email: str | None
+) -> dict[str, Any]:
+    existing = get_profile(user_id=user_id)
+    if existing is not None:
+        return existing
+
+    def insert(candidate_username: str | None) -> dict[str, Any] | None:
+        result = _request(
+            "fiyu_user_profiles",
+            method="POST",
+            query={"on_conflict": "user_id"},
+            body={
+                "user_id": user_id,
+                "username": candidate_username,
+                "auth_email": auth_email,
+            },
+            prefer="resolution=ignore-duplicates,return=representation",
+        )
+        return result[0] if isinstance(result, list) and result else None
+
+    try:
+        created = insert(username)
+    except SharedUserDataConflict:
+        if username is None:
+            raise
+        created = insert(None)
+    if created is not None:
+        return created
+    existing = get_profile(user_id=user_id)
+    if existing is None:
+        raise SharedUserDataError("Profile provisioning failed")
+    return existing
+
+
+def update_profile(
+    *, user_id: str, username: str, display_name: str | None, bio: str | None
+) -> dict[str, Any] | None:
+    result = _request(
+        "fiyu_user_profiles",
+        method="PATCH",
+        query={"user_id": f"eq.{user_id}"},
+        body={"username": username, "display_name": display_name, "bio": bio, "updated_at": _now()},
+        prefer="return=representation",
+    )
+    return result[0] if isinstance(result, list) and result else None
+
+
+def update_avatar(*, user_id: str, avatar_url: str | None) -> dict[str, Any] | None:
+    result = _request(
+        "fiyu_user_profiles",
+        method="PATCH",
+        query={"user_id": f"eq.{user_id}"},
+        body={"avatar_url": avatar_url, "updated_at": _now()},
+        prefer="return=representation",
+    )
+    return result[0] if isinstance(result, list) and result else None
+
+
+def get_discovery_location(*, user_id: str) -> dict[str, Any] | None:
+    rows = _rows("fiyu_user_discovery_locations", user_id=user_id)
+    return rows[0] if rows else None
+
+
+def upsert_discovery_location(*, user_id: str, changes: dict[str, object]) -> dict[str, Any]:
+    result = _request(
+        "fiyu_user_discovery_locations",
+        method="POST",
+        query={"on_conflict": "user_id"},
+        body={"user_id": user_id, **changes, "updated_at": _now()},
+        prefer="resolution=merge-duplicates,return=representation",
+    )
+    if not isinstance(result, list) or not result:
+        raise SharedUserDataError("Discovery location could not be saved")
+    return result[0]
+
+
+def _now() -> str:
+    return datetime.now(UTC).isoformat()
+
+
+def get_or_create_default_list(*, user_id: str, city_id: str) -> dict[str, Any]:
+    rows = _rows("fiyu_restaurant_lists", user_id=user_id, city_id=city_id, list_kind="default")
+    if rows:
+        return rows[0]
+    try:
+        result = _request(
+            "fiyu_restaurant_lists",
+            method="POST",
+            body={
+                "user_id": user_id,
+                "city_id": city_id,
+                "name": "Tokyo" if city_id == "tokyo" else city_id.title(),
+                "list_kind": "default",
+            },
+            prefer="return=representation",
+        )
+        if isinstance(result, list) and result:
+            return result[0]
+    except SharedUserDataError:
+        rows = _rows("fiyu_restaurant_lists", user_id=user_id, city_id=city_id, list_kind="default")
+        if rows:
+            return rows[0]
+        raise
+    raise SharedUserDataError("Default list creation failed")
+
+
+def list_lists(*, user_id: str, city_id: str | None = None) -> list[dict[str, Any]]:
+    query = {
+        "select": "*",
+        "user_id": f"eq.{user_id}",
+        "order": "list_kind.desc,created_at.asc,id.asc",
+    }
+    if city_id is not None:
+        query["city_id"] = f"eq.{city_id}"
+    result = _request("fiyu_restaurant_lists", query=query)
+    return result if isinstance(result, list) else []
+
+
+def get_list(*, user_id: str, list_id: int) -> dict[str, Any] | None:
+    rows = _rows("fiyu_restaurant_lists", user_id=user_id, id=list_id)
+    return rows[0] if rows else None
+
+
+def create_list(*, user_id: str, city_id: str, name: str) -> dict[str, Any]:
+    result = _request(
+        "fiyu_restaurant_lists",
+        method="POST",
+        body={"user_id": user_id, "city_id": city_id, "name": name, "list_kind": "custom"},
+        prefer="return=representation",
+    )
+    return result[0]
+
+
+def rename_list(*, user_id: str, list_id: int, name: str) -> dict[str, Any] | None:
+    result = _request(
+        "fiyu_restaurant_lists",
+        method="PATCH",
+        query={"user_id": f"eq.{user_id}", "id": f"eq.{list_id}"},
+        body={"name": name, "updated_at": _now()},
+        prefer="return=representation",
+    )
+    return result[0] if isinstance(result, list) and result else None
+
+
+def delete_list(*, user_id: str, list_id: int) -> bool:
+    result = _request(
+        "fiyu_restaurant_lists",
+        method="DELETE",
+        query={"user_id": f"eq.{user_id}", "id": f"eq.{list_id}"},
+        prefer="return=representation",
+    )
+    return isinstance(result, list) and bool(result)
+
+
+def list_items(*, user_id: str, list_id: int) -> list[dict[str, Any]]:
+    result = _request(
+        "fiyu_restaurant_list_items",
+        query={
+            "select": "place_id,created_at",
+            "user_id": f"eq.{user_id}",
+            "list_id": f"eq.{list_id}",
+            "order": "created_at.asc,id.asc",
+        },
+    )
+    return (
+        [{"place_id": row["place_id"], "added_at": row["created_at"]} for row in result]
+        if isinstance(result, list)
+        else []
+    )
+
+
+def add_item(*, user_id: str, list_id: int, place_id: str) -> bool:
+    existing = _request(
+        "fiyu_restaurant_list_items",
+        query={
+            "select": "id",
+            "user_id": f"eq.{user_id}",
+            "list_id": f"eq.{list_id}",
+            "place_id": f"eq.{place_id}",
+        },
+    )
+    if isinstance(existing, list) and existing:
+        return False
+    _request(
+        "fiyu_restaurant_list_items",
+        method="POST",
+        body={"user_id": user_id, "list_id": list_id, "place_id": place_id},
+    )
+    return True
+
+
+def remove_item(*, user_id: str, list_id: int, place_id: str) -> bool:
+    result = _request(
+        "fiyu_restaurant_list_items",
+        method="DELETE",
+        query={
+            "user_id": f"eq.{user_id}",
+            "list_id": f"eq.{list_id}",
+            "place_id": f"eq.{place_id}",
+        },
+        prefer="return=representation",
+    )
+    return isinstance(result, list) and bool(result)
+
+
+def create_visit(
+    *, user_id: str, place_id: str, visited_at: str, reaction: str, private_note: str | None
+) -> dict[str, Any]:
+    now = _now()
+    result = _request(
+        "fiyu_restaurant_visits",
+        method="POST",
+        body={
+            "id": str(uuid4()),
+            "user_id": user_id,
+            "place_id": place_id,
+            "visited_at": visited_at,
+            "reaction": reaction,
+            "private_note": private_note,
+            "created_at": now,
+            "updated_at": now,
+        },
+        prefer="return=representation",
+    )
+    return result[0]
+
+
+def list_visits(*, user_id: str) -> list[dict[str, Any]]:
+    result = _request(
+        "fiyu_restaurant_visits",
+        query={
+            "select": "*",
+            "user_id": f"eq.{user_id}",
+            "order": "visited_at.desc,created_at.desc,id.desc",
+        },
+    )
+    return result if isinstance(result, list) else []
+
+
+def get_visit(*, user_id: str, visit_id: str) -> dict[str, Any] | None:
+    rows = _rows("fiyu_restaurant_visits", user_id=user_id, id=visit_id)
+    return rows[0] if rows else None
+
+
+def update_visit(
+    *, user_id: str, visit_id: str, changes: dict[str, object]
+) -> dict[str, Any] | None:
+    result = _request(
+        "fiyu_restaurant_visits",
+        method="PATCH",
+        query={"user_id": f"eq.{user_id}", "id": f"eq.{visit_id}"},
+        body={**changes, "updated_at": _now()},
+        prefer="return=representation",
+    )
+    return result[0] if isinstance(result, list) and result else None
+
+
+def delete_visit(*, user_id: str, visit_id: str) -> bool:
+    result = _request(
+        "fiyu_restaurant_visits",
+        method="DELETE",
+        query={"user_id": f"eq.{user_id}", "id": f"eq.{visit_id}"},
+        prefer="return=representation",
+    )
+    return isinstance(result, list) and bool(result)
+
+
+def seen_place_ids(*, user_id: str) -> list[str]:
+    result = _request(
+        "fiyu_restaurant_seen",
+        query={"select": "place_id", "user_id": f"eq.{user_id}", "order": "last_seen_at.desc"},
+    )
+    return [str(row["place_id"]) for row in result] if isinstance(result, list) else []
+
+
+def record_seen(*, user_id: str, place_ids: list[str]) -> None:
+    if place_ids:
+        _request(
+            "rpc/record_fiyu_seen",
+            method="POST",
+            body={"p_user_id": user_id, "p_place_ids": list(dict.fromkeys(place_ids))},
+        )

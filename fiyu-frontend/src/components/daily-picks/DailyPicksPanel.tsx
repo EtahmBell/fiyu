@@ -46,6 +46,7 @@ import { useMediaQuery } from "@/lib/hooks/useMediaQuery";
 export interface DailyPicksPanelProps {
   restaurants: PublicRestaurant[];
   activeArea?: string | null;
+  discoveryPoint?: { latitude: number; longitude: number } | null;
   storage?: DailyPicksStorage;
   onOpenRestaurant?: (restaurant: PublicRestaurant) => void;
   onViewRestaurant?: (restaurant: PublicRestaurant) => void;
@@ -286,6 +287,7 @@ function PicksDiscoveryContext({
 export function DailyPicksPanel({
   restaurants,
   activeArea = null,
+  discoveryPoint = null,
   storage: injectedStorage,
   onOpenRestaurant,
   onViewRestaurant,
@@ -432,6 +434,8 @@ export function DailyPicksPanel({
           categories: state.preferences.categories,
           non_japanese: state.preferences.nonJapanese,
           active_area: activeArea,
+          discovery_latitude: discoveryPoint?.latitude ?? null,
+          discovery_longitude: discoveryPoint?.longitude ?? null,
           seed: Math.floor(generatedAt / DAILY_PICKS_DURATION_MS),
           requested_count: 3,
         },
@@ -478,6 +482,7 @@ export function DailyPicksPanel({
     if (useDevelopmentRefresh) developmentGenerationRef.current += 1;
     const options = {
       activeArea,
+      discoveryPoint,
       seed: useDevelopmentRefresh
         ? developmentSeed
         : Math.floor(generatedAt / DAILY_PICKS_DURATION_MS),

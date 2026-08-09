@@ -16,7 +16,7 @@ export interface OutboundMapActionsProps {
 }
 
 /**
- * Shortened visible text for the footer variant. The full label stays as the
+ * Shortened visible text for restaurant surfaces. The full label stays as the
  * accessible name, and contains the visible text verbatim, so WCAG 2.5.3 holds
  * and voice control still matches what is on screen.
  */
@@ -73,24 +73,18 @@ export function OutboundMapActions({
             href={link.href}
             target="_blank"
             rel="noopener noreferrer"
-            aria-label={footer ? link.label : undefined}
+            aria-label={link.label}
             // The card's stretched control covers the whole surface, so these
             // need to sit above it to stay clickable.
             className={cn(
               "relative z-10 break-words transition-colors duration-200 ease-(--ease-fiyu)",
               footer
                 ? "inline-flex min-h-11 items-center gap-1.5 py-2 pr-3 text-xs font-medium text-ink-muted underline decoration-transparent underline-offset-4 hover:text-plum hover:decoration-line-strong"
-                : "text-xs text-lavender-700 underline decoration-line underline-offset-2 hover:decoration-lavender-500",
+                : "inline-flex min-h-11 items-center gap-1.5 py-2 pr-3 text-xs font-medium text-lavender-700 underline decoration-line underline-offset-2 hover:text-plum hover:decoration-lavender-500",
             )}
           >
-            {footer ? (
-              <>
-                {SHORT_LABELS[link.id]}
-                <ExternalArrow />
-              </>
-            ) : (
-              link.label
-            )}
+            {SHORT_LABELS[link.id]}
+            <ExternalArrow />
           </a>
         </li>
       ))}

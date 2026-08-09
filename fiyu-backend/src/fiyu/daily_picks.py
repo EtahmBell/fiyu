@@ -1,14 +1,15 @@
 from __future__ import annotations
 
+import json
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime
-import json
 from pathlib import Path
-from typing import Iterable, Literal
+from typing import Literal
 from uuid import uuid4
 
 from .database import connect
-
+from .utils import haversine_km
 
 DAILY_PICKS_SCHEMA = """
 CREATE TABLE IF NOT EXISTS daily_pick_rounds (
@@ -177,6 +178,8 @@ def _select(
     categories: Iterable[str],
     non_japanese: NonJapanesePreference,
     active_area: str | None,
+    discovery_latitude: float | None,
+    discovery_longitude: float | None,
     seed: int,
     count: int,
 ) -> tuple[list[str], int]:
@@ -193,12 +196,28 @@ def _select(
         )
         score = row.get("fiyu_score")
         score_band = int(float(score) // 5) if score is not None else -1
+        latitude = row.get("latitude")
+        longitude = row.get("longitude")
+        distance_km = (
+            haversine_km(
+                discovery_latitude,
+                discovery_longitude,
+                float(latitude),
+                float(longitude),
+            )
+            if discovery_latitude is not None
+            and discovery_longitude is not None
+            and latitude is not None
+            and longitude is not None
+            else float("inf")
+        )
         candidates.append(
             {
                 "place_id": str(row["place_id"]),
                 "category": category,
                 "preference_rank": preference_rank,
                 "area_rank": 0 if _in_area(row, active_area) else 1,
+                "distance_km": distance_km,
                 "score_band": score_band,
                 "rotation": _stable_hash(f"{seed}:{row['place_id']}"),
             }
@@ -206,6 +225,7 @@ def _select(
     candidates.sort(
         key=lambda item: (
             item["preference_rank"],
+            item["distance_km"],
             item["area_rank"],
             -int(item["score_band"]),
             item["rotation"],
@@ -249,6 +269,8 @@ def assign_daily_picks(
     non_japanese: NonJapanesePreference,
     active_area: str | None,
     seed: int,
+    discovery_latitude: float | None = None,
+    discovery_longitude: float | None = None,
     requested_count: int = 3,
 ) -> DailyPickAssignment:
     """Choose and persist an unseen set in one write transaction."""
@@ -270,6 +292,7 @@ def assign_daily_picks(
             rows = connection.execute(
                 f"""
                 SELECT place_id, primary_category, food_tags_json, discovery_area,
+                       latitude, longitude,
                        discovery_areas_json, fiyu_score
                 FROM public_restaurants
                 WHERE is_published = 1 AND place_id IN ({placeholders})
@@ -283,6 +306,8 @@ def assign_daily_picks(
             categories=categories,
             non_japanese=non_japanese,
             active_area=active_area,
+            discovery_latitude=discovery_latitude,
+            discovery_longitude=discovery_longitude,
             seed=seed,
             count=requested_count,
         )
