@@ -45,3 +45,7 @@ fiyu-backend/data/*.db
 fiyu-backend/data/*.db-*
 fiyu-backend/**/__pycache__/
 fiyu-backend/.pytest_cache/
+
+# Node dependencies
+node_modules/
+**/node_modules/
