@@ -8,6 +8,8 @@ import { AuthenticatedLocationSetup } from "@/components/location/AuthenticatedL
 import { PageIntro, SiteFooter } from "@/components/layout/SiteHeader";
 import { FiyuMap } from "@/components/map/FiyuMap";
 import { MapUnavailable } from "@/components/map/MapUnavailable";
+import { FiyuLoadingScreen } from "@/components/states/FiyuLoadingScreen";
+import { Button } from "@/components/ui/Button";
 import { fetchDiscoveryLocation } from "@/lib/api/client";
 import type { DiscoveryLocation, PublicRestaurant } from "@/lib/api/schemas";
 import { mappableRestaurants } from "@/lib/geo/mappable";
@@ -46,6 +48,12 @@ interface Selection {
   navigationKey: number;
 }
 
+type AccountLocationState =
+  | { status: "loading"; userId: string }
+  | { status: "configured"; userId: string; location: DiscoveryLocation }
+  | { status: "not-configured"; userId: string; location: DiscoveryLocation }
+  | { status: "error"; userId: string };
+
 /**
  * Owns the client-side daily-feed selection and map-card synchronization.
  *
@@ -60,15 +68,18 @@ interface Selection {
 export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps) {
   const router = useRouter();
   const identity = useProfileIdentity();
-  const [loadedAccountLocation, setLoadedAccountLocation] = useState<{
-    userId: string;
-    location: DiscoveryLocation | null;
-  } | null>(null);
-  const accountLocation = identity.profile
-    ? loadedAccountLocation?.userId === identity.profile.user_id
-      ? loadedAccountLocation.location
-      : undefined
+  const [accountLocationState, setAccountLocationState] =
+    useState<AccountLocationState | null>(null);
+  const [locationRequestKey, setLocationRequestKey] = useState(0);
+  const currentAccountLocationState = identity.profile
+    ? accountLocationState?.userId === identity.profile.user_id
+      ? accountLocationState
+      : ({ status: "loading", userId: identity.profile.user_id } as const)
     : null;
+  const accountLocation =
+    currentAccountLocationState?.status === "configured"
+      ? currentAccountLocationState.location
+      : null;
   const [selection, setSelection] = useState<Selection | null>(null);
   const [visibleRestaurantIds, setVisibleRestaurantIds] = useState<string[]>([]);
   const [homeArea, setHomeArea] = useState<LocationAnchor | null>(null);
@@ -84,10 +95,24 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
     const userId = identity.profile.user_id;
     const controller = new AbortController();
     void fetchDiscoveryLocation({ signal: controller.signal })
-      .then((location) => setLoadedAccountLocation({ userId, location }))
-      .catch(() => setLoadedAccountLocation({ userId, location: null }));
+      .then((location) => {
+        if (controller.signal.aborted) return;
+        setAccountLocationState({
+          status: location.configured ? "configured" : "not-configured",
+          userId,
+          location,
+        });
+      })
+      .catch(() => {
+        if (controller.signal.aborted) return;
+        setAccountLocationState((current) =>
+          current?.userId === userId && current.status !== "loading"
+            ? current
+            : { status: "error", userId },
+        );
+      });
     return () => controller.abort();
-  }, [identity.profile, identity.status]);
+  }, [identity.profile, identity.status, locationRequestKey]);
 
   const origin = useMemo<FreeDiscoveryOrigin | null>(() => {
     const current = originFromGeolocation(geolocation.state);
@@ -190,17 +215,41 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
     return () => window.removeEventListener("keydown", collapseOnEscape);
   }, [mapExpanded]);
 
-  if (identity.status === "loading" || (identity.profile && accountLocation === undefined)) {
-    return <div className="min-h-[calc(100dvh-var(--spacing-header))] bg-canvas" />;
+  if (identity.status === "loading" || currentAccountLocationState?.status === "loading") {
+    return <FiyuLoadingScreen />;
   }
 
-  if (identity.profile && !accountLocation?.configured) {
+  if (identity.profile && currentAccountLocationState?.status === "error") {
+    return (
+      <div className="flex min-h-[calc(100dvh-var(--spacing-header))] items-center justify-center bg-canvas px-5">
+        <div className="max-w-sm text-center">
+          <p className="font-display text-2xl text-ink">We couldn&apos;t load your location.</p>
+          <Button
+            variant="secondary"
+            className="mt-5"
+            onClick={() => {
+              setAccountLocationState({ status: "loading", userId: identity.profile!.user_id });
+              setLocationRequestKey((key) => key + 1);
+            }}
+          >
+            Try again
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (identity.profile && currentAccountLocationState?.status === "not-configured") {
     return (
       <AuthenticatedLocationSetup
         anchors={areaAnchors}
         geolocation={geolocation}
         onConfigured={(location) =>
-          setLoadedAccountLocation({ userId: identity.profile!.user_id, location })
+          setAccountLocationState({
+            status: "configured",
+            userId: identity.profile!.user_id,
+            location,
+          })
         }
       />
     );

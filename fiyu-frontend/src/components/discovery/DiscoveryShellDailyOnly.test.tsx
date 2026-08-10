@@ -7,18 +7,62 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DiscoveryShell } from "@/components/discovery/DiscoveryShell";
 import { publicRestaurantSchema } from "@/lib/api/schemas";
+import type { DiscoveryLocation } from "@/lib/api/schemas";
 import {
   DAILY_PICKS_STORAGE_KEY,
   createDailySelection,
   parseDailyPicksState,
 } from "@/lib/daily-picks/storage";
+import {
+  clearProfileIdentity,
+  publishProfileIdentity,
+} from "@/lib/profile/profileIdentity";
 
 const router = vi.hoisted(() => ({ push: vi.fn() }));
 const dailyApi = vi.hoisted(() => ({ assignDailyPicks: vi.fn() }));
+const locationApi = vi.hoisted(() => ({ fetchDiscoveryLocation: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => router }));
 vi.mock("@/lib/api/client", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/api/client")>();
-  return { ...actual, assignDailyPicks: dailyApi.assignDailyPicks };
+  return {
+    ...actual,
+    assignDailyPicks: dailyApi.assignDailyPicks,
+    fetchDiscoveryLocation: locationApi.fetchDiscoveryLocation,
+  };
+});
+
+const configuredLocation = (label: string): DiscoveryLocation => ({
+  configured: true,
+  location_mode: "manual",
+  discovery_latitude: 35.6938,
+  discovery_longitude: 139.7034,
+  discovery_label: label,
+  arrival_date: null,
+  last_location_check_at: null,
+  updated_at: "2026-08-10T00:00:00Z",
+  can_change_location_freely: true,
+});
+
+const unconfiguredLocation: DiscoveryLocation = {
+  configured: false,
+  location_mode: null,
+  discovery_latitude: null,
+  discovery_longitude: null,
+  discovery_label: null,
+  arrival_date: null,
+  last_location_check_at: null,
+  updated_at: null,
+  can_change_location_freely: true,
+};
+
+const accountProfile = (userId: string, username: string) => ({
+  user_id: userId,
+  username,
+  display_name: username,
+  bio: null,
+  avatar_url: null,
+  created_at: "2026-08-10T00:00:00Z",
+  updated_at: "2026-08-10T00:00:00Z",
 });
 
 const catalog = [
@@ -47,10 +91,13 @@ const catalog = [
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 beforeEach(() => {
+  clearProfileIdentity();
   window.localStorage.clear();
   window.sessionStorage.clear();
   router.push.mockReset();
   dailyApi.assignDailyPicks.mockReset();
+  locationApi.fetchDiscoveryLocation.mockReset();
+  locationApi.fetchDiscoveryLocation.mockImplementation(() => new Promise(() => undefined));
   dailyApi.assignDailyPicks.mockResolvedValue({
     round_id: "round-one",
     city_id: "tokyo",
@@ -74,6 +121,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.useRealTimers();
   cleanup();
+  clearProfileIdentity();
   vi.restoreAllMocks();
 });
 
@@ -323,14 +371,95 @@ describe("daily-only discovery shell", () => {
     const container = document.createElement("div");
     container.innerHTML = renderToString(element);
     document.body.appendChild(container);
+    let root: ReturnType<typeof hydrateRoot> | undefined;
     const errors: string[] = [];
     vi.spyOn(console, "error").mockImplementation((...args) => errors.push(args.map(String).join(" ")));
     vi.spyOn(console, "warn").mockImplementation((...args) => errors.push(args.map(String).join(" ")));
 
     await act(async () => {
-      hydrateRoot(container, element);
+      root = hydrateRoot(container, element);
     });
 
     expect(errors).toEqual([]);
+    await act(async () => root?.unmount());
+    container.remove();
+  });
+
+  it("shows neutral Fiyu loading on hard load and route return until a saved location resolves", async () => {
+    let resolveInitial: ((location: DiscoveryLocation) => void) | undefined;
+    locationApi.fetchDiscoveryLocation.mockImplementationOnce(
+      () => new Promise((resolve) => { resolveInitial = resolve; }),
+    );
+    publishProfileIdentity(accountProfile("account-a", "accounta"));
+
+    const first = render(<DiscoveryShell restaurants={catalog} areaAnchors={[]} />);
+    expect(screen.getByTestId("fiyu-loading-screen")).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Find places around you" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Use my location" })).toBeNull();
+    expect(screen.queryByTestId("discovery-layout")).toBeNull();
+
+    await act(async () => resolveInitial?.(configuredLocation("Shinjuku")));
+    expect(await screen.findByTestId("discovery-layout")).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Find places around you" })).toBeNull();
+
+    first.unmount();
+    let resolveReturn: ((location: DiscoveryLocation) => void) | undefined;
+    locationApi.fetchDiscoveryLocation.mockImplementationOnce(
+      () => new Promise((resolve) => { resolveReturn = resolve; }),
+    );
+    render(<DiscoveryShell restaurants={catalog} areaAnchors={[]} />);
+
+    expect(screen.getByTestId("fiyu-loading-screen")).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Find places around you" })).toBeNull();
+    await act(async () => resolveReturn?.(configuredLocation("Shinjuku")));
+    expect(await screen.findByTestId("discovery-layout")).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Find places around you" })).toBeNull();
+  });
+
+  it("renders setup only after a successful response confirms location is not configured", async () => {
+    locationApi.fetchDiscoveryLocation.mockResolvedValueOnce(unconfiguredLocation);
+    publishProfileIdentity(accountProfile("account-a", "accounta"));
+
+    render(<DiscoveryShell restaurants={catalog} areaAnchors={[]} />);
+
+    expect(screen.getByTestId("fiyu-loading-screen")).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "Find places around you" })).toBeTruthy();
+    expect(screen.queryByTestId("fiyu-loading-screen")).toBeNull();
+  });
+
+  it("keeps location failures distinct from the not-configured setup state", async () => {
+    locationApi.fetchDiscoveryLocation.mockRejectedValueOnce(new Error("network unavailable"));
+    publishProfileIdentity(accountProfile("account-a", "accounta"));
+
+    render(<DiscoveryShell restaurants={catalog} areaAnchors={[]} />);
+
+    expect(await screen.findByText("We couldn't load your location.")).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Find places around you" })).toBeNull();
+
+    locationApi.fetchDiscoveryLocation.mockResolvedValueOnce(configuredLocation("Shinjuku"));
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(await screen.findByTestId("discovery-layout")).toBeTruthy();
+  });
+
+  it("masks the previous account while a newly selected account location hydrates", async () => {
+    locationApi.fetchDiscoveryLocation.mockResolvedValueOnce(configuredLocation("Shinjuku"));
+    publishProfileIdentity(accountProfile("account-a", "accounta"));
+    render(<DiscoveryShell restaurants={catalog} areaAnchors={[]} />);
+    expect(await screen.findByTestId("discovery-layout")).toBeTruthy();
+
+    let resolveAccountB: ((location: DiscoveryLocation) => void) | undefined;
+    locationApi.fetchDiscoveryLocation.mockImplementationOnce(
+      () => new Promise((resolve) => { resolveAccountB = resolve; }),
+    );
+    act(() => publishProfileIdentity(accountProfile("account-b", "accountb")));
+
+    expect(screen.getByTestId("fiyu-loading-screen")).toBeTruthy();
+    expect(screen.queryByTestId("discovery-layout")).toBeNull();
+    expect(screen.queryByText("Shinjuku")).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Find places around you" })).toBeNull();
+
+    await act(async () => resolveAccountB?.(unconfiguredLocation));
+    expect(await screen.findByRole("heading", { name: "Find places around you" })).toBeTruthy();
+    expect(screen.queryByText("Shinjuku")).toBeNull();
   });
 });
