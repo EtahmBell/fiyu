@@ -228,6 +228,25 @@ export function AuthPage({ mode }: { mode: "signin" | "signup" }) {
             >
               {submitting ? "Please wait…" : signup ? "Create account" : "Sign in"}
             </button>
+            {signup && (
+              <p className="text-xs leading-5 text-ink-faint">
+                By creating an account, you agree to the{" "}
+                <Link
+                  href="/terms"
+                  className="font-medium text-plum underline decoration-line underline-offset-4 transition-colors hover:text-lavender-700 hover:decoration-rose-dust"
+                >
+                  Terms of Service
+                </Link>{" "}
+                and acknowledge the{" "}
+                <Link
+                  href="/privacy"
+                  className="font-medium text-plum underline decoration-line underline-offset-4 transition-colors hover:text-lavender-700 hover:decoration-rose-dust"
+                >
+                  Privacy Policy
+                </Link>
+                .
+              </p>
+            )}
           </form>
 
           <p className="mt-7 text-center text-sm text-ink-muted">

@@ -173,12 +173,20 @@ export function selectionIsActive(selection: DailyRestaurantSelection, now: numb
   return Date.parse(selection.expiresAt) > now;
 }
 
-export function createDailyPicksStorage(storage: Storage): DailyPicksStorage {
+export function dailyPicksStorageKey(accountId?: string | null): string {
+  const normalized = accountId?.trim();
+  return normalized ? `${DAILY_PICKS_STORAGE_KEY}.account.${normalized}` : DAILY_PICKS_STORAGE_KEY;
+}
+
+export function createDailyPicksStorage(
+  storage: Storage,
+  key = DAILY_PICKS_STORAGE_KEY,
+): DailyPicksStorage {
   let cachedRaw: string | null | undefined;
   let cachedState: DailyPicksState | null = null;
   const listeners = new Set<() => void>();
   const read = () => {
-    const raw = storage.getItem(DAILY_PICKS_STORAGE_KEY);
+    const raw = storage.getItem(key);
     if (raw !== cachedRaw) {
       cachedRaw = raw;
       cachedState = parseDailyPicksState(raw);
@@ -193,7 +201,7 @@ export function createDailyPicksStorage(storage: Storage): DailyPicksStorage {
       return () => listeners.delete(listener);
     },
     save(state) {
-      storage.setItem(DAILY_PICKS_STORAGE_KEY, JSON.stringify(state));
+      storage.setItem(key, JSON.stringify(state));
       cachedRaw = undefined;
       for (const listener of listeners) listener();
     },
@@ -207,8 +215,8 @@ const INERT_STORAGE: DailyPicksStorage = {
   save: () => undefined,
 };
 
-export function browserDailyPicksStorage(): DailyPicksStorage {
+export function browserDailyPicksStorage(accountId?: string | null): DailyPicksStorage {
   return typeof window === "undefined"
     ? INERT_STORAGE
-    : createDailyPicksStorage(window.localStorage);
+    : createDailyPicksStorage(window.localStorage, dailyPicksStorageKey(accountId));
 }

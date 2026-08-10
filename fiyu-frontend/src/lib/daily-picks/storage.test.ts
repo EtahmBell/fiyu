@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest";
 import {
   DAILY_PICKS_STORAGE_KEY,
   DAILY_PICKS_DURATION_MS,
+  EMPTY_DAILY_PICKS_STATE,
   createDailyPicksStorage,
+  dailyPicksStorageKey,
   createDailySelection,
   selectionIsActive,
 } from "@/lib/daily-picks/storage";
@@ -37,6 +39,20 @@ class MemoryStorage implements Storage {
 }
 
 describe("daily picks storage", () => {
+  it("isolates authenticated Picks state by account UUID", () => {
+    const localStorage = new MemoryStorage();
+    const accountA = createDailyPicksStorage(localStorage, dailyPicksStorageKey("user-a"));
+    const accountB = createDailyPicksStorage(localStorage, dailyPicksStorageKey("user-b"));
+
+    accountA.save({
+      ...EMPTY_DAILY_PICKS_STATE,
+      selection: createDailySelection(["one", "two", "three"], Date.now()),
+      servedRestaurantIds: ["one", "two", "three"],
+    });
+
+    expect(accountA.getSnapshot()?.selection?.restaurantIds).toEqual(["one", "two", "three"]);
+    expect(accountB.getSnapshot()).toEqual(EMPTY_DAILY_PICKS_STATE);
+  });
   it("survives adapter recreation with preferences, reveals, and saved IDs intact", () => {
     const localStorage = new MemoryStorage();
     const firstSession = createDailyPicksStorage(localStorage);

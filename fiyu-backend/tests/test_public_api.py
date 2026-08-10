@@ -22,13 +22,13 @@ def public_db(tmp_path, monkeypatch):
         connection.executemany(
             """
             INSERT INTO restaurants
-                (place_id, title, latitude, longitude, neighborhood, rating, review_count)
-            VALUES (?, ?, ?, ?, ?, 4.5, 20)
+                (place_id, title, address, latitude, longitude, neighborhood, rating, review_count)
+            VALUES (?, ?, ?, ?, ?, ?, 4.5, 20)
             """,
             [
-                ("eligible", "Eligible", 35.1, 139.1, "Asakusa"),
-                ("unknown", "Unknown", 35.2, 139.2, "Ueno"),
-                ("hidden", "Hidden", 35.3, 139.3, "Ginza"),
+                ("eligible", "Eligible", "1-1 Asakusa, Tokyo", 35.1, 139.1, "Asakusa"),
+                ("unknown", "Unknown", "2-2 Ueno, Tokyo", 35.2, 139.2, "Ueno"),
+                ("hidden", "Hidden", "3-3 Ginza, Tokyo", 35.3, 139.3, "Ginza"),
             ],
         )
         connection.commit()
@@ -85,6 +85,7 @@ def test_public_contract_uses_only_independently_eligible_coordinates(public_db)
     assert rows["unknown"]["latitude"] is None
     assert rows["unknown"]["longitude"] is None
     assert rows["unknown"]["map_display_eligible"] is False
+    assert rows["unknown"]["external_map_search_query"] == "2-2 Ueno, Tokyo"
     assert rows["eligible"]["description_en"] == "An English description."
     assert rows["eligible"]["score_type"] == "editorial_research"
     assert rows["eligible"]["fiyu_score"] == 91

@@ -3,14 +3,17 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+const navigation = vi.hoisted(() => ({ replace: vi.fn() }));
+
 vi.mock("next/navigation", () => ({
   usePathname: () => "/profile",
-  useRouter: () => ({ replace: vi.fn() }),
+  useRouter: () => navigation,
 }));
 
 import { ProfileWorkspace } from "@/components/profile/ProfileWorkspace";
 import { ApplicationNavigation } from "@/components/layout/ApplicationNavigation";
-import { authService } from "@/lib/auth/authService";
+import { authService, clearDeletedAccountBrowserState } from "@/lib/auth/authService";
+import { dailyPicksStorageKey } from "@/lib/daily-picks/storage";
 import {
   clearProfileIdentity,
   publishProfileIdentity,
@@ -25,7 +28,9 @@ let desktopViewport = false;
 
 beforeEach(() => {
   desktopViewport = false;
+  navigation.replace.mockReset();
   window.localStorage.clear();
+  window.sessionStorage.clear();
   clearProfileIdentity();
   Object.defineProperty(window, "matchMedia", {
     configurable: true,
@@ -214,5 +219,58 @@ describe("ProfileWorkspace", () => {
     );
     expect(screen.getByRole("heading", { name: "Privacy" })).toBeTruthy();
     expect(screen.queryByText("Tokyo edition")).toBeNull();
+  });
+
+  it("requires DELETE confirmation before deleting an authenticated account", async () => {
+    desktopViewport = true;
+    vi.spyOn(authService, "getSession").mockResolvedValue({
+      userId: "user-1",
+      email: "ethan@example.com",
+      accessToken: "token",
+    });
+    vi.spyOn(authService, "deleteAccount").mockResolvedValue();
+
+    render(<ProfileWorkspace section="account" />);
+
+    const openButton = await screen.findByRole("button", { name: "Delete account" });
+    fireEvent.click(openButton);
+    const finalButton = screen.getByRole("button", { name: "Permanently delete account" });
+    expect((finalButton as HTMLButtonElement).disabled).toBe(true);
+
+    fireEvent.change(screen.getByLabelText("TYPE DELETE TO CONFIRM"), {
+      target: { value: "DELETE" },
+    });
+    expect((finalButton as HTMLButtonElement).disabled).toBe(false);
+    fireEvent.click(finalButton);
+
+    await waitFor(() => {
+      expect(authService.deleteAccount).toHaveBeenCalledOnce();
+      expect(navigation.replace).toHaveBeenCalledWith("/");
+    });
+  });
+
+  it("clears deleted-account browser state without removing anonymous ownership", () => {
+    window.localStorage.setItem(dailyPicksStorageKey("user-1"), "account picks");
+    window.localStorage.setItem(PROFILE_STORAGE_KEY, "profile cache");
+    window.localStorage.setItem("fiyu.lists.owner-key.v1", "anonymous-owner");
+    window.sessionStorage.setItem("fiyu.picks-detail-return.v1", "return state");
+
+    clearDeletedAccountBrowserState("user-1");
+
+    expect(window.localStorage.getItem(dailyPicksStorageKey("user-1"))).toBeNull();
+    expect(window.localStorage.getItem(PROFILE_STORAGE_KEY)).toBeNull();
+    expect(window.sessionStorage.getItem("fiyu.picks-detail-return.v1")).toBeNull();
+    expect(window.localStorage.getItem("fiyu.lists.owner-key.v1")).toBe("anonymous-owner");
+  });
+
+  it("describes persisted account location and cross-device private Logs accurately", () => {
+    desktopViewport = true;
+    render(<ProfileWorkspace section="privacy" />);
+
+    expect(screen.getByText(/does not continuously track your location in the background/i)).toBeTruthy();
+    expect(screen.getByText(/active Tokyo discovery location may be saved to your account/i)).toBeTruthy();
+    expect(screen.getByText(/visit history, reactions, and private notes are saved to your account/i)).toBeTruthy();
+    expect(screen.queryByText(/kept for the current visit/i)).toBeNull();
+    expect(screen.queryByText(/private to your device identity/i)).toBeNull();
   });
 });

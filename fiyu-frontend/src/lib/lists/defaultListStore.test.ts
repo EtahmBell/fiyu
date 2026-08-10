@@ -212,6 +212,28 @@ describe("default list store", () => {
     expect(callsAfterSecondLoad - callsAfterFirstLoad).toBe(1);
   });
 
+  it("does not import or rewrite anonymous legacy saves for an authenticated account", async () => {
+    const legacy = JSON.stringify({
+      version: 3,
+      preferences: { categories: [], nonJapanese: "occasionally" },
+      selection: null,
+      discoveries: [],
+      savedRestaurantIds: ["anonymous-save"],
+      servedRestaurantIds: [],
+    });
+    window.localStorage.setItem(DAILY_PICKS_STORAGE_KEY, legacy);
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(json(200, listBody([])));
+
+    const store = new DefaultListStore("tokyo", "account-b");
+    await store.ensureLoaded();
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(store.getSnapshot().savedPlaceIds).toEqual([]);
+    expect(window.localStorage.getItem(DAILY_PICKS_STORAGE_KEY)).toBe(legacy);
+  });
+
   it("rejects unsupported cities without creating a list", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch");
     const store = new DefaultListStore("rome");

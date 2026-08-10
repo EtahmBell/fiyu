@@ -236,7 +236,9 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
 
             <div className="relative z-10 min-w-0 w-full">
               <DailyPicksPanel
+                key={identity.profile?.user_id ?? "anonymous"}
                 restaurants={restaurants}
+                accountId={identity.profile?.user_id ?? null}
                 activeArea={activeArea}
                 discoveryPoint={
                   accountLocation?.configured &&

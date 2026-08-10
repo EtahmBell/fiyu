@@ -1,6 +1,9 @@
 import { createClient, type SupabaseClient, type User } from "@supabase/supabase-js";
 
 import { getApiBaseUrl } from "@/lib/config/env";
+import { dailyPicksStorageKey } from "@/lib/daily-picks/storage";
+import { clearPicksReturnState } from "@/lib/navigation/restaurantDetail";
+import { PROFILE_STORAGE_KEY } from "@/lib/profile/profileStorage";
 
 export interface AuthSession {
   userId: string;
@@ -57,8 +60,16 @@ function avatarPath(userId: string): string {
 
 function announceAccountChange(): void {
   if (typeof window !== "undefined") {
+    clearPicksReturnState();
     window.dispatchEvent(new Event("fiyu:account-changed"));
   }
+}
+
+export function clearDeletedAccountBrowserState(userId: string): void {
+  if (typeof window === "undefined") return;
+  window.localStorage.removeItem(dailyPicksStorageKey(userId));
+  window.localStorage.removeItem(PROFILE_STORAGE_KEY);
+  clearPicksReturnState();
 }
 
 function supabaseClient(): SupabaseClient {
@@ -175,6 +186,24 @@ export const authService = {
     const { error } = await supabaseClient().auth.signOut();
     if (error) throw new AuthRequestError("Unable to sign out.");
     announceAccountChange();
+  },
+
+  async deleteAccount(): Promise<void> {
+    const session = await this.getSession();
+    if (!session) throw new AuthRequestError("Sign in to delete your account.");
+    const response = await fetch(`${getApiBaseUrl()}/profiles/me/account`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${session.accessToken}` },
+    });
+    if (!response.ok) {
+      throw new AuthRequestError(await responseDetail(response, "Unable to delete your account."));
+    }
+    const { error } = await supabaseClient().auth.signOut({ scope: "local" });
+    clearDeletedAccountBrowserState(session.userId);
+    announceAccountChange();
+    if (error) {
+      throw new AuthRequestError("Your account was deleted, but this browser session could not be cleared.");
+    }
   },
 
   async requestPasswordReset(email: string): Promise<void> {

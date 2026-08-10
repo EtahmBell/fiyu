@@ -1,11 +1,14 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 import { CityHeaderMark } from "@/components/city-signature/CitySignature";
+import {
+  ProfileIdentityAvatar,
+  profileIdentityPresentation,
+} from "@/components/profile/ProfileIdentityAvatar";
 import { ACTIVE_FIYU_CITY, FIYU_CITIES, type CityId } from "@/lib/city/editions";
 import {
   DESKTOP_NAVIGATION_ORDER,
@@ -188,13 +191,7 @@ function MobileMenu() {
 
 function ProfileIdentityLink({ active }: { active: boolean }) {
   const identity = useProfileIdentity();
-  const profile = identity.profile;
-  const displayName = profile?.display_name?.trim() || "";
-  const username = profile?.username?.trim() || "";
-  const label = displayName || username || "Profile";
-  const initial = (
-    username[0] || displayName[0] || identity.email?.trim()[0] || "F"
-  ).toUpperCase();
+  const { label } = profileIdentityPresentation(identity);
 
   return (
     <Link
@@ -215,13 +212,7 @@ function ProfileIdentityLink({ active }: { active: boolean }) {
         </>
       ) : (
         <>
-          <span className="relative flex size-7 shrink-0 items-center justify-center overflow-hidden rounded-full border border-line bg-lavender-50 font-display text-sm text-lavender-700">
-            {identity.profileImage ? (
-              <Image src={identity.profileImage} alt="" fill unoptimized className="object-cover" />
-            ) : (
-              <span aria-hidden="true">{initial}</span>
-            )}
-          </span>
+          <ProfileIdentityAvatar identity={identity} className="size-7 text-sm" />
           <span className="max-w-40 truncate">{label}</span>
         </>
       )}

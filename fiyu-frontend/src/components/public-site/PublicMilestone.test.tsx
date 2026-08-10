@@ -28,6 +28,9 @@ vi.mock("@/lib/auth/authService", () => ({
 
 import AboutPage from "@/app/(marketing)/about/page";
 import ContactPage from "@/app/(marketing)/contact/page";
+import PrivacyPage from "@/app/(marketing)/privacy/page";
+import TermsPage from "@/app/(marketing)/terms/page";
+import { LandingFooter } from "@/components/landing-page/LandingFooter";
 import { AuthPage } from "@/components/public-site/AuthPage";
 
 afterEach(() => {
@@ -65,12 +68,39 @@ describe("public account milestone", () => {
     expect(globalThis.fetch).toHaveBeenCalledTimes(1);
   });
 
+  it("publishes the legal documents with reciprocal links", () => {
+    const { unmount } = render(<PrivacyPage />);
+
+    expect(screen.getByRole("heading", { name: "Privacy Policy", level: 1 })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Account Deletion" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Terms of Service →" }).getAttribute("href")).toBe("/terms");
+    expect(screen.queryByText(/have not been published yet/i)).toBeNull();
+
+    unmount();
+    const terms = render(<TermsPage />);
+
+    expect(screen.getByRole("heading", { name: "Terms of Service", level: 1 })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "15. Limitation of Liability" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Privacy Policy →" }).getAttribute("href")).toBe("/privacy");
+    expect(screen.queryByText(/have not been published yet/i)).toBeNull();
+
+    terms.unmount();
+    render(<LandingFooter />);
+
+    expect(screen.getByRole("link", { name: "Privacy" }).getAttribute("href")).toBe("/privacy");
+    expect(screen.getByRole("link", { name: "Terms" }).getAttribute("href")).toBe("/terms");
+  });
+
   it("creates an account and handles provider email verification", async () => {
     mocks.signUp.mockResolvedValue({
       email: "person@example.com",
       emailVerificationRequired: true,
     });
     render(<AuthPage mode="signup" />);
+
+    expect(screen.getByText(/By creating an account, you agree to the/)).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Terms of Service" }).getAttribute("href")).toBe("/terms");
+    expect(screen.getByRole("link", { name: "Privacy Policy" }).getAttribute("href")).toBe("/privacy");
 
     fireEvent.change(screen.getByLabelText("Email"), { target: { value: "person@example.com" } });
     fireEvent.change(screen.getByLabelText("Password"), { target: { value: "provider-password" } });

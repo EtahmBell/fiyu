@@ -453,6 +453,10 @@ function AccountSection() {
   const [email, setEmail] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -472,6 +476,28 @@ function AccountSection() {
       router.replace("/");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unable to sign out.");
+    }
+  };
+
+  const closeDeleteDialog = () => {
+    if (deleting) return;
+    setDeleteDialogOpen(false);
+    setDeleteConfirmation("");
+    setDeleteError(null);
+  };
+
+  const deleteAccount = async () => {
+    if (deleteConfirmation !== "DELETE" || deleting) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await authService.deleteAccount();
+      clearProfileIdentity();
+      setDeleteDialogOpen(false);
+      router.replace("/");
+    } catch (cause) {
+      setDeleteError(cause instanceof Error ? cause.message : "Unable to delete your account.");
+      setDeleting(false);
     }
   };
 
@@ -497,6 +523,72 @@ function AccountSection() {
         )}
       </div>
       {error && <p role="alert" className="mt-3 text-sm text-rose-dust">{error}</p>}
+      {email && (
+        <section className="mt-10 border-t border-line pt-7" aria-labelledby="delete-account-title">
+          <h3 id="delete-account-title" className="text-sm font-semibold text-ink">Delete account</h3>
+          <p className="mt-2 max-w-lg text-sm leading-6 text-ink-muted">
+            Permanently delete your Fiyu account and associated account data.
+          </p>
+          <button
+            type="button"
+            onClick={() => setDeleteDialogOpen(true)}
+            className="mt-4 inline-flex min-h-11 items-center rounded-lg border border-rose-dust/60 bg-surface px-4 text-sm font-semibold text-rose-dust transition-colors hover:border-rose-dust hover:bg-rose-dust/5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-dust"
+          >
+            Delete account
+          </button>
+        </section>
+      )}
+
+      {deleteDialogOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-plum/25 px-4 py-8"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) closeDeleteDialog();
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-account-dialog-title"
+            aria-describedby="delete-account-dialog-description"
+            className="w-full max-w-md rounded-card border border-line bg-surface px-6 py-7 shadow-[0_12px_36px_-28px_rgba(49,40,61,0.45)] sm:px-8"
+          >
+            <h2 id="delete-account-dialog-title" className="font-display text-2xl leading-tight text-ink">
+              Delete your account?
+            </h2>
+            <p id="delete-account-dialog-description" className="mt-3 text-sm leading-6 text-ink-muted">
+              This permanently deletes your Fiyu account, profile, saved restaurants, Lists,
+              visit history, reactions, notes, discovery location, and recommendation history.
+            </p>
+            <p className="mt-3 text-sm font-semibold text-ink">This cannot be undone.</p>
+            <label htmlFor="delete-account-confirmation" className="mt-6 block text-xs font-semibold tracking-wide text-ink">
+              TYPE DELETE TO CONFIRM
+            </label>
+            <input
+              id="delete-account-confirmation"
+              value={deleteConfirmation}
+              onChange={(event) => setDeleteConfirmation(event.target.value)}
+              autoComplete="off"
+              disabled={deleting}
+              className="mt-2 min-h-11 w-full rounded-lg border border-line-strong bg-canvas px-3 text-sm text-ink focus:border-rose-dust"
+            />
+            {deleteError && <p role="alert" className="mt-3 text-sm text-rose-dust">{deleteError}</p>}
+            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <Button type="button" variant="secondary" disabled={deleting} onClick={closeDeleteDialog}>
+                Cancel
+              </Button>
+              <button
+                type="button"
+                disabled={deleteConfirmation !== "DELETE" || deleting}
+                onClick={() => void deleteAccount()}
+                className="inline-flex min-h-11 items-center justify-center rounded-lg bg-rose-dust px-4 text-sm font-semibold text-white transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {deleting ? "Deleting…" : "Permanently delete account"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -554,13 +646,13 @@ function PrivacySection() {
   }[permission];
   return (
     <div className="max-w-xl">
-      <SectionHeading title="Privacy" description="How Fiyu handles information on this device." />
+      <SectionHeading title="Privacy" description="How Fiyu handles your location and private Log." />
       <div className="mt-8 divide-y divide-line border-y border-line">
         <SettingBlock title="Location" value={permissionLabel}>
-          Fiyu uses your location only when you ask for nearby discovery. It is kept for the current visit and is not used in the background.
+          Fiyu uses your location only when you ask it to help find restaurants nearby. Fiyu does not continuously track your location in the background. For signed-in users, your active Tokyo discovery location may be saved to your account so your Picks work across devices.
         </SettingBlock>
-        <SettingBlock title="Private Log notes">
-          Notes saved with restaurant visits remain private to your device identity and never appear on restaurant pages.
+        <SettingBlock title="Private Logs">
+          Your visit history, reactions, and private notes are saved to your account so they are available across devices. Private notes are not shown to other users.
         </SettingBlock>
       </div>
       <LegalAvailability />

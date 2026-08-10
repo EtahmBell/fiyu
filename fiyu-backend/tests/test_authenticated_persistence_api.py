@@ -167,6 +167,19 @@ def test_authenticated_lists_log_and_seen_are_account_owned(shared_account_api):
     assert client.get("/log", headers=_auth("token-b")).json() == []
     assert client.get("/seen/restaurants", headers=_auth("token-b")).json()["place_ids"] == []
 
+    surfaced_for_b = client.post(
+        "/daily-picks/assign",
+        headers=_auth("token-b"),
+        json={
+            "city_id": "tokyo",
+            "candidate_place_ids": ["tokyo-0", "tokyo-1", "tokyo-2", "tokyo-3"],
+            "seed": 7,
+            "requested_count": 3,
+        },
+    )
+    assert surfaced_for_b.status_code == 200
+    assert len(client.get("/seen/restaurants", headers=_auth("token-b")).json()["place_ids"]) == 3
+
     assert (
         client.get("/lists/default", params={"city_id": "tokyo"}, headers=_auth("token-a")).json()[
             "items"

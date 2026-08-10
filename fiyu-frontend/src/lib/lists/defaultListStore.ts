@@ -62,14 +62,16 @@ function canIgnoreMigrationErrorKind(kind: FiyuErrorKind): boolean {
 
 export class DefaultListStore {
   private readonly cityId: string;
+  private readonly accountId: string | null;
   private readonly serverSnapshot: DefaultListSnapshot;
   private readonly listeners = new Set<() => void>();
   private snapshot: DefaultListSnapshot;
   private loadingPromise: Promise<void> | null = null;
   private mutationInFlight = new Set<string>();
 
-  constructor(cityId: string) {
+  constructor(cityId: string, accountId: string | null = null) {
     this.cityId = cityId;
+    this.accountId = accountId;
     const initialError =
       cityId === TOKYO_CITY_ID
         ? null
@@ -152,6 +154,10 @@ export class DefaultListStore {
 
   private async migrateLegacySaves(identity: ListIdentity): Promise<void> {
     if (typeof window === "undefined") return;
+    // Legacy local saves belong to the anonymous browser owner. Importing them
+    // while authenticated can copy one signed-in user's local mirror into a
+    // different account after an account switch.
+    if (this.accountId) return;
     if (this.migrationDone(identity.clientId)) return;
 
     const legacyIds = readLegacySavedIds();
@@ -188,7 +194,7 @@ export class DefaultListStore {
         await this.migrateLegacySaves(identity);
         const list = await fetchDefaultList(this.cityId, identity);
         const savedPlaceIds = sortedSavedIds(list);
-        writeLegacySavedIds(savedPlaceIds);
+        if (!this.accountId) writeLegacySavedIds(savedPlaceIds);
         this.update({
           status: "ready",
           list,
@@ -291,7 +297,7 @@ export class DefaultListStore {
         ? await removeRestaurantFromDefaultList(this.cityId, placeId, identity)
         : await addRestaurantToDefaultList(this.cityId, placeId, identity);
       const sorted = sortedSavedIds(mutation.list);
-      writeLegacySavedIds(sorted);
+      if (!this.accountId) writeLegacySavedIds(sorted);
       this.update({ list: mutation.list, savedPlaceIds: sorted, operationError: null });
     } catch (error) {
       const resolved =
@@ -331,19 +337,23 @@ export class DefaultListStore {
   }
 }
 
-const storeByCity = new Map<string, DefaultListStore>();
+const stores = new Map<string, DefaultListStore>();
 
 if (typeof window !== "undefined") {
   window.addEventListener("fiyu:account-changed", () => {
-    for (const store of storeByCity.values()) store.resetAccountState();
+    for (const store of stores.values()) store.resetAccountState();
   });
 }
 
-export function defaultListStoreForCity(cityId: string): DefaultListStore {
+export function defaultListStoreForCity(
+  cityId: string,
+  accountId: string | null = null,
+): DefaultListStore {
   const normalized = cityId.trim().toLowerCase();
-  const existing = storeByCity.get(normalized);
+  const key = `${normalized}:${accountId ?? "anonymous"}`;
+  const existing = stores.get(key);
   if (existing) return existing;
-  const created = new DefaultListStore(normalized);
-  storeByCity.set(normalized, created);
+  const created = new DefaultListStore(normalized, accountId);
+  stores.set(key, created);
   return created;
 }

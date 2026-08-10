@@ -5,9 +5,9 @@ import os
 from datetime import UTC, datetime
 from typing import Any
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlencode
+from urllib.parse import quote, urlencode
 from urllib.request import Request, urlopen
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 
 class SharedUserDataError(RuntimeError):
@@ -22,6 +22,45 @@ def configured() -> bool:
     return bool(
         os.getenv("SUPABASE_URL", "").strip() and os.getenv("SUPABASE_SERVICE_ROLE_KEY", "").strip()
     )
+
+
+def _service_configuration() -> tuple[str, str]:
+    url = os.getenv("SUPABASE_URL", "").strip().rstrip("/")
+    key = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "").strip()
+    if not url or not key:
+        raise SharedUserDataError("Shared user data is not configured")
+    return url, key
+
+
+def _delete_service_resource(path: str, *, missing_ok: bool = False) -> bool:
+    """Delete one Supabase resource without retaining provider response details."""
+    url, key = _service_configuration()
+    request = Request(
+        f"{url}{path}",
+        headers={"apikey": key, "Authorization": f"Bearer {key}"},
+        method="DELETE",
+    )
+    try:
+        with urlopen(request, timeout=10):
+            return True
+    except HTTPError as exc:
+        if missing_ok and exc.code == 404:
+            return False
+        raise SharedUserDataError(
+            f"Supabase deletion request failed with status {exc.code}"
+        ) from None
+    except (URLError, TimeoutError):
+        raise SharedUserDataError("Supabase deletion request is unavailable") from None
+
+
+def delete_avatar_object(*, user_id: str) -> bool:
+    path = quote(f"{user_id}/avatar.webp", safe="/")
+    return _delete_service_resource(f"/storage/v1/object/avatars/{path}", missing_ok=True)
+
+
+def delete_auth_user(*, user_id: str) -> None:
+    normalized = str(UUID(user_id))
+    _delete_service_resource(f"/auth/v1/admin/users/{quote(normalized, safe='')}")
 
 
 def _request(

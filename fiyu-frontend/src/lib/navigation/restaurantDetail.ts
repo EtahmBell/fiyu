@@ -49,6 +49,12 @@ export function consumePicksReturnState(): PicksReturnState | null {
   return state;
 }
 
+/** Prevent one account's selected card/scroll position restoring for another. */
+export function clearPicksReturnState(): void {
+  if (typeof window === "undefined") return;
+  window.sessionStorage.removeItem(PICKS_RETURN_STATE_KEY);
+}
+
 export function restaurantDetailHref(placeId: string): string {
   return `/restaurants/${encodeURIComponent(placeId)}`;
 }

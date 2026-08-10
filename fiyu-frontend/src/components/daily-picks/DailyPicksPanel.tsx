@@ -45,6 +45,8 @@ import { useMediaQuery } from "@/lib/hooks/useMediaQuery";
 
 export interface DailyPicksPanelProps {
   restaurants: PublicRestaurant[];
+  /** Authenticated UUID used only to isolate the browser cache by account. */
+  accountId?: string | null;
   activeArea?: string | null;
   discoveryPoint?: { latitude: number; longitude: number } | null;
   storage?: DailyPicksStorage;
@@ -286,6 +288,7 @@ function PicksDiscoveryContext({
 
 export function DailyPicksPanel({
   restaurants,
+  accountId = null,
   activeArea = null,
   discoveryPoint = null,
   storage: injectedStorage,
@@ -297,7 +300,7 @@ export function DailyPicksPanel({
   scrollRequestKey = 0,
   originSetup,
 }: DailyPicksPanelProps) {
-  const browserStorage = useMemo(() => browserDailyPicksStorage(), []);
+  const browserStorage = useMemo(() => browserDailyPicksStorage(accountId), [accountId]);
   const storage = injectedStorage ?? browserStorage;
   const snapshot = useSyncExternalStore(
     storage.subscribe,
@@ -305,7 +308,10 @@ export function DailyPicksPanel({
     storage.getServerSnapshot,
   );
   const now = useSyncExternalStore(subscribeClock, currentMinute, serverMinute);
-  const defaultList = useDefaultList(ACTIVE_FIYU_CITY.id, { enabled: injectedStorage === undefined });
+  const defaultList = useDefaultList(ACTIVE_FIYU_CITY.id, {
+    enabled: injectedStorage === undefined,
+    accountId,
+  });
   const [inventoryMessage, setInventoryMessage] = useState<string | null>(null);
   const [phase, setPhase] = useState<DiscoveryPhase>("idle");
   const [tuning, setTuning] = useState(false);

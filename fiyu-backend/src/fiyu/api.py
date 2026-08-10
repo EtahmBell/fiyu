@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import os
 import re
+import secrets
 from datetime import UTC, date, datetime
 from math import cos, radians
 from pathlib import Path
@@ -17,6 +18,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, field_validator
 
 from . import supabase_user_data as shared_user_data
+from .account_deletion import delete_local_account_data
 from .daily_picks import (
     InsufficientUnseenPoolError,
     assign_daily_picks,
@@ -410,6 +412,10 @@ class SigninRequest(BaseModel):
 class SigninResponse(BaseModel):
     user_id: str
     session: AuthSessionResponse
+
+
+class DeleteAccountResponse(BaseModel):
+    deleted: Literal[True]
 
 
 class UserProfileResponse(BaseModel):
@@ -1091,6 +1097,17 @@ def _authenticated_user_id(
     return str(_authenticated_user(authorization)["id"])
 
 
+def _require_admin_access(
+    x_fiyu_admin_key: Annotated[str | None, Header(alias="X-Fiyu-Admin-Key")] = None,
+) -> None:
+    configured_key = os.getenv("FIYU_ADMIN_API_KEY", "").strip()
+    if not configured_key:
+        raise HTTPException(status_code=404, detail="Not found")
+    supplied_key = (x_fiyu_admin_key or "").strip()
+    if not supplied_key or not secrets.compare_digest(supplied_key, configured_key):
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+
 def _profile_response(row: dict[str, object]) -> UserProfileResponse:
     return UserProfileResponse(
         user_id=str(row["user_id"]),
@@ -1367,6 +1384,32 @@ def update_my_avatar(
     if row is None:
         raise HTTPException(status_code=404, detail="Profile not found")
     return _profile_response(row)
+
+
+@app.delete("/profiles/me/account", response_model=DeleteAccountResponse)
+def delete_my_account(
+    auth_user: Annotated[dict[str, object], Depends(_authenticated_user)],
+) -> DeleteAccountResponse:
+    """Permanently delete the verified user's non-cascading data and Auth user."""
+    _ensure_database()
+    user_id = _auth_user_subject(auth_user)
+    try:
+        local_deleted = delete_local_account_data(DB_PATH, user_id=user_id)
+        avatar_deleted = shared_user_data.delete_avatar_object(user_id=user_id)
+        shared_user_data.delete_auth_user(user_id=user_id)
+    except Exception:
+        logger.exception(
+            "Account deletion failed for authenticated subject ending %s",
+            user_id[-8:],
+        )
+        raise HTTPException(status_code=503, detail="Account could not be deleted") from None
+    logger.info(
+        "Account deletion completed for subject ending %s; avatar_deleted=%s; local_rows=%s",
+        user_id[-8:],
+        avatar_deleted,
+        sum(local_deleted.values()),
+    )
+    return DeleteAccountResponse(deleted=True)
 
 
 @app.get("/profiles/me/discovery-location", response_model=DiscoveryLocationResponse)
@@ -1963,12 +2006,14 @@ def public_map_config() -> dict[str, str]:
 
 
 @app.get("/health")
-def health() -> dict[str, object]:
-    return {"status": "ok", "database_exists": DB_PATH.exists(), "database": str(DB_PATH)}
+def health() -> dict[str, str]:
+    return {"status": "ok"}
 
 
 @app.get("/stats")
-def stats() -> dict[str, object]:
+def stats(
+    _admin: Annotated[None, Depends(_require_admin_access)],
+) -> dict[str, object]:
     _ensure_database()
     with connect(DB_PATH) as connection:
         row = connection.execute(
@@ -1990,7 +2035,9 @@ def stats() -> dict[str, object]:
 
 
 @app.get("/areas")
-def areas() -> list[dict[str, object]]:
+def areas(
+    _admin: Annotated[None, Depends(_require_admin_access)],
+) -> list[dict[str, object]]:
     _ensure_database()
     with connect(DB_PATH) as connection:
         rows = connection.execute(
@@ -2009,6 +2056,7 @@ def areas() -> list[dict[str, object]]:
 
 @app.get("/restaurants/candidates")
 def candidates(
+    _admin: Annotated[None, Depends(_require_admin_access)],
     area: str | None = None,
     category: str | None = None,
     min_score: Annotated[float, Query(ge=0, le=100)] = 55.0,
@@ -2042,6 +2090,7 @@ def candidates(
 
 @app.get("/restaurants/candidates/random")
 def random_candidates(
+    _admin: Annotated[None, Depends(_require_admin_access)],
     area: str | None = None,
     category: str | None = None,
     min_score: Annotated[float, Query(ge=0, le=100)] = 55.0,
@@ -2085,6 +2134,7 @@ def random_candidates(
 
 @app.get("/restaurants/nearby")
 def nearby(
+    _admin: Annotated[None, Depends(_require_admin_access)],
     lat: Annotated[float, Query(ge=-90, le=90)],
     lng: Annotated[float, Query(ge=-180, le=180)],
     radius_km: Annotated[float, Query(gt=0, le=25)] = 3.0,
@@ -2146,7 +2196,10 @@ def nearby(
 
 
 @app.get("/restaurants/{restaurant_id}")
-def restaurant_detail(restaurant_id: int) -> dict[str, object]:
+def restaurant_detail(
+    restaurant_id: int,
+    _admin: Annotated[None, Depends(_require_admin_access)],
+) -> dict[str, object]:
     _ensure_database()
     with connect(DB_PATH) as connection:
         row = connection.execute(

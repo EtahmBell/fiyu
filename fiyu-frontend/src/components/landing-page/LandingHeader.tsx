@@ -4,12 +4,16 @@ import Link from "next/link";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import { LANDING_MEASURE } from "@/components/landing-page/landingSystem";
+import {
+  ProfileIdentityAvatar,
+  profileIdentityPresentation,
+} from "@/components/profile/ProfileIdentityAvatar";
+import { useProfileIdentity } from "@/lib/profile/profileIdentity";
 import { cn } from "@/lib/utils/cn";
 
 const navigation = [
   { href: "/about", label: "About" },
   { href: "/contact", label: "Contact" },
-  { href: "/signin", label: "Sign in" },
 ] as const;
 
 /**
@@ -27,6 +31,10 @@ const scrollServerSnapshot = () => false;
 
 export function LandingHeader() {
   const lifted = useSyncExternalStore(subscribeScroll, scrollSnapshot, scrollServerSnapshot);
+  const identity = useProfileIdentity();
+  const signedIn =
+    identity.status === "ready" && (identity.profile !== null || identity.email !== null);
+  const { label: profileLabel } = profileIdentityPresentation(identity);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const firstMenuLinkRef = useRef<HTMLAnchorElement>(null);
@@ -74,13 +82,40 @@ export function LandingHeader() {
               {item.label}
             </Link>
           ))}
-          <span aria-hidden="true" className="ml-1 h-4 w-px bg-line-strong" />
-          <Link
-            href="/signup"
-            className="inline-flex min-h-11 items-center rounded-chip bg-plum px-6 text-sm font-medium text-white transition-colors duration-200 ease-(--ease-fiyu) hover:bg-lavender-700"
-          >
-            Sign up
-          </Link>
+          {identity.status === "loading" ? (
+            <div aria-label="Loading profile" className="ml-1 flex min-h-11 items-center gap-2 px-2">
+              <span aria-hidden="true" className="size-7 animate-pulse rounded-full bg-subtle" />
+              <span aria-hidden="true" className="h-3 w-16 animate-pulse rounded-full bg-subtle" />
+            </div>
+          ) : signedIn ? (
+            <>
+              <span aria-hidden="true" className="ml-1 h-4 w-px bg-line-strong" />
+              <Link
+                href="/profile"
+                aria-label={profileLabel === "Profile" ? "Profile" : `Profile: ${profileLabel}`}
+                className="flex min-h-11 min-w-0 max-w-56 items-center gap-2 rounded-lg px-2 text-sm font-medium text-ink-muted transition-colors duration-200 ease-(--ease-fiyu) hover:bg-subtle hover:text-ink focus-visible:bg-subtle"
+              >
+                <ProfileIdentityAvatar identity={identity} className="size-7 text-sm" />
+                <span className="truncate">{profileLabel}</span>
+              </Link>
+            </>
+          ) : (
+            <>
+              <Link
+                className="text-[0.9375rem] text-ink-muted underline decoration-transparent decoration-1 underline-offset-[6px] transition-colors duration-200 ease-(--ease-fiyu) hover:text-ink hover:decoration-rose-dust"
+                href="/signin"
+              >
+                Sign in
+              </Link>
+              <span aria-hidden="true" className="ml-1 h-4 w-px bg-line-strong" />
+              <Link
+                href="/signup"
+                className="inline-flex min-h-11 items-center rounded-chip bg-plum px-6 text-sm font-medium text-white transition-colors duration-200 ease-(--ease-fiyu) hover:bg-lavender-700"
+              >
+                Sign up
+              </Link>
+            </>
+          )}
         </nav>
 
         <button
@@ -133,13 +168,39 @@ export function LandingHeader() {
               {item.label}
             </Link>
           ))}
-          <Link
-            href="/signup"
-            onClick={closeMenu}
-            className="mt-5 inline-flex min-h-12 items-center justify-center rounded-chip bg-plum px-6 text-sm font-medium text-white"
-          >
-            Sign up
-          </Link>
+          {identity.status === "loading" ? (
+            <div aria-label="Loading profile" className="flex min-h-12 items-center gap-2 border-t border-line">
+              <span aria-hidden="true" className="size-7 animate-pulse rounded-full bg-subtle" />
+              <span aria-hidden="true" className="h-3 w-20 animate-pulse rounded-full bg-subtle" />
+            </div>
+          ) : signedIn ? (
+            <Link
+              href="/profile"
+              aria-label={profileLabel === "Profile" ? "Profile" : `Profile: ${profileLabel}`}
+              onClick={closeMenu}
+              className="flex min-h-12 min-w-0 items-center gap-3 border-t border-line text-base font-medium text-ink"
+            >
+              <ProfileIdentityAvatar identity={identity} className="size-7 text-sm" />
+              <span className="truncate">{profileLabel}</span>
+            </Link>
+          ) : (
+            <>
+              <Link
+                href="/signin"
+                onClick={closeMenu}
+                className="flex min-h-12 items-center border-t border-line text-base text-ink"
+              >
+                Sign in
+              </Link>
+              <Link
+                href="/signup"
+                onClick={closeMenu}
+                className="mt-5 inline-flex min-h-12 items-center justify-center rounded-chip bg-plum px-6 text-sm font-medium text-white"
+              >
+                Sign up
+              </Link>
+            </>
+          )}
         </div>
       </nav>
     </header>

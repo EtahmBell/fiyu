@@ -921,7 +921,8 @@ def _safe_public_rows(
         rows = connection.execute(
             f"""
             SELECT p.place_id, p.name_ja, p.name_en, p.primary_category,
-                   r.neighborhood, p.fiyu_score, p.score_band, p.description_en,
+                   r.neighborhood, r.address AS canonical_address,
+                   p.fiyu_score, p.score_band, p.description_en,
                    p.food_tags_json, p.signature_dishes_json,
                    p.discovery_area, p.discovery_area_type, p.discovery_areas_json,
                    p.multiple_discovery_areas, p.discovery_area_conflict,
@@ -965,7 +966,15 @@ def _safe_public_rows(
         item["directions_coordinates_eligible"] = bool(
             eligible and not item["map_location_approximate"]
         )
-        item["external_map_search_query"] = item.get("verified_core_address")
+        # A reviewed core address is the best written navigation target. Some
+        # published rows have not completed that review yet, but still retain
+        # the canonical Google Places address from the global catalog. Expose
+        # that address only as the compact maps search target so restaurant
+        # cards can offer navigation without treating unreviewed coordinates as
+        # an exact destination.
+        item["external_map_search_query"] = (
+            item.get("verified_core_address") or item.pop("canonical_address", None)
+        )
         item["map_anchor_id"] = (
             f"{item.get('location_osm_type')}:{item.get('location_osm_id')}"
             if item.get("map_anchor_type")
