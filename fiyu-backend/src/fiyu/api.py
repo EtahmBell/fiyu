@@ -1178,22 +1178,10 @@ def get_authenticated_map_restaurants(
 ) -> list[dict[str, object]]:
     """Intersect the authenticated account's seen history with map eligibility."""
     _ensure_database()
-    logger.warning("MAP AUTH USER: %s", user_id)
-    logger.warning(
-        "MAP SEEN SOURCE: supabase_user_data.seen_place_ids -> "
-        "fiyu_restaurant_seen (PostgREST, authenticated user_id filter)"
-    )
     seen_place_ids = shared_user_data.seen_place_ids(user_id=user_id)
-    logger.warning("MAP SEEN IDS: %s", seen_place_ids)
     if not seen_place_ids:
-        logger.warning("MAP RESPONSE IDS: []")
         return []
-    restaurants = _map_eligible_public_restaurants_for_place_ids(seen_place_ids)
-    logger.warning(
-        "MAP RESPONSE IDS: %s",
-        [restaurant.get("place_id") for restaurant in restaurants],
-    )
-    return restaurants
+    return _map_eligible_public_restaurants_for_place_ids(seen_place_ids)
 
 
 @app.get("/notifications", response_model=list[UserNotificationResponse])
