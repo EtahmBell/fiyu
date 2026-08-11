@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from datetime import UTC, datetime
+from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
@@ -34,10 +35,16 @@ def shared_account_api(tmp_path, monkeypatch):
                 """
                 INSERT INTO public_restaurants
                     (place_id, name_en, primary_category, food_tags_json,
-                     signature_dishes_json, is_published, created_at, updated_at)
-                VALUES (?, ?, 'sushi', '[]', '[]', 1, 'now', 'now')
+                     signature_dishes_json, latitude, longitude,
+                     map_display_eligible, is_published, created_at, updated_at)
+                VALUES (?, ?, 'sushi', '[]', '[]', ?, ?, 1, 1, 'now', 'now')
                 """,
-                (f"tokyo-{index}", f"Tokyo {index}"),
+                (
+                    f"tokyo-{index}",
+                    f"Tokyo {index}",
+                    35.65 + index * 0.01,
+                    139.70 + index * 0.01,
+                ),
             )
         connection.commit()
 
@@ -141,16 +148,29 @@ def test_authenticated_map_does_not_accept_anonymous_owner_fallback(shared_accou
     assert response.status_code == 401
 
 
-def test_authenticated_map_marker_rows_follow_seen_history_exactly(shared_account_api):
+def test_authenticated_map_intersects_four_eligible_rows_with_seen_history_exactly(
+    shared_account_api,
+):
     client, user_ids, seen = shared_account_api
     user_id = user_ids["token-b"]
 
     def map_place_ids() -> list[str]:
-        response = client.get(
-            "/profiles/me/map-restaurants", headers=_auth("token-b")
-        )
-        assert response.status_code == 200
-        return [restaurant["place_id"] for restaurant in response.json()]
+        responses = [
+            client.get("/profiles/me/map-restaurants", headers=_auth("token-b")),
+            client.get("/map/restaurants", headers=_auth("token-b")),
+        ]
+        assert all(response.status_code == 200 for response in responses)
+        place_id_sets = [
+            [restaurant["place_id"] for restaurant in response.json()]
+            for response in responses
+        ]
+        assert place_id_sets[0] == place_id_sets[1]
+        return place_id_sets[0]
+
+    global_rows = client.get("/public/restaurants").json()
+    assert len(global_rows) == 4
+    assert all(row["map_display_eligible"] for row in global_rows)
+    assert all(row["latitude"] is not None and row["longitude"] is not None for row in global_rows)
 
     assert seen[user_id] == []
     assert map_place_ids() == []
@@ -160,6 +180,19 @@ def test_authenticated_map_marker_rows_follow_seen_history_exactly(shared_accoun
 
     seen[user_id].append("tokyo-1")
     assert map_place_ids() == ["tokyo-0", "tokyo-1"]
+    assert "tokyo-2" not in map_place_ids()
+    assert "tokyo-3" not in map_place_ids()
+
+
+def test_authenticated_legacy_map_never_falls_back_to_local_served_history(
+    shared_account_api, monkeypatch
+):
+    client, _, _ = shared_account_api
+    monkeypatch.setattr(api.shared_user_data, "configured", lambda: False)
+
+    response = client.get("/map/restaurants", headers=_auth("token-b"))
+
+    assert response.status_code == 503
 
 
 def test_authenticated_lists_log_and_seen_are_account_owned(shared_account_api):
@@ -258,6 +291,56 @@ def test_authenticated_lists_log_and_seen_are_account_owned(shared_account_api):
     assert client.get(
         "/lists/default", params={"city_id": "tokyo"}, headers=_auth("token-a")
     ).json()["items"] == []
+
+
+def test_authenticated_reads_do_not_create_seen_history(shared_account_api):
+    client, user_ids, seen = shared_account_api
+    user_id = user_ids["token-b"]
+
+    responses = [
+        client.get("/public/restaurants"),
+        client.get("/profiles/me/map-restaurants", headers=_auth("token-b")),
+        client.get("/seen/restaurants", headers=_auth("token-b")),
+        client.get("/lists/default", params={"city_id": "tokyo"}, headers=_auth("token-b")),
+        client.get("/log", headers=_auth("token-b")),
+    ]
+
+    assert all(response.status_code == 200 for response in responses)
+    assert seen[user_id] == []
+
+
+def test_authenticated_assignment_records_only_returned_picks_not_legacy_or_candidate_pool(
+    shared_account_api, monkeypatch
+):
+    client, user_ids, seen = shared_account_api
+    user_id = user_ids["token-b"]
+    candidates = [f"candidate-{index}" for index in range(50)]
+    surfaced = candidates[:3]
+    monkeypatch.setattr(
+        api,
+        "assign_daily_picks",
+        lambda *args, **kwargs: SimpleNamespace(
+            round_id="round-authenticated",
+            place_ids=tuple(surfaced),
+            assigned_at="2026-08-11T00:00:00+00:00",
+        ),
+    )
+
+    response = client.post(
+        "/daily-picks/assign",
+        headers=_auth("token-b"),
+        json={
+            "city_id": "tokyo",
+            "candidate_place_ids": candidates,
+            "legacy_served_place_ids": [f"stale-{index}" for index in range(18)],
+            "seed": 11,
+            "requested_count": 3,
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["place_ids"] == surfaced
+    assert seen[user_id] == surfaced
 
 
 def test_invalid_bearer_cannot_select_another_account(shared_account_api):

@@ -9,6 +9,7 @@ import { MapLabels } from "@/components/map/MapLabels";
 import { MapLandmarks } from "@/components/map/MapLandmarks";
 import { MapLegend } from "@/components/map/MapLegend";
 import { MapMarkers } from "@/components/map/MapMarkers";
+import { MapRestaurantPopup } from "@/components/map/MapRestaurantPopup";
 import { MapStations } from "@/components/map/MapStations";
 import type { MappableRestaurant } from "@/lib/geo/mappable";
 import type { DiscoveryAnchor } from "@/lib/location/anchor";
@@ -63,6 +64,10 @@ export interface FiyuMapProps {
   /** When true, a tap on the map places or moves the manual pin. */
   placingPin?: boolean;
   onPlacePin?: (point: LatLng) => void;
+  /** Dedicated-map-only compact label for the selected restaurant marker. */
+  showSelectedRestaurantPopup?: boolean;
+  /** Called when the interactive map surface, rather than a marker, is pressed. */
+  onMapBackgroundClick?: () => void;
   /** Preserve the transform between application surfaces that share this key. */
   viewportSessionKey?: string;
   className?: string;
@@ -102,6 +107,8 @@ export function FiyuMap({
   anchor = null,
   placingPin = false,
   onPlacePin,
+  showSelectedRestaurantPopup = false,
+  onMapBackgroundClick,
   viewportSessionKey,
   className,
 }: FiyuMapProps) {
@@ -182,6 +189,12 @@ export function FiyuMap({
     () => new Map(plotted.map((restaurant, index) => [restaurant.place_id, points[index]])),
     [plotted, points],
   );
+  const selectedRestaurant = showSelectedRestaurantPopup
+    ? plotted.find((restaurant) => restaurant.place_id === selectedPlaceId) ?? null
+    : null;
+  const selectedPoint = selectedRestaurant
+    ? pointByPlaceId.get(selectedRestaurant.place_id) ?? null
+    : null;
   const lastFitKey = useRef<string | null>(
     initialViewportSession?.resultKey === resultKey ? resultKey : null,
   );
@@ -282,6 +295,9 @@ export function FiyuMap({
       if (!interactive) return;
       // Let marker buttons handle their own activation.
       if ((event.target as Element).closest('[role="button"]')) return;
+      if ((event.target as Element).closest('[data-layer="restaurant-popup"]')) return;
+
+      onMapBackgroundClick?.();
 
       pointers.current.set(event.pointerId, event.nativeEvent);
       event.currentTarget.setPointerCapture(event.pointerId);
@@ -293,7 +309,7 @@ export function FiyuMap({
         gestureStart.current = null;
       }
     },
-    [interactive],
+    [interactive, onMapBackgroundClick],
   );
 
   const handlePointerMove = useCallback(
@@ -367,9 +383,10 @@ export function FiyuMap({
   const expandCluster = useCallback(
     (cluster: MarkerCluster<MappableRestaurant>) => {
       markInteracted();
+      onMapBackgroundClick?.();
       setView(fitToPoints(cluster.members.map((member) => member.point), { padding: 160 }));
     },
-    [markInteracted],
+    [markInteracted, onMapBackgroundClick],
   );
 
   return (
@@ -421,6 +438,13 @@ export function FiyuMap({
             onSelect={onSelect}
             onExpandCluster={expandCluster}
           />
+          {selectedRestaurant && selectedPoint && (
+            <MapRestaurantPopup
+              restaurant={selectedRestaurant}
+              point={selectedPoint}
+              view={view}
+            />
+          )}
         </g>
       </svg>
 

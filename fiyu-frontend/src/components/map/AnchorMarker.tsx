@@ -33,7 +33,12 @@ export function AnchorMarker({ anchor, scale, showAccuracy = true }: AnchorMarke
       : null;
 
   return (
-    <g aria-hidden="true" className="pointer-events-none">
+    <g
+      aria-hidden="true"
+      className="pointer-events-none"
+      data-layer="discovery-location"
+      data-location-kind={anchor.kind}
+    >
       {accuracyRadius !== null && accuracyRadius > 1 && (
         <circle
           cx={x}

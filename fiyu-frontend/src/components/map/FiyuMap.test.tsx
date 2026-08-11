@@ -81,6 +81,7 @@ describe("card and marker selection stay in sync", () => {
     render(
       <FiyuMap restaurants={[SHIBUYA, UENO]} selectedPlaceId="shibuya" onSelect={() => {}} />,
     );
+    expect(mapSurface().querySelector('[data-layer="restaurant-popup"]')).toBeNull();
     expect(screen.getByLabelText("渋谷の店").getAttribute("aria-pressed")).toBe("true");
     expect(screen.getByLabelText("上野の店").getAttribute("aria-pressed")).toBe("false");
   });

@@ -6,7 +6,7 @@ import re
 import secrets
 from collections.abc import Iterable
 from datetime import UTC, date, datetime
-from math import cos, radians
+from math import cos, isfinite, radians
 from pathlib import Path
 from typing import Annotated, Literal
 from urllib.parse import urlsplit, urlunsplit
@@ -1027,15 +1027,17 @@ def create_daily_pick_assignment(
     _ensure_database()
     ensure_public_schema(DB_PATH)
     city_id = _normalize_list_city(request.city_id)
+    authenticated_owner = _shared_owner(owner_id)
     shared_seen = (
-        shared_user_data.seen_place_ids(user_id=str(owner_id))
-        if _shared_owner(owner_id)
-        else []
+        shared_user_data.seen_place_ids(user_id=str(owner_id)) if authenticated_owner else []
     )
+    # Browser history is only an anonymous-client compatibility input. Once an
+    # account is authenticated, Supabase is authoritative for what was surfaced.
+    legacy_served_place_ids = [] if authenticated_owner else request.legacy_served_place_ids
     seed_served_history(
         DB_PATH,
         owner_id=owner_id,
-        place_ids=[*shared_seen, *request.legacy_served_place_ids],
+        place_ids=[*shared_seen, *legacy_served_place_ids],
     )
     active_area = request.active_area
     discovery_latitude = request.discovery_latitude
@@ -1071,10 +1073,10 @@ def create_daily_pick_assignment(
             },
         ) from None
 
-    if _shared_owner(owner_id):
+    if authenticated_owner:
         shared_user_data.record_seen(
             user_id=str(owner_id),
-            place_ids=[*request.legacy_served_place_ids, *assignment.place_ids],
+            place_ids=list(assignment.place_ids),
         )
     return DailyPickAssignmentResponse(
         round_id=assignment.round_id,
@@ -1103,12 +1105,18 @@ def get_map_restaurants(
 ) -> list[dict[str, object]]:
     """Join one owner's surfaced history to the current public-safe catalog."""
     _ensure_database()
-    place_ids = (
-        shared_user_data.seen_place_ids(user_id=str(owner_id))
-        if _shared_owner(owner_id)
-        else served_place_ids(DB_PATH, owner_id=owner_id)
-    )
-    return _public_restaurants_for_place_ids(place_ids)
+    if isinstance(owner_id, OwnerIdentity) and owner_id.authenticated:
+        if not shared_user_data.configured():
+            raise HTTPException(
+                status_code=503,
+                detail="Authenticated restaurant history is not configured",
+            )
+        place_ids = shared_user_data.seen_place_ids(user_id=str(owner_id))
+    else:
+        place_ids = served_place_ids(DB_PATH, owner_id=owner_id)
+    if not place_ids:
+        return []
+    return _map_eligible_public_restaurants_for_place_ids(place_ids)
 
 
 def _public_restaurants_for_place_ids(place_ids: Iterable[str]) -> list[dict[str, object]]:
@@ -1116,6 +1124,25 @@ def _public_restaurants_for_place_ids(place_ids: Iterable[str]) -> list[dict[str
     for place_id in place_ids:
         restaurant = get_public_restaurant(DB_PATH, place_id)
         if restaurant is not None:
+            restaurants.append(restaurant)
+    return restaurants
+
+
+def _map_eligible_public_restaurants_for_place_ids(
+    place_ids: Iterable[str],
+) -> list[dict[str, object]]:
+    """Return only seen restaurants that are safe and usable as map markers."""
+    restaurants: list[dict[str, object]] = []
+    for restaurant in _public_restaurants_for_place_ids(place_ids):
+        latitude = restaurant.get("latitude")
+        longitude = restaurant.get("longitude")
+        if (
+            restaurant.get("map_display_eligible") is True
+            and isinstance(latitude, (int, float))
+            and isinstance(longitude, (int, float))
+            and isfinite(latitude)
+            and isfinite(longitude)
+        ):
             restaurants.append(restaurant)
     return restaurants
 
@@ -1149,11 +1176,24 @@ def _authenticated_user_id(
 def get_authenticated_map_restaurants(
     user_id: Annotated[str, Depends(_authenticated_user_id)],
 ) -> list[dict[str, object]]:
-    """Return only published restaurants surfaced to the authenticated account."""
+    """Intersect the authenticated account's seen history with map eligibility."""
     _ensure_database()
-    return _public_restaurants_for_place_ids(
-        shared_user_data.seen_place_ids(user_id=user_id)
+    logger.warning("MAP AUTH USER: %s", user_id)
+    logger.warning(
+        "MAP SEEN SOURCE: supabase_user_data.seen_place_ids -> "
+        "fiyu_restaurant_seen (PostgREST, authenticated user_id filter)"
     )
+    seen_place_ids = shared_user_data.seen_place_ids(user_id=user_id)
+    logger.warning("MAP SEEN IDS: %s", seen_place_ids)
+    if not seen_place_ids:
+        logger.warning("MAP RESPONSE IDS: []")
+        return []
+    restaurants = _map_eligible_public_restaurants_for_place_ids(seen_place_ids)
+    logger.warning(
+        "MAP RESPONSE IDS: %s",
+        [restaurant.get("place_id") for restaurant in restaurants],
+    )
+    return restaurants
 
 
 @app.get("/notifications", response_model=list[UserNotificationResponse])

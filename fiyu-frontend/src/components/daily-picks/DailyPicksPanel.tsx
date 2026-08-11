@@ -448,7 +448,7 @@ export function DailyPicksPanel({
         {
           city_id: ACTIVE_FIYU_CITY.id,
           candidate_place_ids: restaurants.map((restaurant) => restaurant.place_id),
-          legacy_served_place_ids: legacyServedIds,
+          legacy_served_place_ids: accountId ? [] : legacyServedIds,
           categories: state.preferences.categories,
           non_japanese: state.preferences.nonJapanese,
           active_area: requestLocation?.label ?? null,

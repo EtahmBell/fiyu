@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   DAILY_PICKS_DURATION_MS,
   DAILY_PICKS_STORAGE_KEY,
+  dailyPicksStorageKey,
   parseDailyPicksState,
 } from "@/lib/daily-picks/storage";
 import { publicRestaurantSchema, type PublicRestaurant } from "@/lib/api/schemas";
@@ -143,6 +144,53 @@ describe("/picks revealed-card save bookmark", () => {
       parseDailyPicksState(window.localStorage.getItem(DAILY_PICKS_STORAGE_KEY))
         .servedRestaurantIds,
     ).toEqual(["one", "two", "three"]);
+  });
+
+  it("never sends account-scoped browser history as authenticated seen history", async () => {
+    const accountId = "authenticated-user";
+    window.localStorage.setItem(
+      dailyPicksStorageKey(accountId),
+      JSON.stringify({
+        version: 3,
+        preferences: { categories: [], nonJapanese: "occasionally" },
+        selection: null,
+        discoveries: [],
+        savedRestaurantIds: [],
+        servedRestaurantIds: ["stale-one", "stale-two", "stale-three"],
+      }),
+    );
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.includes("/daily-picks/assign")) {
+        return json(200, {
+          round_id: "round-account",
+          city_id: "tokyo",
+          place_ids: ["one", "two", "three"],
+          assigned_at: new Date().toISOString(),
+        });
+      }
+      if (url.includes("/lists/default")) return json(200, listBody([]));
+      throw new Error(`Unexpected request: ${url}`);
+    });
+    const DailyPicksPanel = await loadDailyPicksPanel();
+
+    render(
+      <DailyPicksPanel
+        accountId={accountId}
+        restaurants={["one", "two", "three", "four"].map(restaurant)}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Find today's restaurants/i }));
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId("concealed-restaurant-card")).toHaveLength(3);
+    }, { timeout: 3_000 });
+    const assignmentCall = fetchMock.mock.calls.find(([input]) =>
+      String(input).includes("/daily-picks/assign"),
+    );
+    const [, init] = assignmentCall as [RequestInfo | URL, RequestInit | undefined];
+    const body = JSON.parse(String(init?.body)) as { legacy_served_place_ids: string[] };
+    expect(body.legacy_served_place_ids).toEqual([]);
   });
 
   it("uses the shared save mutation with tokyo city and owner header, then toggles remove", async () => {

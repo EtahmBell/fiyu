@@ -5,10 +5,9 @@ import { useEffect, useState } from "react";
 
 import { FiyuMap } from "@/components/map/FiyuMap";
 import { FiyuLoadingScreen } from "@/components/states/FiyuLoadingScreen";
-import { fetchAuthenticatedMapRestaurants, fetchMapRestaurants } from "@/lib/api/client";
+import { fetchAuthenticatedMapRestaurants } from "@/lib/api/client";
 import type { PublicRestaurant } from "@/lib/api/schemas";
 import { mappableRestaurants } from "@/lib/geo/mappable";
-import { getOrCreateAnonymousOwnerKey } from "@/lib/lists/identity";
 import { useProfileIdentity } from "@/lib/profile/profileIdentity";
 
 type MapState =
@@ -18,14 +17,7 @@ type MapState =
 
 export function DedicatedMap() {
   const identity = useProfileIdentity();
-  const [anonymousOwnerKey] = useState<string | null>(() =>
-    typeof window === "undefined" ? null : getOrCreateAnonymousOwnerKey(),
-  );
-  const ownerKey =
-    identity.status === "ready"
-      ? identity.profile?.user_id ??
-        (identity.email === null && anonymousOwnerKey ? `anonymous:${anonymousOwnerKey}` : null)
-      : null;
+  const ownerKey = identity.profile?.user_id ?? null;
   const [mapState, setMapState] = useState<MapState | null>(null);
   const currentMapState =
     ownerKey && mapState?.ownerKey === ownerKey
@@ -38,13 +30,7 @@ export function DedicatedMap() {
   useEffect(() => {
     if (!ownerKey) return;
     const controller = new AbortController();
-    const request = ownerKey.startsWith("anonymous:")
-      ? fetchMapRestaurants(
-          { clientId: ownerKey.slice("anonymous:".length) },
-          { signal: controller.signal },
-        )
-      : fetchAuthenticatedMapRestaurants({ signal: controller.signal });
-    void request
+    void fetchAuthenticatedMapRestaurants({ signal: controller.signal })
       .then((restaurants) => {
         if (controller.signal.aborted) return;
         setSelectedPlaceId(null);
@@ -56,12 +42,21 @@ export function DedicatedMap() {
     return () => controller.abort();
   }, [ownerKey]);
 
+  useEffect(() => {
+    if (!selectedPlaceId) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setSelectedPlaceId(null);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [selectedPlaceId]);
+
   const mappable =
-    currentMapState?.status === "ready"
+    ownerKey && currentMapState?.status === "ready"
       ? mappableRestaurants(currentMapState.restaurants)
       : [];
 
-  if (identity.status === "loading" || !ownerKey || currentMapState?.status === "loading") {
+  if (identity.status === "loading" || (ownerKey && currentMapState?.status === "loading")) {
     return <FiyuLoadingScreen />;
   }
 
@@ -74,7 +69,7 @@ export function DedicatedMap() {
         <h1 className="mt-1 font-display text-2xl leading-none text-ink">Your map</h1>
       </div>
 
-      {currentMapState?.status === "error" ? (
+      {ownerKey && currentMapState?.status === "error" ? (
         <div className="flex h-full items-center justify-center px-5 text-center">
           <p className="text-sm text-ink-muted">We couldn&apos;t load your discoveries.</p>
         </div>
@@ -84,9 +79,10 @@ export function DedicatedMap() {
             restaurants={mappable}
             selectedPlaceId={selectedPlaceId}
             onSelect={(restaurant) => setSelectedPlaceId(restaurant.place_id)}
+            onMapBackgroundClick={() => setSelectedPlaceId(null)}
+            showSelectedRestaurantPopup
             surfaceMode="fullscreen"
             interactive
-            showContextMarks={false}
           />
           {mappable.length === 0 && (
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center px-5">

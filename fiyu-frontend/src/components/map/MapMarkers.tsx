@@ -40,7 +40,7 @@ export function MapMarkers({
   const size = (value: number) => svgNumber(value / scale);
 
   return (
-    <g data-layer="restaurant-markers">
+    <g data-layer="restaurants">
       {clusters.map((cluster) => {
         const { x, y } = cluster.point;
         const newlyRevealed = cluster.members.some((member) =>
@@ -55,6 +55,8 @@ export function MapMarkers({
               role="button"
               tabIndex={0}
               aria-label={`${count} restaurants in this area. Activate to zoom in.`}
+              data-marker-kind="restaurant-cluster"
+              data-place-ids={cluster.members.map((member) => member.item.place_id).join(",")}
               data-newly-revealed={newlyRevealed ? "true" : undefined}
               className={cn(
                 "cursor-pointer focus:outline-none [&:focus-visible>circle:first-child]:opacity-100",
@@ -112,7 +114,9 @@ export function MapMarkers({
             tabIndex={0}
             aria-label={label}
             aria-pressed={selected}
+            data-marker-kind="restaurant"
             data-place-id={restaurant.place_id}
+            data-selected={selected ? "true" : "false"}
             data-newly-revealed={newlyRevealed ? "true" : undefined}
             className={cn(
               "cursor-pointer focus:outline-none",
