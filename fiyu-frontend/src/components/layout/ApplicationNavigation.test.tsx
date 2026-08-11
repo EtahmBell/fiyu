@@ -14,10 +14,20 @@ import {
 
 const route = vi.hoisted(() => ({ pathname: "/picks" }));
 const navigation = vi.hoisted(() => ({ push: vi.fn() }));
+const notificationsApi = vi.hoisted(() => ({
+  fetch: vi.fn().mockResolvedValue([]),
+  markOne: vi.fn(),
+  markAll: vi.fn(),
+}));
 
 vi.mock("next/navigation", () => ({
   usePathname: () => route.pathname,
   useRouter: () => navigation,
+}));
+vi.mock("@/lib/api/client", () => ({
+  fetchNotifications: notificationsApi.fetch,
+  markNotificationRead: notificationsApi.markOne,
+  markAllNotificationsRead: notificationsApi.markAll,
 }));
 
 vi.mock("next/link", () => ({
@@ -123,6 +133,7 @@ describe("application navigation", () => {
     expect(link.textContent).toContain("Ethan Bell");
     expect(link.textContent).toContain("E");
     expect(link.textContent).not.toContain("@");
+    expect(screen.getByLabelText("Notifications")).toBeTruthy();
 
     act(() => {
       publishProfileIdentity({
@@ -164,7 +175,7 @@ describe("application navigation", () => {
       expect(cityEntry.querySelector("[data-city-signature-mark]")).toBeNull();
       expect(cityEntry.getAttribute("aria-current")).toBe("true");
     }
-    expect(screen.getByLabelText("Notifications")).toBeTruthy();
+    expect(screen.queryByLabelText("Notifications")).toBeNull();
     expect(screen.getByLabelText("Open menu")).toBeTruthy();
     expect(screen.getByRole("link", { name: "Settings" }).getAttribute("href")).toBe(
       "/profile",
@@ -175,7 +186,6 @@ describe("application navigation", () => {
     expect(screen.getByRole("link", { name: "Privacy" }).getAttribute("href")).toBe(
       "/profile/privacy",
     );
-    expect(screen.getByText("Nothing new right now.")).toBeTruthy();
     expect(screen.queryByText(/\d+ notifications?/i)).toBeNull();
   });
 

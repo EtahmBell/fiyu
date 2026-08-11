@@ -601,9 +601,11 @@ function NotificationsSection() {
         <div className="flex items-start justify-between gap-5">
           <div>
             <p className="text-sm font-semibold text-ink">Daily Picks</p>
-            <p className="mt-1 text-sm leading-6 text-ink-muted">Notifications are not available in this version of Fiyu yet.</p>
+            <p className="mt-1 text-sm leading-6 text-ink-muted">
+              In-app notifications appear in the bell when there is something new. Email and push notifications are not available.
+            </p>
           </div>
-          <span className="shrink-0 rounded-full bg-subtle px-2.5 py-1 text-xs font-medium text-ink-muted">Not available</span>
+          <span className="shrink-0 rounded-full bg-subtle px-2.5 py-1 text-xs font-medium text-ink-muted">In app</span>
         </div>
       </div>
     </div>

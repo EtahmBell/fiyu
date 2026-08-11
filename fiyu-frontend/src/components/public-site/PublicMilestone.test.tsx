@@ -38,6 +38,7 @@ afterEach(() => {
   vi.restoreAllMocks();
   mocks.getSession.mockResolvedValue(null);
   window.localStorage.clear();
+  window.history.replaceState({}, "", "/");
 });
 
 describe("public account milestone", () => {
@@ -136,5 +137,24 @@ describe("public account milestone", () => {
       identifier: "@person",
       password: "provider-password",
     });
+  });
+
+  it("honors a safe internal next path and rejects external redirects", async () => {
+    mocks.signIn.mockResolvedValue({ userId: "user", email: "person@example.com", accessToken: "token" });
+    window.history.replaceState({}, "", "/signin?next=/picks");
+    const first = render(<AuthPage mode="signin" />);
+    fireEvent.change(screen.getByLabelText("Email or username"), { target: { value: "person" } });
+    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "password" } });
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    await waitFor(() => expect(mocks.replace).toHaveBeenCalledWith("/picks"));
+
+    first.unmount();
+    mocks.replace.mockReset();
+    window.history.replaceState({}, "", "/signin?next=https://evil.example/steal");
+    render(<AuthPage mode="signin" />);
+    fireEvent.change(screen.getByLabelText("Email or username"), { target: { value: "person" } });
+    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "password" } });
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    await waitFor(() => expect(mocks.replace).toHaveBeenCalledWith("/picks"));
   });
 });

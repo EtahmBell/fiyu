@@ -11,6 +11,7 @@ import type { DiscoveryLocation } from "@/lib/api/schemas";
 import {
   DAILY_PICKS_STORAGE_KEY,
   createDailySelection,
+  dailyPicksStorageKey,
   parseDailyPicksState,
 } from "@/lib/daily-picks/storage";
 import {
@@ -31,9 +32,12 @@ vi.mock("@/lib/api/client", async (importOriginal) => {
   };
 });
 
-const configuredLocation = (label: string): DiscoveryLocation => ({
+const configuredLocation = (
+  label: string,
+  mode: "current" | "preview" | "manual" = "manual",
+): DiscoveryLocation => ({
   configured: true,
-  location_mode: "manual",
+  location_mode: mode,
   discovery_latitude: 35.6938,
   discovery_longitude: 139.7034,
   discovery_label: label,
@@ -88,6 +92,28 @@ const catalog = [
   }),
 );
 
+function storeRevealedPick(accountId: string | null, placeId: string) {
+  const selectionIds = [
+    placeId,
+    ...catalog
+      .map((restaurant) => restaurant.place_id)
+      .filter((candidate) => candidate !== placeId),
+  ].slice(0, 3);
+  window.localStorage.setItem(
+    dailyPicksStorageKey(accountId),
+    JSON.stringify({
+      version: 2,
+      preferences: { categories: [], nonJapanese: "occasionally" },
+      selection: {
+        ...createDailySelection(selectionIds, Date.now()),
+        revealedIds: [placeId],
+      },
+      discoveries: [],
+      savedRestaurantIds: [],
+    }),
+  );
+}
+
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 beforeEach(() => {
@@ -133,6 +159,7 @@ describe("daily-only discovery shell", () => {
   ])("renders a floating collapsed mini-map beside the primary feed at %ix%i", async (width, height) => {
     Object.defineProperty(window, "innerWidth", { configurable: true, value: width });
     Object.defineProperty(window, "innerHeight", { configurable: true, value: height });
+    storeRevealedPick(null, "one");
 
     render(<DiscoveryShell restaurants={catalog} areaAnchors={[]} />);
 
@@ -179,6 +206,7 @@ describe("daily-only discovery shell", () => {
       expect(screen.queryByText(restaurant.name_en ?? "")).toBeNull();
     }
     expect(container.querySelectorAll("[data-place-id]")).toHaveLength(0);
+    expect(screen.queryByTestId("mobile-map-region")).toBeNull();
     expect(screen.queryByText("Show distances from a starting point")).toBeNull();
     expect(screen.queryByRole("button", { name: "Place a pin" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Use my location" })).toBeNull();
@@ -187,12 +215,11 @@ describe("daily-only discovery shell", () => {
     fireEvent.click(screen.getByRole("button", { name: "Continue with current location" }));
     fireEvent.click(screen.getByRole("button", { name: "Continue without location" }));
     fireEvent.click(screen.getByRole("button", { name: /Find today's restaurants/i }));
-    expect(screen.getByText("Finding today’s restaurants…")).toBeTruthy();
+    expect(screen.getByText("Searching nearby")).toBeTruthy();
     await act(async () => {
-      vi.advanceTimersByTime(490);
+      vi.advanceTimersByTime(1_500);
       await Promise.resolve();
     });
-    act(() => vi.advanceTimersByTime(160));
     fireEvent.click(screen.getByRole("button", { name: "Tap to reveal restaurant 1" }));
 
     const state = parseDailyPicksState(window.localStorage.getItem(DAILY_PICKS_STORAGE_KEY));
@@ -201,6 +228,7 @@ describe("daily-only discovery shell", () => {
     expect(revealed?.name_en).toBeTruthy();
     expect(screen.getAllByText(revealed?.name_en ?? "")).toHaveLength(1);
     expect(container.querySelectorAll("[data-place-id]")).toHaveLength(1);
+    expect(screen.getByTestId("mobile-map-region")).toBeTruthy();
     expect(container.querySelector('[data-place-id="two"]')).toBeNull();
     expect(container.querySelector('[data-place-id="three"]')).toBeNull();
   });
@@ -414,6 +442,135 @@ describe("daily-only discovery shell", () => {
     await act(async () => resolveReturn?.(configuredLocation("Shinjuku")));
     expect(await screen.findByTestId("discovery-layout")).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "Find places around you" })).toBeNull();
+    expect(screen.queryByText(/Searching near/i)).toBeNull();
+  });
+
+  it("omits the mobile mini-map and its reserved space for a fresh account", async () => {
+    locationApi.fetchDiscoveryLocation.mockResolvedValueOnce(configuredLocation("Shinjuku"));
+    publishProfileIdentity(accountProfile("account-fresh", "fresh"));
+
+    render(<DiscoveryShell restaurants={catalog} areaAnchors={[]} />);
+
+    const layout = await screen.findByTestId("discovery-layout");
+    expect(layout).toBeTruthy();
+    expect(screen.queryByTestId("mobile-map-region")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Expand map" })).toBeNull();
+    expect(screen.getByTestId("desktop-map-region").className).toContain("hidden");
+    const content = screen.getByTestId("restaurant-scroll-region").firstElementChild;
+    expect(content?.className).not.toContain("pb-[calc(17rem");
+    expect(content?.className).toContain("pb-[calc(1.5rem");
+  });
+
+  it("shows the mobile mini-map reactively after the first restaurant is revealed", async () => {
+    locationApi.fetchDiscoveryLocation.mockResolvedValueOnce(configuredLocation("Shinjuku"));
+    publishProfileIdentity(accountProfile("account-first-pick", "firstpick"));
+    render(<DiscoveryShell restaurants={catalog} areaAnchors={[]} />);
+
+    const findButton = await screen.findByRole("button", { name: /Find today's restaurants/i });
+    expect(screen.queryByTestId("mobile-map-region")).toBeNull();
+    vi.useFakeTimers();
+    fireEvent.click(findButton);
+    await act(async () => {
+      vi.advanceTimersByTime(1_500);
+      await Promise.resolve();
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Tap to reveal restaurant 1" }));
+
+    expect(screen.getByTestId("mobile-map-region")).toBeTruthy();
+    expect(document.querySelectorAll("[data-place-id]")).toHaveLength(1);
+  });
+
+  it("removes Account A's mini-map while Account B with no markers hydrates", async () => {
+    storeRevealedPick("account-a", "one");
+    locationApi.fetchDiscoveryLocation.mockResolvedValueOnce(configuredLocation("Shinjuku"));
+    publishProfileIdentity(accountProfile("account-a", "accounta"));
+    render(<DiscoveryShell restaurants={catalog} areaAnchors={[]} />);
+    expect(await screen.findByTestId("mobile-map-region")).toBeTruthy();
+
+    let resolveAccountB: ((location: DiscoveryLocation) => void) | undefined;
+    locationApi.fetchDiscoveryLocation.mockImplementationOnce(
+      () => new Promise((resolve) => { resolveAccountB = resolve; }),
+    );
+    act(() => publishProfileIdentity(accountProfile("account-b", "accountb")));
+
+    expect(screen.getByTestId("fiyu-loading-screen")).toBeTruthy();
+    expect(screen.queryByTestId("mobile-map-region")).toBeNull();
+    expect(document.querySelectorAll("[data-place-id]")).toHaveLength(0);
+
+    await act(async () => resolveAccountB?.(configuredLocation("Shibuya")));
+    expect(await screen.findByTestId("discovery-layout")).toBeTruthy();
+    expect(screen.queryByTestId("mobile-map-region")).toBeNull();
+    expect(document.querySelectorAll("[data-place-id]")).toHaveLength(0);
+  });
+
+  it("uses the saved current-location record for both fresh-search copy and assignment", async () => {
+    locationApi.fetchDiscoveryLocation.mockResolvedValueOnce(
+      configuredLocation("Shinjuku", "current"),
+    );
+    publishProfileIdentity(accountProfile("account-a", "accounta"));
+    render(<DiscoveryShell restaurants={catalog} areaAnchors={[]} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /Find today's restaurants/i }));
+
+    expect(screen.getByText("Searching near you")).toBeTruthy();
+    expect(dailyApi.assignDailyPicks).toHaveBeenCalledWith(
+      expect.objectContaining({
+        active_area: "Shinjuku",
+        discovery_latitude: 35.6938,
+        discovery_longitude: 139.7034,
+      }),
+      expect.anything(),
+    );
+  });
+
+  it("uses one saved manual-location snapshot for the label and assignment coordinates", async () => {
+    locationApi.fetchDiscoveryLocation.mockResolvedValueOnce(configuredLocation("Shibuya"));
+    publishProfileIdentity(accountProfile("account-a", "accounta"));
+    render(<DiscoveryShell restaurants={catalog} areaAnchors={[]} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /Find today's restaurants/i }));
+
+    expect(screen.getByText("Searching near Shibuya")).toBeTruthy();
+    expect(dailyApi.assignDailyPicks).toHaveBeenCalledWith(
+      expect.objectContaining({
+        active_area: "Shibuya",
+        discovery_latitude: 35.6938,
+        discovery_longitude: 139.7034,
+      }),
+      expect.anything(),
+    );
+  });
+
+  it("does not add a post-request delay when a fresh assignment exceeds the minimum", async () => {
+    locationApi.fetchDiscoveryLocation.mockResolvedValueOnce(configuredLocation("Shibuya"));
+    publishProfileIdentity(accountProfile("account-a", "accounta"));
+    render(<DiscoveryShell restaurants={catalog} areaAnchors={[]} />);
+    const button = await screen.findByRole("button", { name: /Find today's restaurants/i });
+    let resolveAssignment: ((value: {
+      round_id: string;
+      city_id: string;
+      place_ids: string[];
+      assigned_at: string;
+    }) => void) | undefined;
+    dailyApi.assignDailyPicks.mockImplementationOnce(
+      () => new Promise((resolve) => { resolveAssignment = resolve; }),
+    );
+    vi.useFakeTimers();
+
+    fireEvent.click(button);
+    act(() => vi.advanceTimersByTime(4_000));
+    await act(async () => {
+      resolveAssignment?.({
+        round_id: "round-slow",
+        city_id: "tokyo",
+        place_ids: ["one", "two", "three"],
+        assigned_at: new Date().toISOString(),
+      });
+      await Promise.resolve();
+    });
+
+    expect(screen.queryByTestId("fresh-picks-loading")).toBeNull();
+    expect(screen.getAllByTestId("concealed-restaurant-card")).toHaveLength(3);
   });
 
   it("renders setup only after a successful response confirms location is not configured", async () => {

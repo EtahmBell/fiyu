@@ -1,5 +1,4 @@
-import Link from "next/link";
-
+import { AuthAwarePicksLink } from "@/components/landing-page/AuthAwarePicksLink";
 import { LANDING_MEASURE } from "@/components/landing-page/landingSystem";
 import { cn } from "@/lib/utils/cn";
 
@@ -113,12 +112,11 @@ export function HeroSection() {
             independent, underexposed restaurants suited to your tastes.
           </p>
           <div className="mt-10 flex flex-col items-start gap-5 sm:flex-row sm:items-center sm:gap-7">
-            <Link
-              href="/picks"
+            <AuthAwarePicksLink
               className="inline-flex min-h-12 items-center rounded-chip bg-plum px-7 text-sm font-medium text-white transition-colors duration-200 ease-(--ease-fiyu) hover:bg-lavender-700"
             >
               Explore Tokyo
-            </Link>
+            </AuthAwarePicksLink>
             <a
               href="#how-it-works"
               className="text-sm font-medium text-lavender-700 underline decoration-lavender-100 decoration-2 underline-offset-4 transition-colors duration-200 ease-(--ease-fiyu) hover:decoration-lavender-500"

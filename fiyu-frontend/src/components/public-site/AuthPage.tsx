@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 
 import { LANDING_MEASURE } from "@/components/landing-page/landingSystem";
 import { authService } from "@/lib/auth/authService";
+import { currentSafeNextPath } from "@/lib/navigation/safeRedirect";
 import { cn } from "@/lib/utils/cn";
 
 const FIELD_CLASS =
@@ -22,14 +23,15 @@ export function AuthPage({ mode }: { mode: "signin" | "signup" }) {
   const [notice, setNotice] = useState<string | null>(null);
   const [verificationEmail, setVerificationEmail] = useState<string | null>(null);
   const [passwordRecovery, setPasswordRecovery] = useState(false);
+  const [nextPath] = useState(() => currentSafeNextPath());
 
   useEffect(() => {
     let active = true;
     authService.getSession().then((session) => {
-      if (active && session) router.replace("/picks");
+      if (active && session) router.replace(nextPath);
     }).catch(() => undefined);
     return () => { active = false; };
-  }, [router]);
+  }, [nextPath, router]);
 
   useEffect(() => authService.onPasswordRecovery(() => setPasswordRecovery(true)), []);
 
@@ -63,11 +65,11 @@ export function AuthPage({ mode }: { mode: "signin" | "signup" }) {
         if (result.emailVerificationRequired) {
           setVerificationEmail(result.email);
         } else {
-          router.replace("/picks");
+          router.replace(nextPath);
         }
       } else {
         await authService.signIn({ identifier: normalizedIdentifier, password });
-        router.replace("/picks");
+        router.replace(nextPath);
       }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Account access is unavailable.");

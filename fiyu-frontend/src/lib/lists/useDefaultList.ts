@@ -3,15 +3,21 @@
 import { useEffect, useMemo, useSyncExternalStore } from "react";
 
 import { defaultListStoreForCity } from "@/lib/lists/defaultListStore";
+import { useProfileIdentity } from "@/lib/profile/profileIdentity";
 
 export function useDefaultList(
   cityId: string,
   options: { enabled?: boolean; accountId?: string | null } = {},
 ) {
-  const accountId = options.accountId ?? null;
+  const profileIdentity = useProfileIdentity();
+  const accountIdWasProvided = options.accountId !== undefined;
+  const accountId = accountIdWasProvided
+    ? options.accountId ?? null
+    : profileIdentity.profile?.user_id ?? null;
   const store = useMemo(() => defaultListStoreForCity(cityId, accountId), [accountId, cityId]);
   const snapshot = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getServerSnapshot);
-  const enabled = options.enabled ?? true;
+  const identityResolved = accountIdWasProvided || profileIdentity.status === "ready";
+  const enabled = (options.enabled ?? true) && identityResolved;
 
   useEffect(() => {
     if (!enabled) return;

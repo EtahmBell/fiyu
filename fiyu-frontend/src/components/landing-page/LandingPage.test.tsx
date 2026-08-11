@@ -3,12 +3,13 @@ import { act, type AnchorHTMLAttributes, type ImgHTMLAttributes, type ReactNode 
 import { hydrateRoot } from "react-dom/client";
 import { renderToString } from "react-dom/server";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import MarketingLayout from "@/app/(marketing)/layout";
 import PublicLandingPage from "@/app/(marketing)/page";
 import { LandingPage } from "@/components/landing-page/LandingPage";
 import { WORLD_LAND_PATH } from "@/components/landing-page/worldLandPath";
+import { clearProfileIdentity, publishProfileIdentity } from "@/lib/profile/profileIdentity";
 
 vi.mock("next/link", () => ({
   default: ({
@@ -32,8 +33,13 @@ vi.mock("next/image", () => ({
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
+beforeEach(() => {
+  clearProfileIdentity();
+});
+
 afterEach(() => {
   cleanup();
+  clearProfileIdentity();
   vi.restoreAllMocks();
 });
 
@@ -46,7 +52,7 @@ function landingRoute() {
 }
 
 describe("public landing experience", () => {
-  it("renders dedicated landing chrome at / without application navigation", () => {
+  it("renders dedicated landing chrome at / without application navigation", async () => {
     render(landingRoute());
 
     const header = screen.getByRole("banner");
@@ -55,14 +61,33 @@ describe("public landing experience", () => {
     );
     expect(within(header).getByRole("link", { name: "About" }).getAttribute("href")).toBe("/about");
     expect(within(header).getByRole("link", { name: "Contact" }).getAttribute("href")).toBe("/contact");
-    expect(within(header).getByRole("link", { name: "Sign in" }).getAttribute("href")).toBe("/signin");
+    expect((await within(header).findByRole("link", { name: "Sign in" })).getAttribute("href")).toBe("/signin");
     expect(within(header).getByRole("link", { name: "Sign up" }).getAttribute("href")).toBe("/signup");
-    for (const action of screen.getAllByRole("link", { name: "Explore Tokyo" })) {
-      expect(action.getAttribute("href")).toBe("/picks");
-    }
+    const exploreActions = screen.getAllByRole("link", { name: "Explore Tokyo" });
+    expect(exploreActions.map((action) => action.getAttribute("href"))).toEqual(
+      exploreActions.map(() => "/signin?next=/picks"),
+    );
     expect(screen.getByRole("contentinfo")).toBeTruthy();
     expect(screen.queryByRole("navigation", { name: "Mobile primary" })).toBeNull();
     expect(screen.queryByRole("navigation", { name: "Primary" })).toBeNull();
+  });
+
+  it("sends an authenticated visitor directly to Picks", () => {
+    publishProfileIdentity({
+      user_id: "user-1",
+      username: "ethan",
+      display_name: "Ethan",
+      bio: null,
+      avatar_url: null,
+      created_at: "2026-08-10T00:00:00Z",
+      updated_at: "2026-08-10T00:00:00Z",
+    });
+    render(<LandingPage />);
+
+    for (const action of screen.getAllByRole("link", { name: "Explore Tokyo" })) {
+      expect(action.getAttribute("href")).toBe("/picks");
+    }
+    expect(screen.getByRole("link", { name: "Tokyo — Available" }).getAttribute("href")).toBe("/picks");
   });
 
   it("keeps the footer to real destinations, with attribution split from navigation", () => {
@@ -158,7 +183,7 @@ describe("public landing experience", () => {
     const available = map.querySelectorAll('[data-location-status="available"]');
     expect(available).toHaveLength(1);
     const tokyo = within(map).getByRole("link", { name: "Tokyo — Available" });
-    expect(tokyo.getAttribute("href")).toBe("/picks");
+    expect(tokyo.getAttribute("href")).toBe("/signin?next=/picks");
     tokyo.focus();
     expect(document.activeElement).toBe(tokyo);
     expect(screen.queryByRole("link", { name: /New York|Rome/i })).toBeNull();

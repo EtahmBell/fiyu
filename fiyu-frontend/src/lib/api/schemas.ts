@@ -317,6 +317,30 @@ export const seenRestaurantsResponseSchema = z.object({
 
 export type SeenRestaurantsResponse = z.infer<typeof seenRestaurantsResponseSchema>;
 
+export const notificationTypeSchema = z.enum([
+  "picks_ready",
+  "smart_list_ready",
+  "new_drop",
+  "early_access_unlocked",
+  "trip_reminder",
+]);
+
+export const userNotificationSchema = z.object({
+  id: z.string().uuid(),
+  type: notificationTypeSchema,
+  title: z.string().min(1),
+  body: z.string().min(1),
+  target_url: nullableString,
+  metadata: z.record(z.string(), z.unknown()).nullable(),
+  created_at: z.string().min(1),
+  read_at: nullableString,
+});
+
+export const userNotificationListSchema = z.array(userNotificationSchema);
+export const markAllNotificationsReadResponseSchema = z.object({ updated: z.number().int().nonnegative() });
+
+export type UserNotification = z.infer<typeof userNotificationSchema>;
+
 export const deleteRestaurantVisitResponseSchema = z.object({
   deleted: z.boolean(),
 });

@@ -1,7 +1,10 @@
+"use client";
+
 import {
   CityEditionPreview,
   type CityEditionPreviewModel,
 } from "@/components/landing-page/CityEditionPreview";
+import { usePicksEntryHref } from "@/components/landing-page/AuthAwarePicksLink";
 
 const tokyoEdition: CityEditionPreviewModel = {
   cityId: "tokyo",
@@ -18,9 +21,10 @@ const tokyoEdition: CityEditionPreviewModel = {
 };
 
 export function TokyoPreview() {
+  const picksHref = usePicksEntryHref();
   return (
     <section id="tokyo-preview" className="overflow-hidden bg-plum text-white">
-      <CityEditionPreview edition={tokyoEdition} />
+      <CityEditionPreview edition={{ ...tokyoEdition, destination: picksHref }} />
       <style>{`
         @keyframes fiyu-signature-in {
           from { opacity: 0; }

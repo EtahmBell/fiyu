@@ -38,6 +38,12 @@ export const paths = {
   discoveryLocationCheck: "/profiles/me/discovery-location/check-current",
   dailyPicksAssign: "/daily-picks/assign",
   seenRestaurants: "/seen/restaurants",
+  mapRestaurants: "/map/restaurants",
+  authenticatedMapRestaurants: "/profiles/me/map-restaurants",
+  notifications: "/notifications",
+  notificationsReadAll: "/notifications/read-all",
+  notificationRead: (notificationId: string) =>
+    `/notifications/${encodeURIComponent(notificationId)}/read`,
   log: "/log",
   logVisit: (visitId: string) => `/log/${encodeURIComponent(visitId)}`,
   defaultList: "/lists/default",
@@ -52,6 +58,26 @@ export function dailyPicksAssignUrl(): string {
 
 export function seenRestaurantsUrl(): string {
   return `${getApiBaseUrl()}${paths.seenRestaurants}`;
+}
+
+export function mapRestaurantsUrl(): string {
+  return `${getApiBaseUrl()}${paths.mapRestaurants}`;
+}
+
+export function authenticatedMapRestaurantsUrl(): string {
+  return `${getApiBaseUrl()}${paths.authenticatedMapRestaurants}`;
+}
+
+export function notificationsUrl(): string {
+  return `${getApiBaseUrl()}${paths.notifications}`;
+}
+
+export function notificationsReadAllUrl(): string {
+  return `${getApiBaseUrl()}${paths.notificationsReadAll}`;
+}
+
+export function notificationReadUrl(notificationId: string): string {
+  return `${getApiBaseUrl()}${paths.notificationRead(notificationId)}`;
 }
 
 export function logUrl(): string {

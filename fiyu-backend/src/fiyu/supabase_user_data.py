@@ -399,3 +399,74 @@ def record_seen(*, user_id: str, place_ids: list[str]) -> None:
             method="POST",
             body={"p_user_id": user_id, "p_place_ids": list(dict.fromkeys(place_ids))},
         )
+
+
+NOTIFICATION_TYPES = frozenset(
+    {"picks_ready", "smart_list_ready", "new_drop", "early_access_unlocked", "trip_reminder"}
+)
+
+
+def create_notification(
+    *,
+    user_id: str,
+    notification_type: str,
+    title: str,
+    body: str,
+    target_url: str | None = None,
+    metadata: dict[str, object] | None = None,
+) -> dict[str, Any]:
+    """Service-only creation hook for real product events; no event emits notifications today."""
+    if notification_type not in NOTIFICATION_TYPES:
+        raise ValueError("Unsupported notification type")
+    result = _request(
+        "fiyu_user_notifications",
+        method="POST",
+        body={
+            "id": str(uuid4()),
+            "user_id": user_id,
+            "type": notification_type,
+            "title": title,
+            "body": body,
+            "target_url": target_url,
+            "metadata": metadata,
+        },
+        prefer="return=representation",
+    )
+    if not isinstance(result, list) or not result:
+        raise SharedUserDataError("Notification could not be created")
+    return result[0]
+
+
+def list_notifications(*, user_id: str, limit: int = 50) -> list[dict[str, Any]]:
+    result = _request(
+        "fiyu_user_notifications",
+        query={
+            "select": "id,type,title,body,target_url,metadata,created_at,read_at",
+            "user_id": f"eq.{user_id}",
+            "order": "created_at.desc,id.desc",
+            "limit": str(limit),
+        },
+    )
+    return result if isinstance(result, list) else []
+
+
+def mark_notification_read(*, user_id: str, notification_id: str) -> dict[str, Any] | None:
+    result = _request(
+        "fiyu_user_notifications",
+        method="PATCH",
+        query={"user_id": f"eq.{user_id}", "id": f"eq.{UUID(notification_id)!s}"},
+        body={"read_at": _now()},
+        prefer="return=representation",
+    )
+    return result[0] if isinstance(result, list) and result else None
+
+
+def mark_all_notifications_read(*, user_id: str) -> int:
+    result = _request(
+        "fiyu_user_notifications",
+        method="PATCH",
+        query={"user_id": f"eq.{user_id}", "read_at": "is.null"},
+        body={"read_at": _now()},
+        prefer="return=representation",
+    )
+    return len(result) if isinstance(result, list) else 0

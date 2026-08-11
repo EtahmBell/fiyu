@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 import { CityHeaderMark } from "@/components/city-signature/CitySignature";
+import { NotificationsMenu } from "@/components/layout/NotificationsMenu";
 import {
   ProfileIdentityAvatar,
   profileIdentityPresentation,
@@ -23,19 +24,6 @@ function ChevronIcon() {
   return (
     <svg aria-hidden="true" viewBox="0 0 16 16" className="size-3 fill-none stroke-current">
       <path d="m4 6 4 4 4-4" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function BellIcon() {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 24 24" className="size-5 fill-none stroke-current">
-      <path
-        d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 8.5h18C21 16 18 16 18 9ZM10 21h4"
-        strokeWidth="1.7"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
     </svg>
   );
 }
@@ -140,23 +128,6 @@ function CitySelector({
             </button>
           ),
         )}
-      </div>
-    </details>
-  );
-}
-
-function NotificationsMenu() {
-  return (
-    <details className="group relative">
-      <summary
-        aria-label="Notifications"
-        className="flex size-11 cursor-pointer list-none items-center justify-center rounded-full text-ink-muted transition-colors hover:bg-subtle hover:text-ink [&::-webkit-details-marker]:hidden"
-      >
-        <BellIcon />
-      </summary>
-      <div className="absolute top-[calc(100%+0.5rem)] right-0 z-50 w-64 rounded-card border border-line bg-surface p-4 shadow-xl">
-        <p className="text-sm font-semibold text-ink">Notifications</p>
-        <p className="mt-1 text-xs leading-relaxed text-ink-muted">Nothing new right now.</p>
       </div>
     </details>
   );

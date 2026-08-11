@@ -56,6 +56,8 @@ export interface FiyuMapProps {
   interactive?: boolean;
   /** Hide secondary context and controls only in the collapsed mobile mini-map. */
   compactOnMobile?: boolean;
+  /** Render station rings and landmark glyphs above the geographic basemap. */
+  showContextMarks?: boolean;
   /** Starting point for distances, if the user has set one. */
   anchor?: DiscoveryAnchor | null;
   /** When true, a tap on the map places or moves the manual pin. */
@@ -96,6 +98,7 @@ export function FiyuMap({
   surfaceMode = "fullscreen",
   interactive = true,
   compactOnMobile = false,
+  showContextMarks = true,
   anchor = null,
   placingPin = false,
   onPlacePin,
@@ -406,8 +409,8 @@ export function FiyuMap({
           <MapBase detail={detail} />
           <g className={compactOnMobile ? "hidden lg:inline" : undefined}>
             <MapLabels scale={view.k} detail={detail} />
-            <MapStations scale={view.k} detail={detail} />
-            <MapLandmarks scale={view.k} detail={detail} />
+            {showContextMarks && <MapStations scale={view.k} detail={detail} />}
+            {showContextMarks && <MapLandmarks scale={view.k} detail={detail} />}
           </g>
           {anchor && <AnchorMarker anchor={anchor} scale={view.k} />}
           <MapMarkers

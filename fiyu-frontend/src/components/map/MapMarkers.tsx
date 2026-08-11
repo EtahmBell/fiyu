@@ -40,7 +40,7 @@ export function MapMarkers({
   const size = (value: number) => svgNumber(value / scale);
 
   return (
-    <g>
+    <g data-layer="restaurant-markers">
       {clusters.map((cluster) => {
         const { x, y } = cluster.point;
         const newlyRevealed = cluster.members.some((member) =>

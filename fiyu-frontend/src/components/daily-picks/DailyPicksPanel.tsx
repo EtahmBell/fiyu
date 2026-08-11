@@ -47,8 +47,7 @@ export interface DailyPicksPanelProps {
   restaurants: PublicRestaurant[];
   /** Authenticated UUID used only to isolate the browser cache by account. */
   accountId?: string | null;
-  activeArea?: string | null;
-  discoveryPoint?: { latitude: number; longitude: number } | null;
+  activeDiscoveryLocation?: ActivePicksDiscoveryLocation | null;
   storage?: DailyPicksStorage;
   onOpenRestaurant?: (restaurant: PublicRestaurant) => void;
   onViewRestaurant?: (restaurant: PublicRestaurant) => void;
@@ -57,6 +56,13 @@ export interface DailyPicksPanelProps {
   scrollToPlaceId?: string | null;
   scrollRequestKey?: number;
   originSetup?: FreeOriginSetup;
+}
+
+export interface ActivePicksDiscoveryLocation {
+  mode: "current" | "preview" | "manual" | null;
+  label: string | null;
+  latitude: number | null;
+  longitude: number | null;
 }
 
 /**
@@ -70,13 +76,18 @@ export interface DailyPicksPanelProps {
  *
  * The request and this short presentation floor run concurrently.
  */
-const DISCOVERY_MIN_VISIBLE_MS = 650;
+export const FRESH_PICKS_MIN_VISIBLE_MS = 1_500;
 
-/** The tail of that window, during which the loading state fades out. */
-const DISCOVERY_SETTLE_MS = 160;
+type DiscoveryPhase = "idle" | "finding";
 
-/** `settling` is the fade; picks mount when the phase returns to `idle`. */
-type DiscoveryPhase = "idle" | "finding" | "settling";
+function freshSearchLabel(location: ActivePicksDiscoveryLocation | null): string {
+  if (location?.mode === "current") return "Searching near you";
+  if (location?.mode === "preview" || location?.mode === "manual") {
+    const label = location.label?.trim();
+    if (label) return `Searching near ${label}`;
+  }
+  return "Searching nearby";
+}
 
 function InkDotWave() {
   const reducedMotion = useMediaQuery("(prefers-reduced-motion: reduce)");
@@ -289,8 +300,7 @@ function PicksDiscoveryContext({
 export function DailyPicksPanel({
   restaurants,
   accountId = null,
-  activeArea = null,
-  discoveryPoint = null,
+  activeDiscoveryLocation = null,
   storage: injectedStorage,
   onOpenRestaurant,
   onViewRestaurant,
@@ -314,6 +324,7 @@ export function DailyPicksPanel({
   });
   const [inventoryMessage, setInventoryMessage] = useState<string | null>(null);
   const [phase, setPhase] = useState<DiscoveryPhase>("idle");
+  const [searchLocation, setSearchLocation] = useState<ActivePicksDiscoveryLocation | null>(null);
   const [tuning, setTuning] = useState(false);
   const [newMapPlaceCount, setNewMapPlaceCount] = useState(0);
   const findingTimerRef = useRef<number | null>(null);
@@ -407,12 +418,9 @@ export function DailyPicksPanel({
 
   const finishDiscovery = (generation: number) => {
     if (generation !== assignmentGenerationRef.current) return;
-    setPhase("settling");
-    findingTimerRef.current = window.setTimeout(() => {
-      if (generation !== assignmentGenerationRef.current) return;
-      setPhase("idle");
-      findingTimerRef.current = null;
-    }, DISCOVERY_SETTLE_MS);
+    setPhase("idle");
+    setSearchLocation(null);
+    findingTimerRef.current = null;
   };
 
   const generate = (developmentRefresh = false) => {
@@ -429,6 +437,10 @@ export function DailyPicksPanel({
     ];
 
     setInventoryMessage(null);
+    const requestLocation = activeDiscoveryLocation
+      ? { ...activeDiscoveryLocation }
+      : null;
+    setSearchLocation(requestLocation);
     setPhase("finding");
 
     if (injectedStorage === undefined && !useDevelopmentRefresh) {
@@ -439,9 +451,9 @@ export function DailyPicksPanel({
           legacy_served_place_ids: legacyServedIds,
           categories: state.preferences.categories,
           non_japanese: state.preferences.nonJapanese,
-          active_area: activeArea,
-          discovery_latitude: discoveryPoint?.latitude ?? null,
-          discovery_longitude: discoveryPoint?.longitude ?? null,
+          active_area: requestLocation?.label ?? null,
+          discovery_latitude: requestLocation?.latitude ?? null,
+          discovery_longitude: requestLocation?.longitude ?? null,
           seed: Math.floor(generatedAt / DAILY_PICKS_DURATION_MS),
           requested_count: 3,
         },
@@ -450,7 +462,7 @@ export function DailyPicksPanel({
       const minimum = new Promise<void>((resolve) => {
         findingTimerRef.current = window.setTimeout(
           resolve,
-          DISCOVERY_MIN_VISIBLE_MS - DISCOVERY_SETTLE_MS,
+          FRESH_PICKS_MIN_VISIBLE_MS,
         );
       });
       void Promise.allSettled([assignment, minimum]).then(([result]) => {
@@ -487,8 +499,12 @@ export function DailyPicksPanel({
     const developmentSeed = generatedAt + developmentGenerationRef.current;
     if (useDevelopmentRefresh) developmentGenerationRef.current += 1;
     const options = {
-      activeArea,
-      discoveryPoint,
+      activeArea: requestLocation?.label ?? null,
+      discoveryPoint:
+        requestLocation?.latitude !== null && requestLocation?.latitude !== undefined &&
+        requestLocation.longitude !== null
+          ? { latitude: requestLocation.latitude, longitude: requestLocation.longitude }
+          : null,
       seed: useDevelopmentRefresh
         ? developmentSeed
         : Math.floor(generatedAt / DAILY_PICKS_DURATION_MS),
@@ -500,6 +516,7 @@ export function DailyPicksPanel({
     if (picks.length !== 3) {
       setInventoryMessage("Not enough matching restaurants are available yet.");
       setPhase("idle");
+      setSearchLocation(null);
       return;
     }
     const pickIds = picks.map((restaurant) => restaurant.place_id);
@@ -509,9 +526,10 @@ export function DailyPicksPanel({
       servedRestaurantIds: [...new Set([...legacyServedIds, ...pickIds])],
       selection: createDailySelection(pickIds, generatedAt),
     });
-    findingTimerRef.current = window.setTimeout(() => {
-      finishDiscovery(generation);
-    }, DISCOVERY_MIN_VISIBLE_MS - DISCOVERY_SETTLE_MS);
+    findingTimerRef.current = window.setTimeout(
+      () => finishDiscovery(generation),
+      FRESH_PICKS_MIN_VISIBLE_MS,
+    );
   };
 
   const reveal = (placeId: string, revealedAt: number) => {
@@ -575,7 +593,11 @@ export function DailyPicksPanel({
       )}
 
       <PicksDiscoveryContext
-        areaLabel={activeArea?.trim() ? activeArea.trim() : null}
+        areaLabel={
+          activeDiscoveryLocation?.label?.trim()
+            ? activeDiscoveryLocation.label.trim()
+            : null
+        }
         pickCount={hasActivePicks ? selectedRestaurants.length : 0}
         tuning={tuning}
         // Tuning is only offered while a selection is active: without one the
@@ -599,26 +621,41 @@ export function DailyPicksPanel({
         aria-labelledby="daily-picks-heading"
         className="my-5 min-w-0 w-full rounded-card border border-line bg-surface p-4 shadow-[0_8px_30px_-24px_rgba(49,40,61,0.3)] sm:p-5"
       >
-        <h2 id="daily-picks-heading" className="font-display text-2xl text-ink">
-          {hasActivePicks ? "Today’s Fiyu Picks" : "Choose today’s preferences"}
+        <h2
+          id="daily-picks-heading"
+          className={phase === "finding" ? "sr-only" : "font-display text-2xl text-ink"}
+        >
+          {phase === "finding"
+            ? "Fresh Picks"
+            : hasActivePicks
+              ? "Today’s Fiyu Picks"
+              : "Choose today’s preferences"}
         </h2>
 
-        {snapshot === null || phase !== "idle" ? (
+        {snapshot === null ? (
           <div
             role="status"
-            className="mt-4 flex min-h-36 flex-col items-center justify-center text-center"
+            aria-label="Loading Fiyu"
+            className="mt-4 flex min-h-36 items-center justify-center text-center"
             data-testid="daily-picks-hydrating"
-            data-discovery-phase={phase}
-            style={
-              phase === "settling"
-                ? { animation: `fiyu-fade-out ${DISCOVERY_SETTLE_MS}ms var(--ease-fiyu) forwards` }
-                : undefined
-            }
           >
-            <InkDotWave />
-            <p className="mt-2 text-sm font-medium text-ink-muted">
-              {phase === "idle" ? "Loading today’s selection…" : "Finding today’s restaurants…"}
+            <span className="font-display text-3xl tracking-[-0.02em] text-ink">Fiyu</span>
+          </div>
+        ) : phase === "finding" ? (
+          <div
+            role="status"
+            aria-live="polite"
+            className="flex min-h-64 flex-col items-center justify-center px-4 py-10 text-center"
+            data-testid="fresh-picks-loading"
+          >
+            <p className="font-display text-3xl tracking-[-0.02em] text-ink">Fiyu</p>
+            <p className="mt-8 font-display text-[clamp(1.75rem,5vw,2.4rem)] leading-tight text-ink">
+              {freshSearchLabel(searchLocation)}
             </p>
+            <p className="mt-3 text-sm leading-6 text-ink-muted">
+              Finding a few places worth knowing.
+            </p>
+            <span className="mt-7"><InkDotWave /></span>
           </div>
         ) : (
           <div className="mt-4 space-y-4">

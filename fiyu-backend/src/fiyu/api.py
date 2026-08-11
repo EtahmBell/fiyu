@@ -4,6 +4,7 @@ import logging
 import os
 import re
 import secrets
+from collections.abc import Iterable
 from datetime import UTC, date, datetime
 from math import cos, radians
 from pathlib import Path
@@ -549,6 +550,30 @@ class SeenRestaurantsResponse(BaseModel):
     place_ids: list[str]
 
 
+NotificationType = Literal[
+    "picks_ready",
+    "smart_list_ready",
+    "new_drop",
+    "early_access_unlocked",
+    "trip_reminder",
+]
+
+
+class UserNotificationResponse(BaseModel):
+    id: UUID
+    type: NotificationType
+    title: str
+    body: str
+    target_url: str | None = None
+    metadata: dict[str, object] | None = None
+    created_at: datetime
+    read_at: datetime | None = None
+
+
+class MarkAllNotificationsReadResponse(BaseModel):
+    updated: int
+
+
 class ListItemMutationResponse(BaseModel):
     list: RestaurantListResponse
     changed: bool
@@ -1072,6 +1097,29 @@ def get_seen_restaurants(
     return SeenRestaurantsResponse(place_ids=place_ids)
 
 
+@app.get("/map/restaurants", response_model=list[PublicRestaurantSummary])
+def get_map_restaurants(
+    owner_id: Annotated[str, Depends(_owner_id_from_header)],
+) -> list[dict[str, object]]:
+    """Join one owner's surfaced history to the current public-safe catalog."""
+    _ensure_database()
+    place_ids = (
+        shared_user_data.seen_place_ids(user_id=str(owner_id))
+        if _shared_owner(owner_id)
+        else served_place_ids(DB_PATH, owner_id=owner_id)
+    )
+    return _public_restaurants_for_place_ids(place_ids)
+
+
+def _public_restaurants_for_place_ids(place_ids: Iterable[str]) -> list[dict[str, object]]:
+    restaurants: list[dict[str, object]] = []
+    for place_id in place_ids:
+        restaurant = get_public_restaurant(DB_PATH, place_id)
+        if restaurant is not None:
+            restaurants.append(restaurant)
+    return restaurants
+
+
 def _shared_owner(owner_id: str) -> bool:
     return (
         isinstance(owner_id, OwnerIdentity)
@@ -1095,6 +1143,48 @@ def _authenticated_user_id(
     authorization: Annotated[str | None, Header()] = None,
 ) -> str:
     return str(_authenticated_user(authorization)["id"])
+
+
+@app.get("/profiles/me/map-restaurants", response_model=list[PublicRestaurantSummary])
+def get_authenticated_map_restaurants(
+    user_id: Annotated[str, Depends(_authenticated_user_id)],
+) -> list[dict[str, object]]:
+    """Return only published restaurants surfaced to the authenticated account."""
+    _ensure_database()
+    return _public_restaurants_for_place_ids(
+        shared_user_data.seen_place_ids(user_id=user_id)
+    )
+
+
+@app.get("/notifications", response_model=list[UserNotificationResponse])
+def list_user_notifications(
+    user_id: Annotated[str, Depends(_authenticated_user_id)],
+    limit: Annotated[int, Query(ge=1, le=100)] = 50,
+) -> list[dict[str, object]]:
+    return shared_user_data.list_notifications(user_id=user_id, limit=limit)
+
+
+@app.patch("/notifications/read-all", response_model=MarkAllNotificationsReadResponse)
+def mark_all_user_notifications_read(
+    user_id: Annotated[str, Depends(_authenticated_user_id)],
+) -> MarkAllNotificationsReadResponse:
+    return MarkAllNotificationsReadResponse(
+        updated=shared_user_data.mark_all_notifications_read(user_id=user_id)
+    )
+
+
+@app.patch("/notifications/{notification_id}/read", response_model=UserNotificationResponse)
+def mark_user_notification_read(
+    notification_id: UUID,
+    user_id: Annotated[str, Depends(_authenticated_user_id)],
+) -> dict[str, object]:
+    notification = shared_user_data.mark_notification_read(
+        user_id=user_id,
+        notification_id=str(notification_id),
+    )
+    if notification is None:
+        raise HTTPException(status_code=404, detail="Notification not found")
+    return notification
 
 
 def _require_admin_access(

@@ -73,6 +73,12 @@ def shared_account_api(tmp_path, monkeypatch):
         items[user_id].append({"place_id": place_id, "added_at": "2026-08-08T00:00:00+00:00"})
         return True
 
+    def remove_item(*, user_id, list_id, place_id):
+        assert lists[user_id]["id"] == list_id
+        previous_count = len(items[user_id])
+        items[user_id] = [item for item in items[user_id] if item["place_id"] != place_id]
+        return len(items[user_id]) != previous_count
+
     def create_visit(*, user_id, place_id, visited_at, reaction, private_note):
         row = {
             "id": str(uuid4()),
@@ -97,6 +103,7 @@ def shared_account_api(tmp_path, monkeypatch):
         lambda *, user_id, list_id: list(items[user_id]),
     )
     monkeypatch.setattr(api.shared_user_data, "add_item", add_item)
+    monkeypatch.setattr(api.shared_user_data, "remove_item", remove_item)
     monkeypatch.setattr(api.shared_user_data, "create_visit", create_visit)
     monkeypatch.setattr(
         api.shared_user_data,
@@ -116,15 +123,47 @@ def shared_account_api(tmp_path, monkeypatch):
             place_id for place_id in place_ids if place_id not in seen[user_id]
         ),
     )
-    return TestClient(api.app), user_ids
+    return TestClient(api.app), user_ids, seen
 
 
 def _auth(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 
+def test_authenticated_map_does_not_accept_anonymous_owner_fallback(shared_account_api):
+    client, user_ids, _ = shared_account_api
+
+    response = client.get(
+        "/profiles/me/map-restaurants",
+        headers={"X-Fiyu-Client-Id": user_ids["token-a"]},
+    )
+
+    assert response.status_code == 401
+
+
+def test_authenticated_map_marker_rows_follow_seen_history_exactly(shared_account_api):
+    client, user_ids, seen = shared_account_api
+    user_id = user_ids["token-b"]
+
+    def map_place_ids() -> list[str]:
+        response = client.get(
+            "/profiles/me/map-restaurants", headers=_auth("token-b")
+        )
+        assert response.status_code == 200
+        return [restaurant["place_id"] for restaurant in response.json()]
+
+    assert seen[user_id] == []
+    assert map_place_ids() == []
+
+    seen[user_id].append("tokyo-0")
+    assert map_place_ids() == ["tokyo-0"]
+
+    seen[user_id].append("tokyo-1")
+    assert map_place_ids() == ["tokyo-0", "tokyo-1"]
+
+
 def test_authenticated_lists_log_and_seen_are_account_owned(shared_account_api):
-    client, _ = shared_account_api
+    client, _, _ = shared_account_api
 
     saved = client.post(
         "/lists/default/items",
@@ -157,6 +196,12 @@ def test_authenticated_lists_log_and_seen_are_account_owned(shared_account_api):
     assert visit.json()["reaction"] == "love_it"
     assert visit.json()["private_note"] == "User A private note"
     assert surfaced.status_code == 200
+    assert {
+        item["place_id"]
+        for item in client.get(
+            "/profiles/me/map-restaurants", headers=_auth("token-a")
+        ).json()
+    } == set(surfaced.json()["place_ids"])
 
     assert (
         client.get("/lists/default", params={"city_id": "tokyo"}, headers=_auth("token-b")).json()[
@@ -166,6 +211,9 @@ def test_authenticated_lists_log_and_seen_are_account_owned(shared_account_api):
     )
     assert client.get("/log", headers=_auth("token-b")).json() == []
     assert client.get("/seen/restaurants", headers=_auth("token-b")).json()["place_ids"] == []
+    assert client.get(
+        "/profiles/me/map-restaurants", headers=_auth("token-b")
+    ).json() == []
 
     surfaced_for_b = client.post(
         "/daily-picks/assign",
@@ -179,6 +227,12 @@ def test_authenticated_lists_log_and_seen_are_account_owned(shared_account_api):
     )
     assert surfaced_for_b.status_code == 200
     assert len(client.get("/seen/restaurants", headers=_auth("token-b")).json()["place_ids"]) == 3
+    assert {
+        item["place_id"]
+        for item in client.get(
+            "/profiles/me/map-restaurants", headers=_auth("token-b")
+        ).json()
+    } == set(surfaced_for_b.json()["place_ids"])
 
     assert (
         client.get("/lists/default", params={"city_id": "tokyo"}, headers=_auth("token-a")).json()[
@@ -192,9 +246,22 @@ def test_authenticated_lists_log_and_seen_are_account_owned(shared_account_api):
     )
     assert len(client.get("/seen/restaurants", headers=_auth("token-a")).json()["place_ids"]) == 3
 
+    removed = client.request(
+        "DELETE",
+        "/lists/default/items",
+        headers=_auth("token-a"),
+        json={"city_id": "tokyo", "place_id": "tokyo-0"},
+    )
+    assert removed.status_code == 200
+    assert removed.json()["changed"] is True
+    assert removed.json()["list"]["item_count"] == 0
+    assert client.get(
+        "/lists/default", params={"city_id": "tokyo"}, headers=_auth("token-a")
+    ).json()["items"] == []
+
 
 def test_invalid_bearer_cannot_select_another_account(shared_account_api):
-    client, user_ids = shared_account_api
+    client, user_ids, _ = shared_account_api
     response = client.get(
         "/log",
         headers={

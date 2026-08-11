@@ -125,7 +125,7 @@ describe("/picks revealed-card save bookmark", () => {
     expect(screen.queryByTestId("city-loading-sequence")).toBeNull();
     await waitFor(() => {
       expect(screen.getAllByTestId("concealed-restaurant-card")).toHaveLength(3);
-    });
+    }, { timeout: 3_000 });
 
     const assignmentCall = fetchMock.mock.calls.find(([input]) =>
       String(input).includes("/daily-picks/assign"),

@@ -3,7 +3,10 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { DailyPicksPanel } from "@/components/daily-picks/DailyPicksPanel";
+import {
+  DailyPicksPanel,
+  type ActivePicksDiscoveryLocation,
+} from "@/components/daily-picks/DailyPicksPanel";
 import { AuthenticatedLocationSetup } from "@/components/location/AuthenticatedLocationSetup";
 import { PageIntro, SiteFooter } from "@/components/layout/SiteHeader";
 import { FiyuMap } from "@/components/map/FiyuMap";
@@ -48,6 +51,11 @@ interface Selection {
   navigationKey: number;
 }
 
+interface VisibleRestaurantState {
+  ownerKey: string;
+  restaurantIds: string[];
+}
+
 type AccountLocationState =
   | { status: "loading"; userId: string }
   | { status: "configured"; userId: string; location: DiscoveryLocation }
@@ -81,7 +89,16 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
       ? currentAccountLocationState.location
       : null;
   const [selection, setSelection] = useState<Selection | null>(null);
-  const [visibleRestaurantIds, setVisibleRestaurantIds] = useState<string[]>([]);
+  const restaurantOwnerKey = identity.profile?.user_id ?? "anonymous";
+  const [visibleRestaurantState, setVisibleRestaurantState] =
+    useState<VisibleRestaurantState | null>(null);
+  const visibleRestaurantIds = useMemo(
+    () =>
+      visibleRestaurantState?.ownerKey === restaurantOwnerKey
+        ? visibleRestaurantState.restaurantIds
+        : [],
+    [restaurantOwnerKey, visibleRestaurantState],
+  );
   const [homeArea, setHomeArea] = useState<LocationAnchor | null>(null);
   const [continuedWithoutLocation, setContinuedWithoutLocation] = useState(false);
   const [mapExpanded, setMapExpanded] = useState(false);
@@ -126,12 +143,45 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
     }
     return originAreaName(origin, areaAnchors);
   }, [accountLocation, areaAnchors, identity.profile, origin]);
+  const activeDiscoveryLocation = useMemo<ActivePicksDiscoveryLocation | null>(() => {
+    if (identity.profile && accountLocation?.configured) {
+      return {
+        mode: accountLocation.location_mode,
+        label: accountLocation.discovery_label,
+        latitude: accountLocation.discovery_latitude,
+        longitude: accountLocation.discovery_longitude,
+      };
+    }
+    if (origin?.kind === "current-location") {
+      return {
+        mode: "current",
+        label: activeArea,
+        latitude: origin.point.lat,
+        longitude: origin.point.lng,
+      };
+    }
+    if (origin?.kind === "home-area") {
+      return {
+        mode: "manual",
+        label: origin.area.area_name,
+        latitude: origin.area.latitude,
+        longitude: origin.area.longitude,
+      };
+    }
+    return null;
+  }, [accountLocation, activeArea, identity.profile, origin]);
 
   const visibleRestaurants = useMemo(() => {
     const visible = new Set(visibleRestaurantIds);
     return restaurants.filter((restaurant) => visible.has(restaurant.place_id));
   }, [restaurants, visibleRestaurantIds]);
   const mappable = useMemo(() => mappableRestaurants(visibleRestaurants), [visibleRestaurants]);
+  const hasRestaurantMarkers = mappable.length > 0;
+  const updateVisibleRestaurantIds = useCallback(
+    (restaurantIds: string[]) =>
+      setVisibleRestaurantState({ ownerKey: restaurantOwnerKey, restaurantIds }),
+    [restaurantOwnerKey],
+  );
 
   const select = useCallback((restaurant: PublicRestaurant, source: SelectionSource) => {
     setSelection((current) => ({
@@ -273,7 +323,14 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
           data-testid="restaurant-scroll-region"
           className="row-start-1 min-h-0 min-w-0 overflow-x-hidden overflow-y-auto overscroll-contain lg:w-full lg:overflow-visible"
         >
-          <div className="relative isolate mx-auto min-w-0 w-full max-w-[38rem] px-5 pb-[calc(17rem+env(safe-area-inset-bottom))] sm:px-8 lg:mx-0 lg:max-w-none lg:pb-10">
+          <div
+            className={cn(
+              "relative isolate mx-auto min-w-0 w-full max-w-[38rem] px-5 sm:px-8 lg:mx-0 lg:max-w-none lg:pb-10",
+              hasRestaurantMarkers
+                ? "pb-[calc(17rem+env(safe-area-inset-bottom))]"
+                : "pb-[calc(1.5rem+env(safe-area-inset-bottom))]",
+            )}
+          >
             {/*
               * The hairline under the heading belongs to the discovery context
               * that follows it, so the masthead and its standfirst read as one
@@ -288,20 +345,10 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
                 key={identity.profile?.user_id ?? "anonymous"}
                 restaurants={restaurants}
                 accountId={identity.profile?.user_id ?? null}
-                activeArea={activeArea}
-                discoveryPoint={
-                  accountLocation?.configured &&
-                  accountLocation.discovery_latitude !== null &&
-                  accountLocation.discovery_longitude !== null
-                    ? {
-                        latitude: accountLocation.discovery_latitude,
-                        longitude: accountLocation.discovery_longitude,
-                      }
-                    : null
-                }
+                activeDiscoveryLocation={activeDiscoveryLocation}
                 onOpenRestaurant={selectFromFeed}
                 onViewRestaurant={openRestaurantDetail}
-                onVisibleRestaurantIdsChange={setVisibleRestaurantIds}
+                onVisibleRestaurantIdsChange={updateVisibleRestaurantIds}
                 selectedPlaceId={selection?.placeId ?? null}
                 scrollToPlaceId={selection?.source === "map" ? selection.placeId : null}
                 scrollRequestKey={selection?.navigationKey ?? 0}
@@ -328,11 +375,12 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
       {/* Floating mini-map on mobile; the existing side-by-side pane on desktop. */}
       <aside
         aria-label="Restaurant map"
-        data-testid="mobile-map-region"
+        data-testid={hasRestaurantMarkers ? "mobile-map-region" : "desktop-map-region"}
         data-expanded={mapExpanded ? "true" : "false"}
         className={cn(
           "fixed right-4 z-20 min-h-0 min-w-0 overflow-hidden rounded-card border border-line-strong bg-subtle shadow-[0_10px_32px_-12px_rgba(49,40,61,0.45)] transition-[width,height] duration-200 ease-(--ease-fiyu)",
           "bottom-[calc(var(--spacing-mobile-nav)+0.75rem)]",
+          !hasRestaurantMarkers && "hidden lg:block",
           mapExpanded
             ? "left-4 h-[min(50dvh,32rem)]"
             : "size-[clamp(9rem,40vw,10.5rem)] max-[360px]:size-[8.75rem]",
@@ -361,14 +409,16 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
           />
         )}
 
-        <button
-          type="button"
-          aria-label={mapExpanded ? "Collapse map" : "Expand map"}
-          onClick={() => setMapExpanded((expanded) => !expanded)}
-          className="absolute top-2 left-2 z-30 min-h-9 rounded-chip border border-white/80 bg-plum/90 px-3 text-xs font-medium text-white shadow-sm backdrop-blur-sm hover:bg-plum focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600 lg:hidden"
-        >
-          {mapExpanded ? "Collapse map" : "Expand map"}
-        </button>
+        {hasRestaurantMarkers && (
+          <button
+            type="button"
+            aria-label={mapExpanded ? "Collapse map" : "Expand map"}
+            onClick={() => setMapExpanded((expanded) => !expanded)}
+            className="absolute top-2 left-2 z-30 min-h-9 rounded-chip border border-white/80 bg-plum/90 px-3 text-xs font-medium text-white shadow-sm backdrop-blur-sm hover:bg-plum focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600 lg:hidden"
+          >
+            {mapExpanded ? "Collapse map" : "Expand map"}
+          </button>
+        )}
       </aside>
     </div>
   );

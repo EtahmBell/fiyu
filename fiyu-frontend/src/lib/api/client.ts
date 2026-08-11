@@ -8,6 +8,7 @@ import {
   kindForStatus,
 } from "@/lib/api/errors";
 import {
+  authenticatedMapRestaurantsUrl,
   dailyPicksAssignUrl,
   discoveryLocationCheckUrl,
   discoveryLocationUrl,
@@ -21,6 +22,10 @@ import {
   locationAnchorsUrl,
   logUrl,
   logVisitUrl,
+  mapRestaurantsUrl,
+  notificationReadUrl,
+  notificationsReadAllUrl,
+  notificationsUrl,
   paths,
   photoPreviewUrl,
   photosUrl,
@@ -38,12 +43,14 @@ import {
   type GooglePhoto,
   type LocationAnchor,
   type ParsedRestaurantList,
+  type PublicRestaurant,
   type PublicRestaurantDetail,
   type DeleteRestaurantVisitResponse,
   type RestaurantVisit,
   type VisitReaction,
   type SmartViewCatalogResponse,
   type SmartViewResponse,
+  type UserNotification,
   defaultListMembershipResponseSchema,
   dailyPickAssignmentResponseSchema,
   discoveryLocationSchema,
@@ -57,6 +64,10 @@ import {
   locationAnchorListSchema,
   parseRestaurantList,
   publicRestaurantDetailSchema,
+  publicRestaurantListSchema,
+  markAllNotificationsReadResponseSchema,
+  userNotificationListSchema,
+  userNotificationSchema,
   restaurantVisitListSchema,
   restaurantVisitSchema,
   seenRestaurantsResponseSchema,
@@ -404,6 +415,56 @@ export function fetchSeenRestaurantIds(
       headers: { ...listHeaders(identity), ...(options.headers ?? {}) },
     },
   ).then((response) => response.place_ids);
+}
+
+export function fetchMapRestaurants(
+  identity: ListIdentity,
+  options: RequestOptions = {},
+): Promise<PublicRestaurant[]> {
+  return requestJson(mapRestaurantsUrl(), paths.mapRestaurants, publicRestaurantListSchema, {
+    ...options,
+    cache: options.cache ?? "no-store",
+    headers: { ...listHeaders(identity), ...(options.headers ?? {}) },
+  });
+}
+
+export function fetchAuthenticatedMapRestaurants(
+  options: RequestOptions = {},
+): Promise<PublicRestaurant[]> {
+  return requestJson(
+    authenticatedMapRestaurantsUrl(),
+    paths.authenticatedMapRestaurants,
+    publicRestaurantListSchema,
+    { ...options, cache: options.cache ?? "no-store" },
+  );
+}
+
+export function fetchNotifications(options: RequestOptions = {}): Promise<UserNotification[]> {
+  return requestJson(notificationsUrl(), paths.notifications, userNotificationListSchema, {
+    ...options,
+    cache: options.cache ?? "no-store",
+  });
+}
+
+export function markNotificationRead(
+  notificationId: string,
+  options: RequestOptions = {},
+): Promise<UserNotification> {
+  return requestJson(
+    notificationReadUrl(notificationId),
+    paths.notificationRead(notificationId),
+    userNotificationSchema,
+    { ...options, method: "PATCH" },
+  );
+}
+
+export function markAllNotificationsRead(options: RequestOptions = {}): Promise<number> {
+  return requestJson(
+    notificationsReadAllUrl(),
+    paths.notificationsReadAll,
+    markAllNotificationsReadResponseSchema,
+    { ...options, method: "PATCH" },
+  ).then((response) => response.updated);
 }
 
 export function createRestaurantVisit(

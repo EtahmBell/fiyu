@@ -1,3 +1,6 @@
+"use client";
+
+import { usePicksEntryHref } from "@/components/landing-page/AuthAwarePicksLink";
 import {
   LANDING_HEADING,
   LANDING_MEASURE,
@@ -8,6 +11,7 @@ import { WORLD_LAND_PATH } from "@/components/landing-page/worldLandPath";
 import { cn } from "@/lib/utils/cn";
 
 export function WorldLocationsMap() {
+  const picksHref = usePicksEntryHref();
   return (
     <section id="explore" className="scroll-mt-24 border-b border-line bg-surface">
       <div className={cn(LANDING_MEASURE, LANDING_RHYTHM)}>
@@ -61,7 +65,7 @@ export function WorldLocationsMap() {
               />
 
               <a
-                href="/picks"
+                href={picksHref}
                 tabIndex={0}
                 aria-label="Tokyo — Available"
                 className="group"

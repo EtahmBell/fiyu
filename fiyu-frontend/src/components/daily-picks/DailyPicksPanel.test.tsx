@@ -55,10 +55,10 @@ describe("Today’s Fiyu Picks panel", () => {
     expect(screen.getByRole("heading", { name: "Choose today’s preferences" })).toBeTruthy();
     expect(screen.getByTestId("pre-pick-preferences")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /Find today's restaurants/i }));
-    expect(screen.getByRole("heading", { name: "Today’s Fiyu Picks" })).toBeTruthy();
     expect(screen.queryByTestId("pre-pick-preferences")).toBeNull();
-    expect(screen.getByText("Finding today’s restaurants…")).toBeTruthy();
+    expect(screen.getByText("Searching nearby")).toBeTruthy();
     act(() => vi.advanceTimersByTime(3_000));
+    expect(screen.getByRole("heading", { name: "Today’s Fiyu Picks" })).toBeTruthy();
     expect(screen.getAllByTestId("concealed-restaurant-card")).toHaveLength(3);
     const selectedIds = firstStorage.getSnapshot()?.selection?.restaurantIds;
     expect(selectedIds).toHaveLength(3);
@@ -85,30 +85,38 @@ describe("Today’s Fiyu Picks panel", () => {
     expect(screen.getByText(`店 ${revealedId}`)).toBeTruthy();
   });
 
-  it("shows the three-dot wave only for the short minimum loading duration", () => {
+  it("shows the fresh-search treatment for the 1.5 second minimum", () => {
     vi.useFakeTimers();
     vi.setSystemTime(Date.UTC(2026, 6, 29, 12));
     const storage = createDailyPicksStorage(window.localStorage);
-    render(<DailyPicksPanel restaurants={catalog} storage={storage} />);
+    render(
+      <DailyPicksPanel
+        restaurants={catalog}
+        storage={storage}
+        activeDiscoveryLocation={{
+          mode: "manual",
+          label: null,
+          latitude: 35.6595,
+          longitude: 139.7005,
+        }}
+      />,
+    );
     fireEvent.click(screen.getByRole("button", { name: /Find today's restaurants/i }));
 
     expect(storage.getSnapshot()?.selection?.restaurantIds).toHaveLength(3);
 
-    const loading = () => screen.queryByTestId("daily-picks-hydrating");
-    expect(loading()?.dataset.discoveryPhase).toBe("finding");
+    const loading = () => screen.queryByTestId("fresh-picks-loading");
+    expect(loading()).toBeTruthy();
+    expect(screen.getByText("Searching nearby")).toBeTruthy();
 
     expect(screen.getAllByTestId("daily-picks-loader-dot")).toHaveLength(3);
     expect(screen.queryByTestId("city-loading-sequence")).toBeNull();
 
-    act(() => vi.advanceTimersByTime(489));
-    expect(loading()?.dataset.discoveryPhase).toBe("finding");
+    act(() => vi.advanceTimersByTime(1_499));
+    expect(loading()).toBeTruthy();
     expect(screen.queryByTestId("concealed-restaurant-card")).toBeNull();
 
     act(() => vi.advanceTimersByTime(1));
-    expect(loading()?.dataset.discoveryPhase).toBe("settling");
-    expect(loading()?.style.animation).toContain("fiyu-fade-out");
-
-    act(() => vi.advanceTimersByTime(160));
     expect(loading()).toBeNull();
     expect(screen.getAllByTestId("concealed-restaurant-card")).toHaveLength(3);
   });
@@ -229,7 +237,18 @@ describe("Today’s Fiyu Picks panel", () => {
       savedRestaurantIds: [],
     });
 
-    render(<DailyPicksPanel restaurants={catalog} storage={storage} activeArea="Shibuya" />);
+    render(
+      <DailyPicksPanel
+        restaurants={catalog}
+        storage={storage}
+        activeDiscoveryLocation={{
+          mode: "manual",
+          label: "Shibuya",
+          latitude: 35.6595,
+          longitude: 139.7005,
+        }}
+      />,
+    );
 
     const context = screen.getByTestId("picks-discovery-context");
     expect(
