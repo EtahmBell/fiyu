@@ -188,12 +188,18 @@ export const authService = {
     announceAccountChange();
   },
 
-  async deleteAccount(): Promise<void> {
+  async deleteAccount(password: string): Promise<void> {
     const session = await this.getSession();
     if (!session) throw new AuthRequestError("Sign in to delete your account.");
+    if (!session.email) throw new AuthRequestError("This account cannot be reauthenticated with a password.");
+    const { data: reauthenticated, error: reauthenticationError } =
+      await supabaseClient().auth.signInWithPassword({ email: session.email, password });
+    if (reauthenticationError || !reauthenticated.session) {
+      throw new AuthRequestError("Current password is incorrect.");
+    }
     const response = await fetch(`${getApiBaseUrl()}/profiles/me/account`, {
       method: "DELETE",
-      headers: { Authorization: `Bearer ${session.accessToken}` },
+      headers: { Authorization: `Bearer ${reauthenticated.session.access_token}` },
     });
     if (!response.ok) {
       throw new AuthRequestError(await responseDetail(response, "Unable to delete your account."));

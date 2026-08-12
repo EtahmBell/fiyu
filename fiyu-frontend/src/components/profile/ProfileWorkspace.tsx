@@ -454,7 +454,7 @@ function AccountSection() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [deleteConfirmation, setDeleteConfirmation] = useState("");
+  const [deletePassword, setDeletePassword] = useState("");
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
@@ -482,16 +482,16 @@ function AccountSection() {
   const closeDeleteDialog = () => {
     if (deleting) return;
     setDeleteDialogOpen(false);
-    setDeleteConfirmation("");
+    setDeletePassword("");
     setDeleteError(null);
   };
 
   const deleteAccount = async () => {
-    if (deleteConfirmation !== "DELETE" || deleting) return;
+    if (!deletePassword || deleting) return;
     setDeleting(true);
     setDeleteError(null);
     try {
-      await authService.deleteAccount();
+      await authService.deleteAccount(deletePassword);
       clearProfileIdentity();
       setDeleteDialogOpen(false);
       router.replace("/");
@@ -561,14 +561,15 @@ function AccountSection() {
               visit history, reactions, notes, discovery location, and recommendation history.
             </p>
             <p className="mt-3 text-sm font-semibold text-ink">This cannot be undone.</p>
-            <label htmlFor="delete-account-confirmation" className="mt-6 block text-xs font-semibold tracking-wide text-ink">
-              TYPE DELETE TO CONFIRM
+            <label htmlFor="delete-account-password" className="mt-6 block text-xs font-semibold tracking-wide text-ink">
+              CURRENT PASSWORD
             </label>
             <input
-              id="delete-account-confirmation"
-              value={deleteConfirmation}
-              onChange={(event) => setDeleteConfirmation(event.target.value)}
-              autoComplete="off"
+              id="delete-account-password"
+              type="password"
+              value={deletePassword}
+              onChange={(event) => setDeletePassword(event.target.value)}
+              autoComplete="current-password"
               disabled={deleting}
               className="mt-2 min-h-11 w-full rounded-lg border border-line-strong bg-canvas px-3 text-sm text-ink focus:border-rose-dust"
             />
@@ -579,7 +580,7 @@ function AccountSection() {
               </Button>
               <button
                 type="button"
-                disabled={deleteConfirmation !== "DELETE" || deleting}
+                disabled={!deletePassword || deleting}
                 onClick={() => void deleteAccount()}
                 className="inline-flex min-h-11 items-center justify-center rounded-lg bg-rose-dust px-4 text-sm font-semibold text-white transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
               >

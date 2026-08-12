@@ -221,7 +221,7 @@ describe("ProfileWorkspace", () => {
     expect(screen.queryByText("Tokyo edition")).toBeNull();
   });
 
-  it("requires DELETE confirmation before deleting an authenticated account", async () => {
+  it("requires the current password before deleting an authenticated account", async () => {
     desktopViewport = true;
     vi.spyOn(authService, "getSession").mockResolvedValue({
       userId: "user-1",
@@ -237,14 +237,14 @@ describe("ProfileWorkspace", () => {
     const finalButton = screen.getByRole("button", { name: "Permanently delete account" });
     expect((finalButton as HTMLButtonElement).disabled).toBe(true);
 
-    fireEvent.change(screen.getByLabelText("TYPE DELETE TO CONFIRM"), {
-      target: { value: "DELETE" },
+    fireEvent.change(screen.getByLabelText("CURRENT PASSWORD"), {
+      target: { value: "current-password" },
     });
     expect((finalButton as HTMLButtonElement).disabled).toBe(false);
     fireEvent.click(finalButton);
 
     await waitFor(() => {
-      expect(authService.deleteAccount).toHaveBeenCalledOnce();
+      expect(authService.deleteAccount).toHaveBeenCalledWith("current-password");
       expect(navigation.replace).toHaveBeenCalledWith("/");
     });
   });

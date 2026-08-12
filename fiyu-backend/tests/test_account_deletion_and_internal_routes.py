@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+from io import BytesIO
+from urllib.error import HTTPError
 from uuid import uuid4
 
 from fastapi.testclient import TestClient
 
-from fiyu import api
+from fiyu import api, supabase_user_data
 from fiyu.account_deletion import delete_local_account_data
 from fiyu.daily_picks import ensure_daily_picks_schema
 from fiyu.database import SCHEMA, connect
@@ -16,6 +18,24 @@ from fiyu.user_accounts import ensure_account_schema
 
 def _auth(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
+
+
+def test_missing_avatar_storage_response_is_nonfatal(monkeypatch):
+    monkeypatch.setenv("SUPABASE_URL", "https://project.supabase.co")
+    monkeypatch.setenv("SUPABASE_SERVICE_ROLE_KEY", "service-key")
+
+    def missing_avatar(*_args, **_kwargs):
+        raise HTTPError(
+            "https://project.supabase.co/storage/v1/object/avatars/user/avatar.webp",
+            400,
+            "Bad Request",
+            {},
+            BytesIO(b'{"statusCode":"404","error":"not_found","code":"NoSuchKey"}'),
+        )
+
+    monkeypatch.setattr(supabase_user_data, "urlopen", missing_avatar)
+
+    assert supabase_user_data.delete_avatar_object(user_id=str(uuid4())) is False
 
 
 def test_authenticated_account_deletion_removes_all_owned_stores_and_isolates_other_user(

@@ -44,7 +44,14 @@ def _delete_service_resource(path: str, *, missing_ok: bool = False) -> bool:
         with urlopen(request, timeout=10):
             return True
     except HTTPError as exc:
-        if missing_ok and exc.code == 404:
+        detail = exc.read().decode("utf-8", errors="replace")
+        if missing_ok and (
+            exc.code == 404
+            or (
+                exc.code == 400
+                and ('"statusCode":"404"' in detail or '"code":"NoSuchKey"' in detail)
+            )
+        ):
             return False
         raise SharedUserDataError(
             f"Supabase deletion request failed with status {exc.code}"
