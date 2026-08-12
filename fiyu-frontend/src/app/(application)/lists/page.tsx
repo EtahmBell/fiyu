@@ -8,11 +8,22 @@ function resolveInitialTab(value: string | string[] | undefined): "saved" | "sma
   return raw === "smart" ? "smart" : "saved";
 }
 
+async function ListsPageWithResolvedParams({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string | string[] }>;
+}) {
+  const params = await searchParams;
+  return <TokyoListPage initialTab={resolveInitialTab(params.tab)} />;
+}
+
 export default function ListsPage({
   searchParams,
 }: {
-  searchParams?: { tab?: string | string[] };
+  searchParams?: Promise<{ tab?: string | string[] }> | { tab?: string | string[] };
 }) {
-  const params = searchParams ?? {};
-  return <TokyoListPage initialTab={resolveInitialTab(params.tab)} />;
+  if (searchParams instanceof Promise) {
+    return <ListsPageWithResolvedParams searchParams={searchParams} />;
+  }
+  return <TokyoListPage initialTab={resolveInitialTab(searchParams?.tab)} />;
 }
