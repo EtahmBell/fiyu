@@ -96,19 +96,19 @@ describe("application navigation", () => {
   });
 
   it("renders the desktop destinations and active state without account fiction", () => {
-    route.pathname = "/map";
+    route.pathname = "/lists";
     render(<ApplicationNavigation />);
 
     const desktop = screen.getByRole("navigation", { name: "Primary" });
     expect(within(desktop).getAllByRole("link").map((link) => link.textContent?.trim())).toEqual([
       "Picks",
-      "Map",
       "Lists",
       "Log",
     ]);
-    expect(within(desktop).getByRole("link", { name: "Map" }).getAttribute("aria-current")).toBe(
+    expect(within(desktop).getByRole("link", { name: "Lists" }).getAttribute("aria-current")).toBe(
       "page",
     );
+    expect(within(desktop).queryByRole("link", { name: "Map" })).toBeNull();
     const header = screen.getByRole("banner");
     expect(within(header).getByRole("link", { name: "Profile" }).getAttribute("href")).toBe(
       "/profile",

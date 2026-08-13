@@ -39,15 +39,9 @@ export interface DiscoveryShellProps {
   areaAnchors: LocationAnchor[];
 }
 
-/**
- * Where a selection came from. Kept with the selection so a future detail
- * transition can preserve whether the user arrived from the feed or map.
- */
-type SelectionSource = "feed" | "map";
-
 interface Selection {
   placeId: string;
-  source: SelectionSource;
+  source: "feed" | "map";
   navigationKey: number;
 }
 
@@ -65,10 +59,8 @@ type AccountLocationState =
 /**
  * Owns the client-side daily-feed selection and map-card synchronization.
  *
- * LAYOUT. Desktop is a true two-pane discovery view: the list column scrolls
- * independently at ~42% while the map holds the remaining ~58% of a
- * viewport-height pane. Mobile keeps the feed primary and floats the same map
- * above it in compact or expanded form.
+ * Desktop uses a two-pane feed and Map. On mobile the feed stands alone and
+ * the dedicated Map tab owns map presentation.
  *
  * Data arrives already fetched and validated from the server component, so this
  * never touches the network, and ordering is delegated to the ranking adapter.
@@ -101,7 +93,6 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
   );
   const [homeArea, setHomeArea] = useState<LocationAnchor | null>(null);
   const [continuedWithoutLocation, setContinuedWithoutLocation] = useState(false);
-  const [mapExpanded, setMapExpanded] = useState(false);
   const scrollRegionRef = useRef<HTMLDivElement>(null);
 
   const geolocation = useGeolocation();
@@ -176,20 +167,11 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
     return restaurants.filter((restaurant) => visible.has(restaurant.place_id));
   }, [restaurants, visibleRestaurantIds]);
   const mappable = useMemo(() => mappableRestaurants(visibleRestaurants), [visibleRestaurants]);
-  const hasRestaurantMarkers = mappable.length > 0;
   const updateVisibleRestaurantIds = useCallback(
     (restaurantIds: string[]) =>
       setVisibleRestaurantState({ ownerKey: restaurantOwnerKey, restaurantIds }),
     [restaurantOwnerKey],
   );
-
-  const select = useCallback((restaurant: PublicRestaurant, source: SelectionSource) => {
-    setSelection((current) => ({
-      placeId: restaurant.place_id,
-      source,
-      navigationKey: (current?.navigationKey ?? 0) + 1,
-    }));
-  }, []);
 
   const selectFromFeed = useCallback(
     (restaurant: PublicRestaurant) => {
@@ -205,11 +187,13 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
     },
     [],
   );
-  const selectFromMap = useCallback(
-    (restaurant: PublicRestaurant) => select(restaurant, "map"),
-    [select],
-  );
-
+  const selectFromMap = useCallback((restaurant: PublicRestaurant) => {
+    setSelection((current) => ({
+      placeId: restaurant.place_id,
+      source: "map",
+      navigationKey: (current?.navigationKey ?? 0) + 1,
+    }));
+  }, []);
   const openRestaurantDetail = useCallback(
     (restaurant: PublicRestaurant) => {
       savePicksReturnState({
@@ -256,15 +240,6 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
     return () => observer.disconnect();
   }, []);
 
-  useEffect(() => {
-    if (!mapExpanded) return;
-    const collapseOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setMapExpanded(false);
-    };
-    window.addEventListener("keydown", collapseOnEscape);
-    return () => window.removeEventListener("keydown", collapseOnEscape);
-  }, [mapExpanded]);
-
   if (identity.status === "loading" || currentAccountLocationState?.status === "loading") {
     return <FiyuLoadingScreen />;
   }
@@ -308,10 +283,10 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
   return (
     <div
       data-testid="discovery-layout"
-      className="grid h-[calc(100dvh-var(--spacing-header))] min-h-0 grid-cols-1 grid-rows-[minmax(0,1fr)] overflow-hidden bg-canvas lg:grid-cols-[minmax(0,42fr)_minmax(0,58fr)] lg:grid-rows-1"
+      className="grid h-[calc(100dvh-var(--spacing-header))] min-h-0 grid-cols-1 overflow-hidden bg-canvas lg:grid-cols-[minmax(0,44fr)_minmax(0,56fr)] xl:grid-cols-[minmax(0,40fr)_minmax(0,60fr)]"
     >
       <section
-        className="contents lg:col-start-1 lg:row-start-1 lg:block lg:min-h-0 lg:min-w-0 lg:overflow-y-auto lg:overscroll-contain"
+        className="contents lg:block lg:min-h-0 lg:min-w-0 lg:overflow-y-auto lg:overscroll-contain"
       >
         <div data-testid="desktop-page-intro" className="hidden px-5 sm:px-8 lg:block">
           <PageIntro />
@@ -326,9 +301,7 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
           <div
             className={cn(
               "relative isolate mx-auto min-w-0 w-full max-w-[38rem] px-5 sm:px-8 lg:mx-0 lg:max-w-none lg:pb-10",
-              hasRestaurantMarkers
-                ? "pb-[calc(17rem+env(safe-area-inset-bottom))]"
-                : "pb-[calc(1.5rem+env(safe-area-inset-bottom))]",
+              "pb-[calc(1.5rem+env(safe-area-inset-bottom))] lg:mx-auto lg:max-w-[48rem] lg:pb-10",
             )}
           >
             {/*
@@ -372,29 +345,11 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
         </div>
       </section>
 
-      {/* Floating mini-map on mobile; the existing side-by-side pane on desktop. */}
       <aside
         aria-label="Restaurant map"
-        data-testid={hasRestaurantMarkers ? "mobile-map-region" : "desktop-map-region"}
-        data-expanded={mapExpanded ? "true" : "false"}
-        className={cn(
-          "fixed right-4 z-20 min-h-0 min-w-0 overflow-hidden rounded-card border border-line-strong bg-subtle shadow-[0_10px_32px_-12px_rgba(49,40,61,0.45)] transition-[width,height] duration-200 ease-(--ease-fiyu)",
-          "bottom-[calc(var(--spacing-mobile-nav)+0.75rem)]",
-          !hasRestaurantMarkers && "hidden lg:block",
-          mapExpanded
-            ? "left-4 h-[min(50dvh,32rem)]"
-            : "size-[clamp(9rem,40vw,10.5rem)] max-[360px]:size-[8.75rem]",
-          "lg:static lg:col-start-2 lg:row-start-1 lg:h-full lg:w-auto lg:rounded-none lg:border-y-0 lg:border-r-0 lg:border-l lg:shadow-none lg:transition-none",
-        )}
+        data-testid="desktop-map-region"
+        className="hidden min-h-0 min-w-0 overflow-hidden border-l border-line-strong bg-subtle lg:sticky lg:top-header lg:block lg:h-[calc(100dvh-var(--spacing-header))]"
       >
-        {/*
-         * The map receives individually revealed current picks and active
-         * Recent Discoveries that the backend marked map-eligible. Concealed
-         * assignments stay absent until their own reveal action.
-         *
-         * With nothing mapped there is no map to interact with, so the
-         * placeholder is shown instead of an empty illustration.
-         */}
         {mappable.length === 0 ? (
           <MapUnavailable reason="no-mapped-restaurants" className="h-full" />
         ) : (
@@ -404,22 +359,11 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
             onSelect={selectFromMap}
             surfaceMode="bounded"
             interactive
-            compactOnMobile={!mapExpanded}
             viewportSessionKey={PICKS_DETAIL_MAP_SESSION_KEY}
           />
         )}
-
-        {hasRestaurantMarkers && (
-          <button
-            type="button"
-            aria-label={mapExpanded ? "Collapse map" : "Expand map"}
-            onClick={() => setMapExpanded((expanded) => !expanded)}
-            className="absolute top-2 left-2 z-30 min-h-9 rounded-chip border border-white/80 bg-plum/90 px-3 text-xs font-medium text-white shadow-sm backdrop-blur-sm hover:bg-plum focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600 lg:hidden"
-          >
-            {mapExpanded ? "Collapse map" : "Expand map"}
-          </button>
-        )}
       </aside>
+
     </div>
   );
 }

@@ -17,7 +17,15 @@ import { type MarkerCluster, clusterMarkers } from "@/lib/map/clustering";
 import { detailLevelFor, detailLevelLabel } from "@/lib/map/detail";
 import { subscribeToNewlyRevealedMapPlaces } from "@/lib/map/revealEvents";
 import { readMapViewportSession, saveMapViewportSession } from "@/lib/map/viewportSession";
-import { type LatLng, VIEWBOX, isWithinBounds, project, unproject } from "@/lib/map/projection";
+import {
+  type LatLng,
+  VIEWBOX,
+  VIEWBOX_HEIGHT,
+  VIEWBOX_WIDTH,
+  isWithinBounds,
+  project,
+  unproject,
+} from "@/lib/map/projection";
 import {
   IDENTITY_VIEW,
   MAX_SCALE,
@@ -112,7 +120,12 @@ export function FiyuMap({
   viewportSessionKey,
   className,
 }: FiyuMapProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
+  const [containerSize, setContainerSize] = useState({
+    width: VIEWBOX_WIDTH,
+    height: VIEWBOX_HEIGHT,
+  });
   const [initialViewportSession] = useState(() =>
     viewportSessionKey ? readMapViewportSession(viewportSessionKey) : null,
   );
@@ -200,6 +213,25 @@ export function FiyuMap({
   );
   const skipNextViewportSave = useRef(false);
   const userHasInteracted = useRef(false);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const update = () => {
+      const rect = container.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) {
+        setContainerSize({ width: rect.width, height: rect.height });
+      }
+    };
+    update();
+    if (typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", update);
+      return () => window.removeEventListener("resize", update);
+    }
+    const observer = new ResizeObserver(update);
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     if (lastFitKey.current === resultKey) return;
@@ -390,7 +422,7 @@ export function FiyuMap({
   );
 
   return (
-    <div className={cn("relative h-full w-full overflow-hidden bg-[var(--map-bg)]", className)}>
+    <div ref={containerRef} className={cn("relative h-full w-full overflow-hidden bg-[var(--map-bg)]", className)}>
       <svg
         ref={svgRef}
         viewBox={VIEWBOX}
@@ -438,15 +470,18 @@ export function FiyuMap({
             onSelect={onSelect}
             onExpandCluster={expandCluster}
           />
-          {selectedRestaurant && selectedPoint && (
-            <MapRestaurantPopup
-              restaurant={selectedRestaurant}
-              point={selectedPoint}
-              view={view}
-            />
-          )}
         </g>
       </svg>
+
+      {selectedRestaurant && selectedPoint && (
+        <MapRestaurantPopup
+          restaurant={selectedRestaurant}
+          point={selectedPoint}
+          view={view}
+          containerWidth={containerSize.width}
+          containerHeight={containerSize.height}
+        />
+      )}
 
       <div
         className={cn(

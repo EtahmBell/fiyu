@@ -91,7 +91,6 @@ export const MOBILE_NAVIGATION_ORDER: readonly NavigationId[] = [
 
 export const DESKTOP_NAVIGATION_ORDER: readonly NavigationId[] = [
   "picks",
-  "map",
   "lists",
   "log",
 ];

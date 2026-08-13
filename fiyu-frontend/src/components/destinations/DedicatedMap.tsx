@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { FiyuMap } from "@/components/map/FiyuMap";
@@ -8,6 +9,7 @@ import { FiyuLoadingScreen } from "@/components/states/FiyuLoadingScreen";
 import { fetchAuthenticatedMapRestaurants } from "@/lib/api/client";
 import type { PublicRestaurant } from "@/lib/api/schemas";
 import { mappableRestaurants } from "@/lib/geo/mappable";
+import { useIsDesktop } from "@/lib/hooks/useMediaQuery";
 import { useProfileIdentity } from "@/lib/profile/profileIdentity";
 
 type MapState =
@@ -16,6 +18,8 @@ type MapState =
   | { status: "error"; ownerKey: string };
 
 export function DedicatedMap() {
+  const router = useRouter();
+  const isDesktop = useIsDesktop();
   const identity = useProfileIdentity();
   const ownerKey = identity.profile?.user_id ?? null;
   const [mapState, setMapState] = useState<MapState | null>(null);
@@ -28,7 +32,11 @@ export function DedicatedMap() {
   const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!ownerKey) return;
+    if (isDesktop) router.replace("/picks");
+  }, [isDesktop, router]);
+
+  useEffect(() => {
+    if (isDesktop || !ownerKey) return;
     const controller = new AbortController();
     void fetchAuthenticatedMapRestaurants({ signal: controller.signal })
       .then((restaurants) => {
@@ -40,7 +48,7 @@ export function DedicatedMap() {
         if (!controller.signal.aborted) setMapState({ status: "error", ownerKey });
       });
     return () => controller.abort();
-  }, [ownerKey]);
+  }, [isDesktop, ownerKey]);
 
   useEffect(() => {
     if (!selectedPlaceId) return;
@@ -56,7 +64,7 @@ export function DedicatedMap() {
       ? mappableRestaurants(currentMapState.restaurants)
       : [];
 
-  if (identity.status === "loading" || (ownerKey && currentMapState?.status === "loading")) {
+  if (isDesktop || identity.status === "loading" || (ownerKey && currentMapState?.status === "loading")) {
     return <FiyuLoadingScreen />;
   }
 

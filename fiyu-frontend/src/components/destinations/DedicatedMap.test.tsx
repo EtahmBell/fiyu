@@ -12,6 +12,8 @@ const api = vi.hoisted(() => ({
   fetchAuthenticatedMapRestaurants: vi.fn(),
   fetchMapRestaurants: vi.fn(),
 }));
+const navigation = vi.hoisted(() => ({ replace: vi.fn() }));
+vi.mock("next/navigation", () => ({ useRouter: () => navigation }));
 vi.mock("@/lib/api/client", () => ({
   fetchAuthenticatedMapRestaurants: api.fetchAuthenticatedMapRestaurants,
   fetchMapRestaurants: api.fetchMapRestaurants,
@@ -52,15 +54,35 @@ beforeEach(() => {
   api.fetchAuthenticatedMapRestaurants.mockReset();
   api.fetchMapRestaurants.mockReset();
   clearProfileIdentity();
+  navigation.replace.mockReset();
 });
 
 afterEach(() => {
   cleanup();
   clearProfileIdentity();
+  vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
 
 describe("dedicated user map", () => {
+  it("redirects desktop visitors without loading Map data", async () => {
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn().mockReturnValue({
+        matches: true,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      }),
+    );
+    publishProfileIdentity(profile("desktop-user"));
+
+    render(<DedicatedMap />);
+
+    await waitFor(() => expect(navigation.replace).toHaveBeenCalledWith("/picks"));
+    expect(api.fetchAuthenticatedMapRestaurants).not.toHaveBeenCalled();
+    expect(screen.getByTestId("fiyu-loading-screen")).toBeTruthy();
+  });
+
   it("does not substitute the four verified-location restaurants for an empty user result", async () => {
     api.fetchAuthenticatedMapRestaurants.mockResolvedValue([]);
     api.fetchMapRestaurants.mockResolvedValue(verifiedLocationCatalog);
@@ -155,7 +177,13 @@ describe("dedicated user map", () => {
     const firstPopup = container.querySelector('[data-layer="restaurant-popup"]');
     expect(firstPopup?.textContent).toContain("あたらよ 秋葉原店");
     expect(firstPopup?.textContent).toContain("Atarayo Akihabara");
-    expect(screen.getByRole("link", { name: "View →" }).getAttribute("href")).toBe(
+    expect(firstPopup?.textContent).toContain("Restaurant");
+    const scoreSection = screen.getByTestId("map-popup-score");
+    expect(scoreSection.textContent).toContain("Fiyu Score");
+    expect(scoreSection.textContent).toContain("8.0");
+    expect(scoreSection.className).toContain("border-t");
+    expect(screen.getByText("8.0").className).toContain("text-lavender-700");
+    expect(screen.getByRole("link", { name: "View restaurant →" }).getAttribute("href")).toBe(
       "/restaurants/ChIJAZOKBEyPGGARWoSCCwgRm8E",
     );
 

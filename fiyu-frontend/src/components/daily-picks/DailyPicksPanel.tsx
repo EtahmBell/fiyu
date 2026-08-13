@@ -619,11 +619,16 @@ export function DailyPicksPanel({
 
       <section
         aria-labelledby="daily-picks-heading"
-        className="my-5 min-w-0 w-full rounded-card border border-line bg-surface p-4 shadow-[0_8px_30px_-24px_rgba(49,40,61,0.3)] sm:p-5"
+        data-testid="daily-picks-section"
+        className="my-5 min-w-0 w-full"
       >
         <h2
           id="daily-picks-heading"
-          className={phase === "finding" ? "sr-only" : "font-display text-2xl text-ink"}
+          className={
+            phase === "finding"
+              ? "sr-only"
+              : "border-b border-line pb-3 font-display text-2xl text-ink"
+          }
         >
           {phase === "finding"
             ? "Fresh Picks"

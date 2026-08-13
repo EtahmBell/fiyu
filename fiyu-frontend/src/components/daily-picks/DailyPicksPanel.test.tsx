@@ -59,6 +59,10 @@ describe("Today’s Fiyu Picks panel", () => {
     expect(screen.getByText("Searching nearby")).toBeTruthy();
     act(() => vi.advanceTimersByTime(3_000));
     expect(screen.getByRole("heading", { name: "Today’s Fiyu Picks" })).toBeTruthy();
+    const picksSection = screen.getByTestId("daily-picks-section");
+    expect(picksSection.className).not.toContain("rounded-card");
+    expect(picksSection.className).not.toContain("border-line");
+    expect(screen.getByRole("heading", { level: 2 }).className).toContain("border-b");
     expect(screen.getAllByTestId("concealed-restaurant-card")).toHaveLength(3);
     const selectedIds = firstStorage.getSnapshot()?.selection?.restaurantIds;
     expect(selectedIds).toHaveLength(3);
