@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import asyncio
 import os
+import socket
 from pathlib import Path
 from typing import Literal
 
 from dotenv import load_dotenv
-from openai import OpenAI
+from openai import APIConnectionError, APITimeoutError, OpenAI
 from pydantic import BaseModel, Field
 
 from .address_research import (
@@ -20,14 +22,37 @@ from .address_research import (
     start_address_run,
 )
 from .public_catalog import (
+    finish_restaurant_research_run,
     get_research_queue,
     mark_research_failed,
+    mark_research_needs_retry,
     mark_research_started,
     save_research_result,
+    start_restaurant_research_run,
 )
-from .public_score import FiyuEvidence, InternalSignals, calculate_fiyu_score
+from .public_score import (
+    FiyuEvidence,
+    InternalSignals,
+    assess_chain_classification,
+    assess_publication_conflict,
+    calculate_fiyu_score,
+)
 
 PROMPT_VERSION = "restaurant-research-v2-address-evidence"
+
+
+def _ambiguous_request_failure(exc: BaseException) -> bool:
+    return isinstance(
+        exc,
+        (
+            TimeoutError,
+            asyncio.TimeoutError,
+            ConnectionError,
+            socket.timeout,
+            APITimeoutError,
+            APIConnectionError,
+        ),
+    )
 
 
 class RestaurantResearch(BaseModel):
@@ -39,6 +64,7 @@ class RestaurantResearch(BaseModel):
     primary_category: str | None = None
     food_tags: list[str] = Field(default_factory=list, max_length=8)
     signature_dishes: list[str] = Field(default_factory=list, max_length=6)
+    description_en: str | None = Field(default=None, min_length=1, max_length=700)
 
     official_language: Literal["ja", "mixed", "en", "unknown"]
     japanese_source_count: int = Field(ge=0)
@@ -48,7 +74,16 @@ class RestaurantResearch(BaseModel):
     reservation_platform_count: int = Field(ge=0)
     official_website_found: bool
     social_profile_count: int = Field(ge=0)
-    likely_chain: bool
+    likely_chain: bool = False
+    restaurant_group_affiliated: bool = False
+    chain_classification: Literal[
+        "independent_single",
+        "small_group_distinct_concept",
+        "small_same_brand_chain",
+        "large_chain_or_franchise",
+        "unknown",
+    ] = "unknown"
+    chain_evidence: list[str] = Field(default_factory=list, max_length=6)
     known_location_count: int = Field(ge=0)
     specialist_restaurant: bool
     independent_positive_source_count: int = Field(ge=0)
@@ -72,6 +107,8 @@ class RestaurantResearch(BaseModel):
             official_website_found=self.official_website_found,
             social_profile_count=self.social_profile_count,
             likely_chain=self.likely_chain,
+            restaurant_group_affiliated=self.restaurant_group_affiliated,
+            chain_classification=self.chain_classification,
             known_location_count=max(1, self.known_location_count),
             specialist_restaurant=self.specialist_restaurant,
             independent_positive_source_count=self.independent_positive_source_count,
@@ -94,11 +131,20 @@ as unknown, not proof. Never infer customer nationality from language.
 For japanese_review_share, only provide a number when a source or supplied review sample supports it.
 Otherwise return null. Count unique, relevant sources only. Include URLs supporting the evidence.
 Set conflicting_evidence=true when identity, chain status, closure, or location information conflicts.
+Classify chain behavior separately from ownership. A parent company, restaurant group, chef group,
+or sister restaurant alone does not make the restaurant a chain. Use small_group_distinct_concept
+when a small operator runs distinct names/concepts/menus. Use small_same_brand_chain only with
+evidence of repeated substantially similar same-brand locations. Use large_chain_or_franchise only
+with explicit franchise, mass-market, national-chain, or standardized multi-location evidence.
+Use unknown when the evidence is insufficient. Set likely_chain=true only for
+small_same_brand_chain or large_chain_or_franchise, and include concise supporting chain_evidence.
 Content-language requirements:
 - name_ja must preserve the restaurant's official Japanese name.
 - name_en must be a natural English name or readable Hepburn-style romanization.
 - why_fiyu must always be clear, natural English, approximately 1-3 concise sentences, and
   explain why this exact restaurant fits Fiyu based on the evidence.
+- description_en must be a concise, evidence-grounded English restaurant description suitable
+  for a Fiyu card. Do not include ratings, unverifiable praise, or operational details.
 - why_fiyu must not sound machine-translated and must avoid generic marketing language.
 - Japanese restaurant names and proper culinary terms may remain Japanese when appropriate.
 - Preserve food_tags and signature_dishes as generated from the research; do not translate them
@@ -185,14 +231,28 @@ def run_research_batch(
     limit: int = 10,
     model: str | None = None,
     retry_failed: bool = False,
-) -> dict[str, int]:
+    place_id: str | None = None,
+    dry_run: bool = False,
+) -> dict[str, object]:
+    if limit < 1 or limit > 100:
+        raise ValueError("limit must be between 1 and 100")
     load_dotenv()
     selected_model = model or os.getenv("OPENAI_MODEL", "gpt-5.6-luna")
+    queue = get_research_queue(
+        db_path, limit=limit, retry_failed=retry_failed, place_id=place_id
+    )
+    if dry_run:
+        return {
+            "dry_run": True,
+            "selected_model": selected_model,
+            "maximum_responses_requests": len(queue),
+            "maximum_web_search_actions": len(queue) * DEFAULT_MAX_SEARCH_ACTIONS,
+            "candidates": [str(item["place_id"]) for item in queue],
+        }
     if not os.getenv("OPENAI_API_KEY"):
         raise RuntimeError("OPENAI_API_KEY is missing. Add it to backend/.env")
 
     client = OpenAI(max_retries=0)
-    queue = get_research_queue(db_path, limit=limit, retry_failed=retry_failed)
     completed = 0
     failed = 0
     address_accepted = 0
@@ -201,6 +261,12 @@ def run_research_batch(
     for candidate in queue:
         place_id = str(candidate["place_id"])
         mark_research_started(db_path, place_id)
+        research_run_id = start_restaurant_research_run(
+            db_path,
+            place_id,
+            model=selected_model,
+            prompt_version=PROMPT_VERSION,
+        )
         address_run_id = start_address_run(
             db_path,
             place_id=place_id,
@@ -233,7 +299,23 @@ def run_research_batch(
                 underexposure_score=float(candidate.get("underexposure_score") or 0),
                 digital_footprint_score=float(candidate.get("digital_footprint_score") or 0),
             )
-            score = calculate_fiyu_score(evidence, internal)
+            structured_research = research.model_dump(mode="json")
+            chain = assess_chain_classification(evidence, structured_research)
+            evidence.chain_classification = chain.classification
+            evidence.restaurant_group_affiliated = chain.group_affiliated
+            evidence.likely_chain = chain.excluded
+            structured_research["chain_classification"] = chain.classification
+            structured_research["restaurant_group_affiliated"] = chain.group_affiliated
+            structured_research["likely_chain"] = chain.excluded
+            structured_research["chain_classification_reasons"] = list(chain.reasons)
+            score = calculate_fiyu_score(
+                evidence,
+                internal,
+                conflict_assessment=assess_publication_conflict(
+                    evidence, structured_research
+                ),
+                chain_assessment=chain,
+            )
             save_research_result(
                 db_path,
                 place_id=place_id,
@@ -245,9 +327,18 @@ def run_research_batch(
                 food_tags=research.food_tags,
                 signature_dishes=research.signature_dishes,
                 why_fiyu=research.why_fiyu,
+                description_en=research.description_en,
                 evidence_urls=urls,
                 model_name=selected_model,
                 prompt_version=PROMPT_VERSION,
+                structured_research=structured_research,
+                usage_metadata={
+                    "response_id": getattr(response, "id", None),
+                    "usage": (
+                        getattr(getattr(response, "usage", None), "model_dump", dict)()
+                    ),
+                },
+                research_run_id=research_run_id,
             )
             try:
                 address_call = combined_address_call(
@@ -273,7 +364,17 @@ def run_research_batch(
             completed += 1
         except Exception as exc:  # noqa: BLE001 - isolate rows and preserve the failure.
             fail_address_run(db_path, address_run_id, exc)
-            mark_research_failed(db_path, place_id, f"{type(exc).__name__}: {exc}")
+            error = f"{type(exc).__name__}: {exc}"
+            if _ambiguous_request_failure(exc):
+                finish_restaurant_research_run(
+                    db_path, research_run_id, status="needs_retry", error=error
+                )
+                mark_research_needs_retry(db_path, place_id, error)
+            else:
+                finish_restaurant_research_run(
+                    db_path, research_run_id, status="failed", error=error
+                )
+                mark_research_failed(db_path, place_id, error)
             failed += 1
 
     return {

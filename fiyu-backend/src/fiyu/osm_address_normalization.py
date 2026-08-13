@@ -20,6 +20,10 @@ _NUMBER_MARKER = re.compile(
     rf"(?=丁目|番地?(?![{_JAPANESE_CHARACTER}])|号(?![{_JAPANESE_CHARACTER}]))"
 )
 _NUMBER_PART = re.compile(r"\d+")
+_TOKYO_PREFECTURE_ALIASES = {"東京都", "tokyo", "tokyo metropolis"}
+_TOKYO_NEIGHBORHOOD_ALIASES = {
+    "kojimachi": {"麹町", "kojimachi"},
+}
 
 
 @dataclass(frozen=True)
@@ -70,6 +74,57 @@ def normalize_japanese_address_text(value: str | None) -> str:
     text = re.sub(rf"号(?![{_JAPANESE_CHARACTER}])", "", text)
     text = re.sub(r"-+", "-", text).strip("-")
     return text
+
+
+def normalize_japanese_street_or_block(value: str | None) -> str:
+    """Canonicalize a Japanese numeric street component for deterministic comparison.
+
+    Raw evidence remains untouched.  This only collapses representational variants
+    such as ``2丁目27−16``, ``2-chōme-27-16``, and ``2-27-16``.
+    """
+
+    if not value:
+        return ""
+    text = (
+        unicodedata.normalize("NFKC", value)
+        .translate(_DASHES)
+        .replace("ー", "-")
+        .casefold()
+    )
+    text = re.sub(
+        r"(?<=\d)\s*(?:-\s*)?ch(?:o|ō)me\s*(?:-\s*)?",
+        "-",
+        text,
+    )
+    normalized = normalize_japanese_address_text(text)
+    if re.fullmatch(r"\d+(?:-\d+)*", normalized):
+        return "-".join(str(int(part)) for part in _NUMBER_PART.findall(normalized))
+    return normalized
+
+
+def canonical_tokyo_prefecture(value: str | None) -> str:
+    """Return one canonical value for reviewed Tokyo prefecture aliases."""
+
+    text = unicodedata.normalize("NFKC", str(value or "")).casefold().strip()
+    return "tokyo" if text in _TOKYO_PREFECTURE_ALIASES else text
+
+
+def normalize_tokyo_neighborhood(value: str | None) -> tuple[str, str | None]:
+    """Return a conservative reviewed locality key and an optional chome number."""
+
+    text = unicodedata.normalize("NFKC", str(value or "")).casefold().strip()
+    japanese = re.fullmatch(r"(.+?)(\d+)丁目", text)
+    romanized = re.fullmatch(r"(.+?)\s+(\d+)\s+ch(?:o|ō)me", text)
+    match = japanese or romanized
+    base = (match.group(1) if match else text).strip(" ,-−")
+    chome = str(int(match.group(2))) if match else None
+    for canonical, aliases in _TOKYO_NEIGHBORHOOD_ALIASES.items():
+        normalized_aliases = {
+            unicodedata.normalize("NFKC", alias).casefold() for alias in aliases
+        }
+        if base in normalized_aliases:
+            return canonical, chome
+    return base, chome
 
 
 def _ward_from_text(value: str) -> tuple[str | None, str | None]:

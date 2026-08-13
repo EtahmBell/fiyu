@@ -471,6 +471,16 @@ def canonical_tokyo_ward(*values: str | None) -> str | None:
         normalize_location_name(value) for value in values if value and value.strip()
     }
     for ward, aliases in TOKYO_WARD_NAMES.items():
-        if normalized_values & {normalize_location_name(alias) for alias in aliases}:
+        reviewed_aliases = {
+            *aliases,
+            ward,
+            f"{ward} city",
+            f"{ward} ward",
+            f"{ward}-ku",
+            f"{ward} ku",
+        }
+        if normalized_values & {
+            normalize_location_name(alias) for alias in reviewed_aliases
+        }:
             return ward
     return None

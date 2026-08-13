@@ -232,6 +232,36 @@ scraped data
 Research and score recalculation leave rows unpublished. Review and explicitly change
 publication status with:
 
+The unified operator entry point reuses the existing candidate import, Responses API research,
+deterministic score, OSM POI resolver, and verified-address area fallbacks. The normal `run`
+command automatically publishes candidates that pass the stored deterministic score policy and
+obtain an exact or defensible approximate map location. Repeat research remains append-only in
+`restaurant_research_runs`:
+
+```powershell
+python -m fiyu.pipeline_cli --db data/fiyu.db status
+python -m fiyu.pipeline_cli --db data/fiyu.db inspect --limit 20
+python -m fiyu.pipeline_cli --db data/fiyu.db import-candidates --limit 25
+python -m fiyu.pipeline_cli --db data/fiyu.db retry-research --place-id PLACE_ID --dry-run
+python -m fiyu.pipeline_cli --db data/fiyu.db retry-address-research --place-id PLACE_ID --dry-run
+python -m fiyu.pipeline_cli --db data/fiyu.db run --place-id PLACE_ID `
+  --osm-index C:\data\osm\fiyu-kanto-index.sqlite `
+  --osm-address-index C:\data\osm\fiyu-kanto-address-index.sqlite --dry-run
+python -m fiyu.pipeline_cli --db data/fiyu.db review --place-id PLACE_ID
+python -m fiyu.pipeline_cli --db data/fiyu.db approve --place-id PLACE_ID `
+  --reviewed-by OPERATOR
+python -m fiyu.pipeline_cli --db data/fiyu.db publish --place-id PLACE_ID
+```
+
+Omit `--dry-run` only after reviewing the reported Responses API and web-search budget. `run`
+researches, scores, resolves the most precise defensible OSM-backed location, and automatically
+publishes eligible candidates. Use `--limit N` without `--place-id` for a bounded isolated batch.
+Interrupted or ambiguous research attempts are not retried automatically. `retry-research` is a
+state-only operator recovery command; omit `--dry-run` to make the candidate eligible for a later,
+separately invoked paid research command.
+`retry-address-research` provides the same state-only recovery for an interrupted standalone
+address fallback and never makes an OpenAI request itself.
+
 ```bash
 python -m fiyu.public_cli --db PATH review --limit 20
 python -m fiyu.public_cli --db PATH publish --place-id PLACE_ID

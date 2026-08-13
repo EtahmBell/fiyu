@@ -105,6 +105,28 @@ CREATE INDEX IF NOT EXISTS idx_public_score
     ON public_restaurants(is_published, fiyu_score DESC);
 CREATE INDEX IF NOT EXISTS idx_public_research_queue
     ON public_restaurants(research_status, updated_at);
+CREATE TABLE IF NOT EXISTS restaurant_research_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    public_restaurant_id TEXT NOT NULL,
+    provider TEXT NOT NULL,
+    model TEXT NOT NULL,
+    prompt_version TEXT NOT NULL,
+    pipeline_version TEXT NOT NULL,
+    status TEXT NOT NULL,
+    structured_research_json TEXT NOT NULL DEFAULT '{}',
+    evidence_json TEXT NOT NULL DEFAULT '{}',
+    evidence_urls_json TEXT NOT NULL DEFAULT '[]',
+    score_json TEXT NOT NULL DEFAULT '{}',
+    location_snapshot_json TEXT NOT NULL DEFAULT '{}',
+    usage_metadata_json TEXT NOT NULL DEFAULT '{}',
+    error TEXT,
+    is_current INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    completed_at TEXT,
+    FOREIGN KEY (public_restaurant_id) REFERENCES public_restaurants(place_id)
+);
+CREATE INDEX IF NOT EXISTS idx_restaurant_research_runs_current
+    ON restaurant_research_runs(public_restaurant_id, is_current, created_at DESC);
 CREATE TABLE IF NOT EXISTS description_research_runs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     public_restaurant_id TEXT NOT NULL,
@@ -445,6 +467,15 @@ PUBLIC_DESCRIPTION_COLUMNS = {
     "description_researched_at": "TEXT",
 }
 
+PUBLIC_PIPELINE_COLUMNS = {
+    "review_status": "TEXT NOT NULL DEFAULT 'candidate'",
+    "review_notes": "TEXT",
+    "reviewed_by": "TEXT",
+    "reviewed_at": "TEXT",
+    "location_attempted_at": "TEXT",
+    "pipeline_version": "TEXT",
+}
+
 DESCRIPTION_TABLE_COLUMNS = {
     "previous_description_en": "TEXT",
 }
@@ -515,6 +546,7 @@ def ensure_public_schema(db_path: str | Path) -> None:
             **PUBLIC_LOCATION_COLUMNS,
             **PUBLIC_DISCOVERY_COLUMNS,
             **PUBLIC_DESCRIPTION_COLUMNS,
+            **PUBLIC_PIPELINE_COLUMNS,
         }.items():
             if name not in existing:
                 connection.execute(
@@ -602,6 +634,7 @@ def get_research_queue(
     *,
     limit: int = 10,
     retry_failed: bool = False,
+    place_id: str | None = None,
 ) -> list[dict[str, object]]:
     ensure_public_schema(db_path)
     statuses = ("pending", "failed") if retry_failed else ("pending",)
@@ -636,10 +669,11 @@ def get_research_queue(
             FROM public_restaurants p
             JOIN restaurants r ON r.place_id = p.place_id
             WHERE p.research_status IN ({placeholders})
+              AND (? IS NULL OR p.place_id = ?)
             ORDER BY r.internal_fiyu_score DESC, r.confidence_score DESC
             LIMIT ?
             """,
-            (*statuses, limit),
+            (*statuses, place_id, place_id, limit),
         ).fetchall()
     return [dict(row) for row in rows]
 
@@ -649,10 +683,55 @@ def mark_research_started(db_path: str | Path, place_id: str) -> None:
         connection.execute(
             """
             UPDATE public_restaurants
-            SET research_status = 'running', research_error = NULL, updated_at = ?
+            SET research_status = 'needs_retry',
+                research_error = 'Research request outcome is pending or ambiguous; explicit operator recovery is required before retry.',
+                updated_at = ?
             WHERE place_id = ?
             """,
             (_utc_now(), place_id),
+        )
+        connection.commit()
+
+
+def start_restaurant_research_run(
+    db_path: str | Path,
+    place_id: str,
+    *,
+    model: str,
+    prompt_version: str,
+    pipeline_version: str = "catalog-pipeline-v1",
+) -> int:
+    now = _utc_now()
+    with connect(db_path) as connection:
+        cursor = connection.execute(
+            """
+            INSERT INTO restaurant_research_runs (
+                public_restaurant_id, provider, model, prompt_version, pipeline_version,
+                status, error, is_current, created_at
+            ) VALUES (?, 'openai', ?, ?, ?, 'running', NULL, 0, ?)
+            """,
+            (place_id, model, prompt_version, pipeline_version, now),
+        )
+        connection.commit()
+        return int(cursor.lastrowid)
+
+
+def finish_restaurant_research_run(
+    db_path: str | Path,
+    run_id: int,
+    *,
+    status: str,
+    error: str | None = None,
+) -> None:
+    if status not in {"failed", "needs_retry"}:
+        raise ValueError("research run status must be failed or needs_retry")
+    with connect(db_path) as connection:
+        connection.execute(
+            """
+            UPDATE restaurant_research_runs
+            SET status = ?, error = ?, completed_at = ? WHERE id = ?
+            """,
+            (status, error[:2000] if error else None, _utc_now(), run_id),
         )
         connection.commit()
 
@@ -685,6 +764,11 @@ def save_research_result(
     evidence_urls: Iterable[str],
     model_name: str,
     prompt_version: str,
+    description_en: str | None = None,
+    structured_research: dict[str, object] | None = None,
+    usage_metadata: dict[str, object] | None = None,
+    pipeline_version: str = "catalog-pipeline-v1",
+    research_run_id: int | None = None,
 ) -> None:
     now = _utc_now()
     verification_status = "automatically_researched"
@@ -699,6 +783,7 @@ def save_research_result(
                 food_tags_json = ?,
                 signature_dishes_json = ?,
                 why_fiyu = ?,
+                description_en = COALESCE(?, description_en),
                 local_signal = ?,
                 hiddenness_signal = ?,
                 quality_signal = ?,
@@ -716,7 +801,7 @@ def save_research_result(
                 research_error = NULL,
                 model_name = ?,
                 prompt_version = ?,
-                researched_at = ?,
+                researched_at = ?, pipeline_version = ?, review_status = 'needs_review',
                 updated_at = ?
             WHERE place_id = ?
             """,
@@ -727,6 +812,7 @@ def save_research_result(
                 json.dumps(list(food_tags), ensure_ascii=False),
                 json.dumps(list(signature_dishes), ensure_ascii=False),
                 why_fiyu,
+                description_en,
                 score.local_signal,
                 score.hiddenness_signal,
                 score.quality_signal,
@@ -743,14 +829,178 @@ def save_research_result(
                 model_name,
                 prompt_version,
                 now,
+                pipeline_version,
                 now,
                 place_id,
             ),
         )
+        location = connection.execute(
+            """
+            SELECT normalized_address, latitude, longitude, location_precision,
+                   location_verification_status, map_location_approximate,
+                   map_display_eligible, location_source_reference
+            FROM public_restaurants WHERE place_id = ?
+            """,
+            (place_id,),
+        ).fetchone()
+        connection.execute(
+            "UPDATE restaurant_research_runs SET is_current = 0 WHERE public_restaurant_id = ?",
+            (place_id,),
+        )
+        run_payload = (
+            json.dumps(structured_research or {}, ensure_ascii=False),
+            json.dumps(evidence.to_dict(), ensure_ascii=False),
+            json.dumps(sorted(set(evidence_urls)), ensure_ascii=False),
+            json.dumps(score.to_dict(), ensure_ascii=False),
+            json.dumps(dict(location) if location else {}, ensure_ascii=False),
+            json.dumps(usage_metadata or {}, ensure_ascii=False),
+        )
+        if research_run_id is None:
+            connection.execute(
+                """
+                INSERT INTO restaurant_research_runs (
+                public_restaurant_id, provider, model, prompt_version, pipeline_version,
+                status, structured_research_json, evidence_json, evidence_urls_json,
+                score_json, location_snapshot_json, usage_metadata_json, is_current,
+                created_at, completed_at
+                ) VALUES (?, 'openai', ?, ?, ?, 'complete', ?, ?, ?, ?, ?, ?, 1, ?, ?)
+                """,
+                (place_id, model_name, prompt_version, pipeline_version, *run_payload, now, now),
+            )
+        else:
+            connection.execute(
+                """
+                UPDATE restaurant_research_runs
+                SET status = 'complete', structured_research_json = ?, evidence_json = ?,
+                    evidence_urls_json = ?, score_json = ?, location_snapshot_json = ?,
+                    usage_metadata_json = ?, is_current = 1, completed_at = ?, error = NULL
+                WHERE id = ? AND public_restaurant_id = ?
+                """,
+                (*run_payload, now, research_run_id, place_id),
+            )
         connection.commit()
 
 
-def recalculate_from_stored_evidence(db_path: str | Path) -> int:
+def mark_research_needs_retry(db_path: str | Path, place_id: str, error: str) -> None:
+    with connect(db_path) as connection:
+        connection.execute(
+            """
+            UPDATE public_restaurants
+            SET research_status = 'needs_retry', research_error = ?, updated_at = ?
+            WHERE place_id = ?
+            """,
+            (error[:2000], _utc_now(), place_id),
+        )
+        connection.commit()
+
+
+def record_failed_research_run(
+    db_path: str | Path,
+    place_id: str,
+    *,
+    model: str,
+    prompt_version: str,
+    error: str,
+    pipeline_version: str = "catalog-pipeline-v1",
+) -> None:
+    now = _utc_now()
+    with connect(db_path) as connection:
+        connection.execute(
+            """
+            INSERT INTO restaurant_research_runs (
+                public_restaurant_id, provider, model, prompt_version, pipeline_version,
+                status, error, is_current, created_at, completed_at
+            ) VALUES (?, 'openai', ?, ?, ?, 'failed', ?, 0, ?, ?)
+            """,
+            (place_id, model, prompt_version, pipeline_version, error[:2000], now, now),
+        )
+        connection.commit()
+
+
+def recover_research_for_retry(
+    db_path: str | Path, place_id: str, *, dry_run: bool = False
+) -> dict[str, object]:
+    ensure_public_schema(db_path)
+    with connect(db_path) as connection:
+        candidate = connection.execute(
+            """
+            SELECT place_id, research_status, research_error, researched_at
+            FROM public_restaurants WHERE place_id = ?
+            """,
+            (place_id,),
+        ).fetchone()
+        if candidate is None:
+            raise ValueError(f"Unknown place_id: {place_id}")
+        if candidate["research_status"] == "complete" or candidate["researched_at"]:
+            raise ValueError("Completed research cannot be reset")
+        if candidate["research_status"] not in {"running", "needs_retry", "failed"}:
+            raise ValueError(
+                f"Candidate is not recoverable from status {candidate['research_status']!r}"
+            )
+        runs = connection.execute(
+            """
+            SELECT id, status FROM restaurant_research_runs
+            WHERE public_restaurant_id = ? ORDER BY id
+            """,
+            (place_id,),
+        ).fetchall()
+        running_run_ids = [int(row["id"]) for row in runs if row["status"] == "running"]
+        address_runs = connection.execute(
+            """
+            SELECT id FROM address_research_runs
+            WHERE public_restaurant_id = ? AND status = 'running' ORDER BY id
+            """,
+            (place_id,),
+        ).fetchall()
+        address_run_ids = [int(row["id"]) for row in address_runs]
+        result = {
+            "place_id": place_id,
+            "dry_run": dry_run,
+            "previous_status": candidate["research_status"],
+            "new_status": "pending",
+            "preserved_research_runs": len(runs),
+            "research_runs_marked_needs_retry": running_run_ids,
+            "address_runs_marked_needs_retry": address_run_ids,
+            "openai_requests_made": 0,
+        }
+        if dry_run:
+            return result
+        now = _utc_now()
+        if running_run_ids:
+            connection.executemany(
+                """
+                UPDATE restaurant_research_runs
+                SET status = 'needs_retry', completed_at = ?,
+                    error = COALESCE(error, 'Operator recovered interrupted or ambiguous attempt')
+                WHERE id = ?
+                """,
+                ((now, run_id) for run_id in running_run_ids),
+            )
+        if address_run_ids:
+            connection.executemany(
+                """
+                UPDATE address_research_runs
+                SET status = 'needs_retry', completed_at = ?,
+                    error = COALESCE(error, 'Operator recovered interrupted or ambiguous attempt')
+                WHERE id = ?
+                """,
+                ((now, run_id) for run_id in address_run_ids),
+            )
+        connection.execute(
+            """
+            UPDATE public_restaurants
+            SET research_status = 'pending', research_error = NULL, updated_at = ?
+            WHERE place_id = ?
+            """,
+            (now, place_id),
+        )
+        connection.commit()
+        return result
+
+
+def recalculate_from_stored_evidence(
+    db_path: str | Path, *, place_id: str | None = None
+) -> int:
     """Recalculate all completed rows for free after changing score weights."""
 
     ensure_public_schema(db_path)
@@ -762,11 +1012,21 @@ def recalculate_from_stored_evidence(db_path: str | Path) -> int:
                 p.evidence_json,
                 r.quality_score,
                 r.underexposure_score,
-                r.digital_footprint_score
+                r.digital_footprint_score,
+                rr.id AS research_run_id,
+                rr.structured_research_json
             FROM public_restaurants p
             JOIN restaurants r ON r.place_id = p.place_id
-            WHERE p.research_status = 'complete'
+            LEFT JOIN restaurant_research_runs rr ON rr.id = (
+                SELECT current.id FROM restaurant_research_runs current
+                WHERE current.public_restaurant_id=p.place_id
+                  AND current.status='complete'
+                ORDER BY current.is_current DESC, current.id DESC LIMIT 1
+            )
+            WHERE p.research_status = 'complete' AND (? IS NULL OR p.place_id = ?)
             """
+            ,
+            (place_id, place_id),
         ).fetchall()
 
         count = 0
@@ -778,7 +1038,30 @@ def recalculate_from_stored_evidence(db_path: str | Path) -> int:
                 underexposure_score=float(row["underexposure_score"] or 0),
                 digital_footprint_score=float(row["digital_footprint_score"] or 0),
             )
-            score = calculate_fiyu_score(evidence, internal)
+            try:
+                structured = json.loads(row["structured_research_json"] or "{}")
+            except json.JSONDecodeError:
+                structured = {}
+            from .public_score import (
+                assess_chain_classification,
+                assess_publication_conflict,
+            )
+
+            conflict = assess_publication_conflict(evidence, structured)
+            chain = assess_chain_classification(evidence, structured)
+            evidence.chain_classification = chain.classification
+            evidence.restaurant_group_affiliated = chain.group_affiliated
+            evidence.likely_chain = chain.excluded
+            structured["chain_classification"] = chain.classification
+            structured["restaurant_group_affiliated"] = chain.group_affiliated
+            structured["likely_chain"] = chain.excluded
+            structured["chain_classification_reasons"] = list(chain.reasons)
+            score = calculate_fiyu_score(
+                evidence,
+                internal,
+                conflict_assessment=conflict,
+                chain_assessment=chain,
+            )
             connection.execute(
                 """
                 UPDATE public_restaurants
@@ -801,6 +1084,24 @@ def recalculate_from_stored_evidence(db_path: str | Path) -> int:
                     _utc_now(),
                     row["place_id"],
                 ),
+            )
+            if row["research_run_id"] is not None:
+                connection.execute(
+                    """
+                    UPDATE restaurant_research_runs
+                    SET structured_research_json=?, evidence_json=?, score_json=?
+                    WHERE id=?
+                    """,
+                    (
+                        json.dumps(structured, ensure_ascii=False),
+                        json.dumps(evidence.to_dict(), ensure_ascii=False),
+                        json.dumps(score.to_dict(), ensure_ascii=False),
+                        row["research_run_id"],
+                    ),
+                )
+            connection.execute(
+                "UPDATE public_restaurants SET evidence_json=? WHERE place_id=?",
+                (json.dumps(evidence.to_dict(), ensure_ascii=False), row["place_id"]),
             )
             count += 1
         connection.commit()

@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import os
 import re
+import socket
 import sqlite3
 import unicodedata
 from dataclasses import asdict, dataclass, field, replace
@@ -14,13 +16,18 @@ from typing import Literal
 from urllib.parse import urlparse
 
 from dotenv import load_dotenv
-from openai import OpenAI
+from openai import APIConnectionError, APITimeoutError, OpenAI
 from openai.lib._pydantic import to_strict_json_schema
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from .database import connect
 from .discovery_areas import TOKYO_WARD_NAMES, canonical_tokyo_ward, discovery_occurrences
 from .location_names import normalize_location_name
+from .osm_address_normalization import (
+    canonical_tokyo_prefecture,
+    normalize_japanese_street_or_block,
+    normalize_tokyo_neighborhood,
+)
 from .public_catalog import ensure_public_schema
 
 ADDRESS_PROMPT_VERSION = "address-research-v2"
@@ -192,6 +199,7 @@ class AddressComponentAgreement(BaseModel):
     material_conflicting_components: list[str] = Field(default_factory=list)
     component_values: dict[str, list[str]] = Field(default_factory=dict)
     excluded_temporal_evidence: list[dict[str, object]] = Field(default_factory=list)
+    excluded_non_address_evidence: list[dict[str, object]] = Field(default_factory=list)
     core_address_verified: bool = False
     full_address_verified: bool = False
     unresolved_address_detail: str | None = None
@@ -706,11 +714,11 @@ def _ward_in_text(*values: str | None) -> str | None:
 
 def _street_level(result: AddressResearchResult) -> bool:
     raw = str(result.address_raw or "").strip()
-    street = str(result.street_or_block or "").strip()
+    street = normalize_japanese_street_or_block(result.street_or_block)
     if not raw or not street:
         return False
     has_number = any(character.isdigit() for character in street)
-    has_block_marker = any(marker in street for marker in ("丁目", "番", "号", "-", "－"))
+    has_block_marker = "-" in street
     return len(raw) >= 8 and has_number and has_block_marker
 
 
@@ -725,13 +733,7 @@ def _comparison_text(value: str | None) -> str:
 
 
 def _canonical_street(value: str | None) -> str:
-    text = re.sub(r"\s+", "", _comparison_text(value)).casefold()
-    text = re.sub(r"(?<=\d)丁目", "-", text)
-    text = re.sub(r"(?<=\d)番地(?:の)?", "-", text)
-    text = re.sub(r"(?<=\d)番(?:の)?", "-", text)
-    text = re.sub(r"(?<=\d)号", "", text)
-    text = re.sub(r"(?<=\d)の(?=\d)", "-", text)
-    text = re.sub(r"-+", "-", text).strip("-")
+    text = normalize_japanese_street_or_block(value)
     return "".join(character for character in text if character.isalnum() or character == "-")
 
 
@@ -747,6 +749,10 @@ def _canonical_floor(value: str | None) -> str:
 
 
 def _normalized_address(value: str | None, *, component: str | None = None) -> str:
+    if component == "prefecture":
+        return canonical_tokyo_prefecture(value)
+    if component == "neighborhood":
+        return normalize_tokyo_neighborhood(value)[0]
     if component == "street_or_block":
         return _canonical_street(value)
     if component == "floor":
@@ -756,6 +762,42 @@ def _normalized_address(value: str | None, *, component: str | None = None) -> s
         for character in _comparison_text(normalize_location_name(value)).casefold()
         if character.isalnum()
     )
+
+
+_NON_ADDRESS_REFERENCE = re.compile(
+    r"\b(?:navigation|access|landmark) reference\b|"
+    r"\bneighbor(?:ing|ing-building)? building\b|\bbuilding next door\b|"
+    r"\bnot (?:as |the )?(?:the )?restaurant(?:'s)? (?:own )?address\b|"
+    r"隣のビル|ナビ(?:ゲーション)?(?:用|設定|住所)|目印",
+    re.IGNORECASE,
+)
+
+
+def _is_non_address_reference(item: object) -> bool:
+    text = " ".join(
+        str(_value(item, field, "") or "")
+        for field in ("summary", "address_evidence_summary", "warnings")
+    )
+    return bool(_NON_ADDRESS_REFERENCE.search(_comparison_text(text)))
+
+
+def _canonicalize_address_observation(
+    observation: dict[str, str | None],
+) -> dict[str, str | None]:
+    """Reconcile a chome split across neighborhood and street components."""
+
+    canonical = dict(observation)
+    neighborhood, chome = normalize_tokyo_neighborhood(canonical.get("neighborhood"))
+    if neighborhood:
+        canonical["neighborhood"] = neighborhood
+    street = normalize_japanese_street_or_block(canonical.get("street_or_block"))
+    if chome and street:
+        parts = street.split("-")
+        if len(parts) < 3:
+            street = "-".join((chome, *parts))
+    if street:
+        canonical["street_or_block"] = street
+    return canonical
 
 
 _FLOOR_PATTERN = re.compile(
@@ -1026,8 +1068,18 @@ def compare_address_components(result: AddressResearchResult) -> AddressComponen
         _derived_components(result.address_raw, reference=result, explicit=result)
     ]
     excluded_temporal_evidence: list[dict[str, object]] = []
+    excluded_non_address_evidence: list[dict[str, object]] = []
     for source in result.source_evidence:
-        if source.address_temporality in {"historical", "future"}:
+        if not source.supports_candidate_address and _is_non_address_reference(source):
+            excluded_non_address_evidence.append(
+                {
+                    "kind": "source_evidence",
+                    "reason": "navigation_or_landmark_reference",
+                    "address_text": source.address_text_as_displayed,
+                    "source_url": source.source_url,
+                }
+            )
+        elif source.address_temporality in {"historical", "future"}:
             excluded_temporal_evidence.append(
                 {
                     "kind": "source_evidence",
@@ -1043,7 +1095,16 @@ def compare_address_components(result: AddressResearchResult) -> AddressComponen
                 )
             )
     for conflict in result.conflicting_address_candidates:
-        if conflict.address_temporality in {"historical", "future"}:
+        if _is_non_address_reference(conflict):
+            excluded_non_address_evidence.append(
+                {
+                    "kind": "conflicting_address_candidate",
+                    "reason": "navigation_or_landmark_reference",
+                    "address_text": conflict.address_raw,
+                    "source_urls": list(conflict.source_urls),
+                }
+            )
+        elif conflict.address_temporality in {"historical", "future"}:
             excluded_temporal_evidence.append(
                 {
                     "kind": "conflicting_address_candidate",
@@ -1056,6 +1117,10 @@ def compare_address_components(result: AddressResearchResult) -> AddressComponen
             observations.append(
                 _derived_components(conflict.address_raw, reference=result, explicit=conflict)
             )
+
+    # Some sources put chome in the neighborhood while others include it in the
+    # numeric street component. Reconcile that split before component voting.
+    observations = [_canonicalize_address_observation(item) for item in observations]
     component_values: dict[str, list[str]] = {}
     states: dict[str, AgreementState] = {}
     for component in component_names:
@@ -1113,6 +1178,7 @@ def compare_address_components(result: AddressResearchResult) -> AddressComponen
         material_conflicting_components=material,
         component_values=component_values,
         excluded_temporal_evidence=excluded_temporal_evidence,
+        excluded_non_address_evidence=excluded_non_address_evidence,
         core_address_verified=core_verified,
         full_address_verified=full_verified,
         unresolved_address_detail=unresolved,
@@ -1208,12 +1274,17 @@ def evaluate_address_result(
             continue
         if not source.source_url.startswith(("http://", "https://")):
             continue
-        source_components = _derived_components(
-            source.address_text_as_displayed, reference=result, explicit=source
+        source_components = _canonicalize_address_observation(
+            _derived_components(
+                source.address_text_as_displayed, reference=result, explicit=source
+            )
+        )
+        expected_components = _canonicalize_address_observation(
+            _derived_components(result.address_raw, reference=result, explicit=result)
         )
         material_matches = True
         for component in ("prefecture", "municipality_or_ward", "neighborhood", "street_or_block"):
-            expected = getattr(result, component)
+            expected = expected_components.get(component)
             observed = source_components.get(component)
             if expected and observed:
                 if component == "municipality_or_ward":
@@ -1638,6 +1709,21 @@ def fail_address_run(
     metadata: AddressCallMetadata | None = None,
 ) -> None:
     now = _now()
+    ambiguous = isinstance(
+        error,
+        (
+            TimeoutError,
+            asyncio.TimeoutError,
+            ConnectionError,
+            socket.timeout,
+            APITimeoutError,
+            APIConnectionError,
+        ),
+    )
+    run_status = "needs_retry" if ambiguous else "failed"
+    resolution_status = (
+        "address_research_needs_retry" if ambiguous else "address_research_failed"
+    )
     with connect(db_path) as connection:
         row = connection.execute(
             "SELECT public_restaurant_id FROM address_research_runs WHERE id=?", (run_id,)
@@ -1647,15 +1733,15 @@ def fail_address_run(
         if metadata is None:
             connection.execute(
                 """
-                UPDATE address_research_runs SET status='failed', completed_at=?, error=?,
+                UPDATE address_research_runs SET status=?, completed_at=?, error=?,
                     response_request_count=1 WHERE id=?
                 """,
-                (now, f"{type(error).__name__}: {error}"[:2000], run_id),
+                (run_status, now, f"{type(error).__name__}: {error}"[:2000], run_id),
             )
         else:
             connection.execute(
                 """
-                UPDATE address_research_runs SET status='failed', completed_at=?, error=?,
+                UPDATE address_research_runs SET status=?, completed_at=?, error=?,
                     response_id=?, model=?, response_request_count=?, web_search_action_count=?,
                     requested_max_web_actions=?, web_action_limit_reached=?,
                     web_action_limit_exceeded=?, input_tokens=?, cached_input_tokens=?,
@@ -1663,6 +1749,7 @@ def fail_address_run(
                     usage_metadata_json=? WHERE id=?
                 """,
                 (
+                    run_status,
                     now,
                     f"{type(error).__name__}: {error}"[:2000],
                     metadata.response_id,
@@ -1721,12 +1808,72 @@ def fail_address_run(
                     )
         connection.execute(
             """
-            UPDATE public_restaurants SET address_resolution_status='address_research_failed',
+            UPDATE public_restaurants SET address_resolution_status=?,
                 updated_at=? WHERE place_id=?
             """,
-            (now, row["public_restaurant_id"]),
+            (resolution_status, now, row["public_restaurant_id"]),
         )
         connection.commit()
+
+
+def recover_address_research_for_retry(
+    db_path: str | Path, place_id: str, *, dry_run: bool = False
+) -> dict[str, object]:
+    """Explicitly authorize one later address fallback without making a request."""
+
+    ensure_public_schema(db_path)
+    with connect(db_path) as connection:
+        candidate = connection.execute(
+            "SELECT place_id, address_resolution_status FROM public_restaurants WHERE place_id=?",
+            (place_id,),
+        ).fetchone()
+        if candidate is None:
+            raise ValueError(f"Unknown place_id: {place_id}")
+        if connection.execute(
+            "SELECT 1 FROM verified_restaurant_addresses WHERE public_restaurant_id=?",
+            (place_id,),
+        ).fetchone():
+            raise ValueError("Completed accepted address research cannot be reset")
+        run = connection.execute(
+            """
+            SELECT id, status FROM address_research_runs
+            WHERE public_restaurant_id=? AND combined_research=0
+            ORDER BY id DESC LIMIT 1
+            """,
+            (place_id,),
+        ).fetchone()
+        if run is None or run["status"] not in {"running", "needs_retry", "failed"}:
+            raise ValueError("No interrupted or failed standalone address run is recoverable")
+        result = {
+            "place_id": place_id,
+            "dry_run": dry_run,
+            "address_run_id": int(run["id"]),
+            "previous_status": run["status"],
+            "new_status": "retry_authorized",
+            "openai_requests_made": 0,
+        }
+        if dry_run:
+            return result
+        now = _now()
+        connection.execute(
+            """
+            UPDATE address_research_runs
+            SET status='retry_authorized', completed_at=COALESCE(completed_at, ?),
+                error=COALESCE(error, 'Operator recovered interrupted address request')
+            WHERE id=?
+            """,
+            (now, run["id"]),
+        )
+        connection.execute(
+            """
+            UPDATE public_restaurants
+            SET address_resolution_status='address_not_researched', updated_at=?
+            WHERE place_id=?
+            """,
+            (now, place_id),
+        )
+        connection.commit()
+        return result
 
 
 def record_generated_queries(
@@ -2235,6 +2382,7 @@ def _selection_plan(
     force: bool,
     max_search_actions: int,
     resolution_reasons: dict[str, str] | None,
+    published_only: bool = True,
 ) -> tuple[list[dict[str, object]], dict[str, int]]:
     if not _address_tables_available(db_path):
         raise RuntimeError(
@@ -2260,6 +2408,9 @@ def _selection_plan(
                           WHERE e.public_restaurant_id=p.place_id
                             AND e.acceptance_status IN ('accepted', 'provisional', 'review_approved'))
                        AS has_accepted_evidence
+                   ,(SELECT ar.status FROM address_research_runs ar
+                     WHERE ar.public_restaurant_id=p.place_id AND ar.combined_research=0
+                     ORDER BY ar.id DESC LIMIT 1) AS latest_standalone_run_status
             FROM public_restaurants p
             ORDER BY p.fiyu_score DESC, p.place_id
             """
@@ -2292,7 +2443,7 @@ def _selection_plan(
         if place_id and item["place_id"] != place_id:
             skipped["place_id_mismatch"] += 1
             continue
-        if not item["is_published"]:
+        if published_only and not item["is_published"]:
             skipped["unpublished"] += 1
             continue
         if item["map_display_eligible"] or item["location_verification_status"] in {
@@ -2308,6 +2459,10 @@ def _selection_plan(
         if not force and (item["has_verified_address"] or item["has_accepted_evidence"]):
             skipped["already_has_accepted_address"] += 1
             continue
+        if not force and item["latest_standalone_run_status"] in {"running", "needs_retry"}:
+            skipped.setdefault("unsafe_retry_requires_operator_recovery", 0)
+            skipped["unsafe_retry_requires_operator_recovery"] += 1
+            continue
         if not force:
             queries = generate_address_queries(
                 item, max_search_actions=max_search_actions
@@ -2316,14 +2471,21 @@ def _selection_plan(
             cached_queries = [
                 query for query in queries if _query_fingerprint(query) in attempted
             ]
-            if queries and all(_query_fingerprint(query) in attempted for query in queries):
+            retry_authorized = item["latest_standalone_run_status"] == "retry_authorized"
+            if (
+                queries
+                and not retry_authorized
+                and all(_query_fingerprint(query) in attempted for query in queries)
+            ):
                 skipped["duplicate_query_cache"] += 1
                 continue
             item["_cached_address_queries"] = cached_queries
             item["_skipped_address_queries"] = cached_queries
-            item["_prepared_address_queries"] = [
-                query for query in queries if query not in cached_queries
-            ]
+            item["_prepared_address_queries"] = (
+                queries
+                if retry_authorized
+                else [query for query in queries if query not in cached_queries]
+            )
         eligible.append(item)
     return eligible, skipped
 
@@ -2477,6 +2639,7 @@ def run_address_discovery(
     retry_truncated: bool = False,
     model: str | None = None,
     client: OpenAI | None = None,
+    published_only: bool = True,
 ) -> dict[str, object]:
     if limit < 1:
         raise ValueError("limit must be at least 1")
@@ -2496,6 +2659,7 @@ def run_address_discovery(
         force=force,
         max_search_actions=max_search_actions,
         resolution_reasons=resolution_reasons,
+        published_only=published_only,
     )
     selected = eligible[:limit]
     selected_model = model or os.getenv("OPENAI_MODEL", "gpt-5.6-luna")

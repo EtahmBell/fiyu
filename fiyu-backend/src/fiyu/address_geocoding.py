@@ -15,7 +15,7 @@ from .database import connect
 from .discovery_areas import canonical_tokyo_ward
 from .location_names import normalize_location_name
 from .location_verification import TOKYO_BOUNDS
-from .osm_address_normalization import normalize_japanese_address_text
+from .osm_address_normalization import normalize_tokyo_neighborhood
 from .sqlite_snapshot import readonly_sqlite_snapshot
 
 MAP_ELIGIBLE_MATCH_LEVELS = {
@@ -89,9 +89,17 @@ def validate_geocode(
     if expected and returned != expected:
         reasons.append("geocoded_ward_mismatch")
     if verified_neighborhood and result.neighborhood:
-        expected_neighborhood = normalize_japanese_address_text(verified_neighborhood)
-        returned_neighborhood = normalize_japanese_address_text(result.neighborhood)
-        if expected_neighborhood != returned_neighborhood:
+        expected_neighborhood, expected_chome = normalize_tokyo_neighborhood(
+            verified_neighborhood
+        )
+        returned_neighborhood, returned_chome = normalize_tokyo_neighborhood(
+            result.neighborhood
+        )
+        matched_chome = str(result.matched_components.get("chome") or "") or None
+        if expected_neighborhood != returned_neighborhood or (
+            expected_chome
+            and expected_chome not in {returned_chome, matched_chome}
+        ):
             reasons.append("geocoded_neighborhood_mismatch")
     return GeocodeValidation(
         "location_verified" if not reasons else "geocode_needs_review",
@@ -124,9 +132,10 @@ def _geocoding_input(row) -> dict[str, object]:
     return payload
 
 
-def _query_geocoding_rows(connection, *, limit: int, place_id: str | None):
+def _query_geocoding_rows(
+    connection, *, limit: int, place_id: str | None, published_only: bool = True
+):
     conditions = [
-        "p.is_published=1",
         "p.map_display_eligible=0",
         (
             "p.location_verification_status NOT IN "
@@ -138,6 +147,8 @@ def _query_geocoding_rows(connection, *, limit: int, place_id: str | None):
         ),
         "v.core_address_verified=1",
     ]
+    if published_only:
+        conditions.append("p.is_published=1")
     parameters: list[object] = []
     if place_id:
         conditions.append("p.place_id=?")
@@ -159,10 +170,13 @@ def _query_geocoding_rows(connection, *, limit: int, place_id: str | None):
 
 
 def _select_geocoding_rows(
-    db_path: str | Path, *, limit: int, place_id: str | None
+    db_path: str | Path, *, limit: int, place_id: str | None,
+    published_only: bool = True,
 ):
     with readonly_sqlite_snapshot(db_path) as connection:
-        return _query_geocoding_rows(connection, limit=limit, place_id=place_id)
+        return _query_geocoding_rows(
+            connection, limit=limit, place_id=place_id, published_only=published_only
+        )
 
 
 def export_geocoding_inputs(
@@ -296,10 +310,13 @@ def geocode_verified_addresses(
     limit: int = 10,
     place_id: str | None = None,
     dry_run: bool = False,
+    published_only: bool = True,
 ) -> dict[str, object]:
     if limit < 1:
         raise ValueError("limit must be at least 1")
-    rows = _select_geocoding_rows(db_path, limit=limit, place_id=place_id)
+    rows = _select_geocoding_rows(
+        db_path, limit=limit, place_id=place_id, published_only=published_only
+    )
     reports: list[dict[str, object]] = []
     for row in rows:
         raw_address = str(
@@ -312,6 +329,17 @@ def geocode_verified_addresses(
                 place_id=str(row["place_id"]),
                 input_fingerprint=str(expected_input["input_fingerprint"]),
             )
+        except AddressGeocoderLookupError as exc:
+            reports.append(
+                {
+                    "place_id": row["place_id"],
+                    "status": "geocoding_failed",
+                    "reasons": [exc.status],
+                    "warnings": list(exc.warnings),
+                    "error": str(exc),
+                }
+            )
+            continue
         except TypeError:
             result = geocoder.geocode(raw_address)
         if result is None:
@@ -402,7 +430,10 @@ def geocode_verified_addresses(
         try:
             connection.execute("BEGIN IMMEDIATE")
             current_rows = _query_geocoding_rows(
-                connection, limit=1, place_id=str(row["place_id"])
+                connection,
+                limit=1,
+                place_id=str(row["place_id"]),
+                published_only=published_only,
             )
             if not current_rows:
                 connection.rollback()

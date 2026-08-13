@@ -1,4 +1,12 @@
-from fiyu.public_score import FiyuEvidence, InternalSignals, calculate_fiyu_score
+import pytest
+
+from fiyu.public_score import (
+    FiyuEvidence,
+    InternalSignals,
+    assess_chain_classification,
+    assess_publication_conflict,
+    calculate_fiyu_score,
+)
 
 
 def test_strong_local_independent_restaurant_scores_well() -> None:
@@ -54,6 +62,7 @@ def test_chain_is_not_publishable() -> None:
         japanese_source_count=5,
         tourist_coverage="low",
         likely_chain=True,
+        chain_classification="large_chain_or_franchise",
         known_location_count=20,
         total_evidence_sources=6,
     )
@@ -61,3 +70,228 @@ def test_chain_is_not_publishable() -> None:
     result = calculate_fiyu_score(evidence, internal)
     assert result.publishable is False
     assert result.independence_signal < 30
+
+
+def _chain_evidence(**overrides):
+    values = {
+        "matched_restaurant": True,
+        "identity_confidence": 0.95,
+        "total_evidence_sources": 4,
+        "known_location_count": 1,
+        "specialist_restaurant": True,
+    }
+    values.update(overrides)
+    return FiyuEvidence(**values)
+
+
+@pytest.mark.parametrize(
+    ("structured", "classification", "excluded"),
+    [
+        (
+            {"chain_evidence": ["A single independent restaurant with no multi-venue affiliation."]},
+            "independent_single",
+            False,
+        ),
+        (
+            {
+                "restaurant_group_affiliated": True,
+                "chain_evidence": ["A small hospitality group operating multiple distinct concepts."],
+            },
+            "small_group_distinct_concept",
+            False,
+        ),
+        (
+            {
+                "restaurant_group_affiliated": True,
+                "chain_evidence": ["A chef group with three differently named restaurants."],
+            },
+            "small_group_distinct_concept",
+            False,
+        ),
+        (
+            {"chain_evidence": ["The same-brand locations have a substantially replicated menu."]},
+            "small_same_brand_chain",
+            True,
+        ),
+        (
+            {"chain_evidence": ["The restaurant is operated as a franchise."]},
+            "large_chain_or_franchise",
+            True,
+        ),
+        (
+            {"chain_evidence": ["This is a large standardized chain."]},
+            "large_chain_or_franchise",
+            True,
+        ),
+        (
+            {
+                "chain_evidence": [
+                    "Explicit branch terminology identifies repeated branches of the same concept."
+                ]
+            },
+            "small_same_brand_chain",
+            True,
+        ),
+    ],
+)
+def test_chain_behavior_is_classified_from_explicit_evidence(
+    structured, classification, excluded
+):
+    result = assess_chain_classification(_chain_evidence(), structured)
+    assert result.classification == classification
+    assert result.excluded is excluded
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Part of the Kiku restaurant group.",
+        "The restaurant has the same parent company as another venue.",
+    ],
+)
+def test_ownership_affiliation_alone_is_not_chain_excluded(text):
+    result = assess_chain_classification(
+        _chain_evidence(likely_chain=True), {"chain_evidence": [text]}
+    )
+    assert result.group_affiliated is True
+    assert result.classification == "unknown"
+    assert result.excluded is False
+
+
+def test_unknown_chain_evidence_stays_unknown_without_fabrication():
+    result = assess_chain_classification(_chain_evidence(), {})
+    assert result.classification == "unknown"
+    assert result.excluded is False
+
+
+def test_small_group_distinct_concept_has_reduced_but_nonblocking_independence():
+    evidence = _chain_evidence(
+        restaurant_group_affiliated=True,
+        chain_classification="small_group_distinct_concept",
+        known_location_count=2,
+    )
+    score = calculate_fiyu_score(evidence, InternalSignals(80, 80, 80))
+    assert 70 < score.independence_signal < 100
+    assert score.chain_excluded is False
+    assert score.publishable is True
+
+
+def _conflicting_evidence():
+    return FiyuEvidence(
+        matched_restaurant=True,
+        identity_confidence=0.98,
+        total_evidence_sources=4,
+        conflicting_evidence=True,
+    )
+
+
+def _structured(warning, **address):
+    return {
+        "address_evidence": {
+            "identity_status": "confirmed",
+            "branch_name": None,
+            "conflicting_address_candidates": [],
+            "warnings": [warning],
+            **address,
+        }
+    }
+
+
+@pytest.mark.parametrize(
+    "warning",
+    [
+        "Sources disagree on the holiday schedule; this is an operational conflict only.",
+        "Opening hours differ between listings.",
+        "Pricing differs between otherwise matching sources.",
+        "Menu availability differs by source.",
+    ],
+)
+def test_explicit_operational_conflicts_do_not_block_publication(warning):
+    result = assess_publication_conflict(_conflicting_evidence(), _structured(warning))
+    assert result.classification == "non_material_operational"
+    assert result.blocking_conflict is False
+
+
+def test_phone_difference_explicitly_not_affecting_address_is_non_material():
+    result = assess_publication_conflict(
+        _conflicting_evidence(),
+        _structured(
+            "Phone numbers differ across controlled pages, but this does not alter "
+            "the address match."
+        ),
+    )
+    assert result.classification == "non_material_operational"
+    assert result.blocking_conflict is False
+
+
+def test_navigation_only_address_candidate_does_not_block_score_policy():
+    result = assess_publication_conflict(
+        _conflicting_evidence(),
+        _structured(
+            "Navigation address differs from the restaurant address.",
+            conflicting_address_candidates=[
+                {
+                    "address_raw": "1-6-4 Kojimachi",
+                    "summary": "Neighboring-building navigation reference, not the restaurant address.",
+                }
+            ],
+        ),
+    )
+    assert result.classification == "non_material_operational"
+    assert result.blocking_conflict is False
+
+
+@pytest.mark.parametrize(
+    "warning",
+    [
+        "Restaurant identity conflicts between sources.",
+        "Sources disagree on closure and continued existence.",
+        "Business type and category conflict.",
+        "Holiday schedule differs and restaurant identity conflicts.",
+    ],
+)
+def test_material_or_mixed_conflicts_block_publication(warning):
+    assert assess_publication_conflict(
+        _conflicting_evidence(), _structured(warning)
+    ).blocking_conflict
+
+
+def test_branch_and_address_conflicts_block_publication():
+    branch = assess_publication_conflict(
+        _conflicting_evidence(), _structured("Branch differs.", branch_name="Ginza")
+    )
+    address = assess_publication_conflict(
+        _conflicting_evidence(),
+        _structured(
+            "Addresses disagree.",
+            conflicting_address_candidates=[{"address_raw": "Tokyo"}],
+        ),
+    )
+    assert branch.blocking_conflict and address.blocking_conflict
+
+
+def test_unknown_legacy_conflict_defaults_to_blocking():
+    result = assess_publication_conflict(_conflicting_evidence(), {})
+    assert result.classification == "unknown"
+    assert result.blocking_conflict
+
+
+def test_no_conflict_never_blocks():
+    evidence = _conflicting_evidence()
+    evidence.conflicting_evidence = False
+    assert not assess_publication_conflict(evidence, {}).blocking_conflict
+
+
+def test_numeric_score_is_independent_from_conflict_publication_gate():
+    evidence = _conflicting_evidence()
+    internal = InternalSignals(80, 80, 80)
+    blocked = calculate_fiyu_score(evidence, internal)
+    operational = assess_publication_conflict(
+        evidence, _structured("Holiday schedule differs between sources.")
+    )
+    allowed = calculate_fiyu_score(
+        evidence, internal, conflict_assessment=operational
+    )
+    assert blocked.fiyu_score == allowed.fiyu_score
+    assert blocked.publishable is False
+    assert allowed.publishable is True

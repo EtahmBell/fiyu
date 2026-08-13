@@ -622,9 +622,12 @@ def main() -> None:
         print(json.dumps({"exported": count, "path": args.output}, indent=2))
     elif args.command in ("publish", "unpublish"):
         try:
-            set_publication_status(
-                db_path, args.place_id, published=args.command == "publish"
-            )
+            if args.command == "publish":
+                from .catalog_pipeline import publish_candidate
+
+                publish_candidate(db_path, args.place_id)
+            else:
+                set_publication_status(db_path, args.place_id, published=False)
         except ValueError as exc:
             raise SystemExit(str(exc)) from exc
         print(json.dumps({"place_id": args.place_id, "is_published": args.command == "publish"}))

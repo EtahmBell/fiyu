@@ -677,6 +677,126 @@ def test_japanese_hyphen_variants_compare_equally(variant):
 
 
 @pytest.mark.parametrize(
+    "variant",
+    ["2丁目27−16", "2丁目27-16", "2-chōme−27−１６", "2 Chome 27-16", "２丁目２７−１６"],
+)
+def test_japanese_and_romanized_chome_notation_compare_structurally(variant):
+    result = _result(
+        street_or_block="2-27-16",
+        address_raw="東京都台東区浅草2-27-16",
+    )
+    source = result.source_evidence[0].model_copy(
+        update={
+            "street_or_block": variant,
+            "address_text_as_displayed": f"東京都台東区浅草{variant}",
+        }
+    )
+    agreement = compare_address_components(
+        result.model_copy(update={"source_evidence": [source]})
+    )
+    assert agreement.street_or_block_agreement == "agrees"
+    assert agreement.material_conflicting_components == []
+
+
+@pytest.mark.parametrize("variant", ["2丁目28-16", "3丁目27-16", "2丁目27-18"])
+def test_structurally_different_japanese_address_numbers_still_conflict(variant):
+    result = _result(
+        street_or_block="2-27-16",
+        address_raw="東京都台東区浅草2-27-16",
+    )
+    source = result.source_evidence[0].model_copy(
+        update={
+            "street_or_block": variant,
+            "address_text_as_displayed": f"東京都台東区浅草{variant}",
+        }
+    )
+    agreement = compare_address_components(
+        result.model_copy(update={"source_evidence": [source]})
+    )
+    assert agreement.street_or_block_agreement == "conflicts"
+    assert agreement.material_conflicting_components == ["street_or_block"]
+
+
+def test_cross_language_tokyo_kojimachi_components_and_split_chome_agree():
+    result = _result(
+        prefecture="東京都",
+        municipality_or_ward="千代田区",
+        neighborhood="麹町1丁目",
+        street_or_block="6-30",
+        floor="1階",
+        address_raw="東京都千代田区麹町1丁目6-30 1階",
+    )
+    source = result.source_evidence[0].model_copy(
+        update={
+            "prefecture": "Tokyo Metropolis",
+            "municipality_or_ward": "Chiyoda Ward",
+            "neighborhood": "Kojimachi 1 Chome",
+            "street_or_block": "6-30",
+            "floor": "1F",
+            "address_text_as_displayed": (
+                "Kojimachi 1 Chome 6-30, Chiyoda Ward, Tokyo Metropolis 1F"
+            ),
+        }
+    )
+    second = source.model_copy(
+        update={
+            "neighborhood": "麹町",
+            "street_or_block": "1-6-30",
+            "address_text_as_displayed": "東京都千代田区麹町1-6-30 1F",
+        }
+    )
+    agreement = compare_address_components(
+        result.model_copy(update={"source_evidence": [source, second]})
+    )
+    assert agreement.prefecture_agreement == "agrees"
+    assert agreement.municipality_or_ward_agreement == "agrees"
+    assert agreement.neighborhood_agreement == "agrees"
+    assert agreement.street_or_block_agreement == "agrees"
+    assert agreement.floor_agreement == "agrees"
+
+
+def test_navigation_reference_is_preserved_but_excluded_from_conflict_voting():
+    navigation = ConflictingAddressCandidate(
+        address_raw="東京都千代田区麹町1-6-4 隣のビルになります。",
+        municipality_or_ward="千代田区",
+        neighborhood="麹町",
+        street_or_block="1-6-4",
+        summary="Neighboring-building navigation reference, not the restaurant address.",
+    )
+    result = _result(
+        municipality_or_ward="千代田区",
+        neighborhood="麹町",
+        street_or_block="1-6-30",
+        address_raw="東京都千代田区麹町1-6-30",
+        source_evidence=[],
+        conflicting_address_candidates=[navigation],
+    )
+    agreement = compare_address_components(result)
+    assert agreement.street_or_block_agreement != "conflicts"
+    assert agreement.excluded_non_address_evidence[0]["address_text"] == navigation.address_raw
+    assert result.conflicting_address_candidates[0] == navigation
+
+
+def test_real_alternate_restaurant_address_still_votes_as_a_conflict():
+    alternate = ConflictingAddressCandidate(
+        address_raw="東京都千代田区麹町1-6-31",
+        municipality_or_ward="千代田区",
+        neighborhood="麹町",
+        street_or_block="1-6-31",
+        summary="Alternate current restaurant address.",
+    )
+    result = _result(
+        municipality_or_ward="千代田区",
+        neighborhood="麹町",
+        street_or_block="1-6-30",
+        address_raw="東京都千代田区麹町1-6-30",
+        source_evidence=[],
+        conflicting_address_candidates=[alternate],
+    )
+    assert compare_address_components(result).street_or_block_agreement == "conflicts"
+
+
+@pytest.mark.parametrize(
     ("first", "second"),
     [("1階", "1F"), ("地下1階", "B1F")],
 )
