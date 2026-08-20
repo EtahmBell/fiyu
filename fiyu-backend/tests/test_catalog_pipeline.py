@@ -879,6 +879,59 @@ def test_batch_isolates_failures_and_reports_publication(monkeypatch, tmp_path):
     assert result["published"] == 1
 
 
+def test_batch_summary_reports_scores_location_enrichment_and_usage(monkeypatch, tmp_path):
+    path = _db(tmp_path)
+    import fiyu.catalog_pipeline as pipeline
+
+    monkeypatch.setattr(
+        pipeline,
+        "run_candidate_pipeline",
+        lambda *_args, **_kwargs: {
+            "place_id": "place-1",
+            "published": True,
+            "publication": {"outcome": "published"},
+            "research": {
+                "responses_requests": 1,
+                "web_search_actions": 3,
+                "token_usage": {
+                    "input_tokens": 100,
+                    "output_tokens": 20,
+                    "total_tokens": 120,
+                },
+            },
+            "low_footprint_research": {
+                "responses_requests": 0,
+                "web_search_actions": 0,
+            },
+            "cost": {
+                "address_fallback_responses_requests": 0,
+                "address_fallback_web_search_actions": 0,
+            },
+            "candidate": {
+                "fiyu_score": 82.5,
+                "score_band": "strong",
+                "local_discovery_score": 71.0,
+                "local_discovery_classification": "local_discovery",
+                "low_footprint_route_eligible": False,
+                "low_footprint_research_attempted": False,
+                "location_precision": "exact",
+                "card_enrichment_json": "{}",
+            },
+        },
+    )
+    result = run_pipeline_batch(path, osm_index="poi.sqlite", limit=1)
+    summary = result["batch_summary"]
+    assert summary["fiyu_score"]["average"] == 82.5
+    assert summary["local_discovery_classifications"] == {"local_discovery": 1}
+    assert summary["location_precision"] == {"exact": 1}
+    assert summary["card_enrichment_completeness"] == {"sparse": 1}
+    assert summary["external_usage"] == {
+        "responses_requests": 1,
+        "web_search_actions": 3,
+        "token_usage": {"input_tokens": 100, "output_tokens": 20, "total_tokens": 120},
+    }
+
+
 def test_batch_resume_skips_already_terminal_candidates(monkeypatch, tmp_path):
     path = _db(tmp_path)
     with connect(path) as connection:

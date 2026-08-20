@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections import Counter
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -1579,6 +1580,7 @@ def inspect_candidate(db_path: str | Path, place_id: str) -> dict[str, object]:
         "normalized_address", "latitude", "longitude", "location_precision",
         "location_verification_status", "map_location_approximate",
         "map_display_eligible", "location_source_reference", "location_attempted_at",
+        "card_enrichment_json", "enrichment_updated_at",
     )
     result = {field: row.get(field) for field in fields}
     result["readiness"] = publish_readiness(db_path, place_id).to_dict()
@@ -1740,6 +1742,86 @@ def run_pipeline_batch(
             failures.append(
                 {"place_id": current_id, "error": f"{type(exc).__name__}: {exc}"}
             )
+    candidates = [
+        item["candidate"]
+        for item in results
+        if isinstance(item.get("candidate"), dict)
+    ]
+
+    def distribution(field: str) -> dict[str, int]:
+        return dict(
+            sorted(
+                Counter(str(item.get(field) or "unknown") for item in candidates).items()
+            )
+        )
+
+    def score_distribution(field: str) -> dict[str, object]:
+        values = [float(item[field]) for item in candidates if item.get(field) is not None]
+        return {
+            "count": len(values),
+            "minimum": min(values) if values else None,
+            "average": round(sum(values) / len(values), 2) if values else None,
+            "maximum": max(values) if values else None,
+        }
+
+    from .card_enrichment import CardEnrichment, classify_enrichment
+
+    enrichment_classes: Counter[str] = Counter()
+    for candidate in candidates:
+        try:
+            enrichment = CardEnrichment.model_validate_json(
+                str(candidate.get("card_enrichment_json") or "{}")
+            )
+            classification, _ = classify_enrichment(enrichment)
+        except ValueError:
+            classification = "sparse"
+        enrichment_classes[classification] += 1
+
+    total_cost = {
+        "responses_requests": 0,
+        "web_search_actions": 0,
+        "token_usage": {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0},
+    }
+    for item in results:
+        research = item.get("research") if isinstance(item.get("research"), dict) else {}
+        low = (
+            item.get("low_footprint_research")
+            if isinstance(item.get("low_footprint_research"), dict)
+            else {}
+        )
+        cost = item.get("cost") if isinstance(item.get("cost"), dict) else {}
+        total_cost["responses_requests"] += int(research.get("responses_requests", 0))
+        total_cost["responses_requests"] += int(low.get("responses_requests", 0))
+        total_cost["responses_requests"] += int(
+            cost.get("address_fallback_responses_requests", 0)
+        )
+        total_cost["web_search_actions"] += int(research.get("web_search_actions", 0))
+        total_cost["web_search_actions"] += int(low.get("web_search_actions", 0))
+        total_cost["web_search_actions"] += int(
+            cost.get("address_fallback_web_search_actions", 0)
+        )
+        research_usage = research.get("token_usage", {})
+        low_usage = low.get("token_usage", {})
+        for key in total_cost["token_usage"]:
+            total_cost["token_usage"][key] += int(research_usage.get(key, 0) or 0)
+            total_cost["token_usage"][key] += int(low_usage.get(key, 0) or 0)
+
+    batch_summary = {
+        "fiyu_score": score_distribution("fiyu_score"),
+        "fiyu_score_bands": distribution("score_band"),
+        "local_discovery_score": score_distribution("local_discovery_score"),
+        "local_discovery_classifications": distribution(
+            "local_discovery_classification"
+        ),
+        "low_footprint_triggers": {
+            "eligible": sum(bool(item.get("low_footprint_route_eligible")) for item in candidates),
+            "attempted": sum(bool(item.get("low_footprint_research_attempted")) for item in candidates),
+            "reasons": distribution("low_footprint_trigger_reason"),
+        },
+        "location_precision": distribution("location_precision"),
+        "card_enrichment_completeness": dict(sorted(enrichment_classes.items())),
+        "external_usage": total_cost,
+    }
     return {
         "selected": len(rows),
         "completed": len(results),
@@ -1752,4 +1834,5 @@ def run_pipeline_batch(
         ),
         "results": results,
         "failures": failures,
+        "batch_summary": batch_summary,
     }

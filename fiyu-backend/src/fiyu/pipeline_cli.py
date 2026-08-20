@@ -104,7 +104,17 @@ def _parser() -> argparse.ArgumentParser:
     backfill_enrichment.add_argument("--phase", choices=("local", "research"), default="local")
     backfill_enrichment.add_argument("--limit", type=int, default=1000)
     backfill_enrichment.add_argument("--model")
+    backfill_enrichment.add_argument("--place-id")
+    backfill_enrichment.add_argument("--min-fiyu-score", type=float)
+    backfill_enrichment.add_argument("--retry-failed", action="store_true")
     backfill_enrichment.add_argument("--dry-run", action="store_true")
+
+    retry_enrichment = commands.add_parser(
+        "retry-card-enrichment",
+        help="Explicitly authorize retry of one ambiguous targeted enrichment request",
+    )
+    retry_enrichment.add_argument("--place-id", required=True)
+    retry_enrichment.add_argument("--dry-run", action="store_true")
 
     review = commands.add_parser("review")
     review.add_argument("--place-id", required=True)
@@ -204,7 +214,14 @@ def main() -> None:
             dry_run=args.dry_run,
             limit=args.limit,
             model=args.model,
+            place_id=args.place_id,
+            min_fiyu_score=args.min_fiyu_score,
+            retry_failed=args.retry_failed,
         )
+    elif args.command == "retry-card-enrichment":
+        from .card_enrichment import authorize_card_enrichment_retry
+
+        result = authorize_card_enrichment_retry(db, args.place_id, dry_run=args.dry_run)
     elif args.command == "review":
         result = inspect_candidate(db, args.place_id)
     elif args.command in {"approve", "reject"}:

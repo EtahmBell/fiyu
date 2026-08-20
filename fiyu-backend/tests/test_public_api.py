@@ -240,7 +240,10 @@ def test_public_card_enrichment_omits_internal_source_provenance(public_db):
                             "sentiment": "positive",
                             "supporting_source_count": 2,
                             "confidence": 0.8,
-                            "source_urls": ["https://internal.example/a"],
+                            "source_urls": [
+                                "https://internal.example/a",
+                                "https://internal.example/a-2",
+                            ],
                         }
                     ]
                 ),

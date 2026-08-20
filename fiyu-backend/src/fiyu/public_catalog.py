@@ -1716,18 +1716,29 @@ def _safe_public_rows(
                 item[target] = []
         try:
             themes = json.loads(item.pop("review_themes_json") or "[]")
-            item["review_themes"] = (
-                [
-                    {
-                        key: theme.get(key)
-                        for key in ("theme", "sentiment", "supporting_source_count", "confidence")
-                    }
-                    for theme in themes
-                    if isinstance(theme, dict)
-                ]
-                if isinstance(themes, list)
-                else []
-            )
+            from .card_enrichment import ReviewTheme
+
+            public_themes: list[dict[str, object]] = []
+            if isinstance(themes, list):
+                for theme in themes:
+                    if not isinstance(theme, dict):
+                        continue
+                    try:
+                        validated = ReviewTheme.model_validate(theme)
+                    except ValueError:
+                        continue
+                    public_themes.append(
+                        {
+                            key: getattr(validated, key)
+                            for key in (
+                                "theme",
+                                "sentiment",
+                                "supporting_source_count",
+                                "confidence",
+                            )
+                        }
+                    )
+            item["review_themes"] = public_themes
         except json.JSONDecodeError:
             item["review_themes"] = []
         try:

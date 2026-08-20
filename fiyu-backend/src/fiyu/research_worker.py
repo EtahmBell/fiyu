@@ -15,6 +15,7 @@ from .address_research import (
     DEFAULT_MAX_SEARCH_ACTIONS,
     AddressResearchResult,
     combined_address_call,
+    extract_response_metadata,
     fail_address_run,
     generate_address_queries,
     persist_address_call,
@@ -301,6 +302,8 @@ def run_research_batch(
     failed = 0
     address_accepted = 0
     address_needs_fallback = 0
+    web_search_actions = 0
+    token_usage = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
 
     for candidate in queue:
         place_id = str(candidate["place_id"])
@@ -328,6 +331,12 @@ def run_research_batch(
         )
         try:
             response = _research_response(candidate, client=client, model=selected_model)
+            response_metadata = extract_response_metadata(
+                response, fallback_model=selected_model
+            )
+            web_search_actions += response_metadata.web_search_action_count
+            for key in token_usage:
+                token_usage[key] += int(response_metadata.usage_metadata.get(key, 0) or 0)
             parsed = getattr(response, "output_parsed", None)
             if parsed is None:
                 raise RuntimeError("OpenAI returned no parsed research result")
@@ -423,6 +432,8 @@ def run_research_batch(
         "completed": completed,
         "failed": failed,
         "responses_requests": len(queue),
+        "web_search_actions": web_search_actions,
+        "token_usage": token_usage,
         "address_accepted": address_accepted,
         "address_needs_fallback": address_needs_fallback,
     }

@@ -12,6 +12,7 @@ from fiyu.card_enrichment import (
     PracticalInfo,
     ReservationInfo,
     ReviewTheme,
+    authorize_card_enrichment_retry,
     backfill_card_enrichment,
     compact_card_description,
     enrichment_completeness,
@@ -130,6 +131,36 @@ def _db(tmp_path):
     return path
 
 
+def _add_published(path, place_id, *, score, local_score, card_description=None):
+    with connect(path) as connection:
+        connection.execute(
+            """INSERT INTO restaurants
+               (place_id, title, rating, review_count, quality_score,
+                underexposure_score, digital_footprint_score)
+               VALUES (?, ?, 4.5, 20, 80, 80, 80)""",
+            (place_id, place_id.title()),
+        )
+        connection.execute(
+            """INSERT INTO public_restaurants (
+                place_id, name_en, card_description, card_enrichment_json,
+                fiyu_score, local_discovery_score, research_status, is_published,
+                created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, 'complete', 1, 'now', 'now')""",
+            (
+                place_id,
+                place_id.title(),
+                card_description,
+                CardEnrichment(
+                    card_description=card_description,
+                    card_description_confidence=0.8 if card_description else None,
+                ).model_dump_json(),
+                score,
+                local_score,
+            ),
+        )
+        connection.commit()
+
+
 def test_card_description_is_compact_and_rejects_promotional_copy():
     source = (
         "A compact six-seat neighborhood sushi counter serving traditional Edomae sushi. "
@@ -171,6 +202,37 @@ def test_specific_review_themes_survive_and_weak_or_generic_themes_are_filtered(
     assert "review_text" not in enrichment.model_dump_json()
 
 
+def test_malformed_or_mechanically_clipped_review_themes_are_filtered():
+    enrichment = CardEnrichment.model_validate(
+        {
+            "review_themes": [
+                {
+                    "theme": "charcoal-grilled skewers and",
+                    "sentiment": "positive",
+                    "supporting_source_count": 2,
+                    "confidence": 0.8,
+                    "source_urls": ["https://a.example", "https://b.example"],
+                },
+                {
+                    "theme": "quiet counter atmosphere客層",
+                    "sentiment": "practical",
+                    "supporting_source_count": 2,
+                    "confidence": 0.8,
+                    "source_urls": ["https://a.example", "https://b.example"],
+                },
+                {
+                    "theme": "quiet counter atmosphere",
+                    "sentiment": "practical",
+                    "supporting_source_count": 2,
+                    "confidence": 0.8,
+                    "source_urls": ["https://a.example", "https://b.example"],
+                },
+            ]
+        }
+    )
+    assert [item.theme for item in enrichment.review_themes] == ["quiet counter atmosphere"]
+
+
 def test_review_theme_schema_forbids_copied_review_text():
     with pytest.raises(ValidationError):
         ReviewTheme.model_validate(
@@ -206,6 +268,16 @@ def test_practical_info_keeps_unknowns_and_equal_conflicts_become_unknown():
     assert PracticalInfo().seating.counter is None
 
 
+def test_practical_notes_do_not_publish_clipped_fragments():
+    info = PracticalInfo(
+        other=[
+            "Reservations are provisional until restaurant",
+            "Telephone reservations are available.",
+        ]
+    )
+    assert info.other == ["Telephone reservations are available."]
+
+
 def test_hours_normalize_split_service_closed_days_and_display():
     hours = _hours()
     assert hours.monday.status == "closed"
@@ -217,6 +289,26 @@ def test_hours_normalize_split_service_closed_days_and_display():
 def test_irregular_and_reservation_only_hours_have_deterministic_display():
     assert format_opening_hours(OpeningHours(tuesday=DayHours(status="irregular"))) == "Hours vary"
     assert format_opening_hours(OpeningHours(reservation_only=True)) == "Reservation only"
+
+
+def test_irregular_hours_preserve_periods_and_ambiguous_last_order_becomes_unknown():
+    hours = OpeningHours.model_validate(
+        {
+            "monday": {
+                "status": "irregular",
+                "periods": [
+                    {
+                        "open": "17:00",
+                        "close": "23:00",
+                        "last_order": "food 21:00; drinks 21:30",
+                    }
+                ],
+            }
+        }
+    )
+    assert hours.monday.status == "irregular"
+    assert hours.monday.periods[0].last_order is None
+    assert format_opening_hours(hours) == "Hours vary"
 
 
 def test_newer_official_hours_supersede_older_directory_hours():
@@ -356,6 +448,94 @@ def test_already_complete_restaurant_is_skipped_by_paid_plan(tmp_path):
     assert plan["maximum_responses_requests"] == 0
 
 
+def test_paid_batch_limit_and_priority_order_are_deterministic(tmp_path):
+    path = _db(tmp_path)
+    _add_published(path, "missing-high", score=95, local_score=70)
+    _add_published(path, "missing-local", score=90, local_score=95)
+    _add_published(
+        path,
+        "described-top",
+        score=99,
+        local_score=99,
+        card_description="Compact documented restaurant description.",
+    )
+    plan = backfill_card_enrichment(path, phase="research", dry_run=True, limit=2)
+    assert plan["maximum_responses_requests"] == 2
+    assert [item["place_id"] for item in plan["selected_candidates"]] == [
+        "missing-high",
+        "missing-local",
+    ]
+    assert plan["selected_candidates"][0]["missing_categories"] == [
+        "card_description",
+        "review_themes",
+        "practical_info",
+        "opening_hours",
+    ]
+
+
+def test_completed_batch_naturally_advances_to_next_candidate(tmp_path):
+    path = _db(tmp_path)
+    _add_published(path, "first", score=99, local_score=90)
+    _add_published(path, "second", score=98, local_score=90)
+    _add_published(path, "third", score=97, local_score=90)
+
+    class Response:
+        output_parsed = _complete_enrichment()
+        id = "batch-response"
+        model = "test-model"
+        output = ()
+        usage = None
+
+    class Responses:
+        def parse(self, **_kwargs):
+            return Response()
+
+    class Client:
+        responses = Responses()
+
+    first = backfill_card_enrichment(
+        path, phase="research", limit=2, client=Client(), model="test-model"
+    )
+    first_ids = [item["place_id"] for item in first["selected_candidates"]]
+    next_plan = backfill_card_enrichment(path, phase="research", limit=2, dry_run=True)
+    next_ids = [item["place_id"] for item in next_plan["selected_candidates"]]
+    assert set(first_ids).isdisjoint(next_ids)
+    assert "third" in next_ids
+
+
+def test_one_failed_restaurant_does_not_stop_paid_batch(tmp_path):
+    path = _db(tmp_path)
+    _add_published(path, "failure-a", score=99, local_score=90)
+    _add_published(path, "success-b", score=98, local_score=90)
+
+    class Response:
+        output_parsed = _complete_enrichment()
+        id = "success"
+        model = "test-model"
+        output = ()
+        usage = None
+
+    class Responses:
+        calls = 0
+
+        def parse(self, **_kwargs):
+            self.calls += 1
+            if self.calls == 1:
+                raise ValueError("known request failure")
+            return Response()
+
+    class Client:
+        responses = Responses()
+
+    result = backfill_card_enrichment(
+        path, phase="research", limit=2, client=Client(), model="test-model"
+    )
+    assert [item["status"] for item in result["results"]] == ["failed", "complete"]
+    assert result["responses_requests"] == 2
+    assert result["successful_runs"] == 1
+    assert result["failed_runs"] == 1
+
+
 def test_ambiguous_paid_backfill_is_not_automatically_duplicated(tmp_path):
     path = _db(tmp_path)
 
@@ -379,6 +559,17 @@ def test_ambiguous_paid_backfill_is_not_automatically_duplicated(tmp_path):
             ).fetchone()[0]
             == 1
         )
+    preview = authorize_card_enrichment_retry(path, "published", dry_run=True)
+    assert preview["new_status"] == "retry_authorized"
+    assert (
+        backfill_card_enrichment(path, phase="research", dry_run=True)["maximum_responses_requests"]
+        == 0
+    )
+    authorize_card_enrichment_retry(path, "published")
+    assert (
+        backfill_card_enrichment(path, phase="research", dry_run=True)["maximum_responses_requests"]
+        == 1
+    )
 
 
 def test_explicit_failed_paid_backfill_can_be_resumed_by_operator(tmp_path):
@@ -393,7 +584,11 @@ def test_explicit_failed_paid_backfill_can_be_resumed_by_operator(tmp_path):
 
     result = backfill_card_enrichment(path, phase="research", client=Client(), limit=1)
     assert result["results"][0]["status"] == "failed"
-    retry_plan = backfill_card_enrichment(path, phase="research", dry_run=True)
+    assert (
+        backfill_card_enrichment(path, phase="research", dry_run=True)["maximum_responses_requests"]
+        == 0
+    )
+    retry_plan = backfill_card_enrichment(path, phase="research", dry_run=True, retry_failed=True)
     assert retry_plan["maximum_responses_requests"] == 1
 
 

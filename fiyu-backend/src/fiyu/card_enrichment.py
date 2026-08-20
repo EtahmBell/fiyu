@@ -41,6 +41,15 @@ _PROMOTIONAL = re.compile(
     r"\b(amazing|must[- ]visit|hidden gem|best|world[- ]class|unmissable)\b",
     re.IGNORECASE,
 )
+_THEME_DANGLING_END = re.compile(
+    r"\b(?:a|an|and|including|of|or|the|to|with)$", re.IGNORECASE
+)
+_THEME_UNEXPECTED_SCRIPT = re.compile(
+    r"[\u0600-\u06ff\u200b-\u200f\u3000-\u30ff\u3400-\u9fff\uac00-\ud7af]"
+)
+_INCOMPLETE_FACT_END = re.compile(
+    r"\b(?:although|because|despite|if|unless|until|while)\s+\w+$", re.IGNORECASE
+)
 
 
 def _clean_http_urls(values: list[str]) -> list[str]:
@@ -85,7 +94,7 @@ class EnrichmentSource(BaseModel):
 class ReviewTheme(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    theme: str = Field(min_length=3, max_length=90)
+    theme: str = Field(min_length=3, max_length=120)
     sentiment: Literal["positive", "practical", "mixed"]
     supporting_source_count: int = Field(ge=1, le=20)
     confidence: float = Field(ge=0, le=1)
@@ -97,6 +106,13 @@ class ReviewTheme(BaseModel):
         value = " ".join(value.split()).strip(" .")
         if _GENERIC_THEME.fullmatch(value):
             raise ValueError("review theme is too generic")
+        if len(value) > 84:
+            raise ValueError("review theme is too long for a compact complete phrase")
+        if _THEME_DANGLING_END.search(value) or _THEME_UNEXPECTED_SCRIPT.search(value):
+            raise ValueError("review theme appears incomplete or malformed")
+        final_word = re.search(r"([A-Za-z]+)$", value)
+        if final_word and len(final_word.group(1)) == 1:
+            raise ValueError("review theme appears mechanically truncated")
         return value
 
     @model_validator(mode="after")
@@ -169,9 +185,17 @@ class PracticalInfo(BaseModel):
     @field_validator("other")
     @classmethod
     def clean_other(cls, values: list[str]) -> list[str]:
-        return list(
-            dict.fromkeys(" ".join(value.split())[:120] for value in values if value.strip())
-        )
+        cleaned: list[str] = []
+        for value in values:
+            fact = " ".join(value.split()).strip()
+            if not fact or _INCOMPLETE_FACT_END.search(fact):
+                continue
+            if len(fact) > 180:
+                shortened = fact[:181].rsplit(" ", 1)[0].rstrip(" ,;:")
+                fact = f"{shortened}."
+            if fact not in cleaned:
+                cleaned.append(fact)
+        return cleaned
 
     @field_validator("source_urls")
     @classmethod
@@ -186,6 +210,18 @@ class HoursPeriod(BaseModel):
     close: str
     label: Literal["lunch", "dinner", "late_night", "other"] | None = None
     last_order: str | None = None
+
+    @field_validator("last_order", mode="before")
+    @classmethod
+    def discard_ambiguous_last_order(cls, value: object) -> object:
+        # A combined value such as "food 21:00; drinks 21:30" cannot be mapped
+        # safely to the schema's single last-order field. Preserve the periods
+        # and conflicts while leaving this optional field unknown.
+        if isinstance(value, str) and not re.fullmatch(
+            r"(?:[01]\d|2[0-9]):[0-5]\d", value.strip()
+        ):
+            return None
+        return value
 
     @field_validator("open", "close", "last_order")
     @classmethod
@@ -207,8 +243,8 @@ class DayHours(BaseModel):
     def validate_periods(self) -> DayHours:
         if self.status == "open" and not self.periods:
             raise ValueError("open day requires at least one period")
-        if self.status != "open" and self.periods:
-            raise ValueError("only open days may contain periods")
+        if self.status in {"closed", "unknown"} and self.periods:
+            raise ValueError("closed or unknown days may not contain periods")
         return self
 
 
@@ -272,9 +308,15 @@ class CardEnrichment(BaseModel):
                 if isinstance(value, dict)
                 else getattr(value, "supporting_source_count", 0)
             )
+            cleaned_theme = " ".join(str(theme).split()).strip(" .")
+            final_word = re.search(r"([A-Za-z]+)$", cleaned_theme)
             if (
                 theme
-                and not _GENERIC_THEME.fullmatch(" ".join(str(theme).split()).strip(" ."))
+                and not _GENERIC_THEME.fullmatch(cleaned_theme)
+                and len(cleaned_theme) <= 84
+                and not _THEME_DANGLING_END.search(cleaned_theme)
+                and not _THEME_UNEXPECTED_SCRIPT.search(cleaned_theme)
+                and not (final_word and len(final_word.group(1)) == 1)
                 and int(source_count or 0) >= 2
                 and len(set(source_urls or [])) >= 2
             ):
@@ -533,6 +575,36 @@ def enrichment_completeness(enrichment: CardEnrichment) -> dict[str, object]:
     }
 
 
+def missing_enrichment_categories(enrichment: CardEnrichment) -> list[str]:
+    complete = enrichment_completeness(enrichment)
+    return [
+        field
+        for field in (
+            "card_description",
+            "review_themes",
+            "practical_info",
+            "opening_hours",
+        )
+        if not complete[field]
+    ]
+
+
+def classify_enrichment(enrichment: CardEnrichment) -> tuple[str, str]:
+    complete = enrichment_completeness(enrichment)
+    if all(
+        complete[field]
+        for field in ("card_description", "review_themes", "practical_info", "opening_hours")
+    ):
+        return "strong", "Description, review themes, practical information, and hours are usable."
+    if complete["complete_enough"]:
+        return (
+            "usable",
+            "Description, hours, and at least one useful decision-support layer are present.",
+        )
+    missing = missing_enrichment_categories(enrichment)
+    return "sparse", f"Missing: {', '.join(missing)}."
+
+
 def enrichment_from_structured_research(
     structured: dict[str, object], *, fallback_description: str | None = None
 ) -> CardEnrichment:
@@ -653,33 +725,55 @@ def persist_card_enrichment(
 
 TARGETED_ENRICHMENT_INSTRUCTIONS = """Research user-facing card enrichment for this exact restaurant.
 Do not score, classify, locate, or assess publication. Synthesize review themes without copying review
-text and require two independent supporting sources for each theme. Prefer official current sources for
+text and require two independent supporting sources for each theme. Each theme must be a complete,
+compact English phrase, preferably under 72 characters; never clip a word or sentence to fit. Prefer official current sources for
 hours, then official social, current reservation platforms, and reputable Japanese directories. Never
 use Google-derived hours or Google review content. Unknown facts must remain unknown. The compact
 description must be concrete, restrained English, normally 80-160 characters, with no superlatives.
+Every practical-info note must also be a complete concise sentence, never a clipped fragment.
 Return the canonical CardEnrichment schema and preserve source URLs, confidence, checked_at, and any
 unresolved disagreement. Search only what is missing from the supplied persisted evidence."""
 
 
-def _backfill_rows(db_path: str | Path) -> list[dict[str, object]]:
+def _backfill_rows(
+    db_path: str | Path,
+    *,
+    place_id: str | None = None,
+    min_fiyu_score: float | None = None,
+) -> list[dict[str, object]]:
+    conditions = ["p.is_published=1"]
+    parameters: list[object] = []
+    if place_id:
+        conditions.append("p.place_id=?")
+        parameters.append(place_id)
+    if min_fiyu_score is not None:
+        conditions.append("p.fiyu_score>=?")
+        parameters.append(min_fiyu_score)
     with connect(db_path) as connection:
         rows = connection.execute(
-            """
+            f"""
             SELECT p.place_id, p.name_ja, p.name_en, p.primary_category, p.description_en,
                    p.card_enrichment_json, p.fiyu_score, p.local_discovery_score,
                    p.is_published, p.latitude, p.longitude, p.location_precision,
                    p.food_tags_json, p.signature_dishes_json, p.evidence_urls_json,
+                   r.title AS candidate_title, r.neighborhood,
                    rr.id AS research_run_id, rr.structured_research_json, rr.prompt_version,
                    rr.created_at AS research_created_at
             FROM public_restaurants p
+            LEFT JOIN restaurants r ON r.place_id=p.place_id
             LEFT JOIN restaurant_research_runs rr ON rr.id=(
                 SELECT current.id FROM restaurant_research_runs current
                 WHERE current.public_restaurant_id=p.place_id AND current.status='complete'
                 ORDER BY current.is_current DESC, current.id DESC LIMIT 1
             )
-            WHERE p.is_published=1
-            ORDER BY p.place_id
-            """
+            WHERE {" AND ".join(conditions)}
+            ORDER BY
+                (p.card_description IS NULL OR trim(p.card_description)='') DESC,
+                p.fiyu_score DESC,
+                p.local_discovery_score DESC,
+                p.place_id
+            """,
+            parameters,
         ).fetchall()
     return [dict(row) for row in rows]
 
@@ -713,13 +807,16 @@ def backfill_card_enrichment(
     limit: int = 1000,
     model: str | None = None,
     client: OpenAI | None = None,
+    place_id: str | None = None,
+    min_fiyu_score: float | None = None,
+    retry_failed: bool = False,
 ) -> dict[str, object]:
     """Resumable published-only backfill. Paid work requires explicit phase='research'."""
 
     from .public_catalog import ensure_public_schema
 
     ensure_public_schema(db_path)
-    rows = _backfill_rows(db_path)[:limit]
+    rows = _backfill_rows(db_path, place_id=place_id, min_fiyu_score=min_fiyu_score)
     report: dict[str, object] = {
         "phase": phase,
         "dry_run": dry_run,
@@ -730,10 +827,12 @@ def backfill_card_enrichment(
         "requiring_targeted_research": [],
         "responses_requests": 0,
         "web_search_actions": 0,
+        "token_usage": {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0},
+        "selected_candidates": [],
         "results": [],
     }
     if phase == "local":
-        for row in rows:
+        for row in rows[:limit]:
             incoming, fingerprint = _phase_a_candidate(row)
             before = (
                 CardEnrichment.model_validate_json(row["card_enrichment_json"])
@@ -794,14 +893,18 @@ def backfill_card_enrichment(
             fingerprint = hashlib.sha256(
                 json.dumps(current.model_dump(mode="json"), sort_keys=True).encode("utf-8")
             ).hexdigest()
-            attempted = connection.execute(
-                """SELECT 1 FROM restaurant_card_enrichment_runs
+            latest_attempt = connection.execute(
+                """SELECT status FROM restaurant_card_enrichment_runs
                    WHERE public_restaurant_id=? AND phase='phase_b_research'
-                     AND input_fingerprint LIKE ?
-                     AND status IN ('complete','running','needs_retry')""",
-                (row["place_id"], f"{fingerprint}%"),
+                     AND prompt_version=?
+                   ORDER BY id DESC LIMIT 1""",
+                (row["place_id"], CARD_ENRICHMENT_PROMPT_VERSION),
             ).fetchone()
-            if not attempted:
+            latest_status = str(latest_attempt["status"]) if latest_attempt else None
+            eligible_after_attempt = latest_status is None or latest_status == "retry_authorized"
+            if retry_failed and latest_status == "failed":
+                eligible_after_attempt = True
+            if eligible_after_attempt:
                 prior_count = int(
                     connection.execute(
                         """SELECT count(*) FROM restaurant_card_enrichment_runs
@@ -814,7 +917,22 @@ def backfill_card_enrichment(
                     fingerprint if prior_count == 0 else f"{fingerprint}:attempt:{prior_count + 1}"
                 )
                 queue.append((row, current, fingerprint, attempt_fingerprint))
+    queue = queue[:limit]
     report["requiring_targeted_research"] = [str(row["place_id"]) for row, _, _, _ in queue]
+    report["selected_candidates"] = [
+        {
+            "name": row.get("name_en")
+            or row.get("name_ja")
+            or row.get("candidate_title")
+            or row["place_id"],
+            "place_id": row["place_id"],
+            "fiyu_score": row.get("fiyu_score"),
+            "local_discovery_score": row.get("local_discovery_score"),
+            "has_card_description": bool(current.card_description),
+            "missing_categories": missing_enrichment_categories(current),
+        }
+        for row, current, _, _ in queue
+    ]
     if dry_run:
         report["maximum_responses_requests"] = len(queue)
         report["maximum_web_search_actions"] = len(queue) * CARD_ENRICHMENT_MAX_SEARCH_ACTIONS
@@ -881,6 +999,11 @@ def backfill_card_enrichment(
             report["web_search_actions"] = (
                 int(report["web_search_actions"]) + metadata.web_search_action_count
             )
+            usage = metadata.usage_metadata
+            for key in ("input_tokens", "output_tokens", "total_tokens"):
+                report["token_usage"][key] = int(report["token_usage"][key]) + int(
+                    usage.get(key, 0) or 0
+                )
             with connect(db_path) as connection:
                 merged = persist_card_enrichment(
                     connection,
@@ -915,8 +1038,17 @@ def backfill_card_enrichment(
                     ),
                 )
                 connection.commit()
+            classification, explanation = classify_enrichment(merged)
             report["results"].append(
-                {"place_id": place_id, "status": "complete", **enrichment_completeness(merged)}
+                {
+                    "place_id": place_id,
+                    "name": row.get("name_en") or row.get("name_ja") or place_id,
+                    "status": "complete",
+                    "classification": classification,
+                    "classification_explanation": explanation,
+                    "missing_categories": missing_enrichment_categories(merged),
+                    **enrichment_completeness(merged),
+                }
             )
         except Exception as exc:  # noqa: BLE001 - preserve paid-attempt state.
             from .research_worker import _ambiguous_request_failure
@@ -928,5 +1060,57 @@ def backfill_card_enrichment(
                     (status, f"{type(exc).__name__}: {exc}"[:2000], utc_now(), run_id),
                 )
                 connection.commit()
-            report["results"].append({"place_id": place_id, "status": status})
+            report["results"].append(
+                {
+                    "place_id": place_id,
+                    "name": row.get("name_en") or row.get("name_ja") or place_id,
+                    "status": status,
+                    "classification": "needs_retry" if status == "needs_retry" else "sparse",
+                }
+            )
+    report["successful_runs"] = sum(item["status"] == "complete" for item in report["results"])
+    report["partial_runs"] = sum(
+        item["status"] == "complete" and not item.get("complete_enough", False)
+        for item in report["results"]
+    )
+    report["failed_runs"] = sum(item["status"] == "failed" for item in report["results"])
+    report["needs_retry_runs"] = sum(item["status"] == "needs_retry" for item in report["results"])
     return report
+
+
+def authorize_card_enrichment_retry(
+    db_path: str | Path, place_id: str, *, dry_run: bool = False
+) -> dict[str, object]:
+    """Explicitly release one ambiguous paid enrichment attempt for retry."""
+
+    from .public_catalog import ensure_public_schema
+
+    ensure_public_schema(db_path)
+    with connect(db_path) as connection:
+        row = connection.execute(
+            """SELECT id, status, prompt_version, created_at
+               FROM restaurant_card_enrichment_runs
+               WHERE public_restaurant_id=? AND phase='phase_b_research'
+                 AND prompt_version=?
+               ORDER BY id DESC LIMIT 1""",
+            (place_id, CARD_ENRICHMENT_PROMPT_VERSION),
+        ).fetchone()
+        if row is None:
+            raise ValueError("No targeted card-enrichment attempt exists for this restaurant")
+        if row["status"] != "needs_retry":
+            raise ValueError(f"Latest targeted enrichment is not ambiguous: {row['status']}")
+        result = {
+            "place_id": place_id,
+            "run_id": int(row["id"]),
+            "previous_status": row["status"],
+            "new_status": "retry_authorized",
+            "dry_run": dry_run,
+            "responses_requests": 0,
+        }
+        if not dry_run:
+            connection.execute(
+                "UPDATE restaurant_card_enrichment_runs SET status='retry_authorized' WHERE id=?",
+                (row["id"],),
+            )
+            connection.commit()
+        return result
