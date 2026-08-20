@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
+import random
 import re
 import sqlite3
 import tempfile
@@ -340,6 +342,55 @@ def polygon_point_on_surface(
                     if _point_in_polygon(latitude, longitude, outer, inners):
                         return latitude, longitude, "polygon_scanline_point_on_surface"
     raise ValueError("could not determine an interior representative point")
+
+
+def stable_point_within_polygon(
+    polygons: tuple[
+        tuple[tuple[tuple[float, float], ...], tuple[tuple[tuple[float, float], ...], ...]],
+        ...,
+    ],
+    place_id: str,
+    *,
+    central_bias: bool = True,
+) -> tuple[float, float, str]:
+    """Return a stable, distributed interior point for an approximate map pin."""
+
+    if not place_id:
+        raise ValueError("place_id is required for stable polygon placement")
+    center_latitude, center_longitude, _ = polygon_point_on_surface(polygons)
+    seed = int.from_bytes(
+        hashlib.sha256(place_id.encode("utf-8")).digest()[:8], "big"
+    )
+    generator = random.Random(seed)
+    ordered = sorted(
+        polygons,
+        key=lambda polygon: abs(sum(
+            first[1] * second[0] - second[1] * first[0]
+            for first, second in pairwise(
+                [*polygon[0], polygon[0][0]] if polygon[0] else []
+            )
+        )),
+        reverse=True,
+    )
+    for outer, inners in ordered:
+        if len(outer) < 3:
+            continue
+        min_latitude = min(point[0] for point in outer)
+        max_latitude = max(point[0] for point in outer)
+        min_longitude = min(point[1] for point in outer)
+        max_longitude = max(point[1] for point in outer)
+        for _ in range(192):
+            latitude = generator.uniform(min_latitude, max_latitude)
+            longitude = generator.uniform(min_longitude, max_longitude)
+            if central_bias:
+                # Pull candidates toward a known interior point without forcing a
+                # ring/grid pattern or sacrificing deterministic distribution.
+                weight = 0.45 + generator.random() * 0.25
+                latitude = center_latitude + (latitude - center_latitude) * weight
+                longitude = center_longitude + (longitude - center_longitude) * weight
+            if _point_in_polygon(latitude, longitude, outer, inners):
+                return latitude, longitude, "stable_polygon_interior_point"
+    return center_latitude, center_longitude, "polygon_point_on_surface_fallback"
 
 
 def _representative_point(

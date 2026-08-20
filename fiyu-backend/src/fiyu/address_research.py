@@ -20,11 +20,14 @@ from openai import APIConnectionError, APITimeoutError, OpenAI
 from openai.lib._pydantic import to_strict_json_schema
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from .address_identity import address_candidate_identity_relevant
 from .database import connect
 from .discovery_areas import TOKYO_WARD_NAMES, canonical_tokyo_ward, discovery_occurrences
 from .location_names import normalize_location_name
 from .osm_address_normalization import (
     canonical_tokyo_prefecture,
+    canonicalize_tokyo_address_components,
+    japanese_street_components_compatible,
     normalize_japanese_street_or_block,
     normalize_tokyo_neighborhood,
 )
@@ -787,14 +790,11 @@ def _canonicalize_address_observation(
     """Reconcile a chome split across neighborhood and street components."""
 
     canonical = dict(observation)
-    neighborhood, chome = normalize_tokyo_neighborhood(canonical.get("neighborhood"))
+    neighborhood, street = canonicalize_tokyo_address_components(
+        canonical.get("neighborhood"), canonical.get("street_or_block")
+    )
     if neighborhood:
         canonical["neighborhood"] = neighborhood
-    street = normalize_japanese_street_or_block(canonical.get("street_or_block"))
-    if chome and street:
-        parts = street.split("-")
-        if len(parts) < 3:
-            street = "-".join((chome, *parts))
     if street:
         canonical["street_or_block"] = street
     return canonical
@@ -1051,6 +1051,12 @@ def _agreement_state(values: list[str], component: str) -> AgreementState:
     distinct.discard("")
     if not distinct:
         return "missing"
+    if component == "street_or_block" and all(
+        japanese_street_components_compatible(first, second)
+        for first in distinct
+        for second in distinct
+    ):
+        return "agrees" if len(values) > 1 else "single_source"
     if len(distinct) > 1:
         return "conflicts"
     return "agrees" if len(values) > 1 else "single_source"
@@ -1095,7 +1101,17 @@ def compare_address_components(result: AddressResearchResult) -> AddressComponen
                 )
             )
     for conflict in result.conflicting_address_candidates:
-        if _is_non_address_reference(conflict):
+        if not address_candidate_identity_relevant(conflict):
+            excluded_non_address_evidence.append(
+                {
+                    "kind": "conflicting_address_candidate",
+                    "reason": "identity_irrelevant_alternate_address",
+                    "address_text": conflict.address_raw,
+                    "source_urls": list(conflict.source_urls),
+                    "summary": conflict.summary,
+                }
+            )
+        elif _is_non_address_reference(conflict):
             excluded_non_address_evidence.append(
                 {
                     "kind": "conflicting_address_candidate",
@@ -1230,17 +1246,6 @@ def evaluate_address_result(
         if branch and branch not in known_names:
             hard_blockers.append("unresolved_branch_ambiguity")
 
-    allowed_wards = {
-        ward
-        for area in _areas(candidate)
-        if (ward := canonical_tokyo_ward(area))
-    }
-    discovered_ward = _ward_in_text(
-        result.municipality_or_ward,
-        result.address_raw,
-    )
-    if allowed_wards and discovered_ward not in allowed_wards:
-        hard_blockers.append("address_ward_outside_reviewed_discovery_areas")
     if not _street_level(result):
         hard_blockers.append("address_is_not_explicit_street_level")
     if not agreement.core_address_verified:

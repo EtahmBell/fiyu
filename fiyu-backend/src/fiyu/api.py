@@ -148,6 +148,13 @@ class PublicRestaurantSummary(BaseModel):
     name_en: str | None = None
     category: str | None = None
     description_en: str | None = None
+    card_description: str | None = None
+    review_themes: list[dict[str, object]] = Field(default_factory=list)
+    practical_info: dict[str, object] = Field(default_factory=dict)
+    opening_hours: dict[str, object] = Field(default_factory=dict)
+    hours_display: str | None = None
+    hours_confidence: float | None = None
+    hours_checked_at: str | None = None
     latitude: float | None = None
     longitude: float | None = None
     neighborhood: str | None = None
@@ -528,9 +535,9 @@ class DailyPickAssignmentRequest(BaseModel):
     city_id: str = Field(min_length=1, max_length=64)
     candidate_place_ids: list[str] = Field(min_length=3, max_length=200)
     legacy_served_place_ids: list[str] = Field(default_factory=list, max_length=500)
-    categories: list[
-        Literal["sushi", "izakaya", "noodles", "yakiniku", "yakitori", "tempura"]
-    ] = Field(default_factory=list, max_length=3)
+    categories: list[Literal["sushi", "izakaya", "noodles", "yakiniku", "yakitori", "tempura"]] = (
+        Field(default_factory=list, max_length=3)
+    )
     non_japanese: Literal["yes", "occasionally", "japanese-only"] = "occasionally"
     active_area: str | None = Field(default=None, max_length=120)
     discovery_latitude: float | None = Field(default=None, ge=-90, le=90)
@@ -818,9 +825,7 @@ def _items_for_list(owner_id: str, list_id: int) -> list[dict[str, object]]:
 
 def _default_list_row(owner_id: str, city_id: str) -> dict[str, object]:
     if _shared_owner(owner_id):
-        return shared_user_data.get_or_create_default_list(
-            user_id=str(owner_id), city_id=city_id
-        )
+        return shared_user_data.get_or_create_default_list(user_id=str(owner_id), city_id=city_id)
     return get_or_create_default_list(DB_PATH, owner_id=owner_id, city_id=city_id)
 
 
@@ -973,7 +978,9 @@ def _smart_view_response(
                     place_id=str(item["place_id"]),
                     added_at=str(item["added_at"]),
                     is_visited=bool(item.get("is_visited", False)),
-                    distance_km=float(item["distance_km"]) if item.get("distance_km") is not None else None,
+                    distance_km=float(item["distance_km"])
+                    if item.get("distance_km") is not None
+                    else None,
                     restaurant=SmartViewRestaurantSummary(
                         place_id=str(item["restaurant"]["place_id"]),
                         name_ja=item["restaurant"].get("name_ja"),
@@ -1301,14 +1308,10 @@ def _ensure_authenticated_profile(
         raise shared_user_data.SharedUserDataError(
             "Authenticated profile storage is not configured"
         )
-    email_value = auth_email or (
-        str(user["email"]).strip().lower() if user.get("email") else None
-    )
+    email_value = auth_email or (str(user["email"]).strip().lower() if user.get("email") else None)
     return shared_user_data.ensure_profile(
         user_id=user_id,
-        username=_profile_username_from_auth_user(
-            user, preferred_username=preferred_username
-        ),
+        username=_profile_username_from_auth_user(user, preferred_username=preferred_username),
         auth_email=email_value,
     )
 
@@ -1381,16 +1384,22 @@ def signup(payload: SignupRequest) -> SignupResponse:
     except SupabaseAuthError as exc:
         message = str(exc).lower()
         if "already" in message or "registered" in message:
-            raise HTTPException(status_code=409, detail="An account already exists for this email") from None
+            raise HTTPException(
+                status_code=409, detail="An account already exists for this email"
+            ) from None
         raise HTTPException(status_code=400, detail="Unable to create account") from None
 
     user = _auth_user(result)
     if user is None:
-        raise HTTPException(status_code=502, detail="Authentication provider returned an invalid response")
+        raise HTTPException(
+            status_code=502, detail="Authentication provider returned an invalid response"
+        )
     try:
         user_id = str(UUID(str(user["id"])))
     except (KeyError, ValueError):
-        raise HTTPException(status_code=502, detail="Authentication provider returned an invalid response") from None
+        raise HTTPException(
+            status_code=502, detail="Authentication provider returned an invalid response"
+        ) from None
     email = str(user.get("email") or payload.email).strip().lower()
     profile = _ensure_authenticated_profile(
         user,
@@ -1451,7 +1460,9 @@ def signin(payload: SigninRequest) -> SigninResponse:
     try:
         user_id = str(UUID(str(user["id"])))
     except (KeyError, ValueError):
-        raise HTTPException(status_code=502, detail="Authentication provider returned an invalid response") from None
+        raise HTTPException(
+            status_code=502, detail="Authentication provider returned an invalid response"
+        ) from None
     signed_in_email = str(user.get("email") or auth_email).strip().lower()
     _provision_profile_after_signin(
         user=user,
@@ -1623,18 +1634,25 @@ def create_restaurant_log_visit(
     if _shared_owner(owner_id):
         if get_published_restaurant_city(DB_PATH, place_id=payload.place_id) is None:
             raise HTTPException(status_code=404, detail="Published restaurant not found")
-        row = _catalog_enriched([
-            shared_user_data.create_visit(
-                user_id=str(owner_id), place_id=payload.place_id,
-                visited_at=payload.visited_at.astimezone(UTC).isoformat(),
-                reaction=payload.reaction, private_note=payload.private_note,
-            )
-        ])[0]
+        row = _catalog_enriched(
+            [
+                shared_user_data.create_visit(
+                    user_id=str(owner_id),
+                    place_id=payload.place_id,
+                    visited_at=payload.visited_at.astimezone(UTC).isoformat(),
+                    reaction=payload.reaction,
+                    private_note=payload.private_note,
+                )
+            ]
+        )[0]
     else:
         row = create_visit(
-            DB_PATH, owner_id=owner_id, place_id=payload.place_id,
+            DB_PATH,
+            owner_id=owner_id,
+            place_id=payload.place_id,
             visited_at=payload.visited_at.astimezone(UTC).isoformat(),
-            reaction=payload.reaction, private_note=payload.private_note,
+            reaction=payload.reaction,
+            private_note=payload.private_note,
         )
     if row is None:
         raise HTTPException(status_code=404, detail="Published restaurant not found")
@@ -1696,10 +1714,18 @@ def update_restaurant_log_visit(
             row = _catalog_enriched([row])[0]
     else:
         row = update_visit(
-            DB_PATH, owner_id=owner_id, visit_id=visit_id,
-            visited_at=(payload.visited_at.astimezone(UTC).isoformat() if payload.visited_at is not None else None),
-            reaction=payload.reaction, private_note=payload.private_note,
-            update_visited_at=update_visited_at, update_reaction=update_reaction,
+            DB_PATH,
+            owner_id=owner_id,
+            visit_id=visit_id,
+            visited_at=(
+                payload.visited_at.astimezone(UTC).isoformat()
+                if payload.visited_at is not None
+                else None
+            ),
+            reaction=payload.reaction,
+            private_note=payload.private_note,
+            update_visited_at=update_visited_at,
+            update_reaction=update_reaction,
             update_private_note="private_note" in payload.model_fields_set,
         )
     if row is None:
@@ -1772,13 +1798,9 @@ def create_list(
         raise HTTPException(status_code=422, detail="name is required")
 
     row = (
-        shared_user_data.create_list(
-            user_id=str(owner_id), city_id=resolved_city_id, name=name
-        )
+        shared_user_data.create_list(user_id=str(owner_id), city_id=resolved_city_id, name=name)
         if _shared_owner(owner_id)
-        else create_custom_list(
-            DB_PATH, owner_id=owner_id, city_id=resolved_city_id, name=name
-        )
+        else create_custom_list(DB_PATH, owner_id=owner_id, city_id=resolved_city_id, name=name)
     )
     return _list_response_from_row(owner_id, row)
 
@@ -1813,9 +1835,7 @@ def rename_custom_list(
         raise HTTPException(status_code=422, detail="name is required")
 
     renamed = (
-        shared_user_data.rename_list(
-            user_id=str(owner_id), list_id=list_id, name=name
-        )
+        shared_user_data.rename_list(user_id=str(owner_id), list_id=list_id, name=name)
         if _shared_owner(owner_id)
         else rename_list(DB_PATH, owner_id=owner_id, list_id=list_id, name=name)
     )
@@ -1857,7 +1877,9 @@ def add_list_item(
 
     row = _owned_list_or_404(owner_id, list_id)
     if str(row["list_kind"]) != CUSTOM_LIST_KIND:
-        raise HTTPException(status_code=400, detail="Use /lists/default/items for default list saves")
+        raise HTTPException(
+            status_code=400, detail="Use /lists/default/items for default list saves"
+        )
 
     place_id = payload.place_id.strip()
     if not place_id:
@@ -1867,19 +1889,17 @@ def add_list_item(
     if restaurant_city is None:
         raise HTTPException(status_code=404, detail="Published restaurant not found")
     if not _city_matches_list(city_id=str(row["city_id"]), restaurant_city=restaurant_city):
-        raise HTTPException(status_code=400, detail="Restaurant does not belong to the requested city")
+        raise HTTPException(
+            status_code=400, detail="Restaurant does not belong to the requested city"
+        )
 
     changed = (
-        shared_user_data.add_item(
-            user_id=str(owner_id), list_id=int(row["id"]), place_id=place_id
-        )
+        shared_user_data.add_item(user_id=str(owner_id), list_id=int(row["id"]), place_id=place_id)
         if _shared_owner(owner_id)
         else add_item(DB_PATH, list_id=int(row["id"]), place_id=place_id)
     )
     latest = _owned_list_or_404(owner_id, list_id)
-    return ListItemMutationResponse(
-        list=_list_response_from_row(owner_id, latest), changed=changed
-    )
+    return ListItemMutationResponse(list=_list_response_from_row(owner_id, latest), changed=changed)
 
 
 @app.delete("/lists/{list_id:int}/items/{place_id}", response_model=ListItemMutationResponse)
@@ -1894,7 +1914,9 @@ def remove_list_item(
 
     row = _owned_list_or_404(owner_id, list_id)
     if str(row["list_kind"]) != CUSTOM_LIST_KIND:
-        raise HTTPException(status_code=400, detail="Use /lists/default/items for default list saves")
+        raise HTTPException(
+            status_code=400, detail="Use /lists/default/items for default list saves"
+        )
 
     changed = (
         shared_user_data.remove_item(
@@ -1904,9 +1926,7 @@ def remove_list_item(
         else remove_item(DB_PATH, list_id=int(row["id"]), place_id=place_id)
     )
     latest = _owned_list_or_404(owner_id, list_id)
-    return ListItemMutationResponse(
-        list=_list_response_from_row(owner_id, latest), changed=changed
-    )
+    return ListItemMutationResponse(list=_list_response_from_row(owner_id, latest), changed=changed)
 
 
 @app.get("/lists/default", response_model=RestaurantListResponse)
@@ -1936,13 +1956,13 @@ def add_default_list_item(
     if restaurant_city is None:
         raise HTTPException(status_code=404, detail="Published restaurant not found")
     if not _city_matches_list(city_id=resolved_city_id, restaurant_city=restaurant_city):
-        raise HTTPException(status_code=400, detail="Restaurant does not belong to the requested city")
+        raise HTTPException(
+            status_code=400, detail="Restaurant does not belong to the requested city"
+        )
 
     row = _default_list_row(owner_id, resolved_city_id)
     changed = (
-        shared_user_data.add_item(
-            user_id=str(owner_id), list_id=int(row["id"]), place_id=place_id
-        )
+        shared_user_data.add_item(user_id=str(owner_id), list_id=int(row["id"]), place_id=place_id)
         if _shared_owner(owner_id)
         else add_item(DB_PATH, list_id=int(row["id"]), place_id=place_id)
     )
@@ -1991,14 +2011,10 @@ def get_default_list_membership(
     if _shared_owner(owner_id):
         is_saved = any(
             item["place_id"] == place_id
-            for item in shared_user_data.list_items(
-                user_id=str(owner_id), list_id=int(row["id"])
-            )
+            for item in shared_user_data.list_items(user_id=str(owner_id), list_id=int(row["id"]))
         )
     else:
-        is_saved = contains_place_id(
-            DB_PATH, list_id=int(row["id"]), place_id=place_id
-        )
+        is_saved = contains_place_id(DB_PATH, list_id=int(row["id"]), place_id=place_id)
     return DefaultListMembershipResponse(
         list_id=int(row["id"]),
         city_id=resolved_city_id,
@@ -2198,13 +2214,14 @@ def candidates(
         parameters.extend([limit, offset])
     sql = f"""
         SELECT * FROM restaurants
-        WHERE {' AND '.join(conditions)}
+        WHERE {" AND ".join(conditions)}
         ORDER BY internal_fiyu_score DESC, confidence_score DESC
         LIMIT ? OFFSET ?
     """
     with connect(DB_PATH) as connection:
         rows = connection.execute(sql, parameters).fetchall()
     return [decode_restaurant_row(row) for row in rows]
+
 
 @app.get("/restaurants/candidates/random")
 def random_candidates(
@@ -2239,7 +2256,7 @@ def random_candidates(
     sql = f"""
         SELECT *
         FROM restaurants
-        WHERE {' AND '.join(conditions)}
+        WHERE {" AND ".join(conditions)}
         ORDER BY RANDOM()
         LIMIT ?
     """
@@ -2286,7 +2303,7 @@ def nearby(
 
     sql = f"""
         SELECT * FROM restaurants
-        WHERE {' AND '.join(conditions)}
+        WHERE {" AND ".join(conditions)}
         ORDER BY internal_fiyu_score DESC
         LIMIT 500
     """

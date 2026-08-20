@@ -184,11 +184,7 @@ def _response(
             raw_output = ""
     message = SimpleNamespace(
         type="message",
-        content=[
-            SimpleNamespace(
-                type="output_text", text=raw_output, annotations=[citation]
-            )
-        ],
+        content=[SimpleNamespace(type="output_text", text=raw_output, annotations=[citation])],
     )
     usage_values = usage_values or {}
     usage = SimpleNamespace(
@@ -362,9 +358,7 @@ def _persist_for_candidate(path, candidate, result):
 )
 def test_single_strong_explicit_source_is_accepted(source_type, url, controlled):
     result = _result(
-        source_evidence=[
-            _source(source_type, source_url=url, restaurant_controlled=controlled)
-        ]
+        source_evidence=[_source(source_type, source_url=url, restaurant_controlled=controlled)]
     )
     acceptance = evaluate_address_result(_candidate(), result)
     assert acceptance.status == "accepted"
@@ -460,11 +454,13 @@ def test_two_independent_weak_sources_become_provisional_high():
     result = _result(
         source_evidence=[
             _source(
-                "search_result_snippet", source_url="https://lead-one.example/saito",
+                "search_result_snippet",
+                source_url="https://lead-one.example/saito",
                 restaurant_controlled=False,
             ),
             _source(
-                "weak_user_generated_content", source_url="https://lead-two.example/saito",
+                "weak_user_generated_content",
+                source_url="https://lead-two.example/saito",
                 restaurant_controlled=False,
             ),
         ]
@@ -489,15 +485,15 @@ def test_wrong_ward_branch_ambiguity_and_non_street_address_require_review():
     )
     branch = _result(branch_name="六本木店")
     ward_only = _result(address_raw="東京都台東区谷中", street_or_block=None)
-    assert "material_component_conflict:municipality_or_ward" in evaluate_address_result(
-        _candidate(), wrong_ward
-    ).reasons
-    assert "unresolved_branch_ambiguity" in evaluate_address_result(
-        _candidate(), branch
-    ).reasons
-    assert "address_is_not_explicit_street_level" in evaluate_address_result(
-        _candidate(), ward_only
-    ).reasons
+    assert (
+        "material_component_conflict:municipality_or_ward"
+        in evaluate_address_result(_candidate(), wrong_ward).reasons
+    )
+    assert "unresolved_branch_ambiguity" in evaluate_address_result(_candidate(), branch).reasons
+    assert (
+        "address_is_not_explicit_street_level"
+        in evaluate_address_result(_candidate(), ward_only).reasons
+    )
 
 
 def test_conflicting_addresses_and_not_found_are_separate_states():
@@ -613,8 +609,10 @@ def test_floor_only_conflict_is_non_material():
         }
     )
     result = result.model_copy(
-        update={"source_evidence": [result.source_evidence[0], second],
-                "conflicting_address_candidates": [conflict]}
+        update={
+            "source_evidence": [result.source_evidence[0], second],
+            "conflicting_address_candidates": [conflict],
+        }
     )
     agreement = compare_address_components(result)
     assert agreement.non_material_conflicting_components == ["floor"]
@@ -652,12 +650,17 @@ def test_japanese_street_notation_and_full_width_digits_compare_equally():
             "street_or_block": "1-13",
             "building": None,
             "floor": None,
-            "source_evidence": [result.source_evidence[0].model_copy(update={
-                "address_text_as_displayed": "東京都千代田区神田佐久間町1-13",
-                "street_or_block": "1-13",
-                "building": None,
-                "floor": None,
-            }), second],
+            "source_evidence": [
+                result.source_evidence[0].model_copy(
+                    update={
+                        "address_text_as_displayed": "東京都千代田区神田佐久間町1-13",
+                        "street_or_block": "1-13",
+                        "building": None,
+                        "floor": None,
+                    }
+                ),
+                second,
+            ],
             "conflicting_address_candidates": [],
         }
     )
@@ -670,7 +673,10 @@ def test_japanese_street_notation_and_full_width_digits_compare_equally():
 def test_japanese_hyphen_variants_compare_equally(variant):
     result = _result(street_or_block="3-30-5", address_raw="東京都台東区谷中3-30-5")
     source = result.source_evidence[0].model_copy(
-        update={"street_or_block": variant, "address_text_as_displayed": f"東京都台東区谷中{variant}"}
+        update={
+            "street_or_block": variant,
+            "address_text_as_displayed": f"東京都台東区谷中{variant}",
+        }
     )
     agreement = compare_address_components(result.model_copy(update={"source_evidence": [source]}))
     assert agreement.street_or_block_agreement == "agrees"
@@ -691,9 +697,7 @@ def test_japanese_and_romanized_chome_notation_compare_structurally(variant):
             "address_text_as_displayed": f"東京都台東区浅草{variant}",
         }
     )
-    agreement = compare_address_components(
-        result.model_copy(update={"source_evidence": [source]})
-    )
+    agreement = compare_address_components(result.model_copy(update={"source_evidence": [source]}))
     assert agreement.street_or_block_agreement == "agrees"
     assert agreement.material_conflicting_components == []
 
@@ -710,9 +714,7 @@ def test_structurally_different_japanese_address_numbers_still_conflict(variant)
             "address_text_as_displayed": f"東京都台東区浅草{variant}",
         }
     )
-    agreement = compare_address_components(
-        result.model_copy(update={"source_evidence": [source]})
-    )
+    agreement = compare_address_components(result.model_copy(update={"source_evidence": [source]}))
     assert agreement.street_or_block_agreement == "conflicts"
     assert agreement.material_conflicting_components == ["street_or_block"]
 
@@ -755,6 +757,136 @@ def test_cross_language_tokyo_kojimachi_components_and_split_chome_agree():
     assert agreement.floor_agreement == "agrees"
 
 
+@pytest.mark.parametrize(
+    ("neighborhood", "street", "combined"),
+    [
+        ("西浅草3丁目", "12-8", "3-12-8"),
+        ("竜泉1丁目", "10-3", "1-10-3"),
+    ],
+)
+def test_split_chome_normalization_is_generic(neighborhood, street, combined):
+    result = _result(
+        neighborhood=neighborhood,
+        street_or_block=street,
+        address_raw=f"東京都台東区{neighborhood}{street}",
+    )
+    source = result.source_evidence[0].model_copy(
+        update={
+            "neighborhood": neighborhood.replace("3丁目", "").replace("1丁目", ""),
+            "street_or_block": combined,
+            "address_text_as_displayed": f"東京都台東区{neighborhood}{street}",
+        }
+    )
+    agreement = compare_address_components(result.model_copy(update={"source_evidence": [source]}))
+    assert agreement.neighborhood_agreement == "agrees"
+    assert agreement.street_or_block_agreement == "agrees"
+
+
+def test_real_numeric_difference_after_split_chome_still_conflicts():
+    result = _result(
+        neighborhood="西浅草3丁目",
+        street_or_block="12-8",
+        address_raw="東京都台東区西浅草3丁目12-8",
+    )
+    source = result.source_evidence[0].model_copy(
+        update={"neighborhood": "西浅草", "street_or_block": "3-12-9"}
+    )
+    assert (
+        compare_address_components(
+            result.model_copy(update={"source_evidence": [source]})
+        ).street_or_block_agreement
+        == "conflicts"
+    )
+
+
+def test_kanji_chome_normalization_reconciles_with_numeric_street():
+    result = _result(
+        neighborhood="\u897f\u6d45\u8349\u4e09\u4e01\u76ee",
+        street_or_block="12-8",
+        address_raw="\u6771\u4eac\u90fd\u53f0\u6771\u533a\u897f\u6d45\u8349\u4e09\u4e01\u76ee12-8",
+    )
+    source = result.source_evidence[0].model_copy(
+        update={"neighborhood": "\u897f\u6d45\u8349", "street_or_block": "3-12-8"}
+    )
+    agreement = compare_address_components(result.model_copy(update={"source_evidence": [source]}))
+    assert agreement.neighborhood_agreement == "agrees"
+    assert agreement.street_or_block_agreement == "agrees"
+
+
+def test_reviewed_japanese_romanized_locality_equivalence():
+    result = _result(
+        neighborhood="\u4ee3\u6ca2",
+        street_or_block="2-36-21",
+        address_raw="\u6771\u4eac\u90fd\u4e16\u7530\u8c37\u533a\u4ee3\u6ca22-36-21",
+    )
+    source = result.source_evidence[0].model_copy(
+        update={"neighborhood": "Daizawa", "street_or_block": "2-36-21"}
+    )
+    agreement = compare_address_components(result.model_copy(update={"source_evidence": [source]}))
+    assert agreement.neighborhood_agreement == "agrees"
+
+
+def test_unreviewed_locality_suffix_difference_remains_conflicting():
+    result = _result(neighborhood="\u6c38\u798f", street_or_block="3-55-3")
+    source = result.source_evidence[0].model_copy(
+        update={"neighborhood": "\u6c38\u798f\u753a", "street_or_block": "3-55-3"}
+    )
+    agreement = compare_address_components(result.model_copy(update={"source_evidence": [source]}))
+    assert agreement.neighborhood_agreement == "conflicts"
+
+
+@pytest.mark.parametrize(
+    ("coarse", "precise"),
+    [("4", "4-43-6"), ("4-43", "4-43-6")],
+)
+def test_coarse_street_prefix_is_compatible_partial_evidence(coarse, precise):
+    result = _result(street_or_block=precise)
+    source = result.source_evidence[0].model_copy(update={"street_or_block": coarse})
+    agreement = compare_address_components(result.model_copy(update={"source_evidence": [source]}))
+    assert agreement.street_or_block_agreement == "agrees"
+    assert "street_or_block" not in agreement.material_conflicting_components
+
+
+@pytest.mark.parametrize(
+    ("first", "second"),
+    [("3", "4-43-6"), ("4-42-6", "4-43-6")],
+)
+def test_nonprefix_street_values_remain_conflicting(first, second):
+    result = _result(street_or_block=first)
+    source = result.source_evidence[0].model_copy(update={"street_or_block": second})
+    agreement = compare_address_components(result.model_copy(update={"source_evidence": [source]}))
+    assert agreement.street_or_block_agreement == "conflicts"
+    assert agreement.material_conflicting_components == ["street_or_block"]
+
+
+def test_discovery_area_is_not_an_address_acceptance_constraint():
+    result = _result(
+        municipality_or_ward="\u4e2d\u91ce\u533a",
+        neighborhood="\u6771\u4e2d\u91ce",
+        street_or_block="4-19-8",
+        address_raw="\u6771\u4eac\u90fd\u4e2d\u91ce\u533a\u6771\u4e2d\u91ce4-19-8",
+    )
+    source = result.source_evidence[0].model_copy(
+        update={
+            "municipality_or_ward": "\u4e2d\u91ce\u533a",
+            "neighborhood": "\u6771\u4e2d\u91ce",
+            "street_or_block": "4-19-8",
+            "address_text_as_displayed": "\u6771\u4eac\u90fd\u4e2d\u91ce\u533a\u6771\u4e2d\u91ce4-19-8",
+        }
+    )
+    candidate = {
+        "name_ja": result.matched_name,
+        "name_en": result.matched_name,
+        "title": result.matched_name,
+        "discovery_area": "Shinjuku",
+        "discovery_areas_json": '["Shinjuku"]',
+    }
+    acceptance = evaluate_address_result(
+        candidate, result.model_copy(update={"source_evidence": [source]})
+    )
+    assert "address_ward_outside_reviewed_discovery_areas" not in acceptance.reasons
+
+
 def test_navigation_reference_is_preserved_but_excluded_from_conflict_voting():
     navigation = ConflictingAddressCandidate(
         address_raw="東京都千代田区麹町1-6-4 隣のビルになります。",
@@ -794,6 +926,40 @@ def test_real_alternate_restaurant_address_still_votes_as_a_conflict():
         conflicting_address_candidates=[alternate],
     )
     assert compare_address_components(result).street_or_block_agreement == "conflicts"
+
+
+@pytest.mark.parametrize(
+    "summary",
+    [
+        "This appears to be a separate similarly named restaurant.",
+        "It may represent a different similarly named listing.",
+        "A different sushi restaurant occupies another floor.",
+        "The address belongs to another branch, not the candidate restaurant.",
+        "An unrelated listing with the same name.",
+    ],
+)
+def test_identity_irrelevant_alternate_is_preserved_but_does_not_vote(summary):
+    alternate = ConflictingAddressCandidate(
+        address_raw="東京都台東区浅草2-5-3",
+        municipality_or_ward="台東区",
+        neighborhood="浅草",
+        street_or_block="2-5-3",
+        summary=summary,
+    )
+    result = _result(
+        municipality_or_ward="台東区",
+        neighborhood="浅草",
+        street_or_block="2-13-9",
+        address_raw="東京都台東区浅草2-13-9",
+        source_evidence=[],
+        conflicting_address_candidates=[alternate],
+    )
+    agreement = compare_address_components(result)
+    assert agreement.street_or_block_agreement != "conflicts"
+    assert agreement.excluded_non_address_evidence[0]["reason"] == (
+        "identity_irrelevant_alternate_address"
+    )
+    assert result.conflicting_address_candidates == [alternate]
 
 
 @pytest.mark.parametrize(
@@ -961,9 +1127,7 @@ def test_read_only_osm_report_can_drive_initial_backfill_before_reason_migration
         ),
         encoding="utf-8",
     )
-    result = run_address_discovery(
-        path, plan_only=True, limit=19, resolution_report=report_path
-    )
+    result = run_address_discovery(path, plan_only=True, limit=19, resolution_report=report_path)
     assert result["eligible_restaurant_count"] == 1
     assert [row["place_id"] for row in result["restaurants"]] == ["p1"]
 
@@ -1005,8 +1169,12 @@ def test_complete_response_cut_off_mid_string_is_controlled_and_usage_is_preserv
         response_status="completed",
     )
     report = run_address_discovery(
-        path, dry_run=True, place_id="p1", max_search_actions=1,
-        client=FakeClient([response]), model="configured-model",
+        path,
+        dry_run=True,
+        place_id="p1",
+        max_search_actions=1,
+        client=FakeClient([response]),
+        model="configured-model",
     )
     failure = report["failures"][0]
     assert failure["failure_code"] == "malformed_structured_output"
@@ -1037,8 +1205,12 @@ def test_incomplete_max_output_response_is_not_parsed_or_retried_by_default(tmp_
     )
     client = FakeClient([response, _response(_result())])
     report = run_address_discovery(
-        path, dry_run=True, place_id="p1", max_search_actions=1,
-        client=client, model="configured-model",
+        path,
+        dry_run=True,
+        place_id="p1",
+        max_search_actions=1,
+        client=client,
+        model="configured-model",
     )
     failure = report["failures"][0]
     assert failure["failure_code"] == "output_truncated"
@@ -1061,8 +1233,11 @@ def test_parse_failure_persists_run_audit_but_no_evidence_or_location(tmp_path):
         incomplete_reason="max_output_tokens",
     )
     report = run_address_discovery(
-        path, place_id="p1", max_search_actions=1,
-        client=FakeClient([response]), model="configured-model",
+        path,
+        place_id="p1",
+        max_search_actions=1,
+        client=FakeClient([response]),
+        model="configured-model",
     )
     assert report["persisted"] == 0
     with connect(path) as connection:
@@ -1070,16 +1245,18 @@ def test_parse_failure_persists_run_audit_but_no_evidence_or_location(tmp_path):
         assert run["response_id"] == "resp_1"
         assert run["input_tokens"] == 100
         assert run["web_search_action_count"] == 1
-        assert connection.execute(
-            "SELECT COUNT(*) FROM address_search_attempts WHERE query_origin='actual_web_action'"
-        ).fetchone()[0] == 1
+        assert (
+            connection.execute(
+                "SELECT COUNT(*) FROM address_search_attempts WHERE query_origin='actual_web_action'"
+            ).fetchone()[0]
+            == 1
+        )
         assert connection.execute("SELECT COUNT(*) FROM address_evidence").fetchone()[0] == 0
-        assert connection.execute(
-            "SELECT COUNT(*) FROM verified_restaurant_addresses"
-        ).fetchone()[0] == 0
-        assert connection.execute(
-            "SELECT COUNT(*) FROM address_geocode_results"
-        ).fetchone()[0] == 0
+        assert (
+            connection.execute("SELECT COUNT(*) FROM verified_restaurant_addresses").fetchone()[0]
+            == 0
+        )
+        assert connection.execute("SELECT COUNT(*) FROM address_geocode_results").fetchone()[0] == 0
     after = _stored(path)
     assert after["map_display_eligible"] == before["map_display_eligible"]
     assert after["latitude"] == before["latitude"]
@@ -1096,21 +1273,33 @@ def test_explicit_truncation_retry_is_bounded_and_aggregates_usage(tmp_path):
         include_web_search=False,
         response_id="resp_truncated",
         usage_values={
-            "input_tokens": 90, "cached_input_tokens": 20, "output_tokens": 4000,
-            "reasoning_tokens": 100, "total_tokens": 4090,
+            "input_tokens": 90,
+            "cached_input_tokens": 20,
+            "output_tokens": 4000,
+            "reasoning_tokens": 100,
+            "total_tokens": 4090,
         },
     )
     second = _response(
-        _result(), response_id="resp_retry",
+        _result(),
+        response_id="resp_retry",
         usage_values={
-            "input_tokens": 80, "cached_input_tokens": 10, "output_tokens": 500,
-            "reasoning_tokens": 50, "total_tokens": 580,
+            "input_tokens": 80,
+            "cached_input_tokens": 10,
+            "output_tokens": 500,
+            "reasoning_tokens": 50,
+            "total_tokens": 580,
         },
     )
     client = FakeClient([first, second])
     report = run_address_discovery(
-        path, dry_run=True, place_id="p1", max_search_actions=1,
-        retry_truncated=True, client=client, model="configured-model",
+        path,
+        dry_run=True,
+        place_id="p1",
+        max_search_actions=1,
+        retry_truncated=True,
+        client=client,
+        model="configured-model",
     )
     assert report["completed"] == 1
     assert len(client.responses.calls) == 2
@@ -1140,8 +1329,13 @@ def test_retry_never_exceeds_cumulative_web_action_budget(tmp_path):
     )
     client = FakeClient([first, _response(_result())])
     report = run_address_discovery(
-        path, dry_run=True, place_id="p1", max_search_actions=1,
-        retry_truncated=True, client=client, model="configured-model",
+        path,
+        dry_run=True,
+        place_id="p1",
+        max_search_actions=1,
+        retry_truncated=True,
+        client=client,
+        model="configured-model",
     )
     assert report["failed"] == 1
     assert len(client.responses.calls) == 1
@@ -1184,8 +1378,12 @@ def test_provider_action_budget_overrun_is_reported_rejected_and_stops_batch(tmp
         ),
     )
     report = run_address_discovery(
-        path, dry_run=True, place_id="p1", max_search_actions=1,
-        client=FakeClient([response]), model="configured-model",
+        path,
+        dry_run=True,
+        place_id="p1",
+        max_search_actions=1,
+        client=FakeClient([response]),
+        model="configured-model",
     )
     row = report["restaurants"][0]
     assert row["acceptance"]["status"] == "failed"
@@ -1210,7 +1408,8 @@ def test_press_release_reclassification_and_tabelog_lead_policy(tmp_path):
     result = _result(
         source_evidence=[
             _source(
-                "restaurant_submission", source_url="https://prtimes.jp/main/html/example.html",
+                "restaurant_submission",
+                source_url="https://prtimes.jp/main/html/example.html",
                 restaurant_controlled=False,
             ),
             _source(
@@ -1221,7 +1420,10 @@ def test_press_release_reclassification_and_tabelog_lead_policy(tmp_path):
         ]
     )
     report = run_address_discovery(
-        path, dry_run=True, place_id="p1", client=FakeClient([_response(result)]),
+        path,
+        dry_run=True,
+        place_id="p1",
+        client=FakeClient([_response(result)]),
         model="configured-model",
     )
     sources = report["restaurants"][0]["result"]["source_evidence"]
@@ -1232,7 +1434,8 @@ def test_press_release_reclassification_and_tabelog_lead_policy(tmp_path):
     tabelog_only = _result(
         source_evidence=[
             _source(
-                "permitted_business_directory", source_url="https://tabelog.com/tokyo/example",
+                "permitted_business_directory",
+                source_url="https://tabelog.com/tokyo/example",
                 restaurant_controlled=False,
             )
         ]
@@ -1261,9 +1464,14 @@ def test_compact_controls_limit_sources_summaries_and_conflicts(tmp_path):
         ],
     )
     report = run_address_discovery(
-        path, dry_run=True, place_id="p1", client=FakeClient([_response(result)]),
-        model="configured-model", max_retained_sources=2,
-        max_evidence_summary_chars=40, max_conflicting_candidates=1,
+        path,
+        dry_run=True,
+        place_id="p1",
+        client=FakeClient([_response(result)]),
+        model="configured-model",
+        max_retained_sources=2,
+        max_evidence_summary_chars=40,
+        max_conflicting_candidates=1,
         max_output_tokens=900,
     )
     output = report["restaurants"][0]["result"]
@@ -1342,9 +1550,7 @@ def test_persisted_usage_queries_and_address_do_not_touch_editorial_fields(tmp_p
         assert run["web_search_action_count"] == 1
         assert run["total_tokens"] == 140
         origins = {
-            row[0] for row in connection.execute(
-                "SELECT query_origin FROM address_search_attempts"
-            )
+            row[0] for row in connection.execute("SELECT query_origin FROM address_search_attempts")
         }
         assert origins == {"fiyu_generated", "model_requested", "actual_web_action"}
     status = address_resolution_status(path)
@@ -1357,7 +1563,9 @@ def test_deterministic_recalculation_dry_run_makes_no_calls_or_writes(tmp_path, 
     path = _db(tmp_path)
     evidence_id = _persist(path, _result())
     with connect(path) as connection:
-        connection.execute("DELETE FROM verified_restaurant_addresses WHERE public_restaurant_id='p1'")
+        connection.execute(
+            "DELETE FROM verified_restaurant_addresses WHERE public_restaurant_id='p1'"
+        )
         connection.execute(
             "UPDATE address_evidence SET acceptance_status='conflicting' WHERE id=?",
             (evidence_id,),
@@ -1394,7 +1602,9 @@ def test_recalculation_appends_decision_history_and_preserves_usage_and_evidence
     )
     evidence_id = _persist(path, result)
     with connect(path) as connection:
-        connection.execute("DELETE FROM verified_restaurant_addresses WHERE public_restaurant_id='p1'")
+        connection.execute(
+            "DELETE FROM verified_restaurant_addresses WHERE public_restaurant_id='p1'"
+        )
         connection.execute(
             """
             UPDATE address_evidence SET acceptance_status='conflicting',
@@ -1411,7 +1621,9 @@ def test_recalculation_appends_decision_history_and_preserves_usage_and_evidence
             ).fetchone()
         )
         evidence_before = dict(
-            connection.execute("SELECT * FROM address_evidence WHERE id=?", (evidence_id,)).fetchone()
+            connection.execute(
+                "SELECT * FROM address_evidence WHERE id=?", (evidence_id,)
+            ).fetchone()
         )
 
     first = recalculate_address_decisions(path, place_id="p1")
@@ -1427,17 +1639,24 @@ def test_recalculation_appends_decision_history_and_preserves_usage_and_evidence
     with connect(path) as connection:
         assert connection.execute("SELECT COUNT(*) FROM address_decision_audits").fetchone()[0] == 2
         usage_after = dict(
-            connection.execute("SELECT * FROM address_research_runs WHERE id=?", (usage_before["id"],)).fetchone()
+            connection.execute(
+                "SELECT * FROM address_research_runs WHERE id=?", (usage_before["id"],)
+            ).fetchone()
         )
         evidence_after = dict(
-            connection.execute("SELECT * FROM address_evidence WHERE id=?", (evidence_id,)).fetchone()
+            connection.execute(
+                "SELECT * FROM address_evidence WHERE id=?", (evidence_id,)
+            ).fetchone()
         )
         verified = connection.execute(
             "SELECT * FROM verified_restaurant_addresses WHERE public_restaurant_id='p1'"
         ).fetchone()
     assert usage_after == usage_before
     assert evidence_after == evidence_before
-    assert json.loads(evidence_after["source_evidence_json"])[0]["address_text_as_displayed"] == raw_display
+    assert (
+        json.loads(evidence_after["source_evidence_json"])[0]["address_text_as_displayed"]
+        == raw_display
+    )
     assert verified["verified_core_address"] == "東京都台東区谷中1丁目2-3"
 
 
@@ -1454,9 +1673,7 @@ def test_accepted_combined_evidence_skips_fallback_and_missing_evidence_routes_t
         forced=False,
         combined_research=True,
     )
-    persist_address_call(
-        path, place_id="p1", run_id=run_id, call=accepted_call
-    )
+    persist_address_call(path, place_id="p1", run_id=run_id, call=accepted_call)
     assert run_address_discovery(path, plan_only=True)["eligible_restaurant_count"] == 0
 
     second = _db(tmp_path / "second")
@@ -1517,6 +1734,14 @@ def _research_payload(address=None):
         "conflicting_evidence": False,
         "why_fiyu": "A focused sushi counter supported by independent local evidence.",
         "evidence_urls": ["https://editorial.example/saito"],
+        "card_enrichment": {
+            "card_description": "Small counter-style sushi restaurant with a traditional Edomae focus.",
+            "card_description_confidence": 0.85,
+            "card_description_source_urls": ["https://editorial.example/saito"],
+            "review_themes": [],
+            "practical_info": {},
+            "opening_hours": {},
+        },
         **({"address_evidence": address} if address is not None else {}),
     }
 
@@ -1562,9 +1787,7 @@ def test_combined_future_research_uses_one_response_and_no_second_address_call(
             (_candidate()["discovery_areas_json"],),
         )
         connection.commit()
-    parsed = RestaurantResearch.model_validate(
-        _research_payload(_result().model_dump(mode="json"))
-    )
+    parsed = RestaurantResearch.model_validate(_research_payload(_result().model_dump(mode="json")))
     client = FakeClient([_response(parsed)])
     import fiyu.research_worker as worker
 
@@ -1576,12 +1799,30 @@ def test_combined_future_research_uses_one_response_and_no_second_address_call(
     assert result["address_accepted"] == 1
     assert len(client.responses.calls) == 1
     with connect(path) as connection:
-        assert connection.execute(
-            "SELECT COUNT(*) FROM address_research_runs WHERE combined_research=1"
-        ).fetchone()[0] == 1
-        assert connection.execute(
-            "SELECT COUNT(*) FROM verified_restaurant_addresses"
-        ).fetchone()[0] == 1
+        assert (
+            connection.execute(
+                "SELECT COUNT(*) FROM address_research_runs WHERE combined_research=1"
+            ).fetchone()[0]
+            == 1
+        )
+        assert (
+            connection.execute("SELECT COUNT(*) FROM verified_restaurant_addresses").fetchone()[0]
+            == 1
+        )
+        assert (
+            connection.execute(
+                "SELECT card_description FROM public_restaurants WHERE place_id='future'"
+            )
+            .fetchone()[0]
+            .startswith("Small counter-style")
+        )
+        assert (
+            connection.execute(
+                "SELECT COUNT(*) FROM restaurant_card_enrichment_runs "
+                "WHERE public_restaurant_id='future'"
+            ).fetchone()[0]
+            == 1
+        )
 
 
 def test_review_export_dry_run_approval_and_rejection(tmp_path):
@@ -1594,7 +1835,7 @@ def test_review_export_dry_run_approval_and_rejection(tmp_path):
                 source_url="https://lead.example/saito",
                 restaurant_controlled=False,
             )
-        ]
+        ],
     )
     evidence_id = _persist(path, weak)
     review = tmp_path / "address-review.csv"
@@ -1620,7 +1861,10 @@ def test_review_export_dry_run_approval_and_rejection(tmp_path):
     assert dry["updated"] == 0
     assert _sqlite_artifact_state(path) == before_dry_run
     with connect(path) as connection:
-        assert connection.execute("SELECT COUNT(*) FROM verified_restaurant_addresses").fetchone()[0] == 0
+        assert (
+            connection.execute("SELECT COUNT(*) FROM verified_restaurant_addresses").fetchone()[0]
+            == 0
+        )
     applied = import_address_review(path, review)
     assert applied["updated"] == 1
     with connect(path) as connection:
@@ -1647,7 +1891,10 @@ def test_review_export_dry_run_approval_and_rejection(tmp_path):
         writer.writerows(rejected_rows)
     import_address_review(rejected_db, rejected_csv)
     with connect(rejected_db) as connection:
-        assert connection.execute("SELECT COUNT(*) FROM verified_restaurant_addresses").fetchone()[0] == 0
+        assert (
+            connection.execute("SELECT COUNT(*) FROM verified_restaurant_addresses").fetchone()[0]
+            == 0
+        )
 
 
 def test_review_export_uses_latest_effective_real_batch_decisions(tmp_path):
@@ -1675,80 +1922,124 @@ def test_review_export_uses_latest_effective_real_batch_decisions(tmp_path):
         connection.commit()
 
     atarayo_candidate = _candidate(
-        "p1", name_ja="あたらよ 秋葉原店", name_en=None, discovery_area="Chiyoda",
+        "p1",
+        name_ja="あたらよ 秋葉原店",
+        name_en=None,
+        discovery_area="Chiyoda",
         discovery_areas_json=json.dumps([{"area": "Chiyoda", "area_type": "ward"}]),
     )
     atarayo_address = "東京都千代田区神田佐久間町1-13"
     atarayo = AddressResearchResult(
-        identity_status="confirmed", identity_confidence=0.98,
-        matched_name="あたらよ 秋葉原店", branch_name="秋葉原店",
-        address_raw=atarayo_address, prefecture="東京都", municipality_or_ward="千代田区",
-        neighborhood="神田佐久間町", street_or_block="1-13",
+        identity_status="confirmed",
+        identity_confidence=0.98,
+        matched_name="あたらよ 秋葉原店",
+        branch_name="秋葉原店",
+        address_raw=atarayo_address,
+        prefecture="東京都",
+        municipality_or_ward="千代田区",
+        neighborhood="神田佐久間町",
+        street_or_block="1-13",
         source_evidence=[
             _source(
-                "permitted_booking_platform", source_url="https://booking.example/atarayo",
-                address_text_as_displayed=atarayo_address, municipality_or_ward="千代田区",
-                neighborhood="神田佐久間町", street_or_block="1-13",
+                "permitted_booking_platform",
+                source_url="https://booking.example/atarayo",
+                address_text_as_displayed=atarayo_address,
+                municipality_or_ward="千代田区",
+                neighborhood="神田佐久間町",
+                street_or_block="1-13",
                 restaurant_controlled=False,
             ),
             _source(
                 "established_local_editorial_source",
                 source_url="https://editorial.example/atarayo",
                 address_text_as_displayed="東京都千代田区神田佐久間町１丁目１３",
-                municipality_or_ward="千代田区", neighborhood="神田佐久間町",
-                street_or_block="１丁目１３", restaurant_controlled=False,
+                municipality_or_ward="千代田区",
+                neighborhood="神田佐久間町",
+                street_or_block="１丁目１３",
+                restaurant_controlled=False,
             ),
         ],
     )
     atarayo_evidence = _persist_for_candidate(path, atarayo_candidate, atarayo)
 
     hamada_candidate = _candidate(
-        "ambiguous", name_ja="浜田山叙々苑", name_en=None, discovery_area="Suginami",
+        "ambiguous",
+        name_ja="浜田山叙々苑",
+        name_en=None,
+        discovery_area="Suginami",
         discovery_areas_json=json.dumps([{"area": "Suginami", "area_type": "ward"}]),
     )
     hamada_current = "東京都杉並区浜田山3-30-5"
     hamada_old = "東京都杉並区浜田山4-14-7"
     hamada = AddressResearchResult(
-        identity_status="probable", identity_confidence=0.93, matched_name="浜田山叙々苑",
-        address_raw=hamada_current, prefecture="東京都", municipality_or_ward="杉並区",
-        neighborhood="浜田山", street_or_block="3-30-5",
+        identity_status="probable",
+        identity_confidence=0.93,
+        matched_name="浜田山叙々苑",
+        address_raw=hamada_current,
+        prefecture="東京都",
+        municipality_or_ward="杉並区",
+        neighborhood="浜田山",
+        street_or_block="3-30-5",
         source_evidence=[
             _source(
-                "permitted_booking_platform", source_url="https://booking.example/hamada",
-                address_text_as_displayed=hamada_current, municipality_or_ward="杉並区",
-                neighborhood="浜田山", street_or_block="3-30-5", restaurant_controlled=False,
+                "permitted_booking_platform",
+                source_url="https://booking.example/hamada",
+                address_text_as_displayed=hamada_current,
+                municipality_or_ward="杉並区",
+                neighborhood="浜田山",
+                street_or_block="3-30-5",
+                restaurant_controlled=False,
             ),
             _source(
-                "permitted_business_directory", source_url="https://directory.example/hamada-old",
-                address_text_as_displayed=hamada_old, municipality_or_ward="杉並区",
-                neighborhood="浜田山", street_or_block="4-14-7",
+                "permitted_business_directory",
+                source_url="https://directory.example/hamada-old",
+                address_text_as_displayed=hamada_old,
+                municipality_or_ward="杉並区",
+                neighborhood="浜田山",
+                street_or_block="4-14-7",
                 building="大きな地図を見る 周辺のお店を探す このお店は移転しています。",
-                address_evidence_summary="旧住所として表示。", restaurant_controlled=False,
+                address_evidence_summary="旧住所として表示。",
+                restaurant_controlled=False,
             ),
         ],
         conflicting_address_candidates=[
             ConflictingAddressCandidate(
-                address_raw=hamada_old, municipality_or_ward="杉並区",
-                neighborhood="浜田山", street_or_block="4-14-7", summary="移転前の住所。",
+                address_raw=hamada_old,
+                municipality_or_ward="杉並区",
+                neighborhood="浜田山",
+                street_or_block="4-14-7",
+                summary="移転前の住所。",
             )
         ],
     )
     hamada_evidence = _persist_for_candidate(path, hamada_candidate, hamada)
 
     edo_candidate = _candidate(
-        "manual", name_ja="江戸酒場 海", name_en=None, discovery_area="Shibuya",
+        "manual",
+        name_ja="江戸酒場 海",
+        name_en=None,
+        discovery_area="Shibuya",
         discovery_areas_json=json.dumps([{"area": "Shibuya", "area_type": "ward"}]),
     )
     edo_address = "東京都渋谷区神宮前2-23-4"
     edo = AddressResearchResult(
-        identity_status="probable", identity_confidence=0.9, matched_name="江戸酒場 海",
-        address_raw=edo_address, prefecture="東京都", municipality_or_ward="渋谷区",
-        neighborhood="神宮前", street_or_block="2-23-4",
+        identity_status="probable",
+        identity_confidence=0.9,
+        matched_name="江戸酒場 海",
+        address_raw=edo_address,
+        prefecture="東京都",
+        municipality_or_ward="渋谷区",
+        neighborhood="神宮前",
+        street_or_block="2-23-4",
         source_evidence=[
             _source(
-                "permitted_business_directory", source_url="https://directory.example/edo",
-                address_text_as_displayed=edo_address, municipality_or_ward="渋谷区",
-                neighborhood="神宮前", street_or_block="2-23-4", restaurant_controlled=False,
+                "permitted_business_directory",
+                source_url="https://directory.example/edo",
+                address_text_as_displayed=edo_address,
+                municipality_or_ward="渋谷区",
+                neighborhood="神宮前",
+                street_or_block="2-23-4",
+                restaurant_controlled=False,
             )
         ],
     )
@@ -1817,9 +2108,7 @@ def test_review_rejects_duplicate_decisions_stale_evidence_and_invalid_date(tmp_
     path = _db(tmp_path)
     weak = _result(
         matched_name="別の鮨",
-        source_evidence=[
-            _source("search_result_snippet", restaurant_controlled=False)
-        ]
+        source_evidence=[_source("search_result_snippet", restaurant_controlled=False)],
     )
     _persist(path, weak)
     review = tmp_path / "invalid-review.csv"
@@ -1873,9 +2162,7 @@ def test_review_export_ignores_superseded_evidence_and_manual_decision_takes_pre
     path = _db(tmp_path)
     weak = _result(
         matched_name="別の鮨",
-        source_evidence=[
-            _source("search_result_snippet", restaurant_controlled=False)
-        ]
+        source_evidence=[_source("search_result_snippet", restaurant_controlled=False)],
     )
     old_evidence = _persist(path, weak)
     recalculate_address_decisions(path, place_id="p1")
@@ -1915,10 +2202,13 @@ def test_review_export_ignores_superseded_evidence_and_manual_decision_takes_pre
     review = tmp_path / "precedence.csv"
     assert export_address_review(path, review) == 0
     with connect(path) as connection:
-        assert connection.execute(
-            "SELECT COUNT(*) FROM address_decision_audits WHERE address_evidence_id=?",
-            (old_evidence,),
-        ).fetchone()[0] == 1
+        assert (
+            connection.execute(
+                "SELECT COUNT(*) FROM address_decision_audits WHERE address_evidence_id=?",
+                (old_evidence,),
+            ).fetchone()[0]
+            == 1
+        )
 
 
 def test_xlsx_export_formats_address_fields_as_text_and_import_rejects_excel_date(tmp_path):
@@ -1931,8 +2221,10 @@ def test_xlsx_export_formats_address_fields_as_text_and_import_rejects_excel_dat
         street_or_block="1-13",
         source_evidence=[
             _source(
-                "search_result_snippet", restaurant_controlled=False,
-                address_text_as_displayed="東京都台東区谷中1-13", street_or_block="1-13",
+                "search_result_snippet",
+                restaurant_controlled=False,
+                address_text_as_displayed="東京都台東区谷中1-13",
+                street_or_block="1-13",
             )
         ],
     )
@@ -1959,9 +2251,7 @@ def test_xlsx_export_formats_address_fields_as_text_and_import_rejects_excel_dat
     report = import_address_review(path, review, dry_run=True)
     assert report["updated"] == 0
     assert report["validation_failures"] == 1
-    assert any(
-        "spreadsheet date" in error for error in report["reports"][0]["errors"]
-    )
+    assert any("spreadsheet date" in error for error in report["reports"][0]["errors"])
     assert _sqlite_artifact_state(path) == before
 
 
@@ -1969,18 +2259,14 @@ def test_import_rejects_review_when_effective_decision_changed_after_export(tmp_
     path = _db(tmp_path)
     weak = _result(
         matched_name="別の鮨",
-        source_evidence=[
-            _source("search_result_snippet", restaurant_controlled=False)
-        ]
+        source_evidence=[_source("search_result_snippet", restaurant_controlled=False)],
     )
     evidence_id = _persist(path, weak)
     review = tmp_path / "stale-decision.csv"
     export_address_review(path, review)
     with review.open(newline="", encoding="utf-8-sig") as handle:
         rows = list(csv.DictReader(handle))
-    rows[0].update(
-        reviewer_decision="unresolved", reviewed_by="reviewer", reviewed_at="2026-07-28"
-    )
+    rows[0].update(reviewer_decision="unresolved", reviewed_by="reviewer", reviewed_at="2026-07-28")
     with connect(path) as connection:
         fingerprint = connection.execute(
             "SELECT evidence_fingerprint FROM address_evidence WHERE id=?", (evidence_id,)
@@ -2054,7 +2340,8 @@ def test_review_can_approve_core_without_approving_disputed_details(tmp_path):
     assert rows[0]["proposed_decision"] == "approve_core_location"
     assert "building" in rows[0]["non_material_conflicting_components"]
     rows[0].update(
-        reviewer_decision="approve_core_location", reviewed_by="reviewer",
+        reviewer_decision="approve_core_location",
+        reviewed_by="reviewer",
         reviewed_at="2026-07-27",
     )
     with review.open("w", newline="", encoding="utf-8-sig") as handle:
@@ -2134,9 +2421,7 @@ class MockGeocoder:
 
     def geocode(self, address, *, place_id=None, input_fingerprint=None):
         self.calls.append(address)
-        return replace(
-            self.result, place_id=place_id, input_fingerprint=input_fingerprint
-        )
+        return replace(self.result, place_id=place_id, input_fingerprint=input_fingerprint)
 
 
 def _geocode(**changes):
@@ -2207,7 +2492,10 @@ def test_map_precision_rules(match_level, expected_status, precision, approximat
 @pytest.mark.parametrize(
     ("result", "reason"),
     [
-        (_geocode(address_level_match="ward", precision="area_anchor"), "geocode_match_level_not_street_detail"),
+        (
+            _geocode(address_level_match="ward", precision="area_anchor"),
+            "geocode_match_level_not_street_detail",
+        ),
         (_geocode(municipality_or_ward="杉並区"), "geocoded_ward_mismatch"),
         (_geocode(latitude=40.0, longitude=139.77), "coordinates_outside_tokyo_bounds"),
         (_geocode(latitude=139.77, longitude=35.727), "latitude_longitude_appear_swapped"),
@@ -2302,79 +2590,74 @@ def test_json_loader_retains_all_area_fallback_statuses_for_dry_run(tmp_path):
     inputs_path = tmp_path / "inputs.json"
     assert export_geocoding_inputs(path, inputs_path) == 3
     inputs = {
-        item["place_id"]: item
-        for item in json.loads(inputs_path.read_text(encoding="utf-8"))
+        item["place_id"]: item for item in json.loads(inputs_path.read_text(encoding="utf-8"))
     }
     status_by_place = {
         "area-block": ("matched_block_area_approximate", "block"),
         "p1": ("matched_chome_area_approximate", "chome"),
-        "area-neighborhood": (
-            "matched_neighborhood_area_approximate", "neighborhood"
-        ),
+        "area-neighborhood": ("matched_neighborhood_area_approximate", "neighborhood"),
     }
     payload = []
-    for offset, (place_id, (status, level)) in enumerate(
-        status_by_place.items(), start=1
-    ):
+    for offset, (place_id, (status, level)) in enumerate(status_by_place.items(), start=1):
         item = inputs[place_id]
-        payload.append({
-            "normalized_address": "台東区谷中1-2-3",
-            "latitude": 35.727 + offset / 10000,
-            "longitude": 139.77 + offset / 10000,
-            "precision": "approximate",
-            "warnings": [f"osm_{level}_area_fallback_is_approximate"],
-            "provenance": "Map data © OpenStreetMap contributors",
-            "raw_address": item["accepted_core_address"],
-            "prefecture": "東京都",
-            "municipality_or_ward": "台東区",
-            "provider": "local_osm_addresses",
-            "provider_version": "osm-address-index-v3-area",
-            "source_reference": f"https://www.openstreetmap.org/relation/{9000 + offset}",
-            "place_id": place_id,
-            "input_fingerprint": item["input_fingerprint"],
-            "neighborhood": "谷中",
-            "matched_components": {"ward": "台東区", "neighborhood": "谷中"},
-            "unmatched_components": {"block": "2", "sub_number": "3"},
-            "match_status": status,
-            "map_location_approximate": True,
-            "suggested_verification_tier": "provisional_medium",
-            "osm_type": "relation",
-            "osm_id": 9000 + offset,
-            "osm_version": 1,
-            "osm_timestamp": "2026-07-01T00:00:00Z",
-            "representative_point_method": "polygon_centroid_inside",
-            "map_anchor_type": level,
-            "diagnostic_candidates": [],
-            "match_level": level,
-            "status": status,
-        })
-    payload.extend([
-        {
-            "place_id": "rejected",
-            "raw_address": "東京都台東区谷中9-9",
-            "status": "rejected_address_number_mismatch",
-            "match_status": "rejected_address_number_mismatch",
-        },
-        {
-            "place_id": "malformed",
-            "raw_address": "東京都台東区谷中8-8",
-            "status": "matched_chome_area_approximate",
-            "match_status": "matched_chome_area_approximate",
-            "match_level": "chome",
-            "longitude": 139.77,
-        },
-    ])
-    results_path = tmp_path / "area-results.json"
-    results_path.write_text(
-        json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
+        payload.append(
+            {
+                "normalized_address": "台東区谷中1-2-3",
+                "latitude": 35.727 + offset / 10000,
+                "longitude": 139.77 + offset / 10000,
+                "precision": "approximate",
+                "warnings": [f"osm_{level}_area_fallback_is_approximate"],
+                "provenance": "Map data © OpenStreetMap contributors",
+                "raw_address": item["accepted_core_address"],
+                "prefecture": "東京都",
+                "municipality_or_ward": "台東区",
+                "provider": "local_osm_addresses",
+                "provider_version": "osm-address-index-v3-area",
+                "source_reference": f"https://www.openstreetmap.org/relation/{9000 + offset}",
+                "place_id": place_id,
+                "input_fingerprint": item["input_fingerprint"],
+                "neighborhood": "谷中",
+                "matched_components": {"ward": "台東区", "neighborhood": "谷中"},
+                "unmatched_components": {"block": "2", "sub_number": "3"},
+                "match_status": status,
+                "map_location_approximate": True,
+                "suggested_verification_tier": "provisional_medium",
+                "osm_type": "relation",
+                "osm_id": 9000 + offset,
+                "osm_version": 1,
+                "osm_timestamp": "2026-07-01T00:00:00Z",
+                "representative_point_method": "polygon_centroid_inside",
+                "map_anchor_type": level,
+                "diagnostic_candidates": [],
+                "match_level": level,
+                "status": status,
+            }
+        )
+    payload.extend(
+        [
+            {
+                "place_id": "rejected",
+                "raw_address": "東京都台東区谷中9-9",
+                "status": "rejected_address_number_mismatch",
+                "match_status": "rejected_address_number_mismatch",
+            },
+            {
+                "place_id": "malformed",
+                "raw_address": "東京都台東区谷中8-8",
+                "status": "matched_chome_area_approximate",
+                "match_status": "matched_chome_area_approximate",
+                "match_level": "chome",
+                "longitude": 139.77,
+            },
+        ]
     )
+    results_path = tmp_path / "area-results.json"
+    results_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
     geocoder = JsonFileAddressGeocoder(results_path)
     assert geocoder.loaded_count == 3
     for place_id, (status, _level) in status_by_place.items():
-        loaded = geocoder.geocode(
-            str(inputs[place_id]["accepted_core_address"]), place_id=place_id
-        )
+        loaded = geocoder.geocode(str(inputs[place_id]["accepted_core_address"]), place_id=place_id)
         assert loaded is not None
         assert loaded.match_status == status
     assert [item["reason"] for item in geocoder.excluded_records] == [
@@ -2386,8 +2669,11 @@ def test_json_loader_retains_all_area_fallback_statuses_for_dry_run(tmp_path):
     assert {
         key: report[key]
         for key in (
-            "selected", "location_verified", "location_provisional",
-            "needs_review", "failed",
+            "selected",
+            "location_verified",
+            "location_provisional",
+            "needs_review",
+            "failed",
         )
     } == {
         "selected": 3,
@@ -2426,12 +2712,17 @@ def test_json_loader_reports_explicit_reason_for_excluded_selected_record(
     item = json.loads(inputs_path.read_text(encoding="utf-8"))[0]
     results_path = tmp_path / "excluded.json"
     results_path.write_text(
-        json.dumps([{
-            "place_id": item["place_id"],
-            "raw_address": item["accepted_core_address"],
-            "input_fingerprint": item["input_fingerprint"],
-            **record,
-        }], ensure_ascii=False),
+        json.dumps(
+            [
+                {
+                    "place_id": item["place_id"],
+                    "raw_address": item["accepted_core_address"],
+                    "input_fingerprint": item["input_fingerprint"],
+                    **record,
+                }
+            ],
+            ensure_ascii=False,
+        ),
         encoding="utf-8",
     )
     report = geocode_verified_addresses(
@@ -2452,7 +2743,13 @@ def test_invalid_geocode_is_persisted_for_review_without_map_eligibility(tmp_pat
     after = _stored(path)
     assert result["needs_review"] == 1
     assert after["map_display_eligible"] == 0
-    for field in ("is_published", "fiyu_score", "why_fiyu", "food_tags_json", "signature_dishes_json"):
+    for field in (
+        "is_published",
+        "fiyu_score",
+        "why_fiyu",
+        "food_tags_json",
+        "signature_dishes_json",
+    ):
         assert after[field] == before[field]
     with connect(path) as connection:
         row = connection.execute("SELECT * FROM address_geocode_results").fetchone()
@@ -2505,9 +2802,12 @@ def test_geocode_persistence_rolls_back_all_writes_on_history_failure(tmp_path):
     with connect(path) as connection:
         assert connection.execute("SELECT COUNT(*) FROM address_geocode_results").fetchone()[0] == 0
         assert connection.execute("SELECT COUNT(*) FROM location_history").fetchone()[0] == 0
-        assert connection.execute(
-            "SELECT status FROM verified_restaurant_addresses WHERE public_restaurant_id='p1'"
-        ).fetchone()[0] == "address_verified"
+        assert (
+            connection.execute(
+                "SELECT status FROM verified_restaurant_addresses WHERE public_restaurant_id='p1'"
+            ).fetchone()[0]
+            == "address_verified"
+        )
 
 
 def test_provisional_address_exports_core_and_abr_parcel_result_becomes_map_pin(tmp_path):
@@ -2516,7 +2816,8 @@ def test_provisional_address_exports_core_and_abr_parcel_result_becomes_map_pin(
     path = _db(tmp_path)
     result = _result(
         address_raw="東京都台東区谷中1丁目2-3 ビルA 1階",
-        building="ビルA", floor="1階",
+        building="ビルA",
+        floor="1階",
         source_evidence=[
             _source(
                 "permitted_business_directory",
@@ -2604,9 +2905,7 @@ def test_provisional_medium_parcel_result_is_still_marked_approximate(tmp_path):
     )
     report = geocode_verified_addresses(
         path,
-        geocoder=MockGeocoder(
-            _geocode(address_level_match="parcel", precision="exact")
-        ),
+        geocoder=MockGeocoder(_geocode(address_level_match="parcel", precision="exact")),
     )
     assert report["location_provisional"] == 1
     assert report["reports"][0]["map_location_approximate"] is True
@@ -2629,17 +2928,19 @@ def test_abr_adapter_uses_coordinate_level_for_pin_precision(tmp_path):
             returncode=0,
             stderr="",
             stdout=json.dumps(
-                [{
-                    "result": {
-                        "output": "東京都台東区谷中一丁目2-3",
-                        "match_level": "residential_detail",
-                        "coordinate_level": "residential_block",
-                        "lat": 35.727,
-                        "lon": 139.77,
-                        "pref": "東京都",
-                        "city": "台東区",
+                [
+                    {
+                        "result": {
+                            "output": "東京都台東区谷中一丁目2-3",
+                            "match_level": "residential_detail",
+                            "coordinate_level": "residential_block",
+                            "lat": 35.727,
+                            "lon": 139.77,
+                            "pref": "東京都",
+                            "city": "台東区",
+                        }
                     }
-                }],
+                ],
                 ensure_ascii=False,
             ),
         )
@@ -2781,7 +3082,8 @@ def test_block_and_narrow_interpolation_are_approximate_but_broad_interpolation_
     assert block.status == "location_verified" and block.map_location_approximate
     narrow = validate_geocode(
         _geocode(
-            address_level_match="interpolation", precision="approximate",
+            address_level_match="interpolation",
+            precision="approximate",
             interpolation_span_meters=80,
         ),
         verified_ward="台東区",
@@ -2789,7 +3091,8 @@ def test_block_and_narrow_interpolation_are_approximate_but_broad_interpolation_
     assert narrow.status == "location_verified" and narrow.map_location_approximate
     broad = validate_geocode(
         _geocode(
-            address_level_match="interpolation", precision="approximate",
+            address_level_match="interpolation",
+            precision="approximate",
             interpolation_span_meters=300,
         ),
         verified_ward="台東区",
@@ -2800,10 +3103,16 @@ def test_block_and_narrow_interpolation_are_approximate_but_broad_interpolation_
 
 def test_geocoder_batch_isolates_one_failed_restaurant(tmp_path):
     inputs = [
-        {"place_id": "one", "accepted_core_address": "東京都台東区谷中1-1",
-         "input_fingerprint": "fingerprint-one"},
-        {"place_id": "two", "accepted_core_address": "東京都台東区谷中1-2",
-         "input_fingerprint": "fingerprint-two"},
+        {
+            "place_id": "one",
+            "accepted_core_address": "東京都台東区谷中1-1",
+            "input_fingerprint": "fingerprint-one",
+        },
+        {
+            "place_id": "two",
+            "accepted_core_address": "東京都台東区谷中1-2",
+            "input_fingerprint": "fingerprint-two",
+        },
     ]
     input_path = tmp_path / "inputs.json"
     output_path = tmp_path / "results.json"
@@ -2815,9 +3124,7 @@ def test_geocoder_batch_isolates_one_failed_restaurant(tmp_path):
                 raise RuntimeError("fixture failure")
             return _geocode(raw_address=address)
 
-    report = geocode_address_file(
-        input_path, output_path, geocoder=IsolatedFailureGeocoder()
-    )
+    report = geocode_address_file(input_path, output_path, geocoder=IsolatedFailureGeocoder())
     assert report["selected"] == 2
     assert report["geocoded"] == 1
     assert report["failed"] == 1
@@ -2828,9 +3135,14 @@ def test_location_correction_preserves_history_and_manual_location_requires_over
     path = _db(tmp_path)
     kin_before = deepcopy(_stored(path, "ChIJ2WzWhfWPGGARyYQS7SD2tIM"))
     kin_blocked = replace_location(
-        path, place_id="ChIJ2WzWhfWPGGARyYQS7SD2tIM", latitude=35.72,
-        longitude=139.79, source_reference="https://example.jp/correction",
-        reason="Should require override", reviewed_by="Ethan", reviewed_at="2026-07-28",
+        path,
+        place_id="ChIJ2WzWhfWPGGARyYQS7SD2tIM",
+        latitude=35.72,
+        longitude=139.79,
+        source_reference="https://example.jp/correction",
+        reason="Should require override",
+        reviewed_by="Ethan",
+        reviewed_at="2026-07-28",
         dry_run=True,
     )
     assert not kin_blocked["valid"]
@@ -2839,16 +3151,27 @@ def test_location_correction_preserves_history_and_manual_location_requires_over
     geocode_verified_addresses(path, geocoder=MockGeocoder(_geocode()))
     before = deepcopy(_stored(path))
     dry = replace_location(
-        path, place_id="p1", latitude=35.728, longitude=139.771,
-        source_reference="https://example.jp/correction", reason="Corrected location",
-        reviewed_by="Ethan", reviewed_at="2026-07-28", dry_run=True,
+        path,
+        place_id="p1",
+        latitude=35.728,
+        longitude=139.771,
+        source_reference="https://example.jp/correction",
+        reason="Corrected location",
+        reviewed_by="Ethan",
+        reviewed_at="2026-07-28",
+        dry_run=True,
     )
     assert dry["valid"] and not dry["updated"]
     assert _stored(path) == before
     applied = replace_location(
-        path, place_id="p1", latitude=35.728, longitude=139.771,
-        source_reference="https://example.jp/correction", reason="Corrected location",
-        reviewed_by="Ethan", reviewed_at="2026-07-28",
+        path,
+        place_id="p1",
+        latitude=35.728,
+        longitude=139.771,
+        source_reference="https://example.jp/correction",
+        reason="Corrected location",
+        reviewed_by="Ethan",
+        reviewed_at="2026-07-28",
     )
     assert applied["updated"]
     with connect(path) as connection:
@@ -2860,16 +3183,28 @@ def test_location_correction_preserves_history_and_manual_location_requires_over
     assert _stored(path)["latitude"] == 35.728
 
     blocked = replace_location(
-        path, place_id="p1", latitude=35.729, longitude=139.772,
-        source_reference="https://example.jp/second", reason="Second correction",
-        reviewed_by="Ethan", reviewed_at="2026-07-28", dry_run=True,
+        path,
+        place_id="p1",
+        latitude=35.729,
+        longitude=139.772,
+        source_reference="https://example.jp/second",
+        reason="Second correction",
+        reviewed_by="Ethan",
+        reviewed_at="2026-07-28",
+        dry_run=True,
     )
     assert not blocked["valid"]
     assert "--allow-manual-override" in blocked["errors"][0]
     removed = replace_location(
-        path, place_id="p1", latitude=None, longitude=None,
-        source_reference="https://example.jp/remove", reason="Remove provisional pin",
-        reviewed_by="Ethan", reviewed_at="2026-07-28", remove=True,
+        path,
+        place_id="p1",
+        latitude=None,
+        longitude=None,
+        source_reference="https://example.jp/remove",
+        reason="Remove provisional pin",
+        reviewed_by="Ethan",
+        reviewed_at="2026-07-28",
+        remove=True,
         allow_manual_override=True,
     )
     assert removed["updated"]

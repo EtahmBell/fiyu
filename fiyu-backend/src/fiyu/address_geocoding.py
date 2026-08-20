@@ -65,7 +65,7 @@ def validate_geocode(
     elif not (min_lat <= latitude <= max_lat and min_lon <= longitude <= max_lon):
         reasons.append("coordinates_outside_tokyo_bounds")
     derived_precision = MATCH_LEVEL_PRECISION.get(result.address_level_match, "unknown")
-    area_fallback = result.map_anchor_type in {"block", "chome", "neighborhood"}
+    area_fallback = result.map_anchor_type in {"block", "chome", "neighborhood", "area"}
     if result.address_level_match not in MAP_ELIGIBLE_MATCH_LEVELS and not area_fallback:
         reasons.append("geocode_precision_below_map_threshold")
         reasons.append("geocode_match_level_not_street_detail")
@@ -136,7 +136,7 @@ def _query_geocoding_rows(
     connection, *, limit: int, place_id: str | None, published_only: bool = True
 ):
     conditions = [
-        "p.map_display_eligible=0",
+        "(p.map_display_eligible=0 OR p.location_source='reviewed_osm_area_anchor')",
         (
             "p.location_verification_status NOT IN "
             "('osm_auto_verified', 'manually_verified', 'location_verified')"
@@ -157,7 +157,10 @@ def _query_geocoding_rows(
     return connection.execute(
         f"""
         SELECT p.place_id, p.name_ja, p.location_verification_status,
-               p.latitude, p.longitude, v.rowid AS verified_address_id, v.*,
+               p.latitude, p.longitude, p.map_display_eligible,
+               p.map_location_precision, p.map_anchor_type, p.location_precision,
+               p.location_source, p.location_status,
+               v.rowid AS verified_address_id, v.*,
                e.evidence_fingerprint
         FROM verified_restaurant_addresses v
         JOIN public_restaurants p ON p.place_id=v.public_restaurant_id
@@ -378,7 +381,7 @@ def geocode_verified_addresses(
         ):
             effective_precision = evidence_precision
         effective_reasons = [*validation.reasons, *fingerprint_reasons]
-        is_area_fallback = result.map_anchor_type in {"block", "chome", "neighborhood"}
+        is_area_fallback = result.map_anchor_type in {"block", "chome", "neighborhood", "area"}
         if (
             PRECISION_RANK.get(effective_precision, 0) < PRECISION_RANK["block"]
             and not is_area_fallback
@@ -388,7 +391,9 @@ def geocode_verified_addresses(
             "location_verified" if not effective_reasons else "geocode_needs_review",
             tuple(dict.fromkeys(effective_reasons)),
             effective_precision,
-            effective_precision == "block",
+            bool(result.map_location_approximate)
+            or is_area_fallback
+            or effective_precision == "block",
         )
         address_tier = str(row["address_confidence_tier"] or "verified")
         if address_tier not in {"verified", "manual"}:
@@ -506,9 +511,29 @@ def geocode_verified_addresses(
             if validation.status == "location_verified":
                 location_tier = address_tier
                 location_status = accepted_status
-                connection.execute(
-                    """
-                    UPDATE public_restaurants SET latitude=?, longitude=?, normalized_address=?,
+                from .catalog_pipeline import location_update_allowed
+
+                active_location_updated = location_update_allowed(
+                    dict(row),
+                    {
+                        "latitude": result.latitude,
+                        "longitude": result.longitude,
+                        "map_display_eligible": 1,
+                        "map_location_precision": validation.location_precision,
+                        "map_anchor_type": result.map_anchor_type,
+                        "location_precision": (
+                            "approximate" if map_location_approximate else "exact"
+                        ),
+                        "location_source": result.provider,
+                        "location_status": (
+                            location_status if is_area_fallback else "location_active"
+                        ),
+                    },
+                )
+                if active_location_updated:
+                    connection.execute(
+                        """
+                        UPDATE public_restaurants SET latitude=?, longitude=?, normalized_address=?,
                         location_source=?, location_source_reference=?, location_verified_at=?,
                         location_precision=?, map_location_precision=?,
                         map_location_approximate=?, map_anchor_type=?,
@@ -523,39 +548,49 @@ def geocode_verified_addresses(
                         location_source_checked_at=?,
                         location_verification_method='independent_verified_address_geocode',
                         address_resolution_status=?, map_display_eligible=1,
-                        updated_at=? WHERE place_id=? AND map_display_eligible=0
-                    """,
-                    (
-                        result.latitude,
-                        result.longitude,
-                        result.normalized_address,
-                        result.provider,
-                        result.source_reference or result.provenance,
-                        now,
-                        "approximate" if map_location_approximate else "exact",
-                        validation.location_precision,
-                        int(map_location_approximate),
-                        result.map_anchor_type,
-                        json.dumps(result.matched_components, ensure_ascii=False, sort_keys=True),
-                        json.dumps(result.unmatched_components, ensure_ascii=False, sort_keys=True),
-                        result.provenance,
-                        row["verified_core_address"] or raw_address,
-                        int(bool(row["full_address_verified"])),
-                        row["unresolved_address_detail"],
-                        location_status,
-                        location_tier,
-                        location_status if is_area_fallback else "location_active",
-                        result.osm_type,
-                        result.osm_id,
-                        result.osm_version,
-                        result.osm_timestamp,
-                        result.representative_point_method,
-                        result.osm_timestamp or now,
-                        location_status,
-                        now,
-                        row["place_id"],
-                    ),
-                )
+                        updated_at=? WHERE place_id=?
+                        """,
+                        (
+                            result.latitude,
+                            result.longitude,
+                            result.normalized_address,
+                            result.provider,
+                            result.source_reference or result.provenance,
+                            now,
+                            "approximate" if map_location_approximate else "exact",
+                            validation.location_precision,
+                            int(map_location_approximate),
+                            result.map_anchor_type,
+                            json.dumps(
+                                result.matched_components,
+                                ensure_ascii=False,
+                                sort_keys=True,
+                            ),
+                            json.dumps(
+                                result.unmatched_components,
+                                ensure_ascii=False,
+                                sort_keys=True,
+                            ),
+                            result.provenance,
+                            row["verified_core_address"] or raw_address,
+                            int(bool(row["full_address_verified"])),
+                            row["unresolved_address_detail"],
+                            location_status,
+                            location_tier,
+                            location_status if is_area_fallback else "location_active",
+                            result.osm_type,
+                            result.osm_id,
+                            result.osm_version,
+                            result.osm_timestamp,
+                            result.representative_point_method,
+                            result.osm_timestamp or now,
+                            location_status,
+                            now,
+                            row["place_id"],
+                        ),
+                    )
+                report["active_location_updated"] = active_location_updated
+                report["preserved_stronger_location"] = not active_location_updated
                 connection.execute(
                     """
                     UPDATE verified_restaurant_addresses

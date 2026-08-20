@@ -47,16 +47,34 @@ def public_db(tmp_path, monkeypatch):
             """,
             [
                 (
-                    "eligible", "独立店", "Independent", "An English description.",
-                    json.dumps(["soba"]), json.dumps(["ざる蕎麦"]), 91, 1,
+                    "eligible",
+                    "独立店",
+                    "Independent",
+                    "An English description.",
+                    json.dumps(["soba"]),
+                    json.dumps(["ざる蕎麦"]),
+                    91,
+                    1,
                 ),
                 (
-                    "unknown", "不明", "Unknown", "Another description.",
-                    "[]", "[]", 89, 1,
+                    "unknown",
+                    "不明",
+                    "Unknown",
+                    "Another description.",
+                    "[]",
+                    "[]",
+                    89,
+                    1,
                 ),
                 (
-                    "hidden", "非公開", "Hidden", "Hidden description.",
-                    "[]", "[]", 99, 0,
+                    "hidden",
+                    "非公開",
+                    "Hidden",
+                    "Hidden description.",
+                    "[]",
+                    "[]",
+                    99,
+                    0,
                 ),
             ],
         )
@@ -94,16 +112,27 @@ def test_public_contract_uses_only_independently_eligible_coordinates(public_db)
 def test_google_operational_fields_are_absent_publicly(public_db):
     row = TestClient(api.app).get("/public/restaurants/eligible").json()
     forbidden = {
-        "rating", "rating_count", "review_count", "open_now", "weekday_hours",
-        "opening_hours", "price_level", "why_fiyu", "fiyu_confidence",
-        "confidence_band", "local_language_web_signal", "evidence",
-        "location_reviewer_notes", "location_match_confidence", "location_match_method",
-        "location_verification_method", "location_osm_id", "location_source_reference",
+        "rating",
+        "rating_count",
+        "review_count",
+        "open_now",
+        "weekday_hours",
+        "price_level",
+        "why_fiyu",
+        "fiyu_confidence",
+        "confidence_band",
+        "local_language_web_signal",
+        "evidence",
+        "location_reviewer_notes",
+        "location_match_confidence",
+        "location_match_method",
+        "location_verification_method",
+        "location_osm_id",
+        "location_source_reference",
     }
     assert forbidden.isdisjoint(row)
-    assert TestClient(api.app).get(
-        "/public/restaurants/eligible/live-details"
-    ).status_code == 404
+    assert row["opening_hours"] == {}
+    assert TestClient(api.app).get("/public/restaurants/eligible/live-details").status_code == 404
 
 
 def test_public_core_only_location_omits_disputed_detail(public_db):
@@ -194,28 +223,90 @@ def test_public_detail_exposes_latest_grounded_description_fields_only(public_db
     assert "why_fiyu" not in detail
 
 
+def test_public_card_enrichment_omits_internal_source_provenance(public_db):
+    with connect(public_db) as connection:
+        connection.execute(
+            """UPDATE public_restaurants SET
+                card_description='Small neighborhood soba counter.',
+                review_themes_json=?, practical_info_json=?, opening_hours_json=?,
+                hours_display='Tue-Sun - 17:00-23:00', hours_confidence=0.8,
+                hours_checked_at='2026-08-20T00:00:00+00:00'
+               WHERE place_id='eligible'""",
+            (
+                json.dumps(
+                    [
+                        {
+                            "theme": "hand-cut soba",
+                            "sentiment": "positive",
+                            "supporting_source_count": 2,
+                            "confidence": 0.8,
+                            "source_urls": ["https://internal.example/a"],
+                        }
+                    ]
+                ),
+                json.dumps(
+                    {
+                        "reservation": {"status": "unknown", "confidence": None},
+                        "seating": {"counter": True},
+                        "source_urls": ["https://internal.example/b"],
+                        "checked_at": "2026-08-20T00:00:00+00:00",
+                    }
+                ),
+                json.dumps(
+                    {
+                        "tuesday": {
+                            "status": "open",
+                            "periods": [{"open": "17:00", "close": "23:00"}],
+                        },
+                        "sources": [
+                            {
+                                "url": "https://internal.example/c",
+                                "source_type": "official_website",
+                            }
+                        ],
+                        "unresolved_conflicts": [],
+                    }
+                ),
+            ),
+        )
+        connection.commit()
+    row = TestClient(api.app).get("/public/restaurants/eligible").json()
+    assert row["card_description"] == "Small neighborhood soba counter."
+    assert row["review_themes"][0]["theme"] == "hand-cut soba"
+    assert "source_urls" not in row["review_themes"][0]
+    assert "source_urls" not in row["practical_info"]
+    assert "sources" not in row["opening_hours"]
+    assert row["hours_checked_at"] == "2026-08-20T00:00:00+00:00"
+
+
 def test_photo_endpoint_preserves_attribution_without_persisting(public_db, monkeypatch):
     with connect(public_db) as connection:
-        before = dict(connection.execute(
-            "SELECT * FROM public_restaurants WHERE place_id = 'eligible'"
-        ).fetchone())
+        before = dict(
+            connection.execute(
+                "SELECT * FROM public_restaurants WHERE place_id = 'eligible'"
+            ).fetchone()
+        )
 
     def photos(place_id, *, limit):
         assert place_id == "eligible"
         assert limit == 1
-        return [{
-            "media_url": "https://photos.example/fresh",
-            "width": 1200,
-            "height": 800,
-            "google_maps_uri": "https://maps.google.com/source",
-            "flag_content_uri": "https://google.example/flag",
-            "author_attributions": [{
-                "display_name": "Photographer",
-                "uri": "https://author.example",
-                "photo_uri": "https://author.example/photo",
-                "flag_content_uri": "https://author.example/flag",
-            }],
-        }]
+        return [
+            {
+                "media_url": "https://photos.example/fresh",
+                "width": 1200,
+                "height": 800,
+                "google_maps_uri": "https://maps.google.com/source",
+                "flag_content_uri": "https://google.example/flag",
+                "author_attributions": [
+                    {
+                        "display_name": "Photographer",
+                        "uri": "https://author.example",
+                        "photo_uri": "https://author.example/photo",
+                        "flag_content_uri": "https://author.example/flag",
+                    }
+                ],
+            }
+        ]
 
     monkeypatch.setattr(api, "get_place_photos", photos)
     response = TestClient(api.app).get("/public/restaurants/eligible/photo-preview")
@@ -225,12 +316,14 @@ def test_photo_endpoint_preserves_attribution_without_persisting(public_db, monk
     assert body["google_maps_uri"].startswith("https://maps.google.com")
     assert "resource_name" not in body
     with connect(public_db) as connection:
-        after = dict(connection.execute(
-            "SELECT * FROM public_restaurants WHERE place_id = 'eligible'"
-        ).fetchone())
-        columns = {row["name"] for row in connection.execute(
-            "PRAGMA table_info(public_restaurants)"
-        )}
+        after = dict(
+            connection.execute(
+                "SELECT * FROM public_restaurants WHERE place_id = 'eligible'"
+            ).fetchone()
+        )
+        columns = {
+            row["name"] for row in connection.execute("PRAGMA table_info(public_restaurants)")
+        }
     assert after == before
     assert {"photo_resource_name", "photo_media_url"}.isdisjoint(columns)
 
@@ -254,21 +347,21 @@ def test_photo_endpoints_map_controlled_errors(public_db, monkeypatch, exception
     assert "private" not in response.text
 
 
-def test_location_anchors_are_approximate_and_receive_no_user_location(
-    public_db, monkeypatch
-):
+def test_location_anchors_are_approximate_and_receive_no_user_location(public_db, monkeypatch):
     monkeypatch.setattr(
         api,
         "load_location_anchors",
-        lambda: [{
-            "id": "reviewed-anchor",
-            "display_name": "Reviewed Station",
-            "area_name": "Reviewed",
-            "latitude": 35.0,
-            "longitude": 139.0,
-            "precision": "area_anchor",
-            "qualifier": "Approximate center of Reviewed",
-        }],
+        lambda: [
+            {
+                "id": "reviewed-anchor",
+                "display_name": "Reviewed Station",
+                "area_name": "Reviewed",
+                "latitude": 35.0,
+                "longitude": 139.0,
+                "precision": "area_anchor",
+                "qualifier": "Approximate center of Reviewed",
+            }
+        ],
     )
     client = TestClient(api.app)
     response = client.get("/public/location-anchors")
@@ -295,6 +388,7 @@ def test_community_rate_hidden_below_minimum(public_db, monkeypatch):
     assert row["community_recommendation_count"] == 2
     assert row["community_recommendation_rate"] is None
     assert row["community_stats_visible"] is False
-    assert client.post(
-        "/public/restaurants/eligible/community", json={"rate": 1}
-    ).status_code in {404, 405}
+    assert client.post("/public/restaurants/eligible/community", json={"rate": 1}).status_code in {
+        404,
+        405,
+    }

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import sqlite3
 import subprocess
@@ -8,7 +9,25 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Protocol
 
-from .osm_address_normalization import parse_japanese_address
+from .discovery_areas import canonical_tokyo_ward
+from .osm_address_normalization import normalize_tokyo_neighborhood, parse_japanese_address
+from .osm_index import stable_point_within_polygon
+
+
+def _romanized_locality_key(value: str | None) -> tuple[str, str | None]:
+    """Return an exact Latin locality key and optional chome, without fuzzy matching."""
+
+    text = str(value or "").casefold().strip()
+    if not text or not re.search(r"[a-z]", text):
+        return "", None
+    chome = None
+    prefix = re.fullmatch(r"(\d+)\s*[- ]?ch(?:o|ō)me\s+(.+)", text)
+    suffix = re.fullmatch(r"(.+?)\s+(\d+)(?:\s*[- ]?ch(?:o|ō)me)?", text)
+    if prefix:
+        chome, text = str(int(prefix.group(1))), prefix.group(2)
+    elif suffix:
+        text, chome = suffix.group(1), str(int(suffix.group(2)))
+    return re.sub(r"[^a-z0-9]", "", text), chome
 
 
 @dataclass(frozen=True)
@@ -384,9 +403,9 @@ class LocalOSMAddressGeocoder:
         self.minimum_area_precision = minimum_area_precision
         if diagnostic_limit < 1:
             raise ValueError("diagnostic_limit must be at least 1")
-        if minimum_area_precision not in {"block", "chome", "neighborhood"}:
+        if minimum_area_precision not in {"block", "chome", "neighborhood", "ward"}:
             raise ValueError(
-                "minimum_area_precision must be block, chome, or neighborhood"
+                "minimum_area_precision must be block, chome, neighborhood, or ward"
             )
         if not self.index_path.is_file():
             raise RuntimeError(f"local OSM address index is missing: {self.index_path}")
@@ -398,6 +417,9 @@ class LocalOSMAddressGeocoder:
             self._has_area_index = connection.execute(
                 "SELECT 1 FROM sqlite_master WHERE type='table' AND name='osm_address_areas'"
             ).fetchone() is not None
+            self._has_ward_index = connection.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='osm_ward_boundaries'"
+            ).fetchone() is not None
         finally:
             connection.close()
         if table is None:
@@ -408,27 +430,116 @@ class LocalOSMAddressGeocoder:
     def _area_fallback(self, expected, *, place_id, input_fingerprint):
         if not self.allow_area_fallback:
             return None
-        if not self._has_area_index:
+        if not self._has_area_index and not self._has_ward_index:
             raise AddressGeocoderLookupError(
                 "area_fallback_unavailable",
                 "OSM index has no address-area polygon layer; rebuild it before using "
                 "--allow-area-fallback",
                 warnings=("osm_address_area_index_missing",),
             )
-        rank = {"neighborhood": 1, "chome": 2, "block": 3}
-        minimum_rank = rank[self.minimum_area_precision]
+        return self.geocode_polygon(
+            ward=expected.ward_ja or expected.ward,
+            neighborhood=expected.neighborhood,
+            chome=expected.chome,
+            block=expected.block,
+            sub_number=expected.sub_number,
+            place_id=place_id,
+            input_fingerprint=input_fingerprint,
+            raw_address=expected.original,
+            normalized_address=expected.normalized,
+            minimum_precision=self.minimum_area_precision,
+        )
+
+    @staticmethod
+    def _polygon_geometry(row: sqlite3.Row):
+        return tuple(
+            (
+                tuple(tuple(point) for point in polygon.get("outer", [])),
+                tuple(
+                    tuple(tuple(point) for point in inner)
+                    for inner in polygon.get("inners", [])
+                ),
+            )
+            for polygon in json.loads(row["geometry_json"] or "[]")
+        )
+
+    def geocode_polygon(
+        self,
+        *,
+        ward: str,
+        neighborhood: str | None = None,
+        chome: str | None = None,
+        block: str | None = None,
+        sub_number: str | None = None,
+        place_id: str | None,
+        input_fingerprint: str | None = None,
+        raw_address: str | None = None,
+        normalized_address: str | None = None,
+        minimum_precision: str = "ward",
+    ) -> AddressGeocodeResult | None:
+        """Resolve the deepest unambiguous local OSM polygon available."""
+
+        ranks = {"ward": 0, "neighborhood": 1, "chome": 2, "block": 3}
+        if minimum_precision not in ranks:
+            raise ValueError("invalid minimum polygon precision")
+        ward_norm = canonical_tokyo_ward(ward)
+        if not ward_norm:
+            return None
+        neighborhood_norm = None
+        parsed_chome = chome
+        if neighborhood:
+            neighborhood_norm, inferred_chome = normalize_tokyo_neighborhood(neighborhood)
+            parsed_chome = parsed_chome or inferred_chome
         connection = self._connect()
         try:
-            rows = connection.execute(
-                """
-                SELECT * FROM osm_address_areas
-                WHERE ward_norm=? AND neighborhood_norm=?
-                ORDER BY CASE geometry_level
-                    WHEN 'block' THEN 1 WHEN 'chome' THEN 2 ELSE 3 END,
-                    osm_type, osm_id
-                """,
-                (expected.ward, expected.neighborhood),
-            ).fetchall()
+            rows = []
+            if self._has_area_index and neighborhood_norm:
+                rows = connection.execute(
+                    "SELECT * FROM osm_address_areas WHERE ward_norm=? "
+                    "AND neighborhood_norm=? ORDER BY osm_type, osm_id",
+                    (ward_norm, neighborhood_norm),
+                ).fetchall()
+                if not rows:
+                    # Legacy candidates often retained Google's English locality text.
+                    # Resolve it only when an exact normalized OSM name:en match within
+                    # the already-established ward identifies one Japanese locality.
+                    requested_key, english_chome = _romanized_locality_key(neighborhood)
+                    parsed_chome = parsed_chome or english_chome
+                    ward_areas = connection.execute(
+                        "SELECT * FROM osm_address_areas WHERE ward_norm=? "
+                        "ORDER BY osm_type, osm_id",
+                        (ward_norm,),
+                    ).fetchall()
+                    matched_localities: set[str] = set()
+                    for area in ward_areas:
+                        try:
+                            tags = json.loads(area["tags_json"] or "{}")
+                        except json.JSONDecodeError:
+                            continue
+                        english_names = (
+                            tags.get("name:en"),
+                            tags.get("official_name:en"),
+                            tags.get("alt_name:en"),
+                        )
+                        if requested_key and any(
+                            _romanized_locality_key(name)[0] == requested_key
+                            for name in english_names
+                            if name
+                        ):
+                            matched_localities.add(str(area["neighborhood_norm"]))
+                    if len(matched_localities) == 1:
+                        neighborhood_norm = next(iter(matched_localities))
+                        rows = [
+                            area for area in ward_areas
+                            if str(area["neighborhood_norm"]) == neighborhood_norm
+                        ]
+            ward_rows = []
+            if self._has_ward_index:
+                ward_rows = connection.execute(
+                    "SELECT * FROM osm_ward_boundaries WHERE ward_name=? "
+                    "ORDER BY osm_type, osm_id",
+                    (ward_norm,),
+                ).fetchall()
         finally:
             connection.close()
         matching: dict[str, list[sqlite3.Row]] = {
@@ -436,77 +547,70 @@ class LocalOSMAddressGeocoder:
         }
         for row in rows:
             level = str(row["geometry_level"])
-            if rank[level] < minimum_rank:
-                continue
             if level == "block" and (
-                str(row["chome_norm"] or "") != str(expected.chome or "")
-                or str(row["block_component_norm"] or "") != str(expected.block or "")
+                str(row["chome_norm"] or "") != str(parsed_chome or "")
+                or str(row["block_component_norm"] or "") != str(block or "")
             ):
                 continue
-            if level == "chome" and str(row["chome_norm"] or "") != str(expected.chome or ""):
+            if level == "chome" and str(row["chome_norm"] or "") != str(parsed_chome or ""):
                 continue
             if level == "neighborhood" and (
                 row["chome_norm"] is not None or row["block_component_norm"] is not None
             ):
                 continue
             matching[level].append(row)
-        selected_level = next(
-            (level for level in ("block", "chome", "neighborhood") if matching[level]),
-            None,
-        )
-        if selected_level is None:
+        selected_level = None
+        selected = None
+        for level in ("block", "chome", "neighborhood"):
+            if ranks[level] < ranks[minimum_precision]:
+                continue
+            if len(matching[level]) == 1:
+                selected_level, selected = level, matching[level][0]
+                break
+        if selected is None and ranks["ward"] >= ranks[minimum_precision] and len(ward_rows) == 1:
+            selected_level, selected = "ward", ward_rows[0]
+        if selected is None:
             return None
-        candidates = matching[selected_level]
-        if len(candidates) != 1:
-            raise AddressGeocoderLookupError(
-                "ambiguous",
-                f"multiple matching OSM {selected_level} polygons",
-                warnings=("multiple_matching_osm_area_polygons",),
-                diagnostics={
-                    "geometry_level": selected_level,
-                    "candidates": [
-                        {
-                            "osm_type": str(row["osm_type"]),
-                            "osm_id": int(row["osm_id"]),
-                            "geometry_level": selected_level,
-                            "area_name": row["area_name"],
-                        }
-                        for row in candidates[: self.diagnostic_limit]
-                    ],
-                },
-            )
-        selected = candidates[0]
+
+        latitude, longitude, point_method = stable_point_within_polygon(
+            self._polygon_geometry(selected),
+            place_id or f"anonymous:{raw_address or ward_norm}",
+        )
+        is_ward = selected_level == "ward"
         matched = {
             "prefecture": "東京都",
-            "ward": expected.ward_ja or expected.ward,
-            "neighborhood": expected.neighborhood,
+            "ward": ward_norm,
         }
-        if selected_level in {"block", "chome"} and expected.chome:
-            matched["chome"] = expected.chome
-        if selected_level == "block" and expected.block:
-            matched["block"] = expected.block
-        unmatched = {
-            component: value
-            for component, value in (
-                ("chome", expected.chome),
-                ("block", expected.block),
-                ("sub_number", expected.sub_number),
-            )
-            if value is not None and component not in matched
-        }
+        if not is_ward and neighborhood_norm:
+            matched["neighborhood"] = neighborhood_norm
+        if selected_level in {"block", "chome"} and parsed_chome:
+            matched["chome"] = parsed_chome
+        if selected_level == "block" and block:
+            matched["block"] = block
+        unmatched = {}
+        for component, value in (
+            ("chome", parsed_chome), ("block", block), ("sub_number", sub_number)
+        ):
+            if value is not None and component not in matched:
+                unmatched[component] = value
+        source_reference = (
+            selected["source_reference"]
+            if not is_ward
+            else f"https://www.openstreetmap.org/{selected['osm_type']}/{selected['osm_id']}"
+        )
         return AddressGeocodeResult(
-            raw_address=expected.original,
-            normalized_address=expected.normalized,
-            latitude=float(selected["latitude"]),
-            longitude=float(selected["longitude"]),
+            raw_address=raw_address,
+            normalized_address=normalized_address or raw_address or ward_norm,
+            latitude=latitude,
+            longitude=longitude,
             prefecture="東京都",
-            municipality_or_ward=expected.ward_ja,
-            neighborhood=expected.neighborhood,
+            municipality_or_ward=ward_norm,
+            neighborhood=None if is_ward else neighborhood_norm,
             address_level_match=selected_level,
             precision="approximate",
             provider="local_osm_addresses",
             provider_version="osm-address-index-v3-area",
-            source_reference=str(selected["source_reference"]),
+            source_reference=str(source_reference),
             provenance=str(selected["source_attribution"]),
             warnings=(f"osm_{selected_level}_area_fallback_is_approximate",),
             place_id=place_id,
@@ -520,8 +624,8 @@ class LocalOSMAddressGeocoder:
             osm_id=int(selected["osm_id"]),
             osm_version=selected["osm_version"],
             osm_timestamp=selected["osm_timestamp"],
-            representative_point_method=str(selected["representative_point_method"]),
-            map_anchor_type=selected_level,
+            representative_point_method=point_method,
+            map_anchor_type="area" if is_ward else selected_level,
         )
 
     def _connect(self) -> sqlite3.Connection:
@@ -840,7 +944,7 @@ class LocalOSMAddressGeocoder:
             "address_number": (
                 expected.number_key
                 if not approximate
-                else "-".join((expected.chome, expected.block))
+                else f"{expected.chome}-{expected.block}"
             ),
             "chome": expected.chome,
             "block": expected.block,

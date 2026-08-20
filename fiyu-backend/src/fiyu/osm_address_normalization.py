@@ -23,6 +23,7 @@ _NUMBER_PART = re.compile(r"\d+")
 _TOKYO_PREFECTURE_ALIASES = {"東京都", "tokyo", "tokyo metropolis"}
 _TOKYO_NEIGHBORHOOD_ALIASES = {
     "kojimachi": {"麹町", "kojimachi"},
+    "daizawa": {"代沢", "daizawa"},
 }
 
 
@@ -114,10 +115,17 @@ def normalize_tokyo_neighborhood(value: str | None) -> tuple[str, str | None]:
 
     text = unicodedata.normalize("NFKC", str(value or "")).casefold().strip()
     japanese = re.fullmatch(r"(.+?)(\d+)丁目", text)
+    japanese_kanji = re.fullmatch(r"(.+?)([〇零一二三四五六七八九十百]+)丁目", text)
     romanized = re.fullmatch(r"(.+?)\s+(\d+)\s+ch(?:o|ō)me", text)
-    match = japanese or romanized
+    match = japanese or japanese_kanji or romanized
     base = (match.group(1) if match else text).strip(" ,-−")
-    chome = str(int(match.group(2))) if match else None
+    chome = (
+        str(_kanji_number(match.group(2)))
+        if japanese_kanji is not None
+        else str(int(match.group(2)))
+        if match
+        else None
+    )
     for canonical, aliases in _TOKYO_NEIGHBORHOOD_ALIASES.items():
         normalized_aliases = {
             unicodedata.normalize("NFKC", alias).casefold() for alias in aliases
@@ -126,6 +134,35 @@ def normalize_tokyo_neighborhood(value: str | None) -> tuple[str, str | None]:
             return canonical, chome
     return base, chome
 
+
+def canonicalize_tokyo_address_components(
+    neighborhood: str | None, street_or_block: str | None
+) -> tuple[str, str]:
+    """Reconcile equivalent chome placement without hiding numeric differences."""
+
+    locality, chome = normalize_tokyo_neighborhood(neighborhood)
+    street = normalize_japanese_street_or_block(street_or_block)
+    parts = street.split("-") if street else []
+    if chome and parts and len(parts) < 3 and parts[0] != chome:
+        street = "-".join((chome, *parts))
+    return locality, street
+
+
+def japanese_street_components_compatible(first: str, second: str) -> bool:
+    """Treat a shared numeric prefix as compatible coarse address evidence."""
+
+    first_normalized = normalize_japanese_street_or_block(first)
+    second_normalized = normalize_japanese_street_or_block(second)
+    if not first_normalized or not second_normalized:
+        return first_normalized == second_normalized
+    if not re.fullmatch(r"\d+(?:-\d+)*", first_normalized) or not re.fullmatch(
+        r"\d+(?:-\d+)*", second_normalized
+    ):
+        return first_normalized == second_normalized
+    first_parts = tuple(first_normalized.split("-"))
+    second_parts = tuple(second_normalized.split("-"))
+    shorter, longer = sorted((first_parts, second_parts), key=len)
+    return longer[: len(shorter)] == shorter
 
 def _ward_from_text(value: str) -> tuple[str | None, str | None]:
     for ward, aliases in TOKYO_WARD_NAMES.items():

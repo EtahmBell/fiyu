@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import json
 import os
 from collections.abc import Iterable
@@ -8,7 +9,13 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from .database import connect
-from .public_score import FiyuEvidence, FiyuScoreResult, InternalSignals, calculate_fiyu_score
+from .local_discovery import ProductEligibility, assess_low_footprint_eligibility
+from .public_score import (
+    FiyuEvidence,
+    FiyuScoreResult,
+    InternalSignals,
+    evaluate_fiyu_candidate,
+)
 
 PUBLIC_SCHEMA = """
 CREATE TABLE IF NOT EXISTS public_restaurants (
@@ -27,6 +34,20 @@ CREATE TABLE IF NOT EXISTS public_restaurants (
     description_model_name TEXT,
     description_prompt_version TEXT,
     description_researched_at TEXT,
+    card_description TEXT,
+    card_description_confidence REAL,
+    card_description_checked_at TEXT,
+    review_themes_json TEXT NOT NULL DEFAULT '[]',
+    review_themes_checked_at TEXT,
+    practical_info_json TEXT NOT NULL DEFAULT '{}',
+    practical_info_checked_at TEXT,
+    opening_hours_json TEXT NOT NULL DEFAULT '{}',
+    hours_display TEXT,
+    hours_confidence REAL,
+    hours_checked_at TEXT,
+    card_enrichment_json TEXT NOT NULL DEFAULT '{}',
+    card_enrichment_conflicts_json TEXT NOT NULL DEFAULT '[]',
+    enrichment_updated_at TEXT,
 
     discovery_area TEXT,
     discovery_area_type TEXT,
@@ -79,6 +100,24 @@ CREATE TABLE IF NOT EXISTS public_restaurants (
     hiddenness_signal REAL,
     quality_signal REAL,
     independence_signal REAL,
+    local_discovery_score REAL,
+    local_discovery_classification TEXT,
+    local_discovery_components_json TEXT NOT NULL DEFAULT '{}',
+    local_discovery_contribution REAL,
+    tourist_visibility_classification TEXT,
+    tourist_orientation TEXT NOT NULL DEFAULT 'unknown',
+    tourist_orientation_basis TEXT NOT NULL DEFAULT 'neutral_unknown',
+    tourist_signals_json TEXT NOT NULL DEFAULT '[]',
+    local_audience_signals_json TEXT NOT NULL DEFAULT '[]',
+    product_eligible INTEGER NOT NULL DEFAULT 1,
+    product_eligibility_classification TEXT,
+    product_eligibility_reasons_json TEXT NOT NULL DEFAULT '[]',
+    low_footprint_route_evaluated INTEGER NOT NULL DEFAULT 0,
+    low_footprint_route_eligible INTEGER NOT NULL DEFAULT 0,
+    low_footprint_trigger_reason TEXT,
+    low_footprint_trigger_score_json TEXT NOT NULL DEFAULT '{}',
+    low_footprint_research_attempted INTEGER NOT NULL DEFAULT 0,
+    low_footprint_research_run_id INTEGER,
     fiyu_score REAL,
     fiyu_confidence REAL,
     confidence_band TEXT,
@@ -127,6 +166,42 @@ CREATE TABLE IF NOT EXISTS restaurant_research_runs (
 );
 CREATE INDEX IF NOT EXISTS idx_restaurant_research_runs_current
     ON restaurant_research_runs(public_restaurant_id, is_current, created_at DESC);
+CREATE TABLE IF NOT EXISTS score_calculation_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    public_restaurant_id TEXT NOT NULL,
+    source_research_run_id INTEGER,
+    score_version TEXT NOT NULL,
+    evidence_fingerprint TEXT NOT NULL,
+    score_json TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (public_restaurant_id) REFERENCES public_restaurants(place_id),
+    FOREIGN KEY (source_research_run_id) REFERENCES restaurant_research_runs(id),
+    UNIQUE (public_restaurant_id, score_version, evidence_fingerprint)
+);
+CREATE INDEX IF NOT EXISTS idx_score_calculation_runs_restaurant
+    ON score_calculation_runs(public_restaurant_id, created_at DESC);
+CREATE TABLE IF NOT EXISTS low_footprint_research_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    public_restaurant_id TEXT NOT NULL,
+    evidence_fingerprint TEXT NOT NULL,
+    status TEXT NOT NULL,
+    trigger_reason TEXT NOT NULL,
+    trigger_snapshot_json TEXT NOT NULL DEFAULT '{}',
+    restaurant_research_run_id INTEGER,
+    response_id TEXT,
+    result_evidence_json TEXT NOT NULL DEFAULT '{}',
+    before_score_json TEXT NOT NULL DEFAULT '{}',
+    after_score_json TEXT NOT NULL DEFAULT '{}',
+    usage_metadata_json TEXT NOT NULL DEFAULT '{}',
+    error TEXT,
+    created_at TEXT NOT NULL,
+    completed_at TEXT,
+    FOREIGN KEY (public_restaurant_id) REFERENCES public_restaurants(place_id),
+    FOREIGN KEY (restaurant_research_run_id) REFERENCES restaurant_research_runs(id),
+    UNIQUE (public_restaurant_id, evidence_fingerprint)
+);
+CREATE INDEX IF NOT EXISTS idx_low_footprint_runs_restaurant
+    ON low_footprint_research_runs(public_restaurant_id, created_at DESC);
 CREATE TABLE IF NOT EXISTS description_research_runs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     public_restaurant_id TEXT NOT NULL,
@@ -152,6 +227,28 @@ CREATE TABLE IF NOT EXISTS description_research_runs (
 );
 CREATE INDEX IF NOT EXISTS idx_description_research_runs_restaurant
     ON description_research_runs(public_restaurant_id, created_at DESC);
+CREATE TABLE IF NOT EXISTS restaurant_card_enrichment_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    public_restaurant_id TEXT NOT NULL,
+    provider TEXT NOT NULL,
+    model TEXT,
+    prompt_version TEXT NOT NULL,
+    phase TEXT NOT NULL,
+    status TEXT NOT NULL,
+    source_research_run_id INTEGER,
+    response_id TEXT,
+    input_fingerprint TEXT NOT NULL,
+    enrichment_json TEXT NOT NULL DEFAULT '{}',
+    usage_metadata_json TEXT NOT NULL DEFAULT '{}',
+    error TEXT,
+    created_at TEXT NOT NULL,
+    completed_at TEXT,
+    FOREIGN KEY (public_restaurant_id) REFERENCES public_restaurants(place_id),
+    FOREIGN KEY (source_research_run_id) REFERENCES restaurant_research_runs(id),
+    UNIQUE (public_restaurant_id, phase, input_fingerprint)
+);
+CREATE INDEX IF NOT EXISTS idx_card_enrichment_runs_restaurant
+    ON restaurant_card_enrichment_runs(public_restaurant_id, created_at DESC);
 CREATE TABLE IF NOT EXISTS community_recommendations (
     response_id TEXT PRIMARY KEY,
     place_id TEXT NOT NULL,
@@ -467,6 +564,23 @@ PUBLIC_DESCRIPTION_COLUMNS = {
     "description_researched_at": "TEXT",
 }
 
+PUBLIC_CARD_ENRICHMENT_COLUMNS = {
+    "card_description": "TEXT",
+    "card_description_confidence": "REAL",
+    "card_description_checked_at": "TEXT",
+    "review_themes_json": "TEXT NOT NULL DEFAULT '[]'",
+    "review_themes_checked_at": "TEXT",
+    "practical_info_json": "TEXT NOT NULL DEFAULT '{}'",
+    "practical_info_checked_at": "TEXT",
+    "opening_hours_json": "TEXT NOT NULL DEFAULT '{}'",
+    "hours_display": "TEXT",
+    "hours_confidence": "REAL",
+    "hours_checked_at": "TEXT",
+    "card_enrichment_json": "TEXT NOT NULL DEFAULT '{}'",
+    "card_enrichment_conflicts_json": "TEXT NOT NULL DEFAULT '[]'",
+    "enrichment_updated_at": "TEXT",
+}
+
 PUBLIC_PIPELINE_COLUMNS = {
     "review_status": "TEXT NOT NULL DEFAULT 'candidate'",
     "review_notes": "TEXT",
@@ -474,6 +588,27 @@ PUBLIC_PIPELINE_COLUMNS = {
     "reviewed_at": "TEXT",
     "location_attempted_at": "TEXT",
     "pipeline_version": "TEXT",
+}
+
+PUBLIC_LOCAL_DISCOVERY_COLUMNS = {
+    "local_discovery_score": "REAL",
+    "local_discovery_classification": "TEXT",
+    "local_discovery_components_json": "TEXT NOT NULL DEFAULT '{}'",
+    "local_discovery_contribution": "REAL",
+    "tourist_visibility_classification": "TEXT",
+    "tourist_orientation": "TEXT NOT NULL DEFAULT 'unknown'",
+    "tourist_orientation_basis": "TEXT NOT NULL DEFAULT 'neutral_unknown'",
+    "tourist_signals_json": "TEXT NOT NULL DEFAULT '[]'",
+    "local_audience_signals_json": "TEXT NOT NULL DEFAULT '[]'",
+    "product_eligible": "INTEGER NOT NULL DEFAULT 1",
+    "product_eligibility_classification": "TEXT",
+    "product_eligibility_reasons_json": "TEXT NOT NULL DEFAULT '[]'",
+    "low_footprint_route_evaluated": "INTEGER NOT NULL DEFAULT 0",
+    "low_footprint_route_eligible": "INTEGER NOT NULL DEFAULT 0",
+    "low_footprint_trigger_reason": "TEXT",
+    "low_footprint_trigger_score_json": "TEXT NOT NULL DEFAULT '{}'",
+    "low_footprint_research_attempted": "INTEGER NOT NULL DEFAULT 0",
+    "low_footprint_research_run_id": "INTEGER",
 }
 
 DESCRIPTION_TABLE_COLUMNS = {
@@ -490,21 +625,30 @@ ADDRESS_TABLE_COLUMNS = {
         "query_origin": "TEXT NOT NULL DEFAULT 'fiyu_generated'",
     },
     "address_evidence": {
-        "floor": "TEXT", "suite_or_unit": "TEXT", "entrance": "TEXT",
+        "floor": "TEXT",
+        "suite_or_unit": "TEXT",
+        "entrance": "TEXT",
         "component_agreement_json": "TEXT NOT NULL DEFAULT '{}'",
-        "agreed_core_address": "TEXT", "core_address_verified": "INTEGER NOT NULL DEFAULT 0",
+        "agreed_core_address": "TEXT",
+        "core_address_verified": "INTEGER NOT NULL DEFAULT 0",
         "full_address_verified": "INTEGER NOT NULL DEFAULT 0",
-        "unresolved_address_detail": "TEXT", "proposed_location_precision": "TEXT",
+        "unresolved_address_detail": "TEXT",
+        "proposed_location_precision": "TEXT",
         "map_location_approximate": "INTEGER NOT NULL DEFAULT 0",
     },
     "verified_restaurant_addresses": {
-        "floor": "TEXT", "suite_or_unit": "TEXT", "entrance": "TEXT",
-        "verified_core_address": "TEXT", "geocoding_address": "TEXT",
+        "floor": "TEXT",
+        "suite_or_unit": "TEXT",
+        "entrance": "TEXT",
+        "verified_core_address": "TEXT",
+        "geocoding_address": "TEXT",
         "core_address_verified": "INTEGER NOT NULL DEFAULT 0",
         "full_address_verified": "INTEGER NOT NULL DEFAULT 0",
-        "unresolved_address_detail": "TEXT", "approved_location_precision": "TEXT",
+        "unresolved_address_detail": "TEXT",
+        "approved_location_precision": "TEXT",
         "map_location_approximate": "INTEGER NOT NULL DEFAULT 0",
-        "address_confidence_tier": "TEXT", "decision_fingerprint": "TEXT",
+        "address_confidence_tier": "TEXT",
+        "decision_fingerprint": "TEXT",
     },
     "address_decision_audits": {
         "confidence_tier": "TEXT",
@@ -513,15 +657,22 @@ ADDRESS_TABLE_COLUMNS = {
         "derived_location_precision": "TEXT",
         "map_location_approximate": "INTEGER NOT NULL DEFAULT 0",
         "input_fingerprint": "TEXT",
-        "neighborhood": "TEXT", "match_status": "TEXT",
+        "neighborhood": "TEXT",
+        "match_status": "TEXT",
         "matched_components_json": "TEXT NOT NULL DEFAULT '{}'",
         "unmatched_components_json": "TEXT NOT NULL DEFAULT '{}'",
-        "osm_type": "TEXT", "osm_id": "INTEGER", "osm_version": "INTEGER",
-        "osm_timestamp": "TEXT", "representative_point_method": "TEXT",
-        "map_anchor_type": "TEXT", "provenance": "TEXT",
+        "osm_type": "TEXT",
+        "osm_id": "INTEGER",
+        "osm_version": "INTEGER",
+        "osm_timestamp": "TEXT",
+        "representative_point_method": "TEXT",
+        "map_anchor_type": "TEXT",
+        "provenance": "TEXT",
     },
     "location_history": {
-        "osm_type": "TEXT", "osm_id": "INTEGER", "osm_version": "INTEGER",
+        "osm_type": "TEXT",
+        "osm_id": "INTEGER",
+        "osm_version": "INTEGER",
         "osm_timestamp": "TEXT",
         "map_anchor_type": "TEXT",
         "matched_components_json": "TEXT NOT NULL DEFAULT '{}'",
@@ -535,6 +686,65 @@ def _utc_now() -> str:
     return datetime.now(UTC).isoformat()
 
 
+def _score_evidence_fingerprint(
+    evidence: FiyuEvidence,
+    structured_research: dict[str, object] | None,
+    score_version: str,
+) -> str:
+    payload = json.dumps(
+        {
+            "evidence": evidence.to_dict(),
+            "structured_research": structured_research or {},
+            "score_version": score_version,
+        },
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _record_score_calculation(
+    connection,
+    *,
+    place_id: str,
+    evidence: FiyuEvidence,
+    structured_research: dict[str, object] | None,
+    score: FiyuScoreResult,
+    source_research_run_id: int | None,
+    now: str,
+) -> None:
+    connection.execute(
+        """
+        INSERT OR IGNORE INTO score_calculation_runs (
+            public_restaurant_id, source_research_run_id, score_version,
+            evidence_fingerprint, score_json, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (
+            place_id,
+            source_research_run_id,
+            score.score_version,
+            _score_evidence_fingerprint(evidence, structured_research, score.score_version),
+            json.dumps(score.to_dict(), ensure_ascii=False),
+            now,
+        ),
+    )
+
+
+def _low_footprint_snapshot(evidence: FiyuEvidence, score: FiyuScoreResult) -> dict[str, object]:
+    return {
+        "score_version": score.score_version,
+        "fiyu_score": score.fiyu_score,
+        "local_discovery_score": score.local_discovery_score,
+        "local_discovery_components": score.local_discovery_components,
+        "research_confidence": score.fiyu_confidence,
+        "evidence_source_count": evidence.total_evidence_sources,
+        "product_eligible": score.product_eligible,
+        "chain_excluded": score.chain_excluded,
+    }
+
+
 def ensure_public_schema(db_path: str | Path) -> None:
     with connect(db_path) as connection:
         connection.executescript(PUBLIC_SCHEMA)
@@ -546,7 +756,9 @@ def ensure_public_schema(db_path: str | Path) -> None:
             **PUBLIC_LOCATION_COLUMNS,
             **PUBLIC_DISCOVERY_COLUMNS,
             **PUBLIC_DESCRIPTION_COLUMNS,
+            **PUBLIC_CARD_ENRICHMENT_COLUMNS,
             **PUBLIC_PIPELINE_COLUMNS,
+            **PUBLIC_LOCAL_DISCOVERY_COLUMNS,
         }.items():
             if name not in existing:
                 connection.execute(
@@ -608,7 +820,7 @@ def seed_public_queue(
             f"""
             SELECT id, place_id
             FROM restaurants
-            WHERE {' AND '.join(conditions)}
+            WHERE {" AND ".join(conditions)}
             ORDER BY internal_fiyu_score DESC, confidence_score DESC
             LIMIT ?
             """,
@@ -771,6 +983,7 @@ def save_research_result(
     research_run_id: int | None = None,
 ) -> None:
     now = _utc_now()
+    evidence_urls = tuple(sorted(set(evidence_urls)))
     verification_status = "automatically_researched"
     with connect(db_path) as connection:
         connection.execute(
@@ -788,6 +1001,18 @@ def save_research_result(
                 hiddenness_signal = ?,
                 quality_signal = ?,
                 independence_signal = ?,
+                local_discovery_score = ?,
+                local_discovery_classification = ?,
+                local_discovery_components_json = ?,
+                local_discovery_contribution = ?,
+                tourist_visibility_classification = ?,
+                tourist_orientation = ?,
+                tourist_orientation_basis = ?,
+                tourist_signals_json = ?,
+                local_audience_signals_json = ?,
+                product_eligible = ?,
+                product_eligibility_classification = ?,
+                product_eligibility_reasons_json = ?,
                 fiyu_score = ?,
                 fiyu_confidence = ?,
                 confidence_band = ?,
@@ -817,6 +1042,18 @@ def save_research_result(
                 score.hiddenness_signal,
                 score.quality_signal,
                 score.independence_signal,
+                score.local_discovery_score,
+                score.local_discovery_classification,
+                json.dumps(score.local_discovery_components, ensure_ascii=False),
+                score.local_discovery_contribution,
+                score.tourist_visibility_classification,
+                score.tourist_orientation,
+                score.tourist_orientation_basis,
+                json.dumps(evidence.tourist_signals, ensure_ascii=False),
+                json.dumps(evidence.local_audience_signals, ensure_ascii=False),
+                int(score.product_eligible),
+                score.product_eligibility_classification,
+                json.dumps(score.product_eligibility_reasons, ensure_ascii=False),
                 score.fiyu_score,
                 score.fiyu_confidence,
                 score.confidence_band,
@@ -856,7 +1093,7 @@ def save_research_result(
             json.dumps(usage_metadata or {}, ensure_ascii=False),
         )
         if research_run_id is None:
-            connection.execute(
+            cursor = connection.execute(
                 """
                 INSERT INTO restaurant_research_runs (
                 public_restaurant_id, provider, model, prompt_version, pipeline_version,
@@ -867,6 +1104,7 @@ def save_research_result(
                 """,
                 (place_id, model_name, prompt_version, pipeline_version, *run_payload, now, now),
             )
+            active_research_run_id = int(cursor.lastrowid)
         else:
             connection.execute(
                 """
@@ -878,6 +1116,96 @@ def save_research_result(
                 """,
                 (*run_payload, now, research_run_id, place_id),
             )
+            active_research_run_id = research_run_id
+        from .card_enrichment import scoring_research_view
+
+        _record_score_calculation(
+            connection,
+            place_id=place_id,
+            evidence=evidence,
+            structured_research=scoring_research_view(structured_research),
+            score=score,
+            source_research_run_id=active_research_run_id,
+            now=now,
+        )
+        raw_enrichment = (structured_research or {}).get("card_enrichment")
+        if isinstance(raw_enrichment, dict):
+            from .card_enrichment import (
+                CardEnrichment,
+                compact_card_description,
+                persist_card_enrichment,
+            )
+
+            incoming_enrichment = CardEnrichment.model_validate(raw_enrichment)
+            if not incoming_enrichment.card_description:
+                compact_description = compact_card_description(description_en)
+                if compact_description:
+                    incoming_enrichment = incoming_enrichment.model_copy(
+                        update={
+                            "card_description": compact_description,
+                            "card_description_confidence": 0.6,
+                            "card_description_source_urls": sorted(set(evidence_urls))[:8],
+                        }
+                    )
+
+            persist_card_enrichment(
+                connection,
+                place_id=place_id,
+                incoming=incoming_enrichment,
+                provider="embedded_restaurant_research",
+                model=model_name,
+                prompt_version=prompt_version,
+                source_research_run_id=active_research_run_id,
+                response_id=str((usage_metadata or {}).get("response_id") or "") or None,
+                usage_metadata=usage_metadata,
+                phase="embedded_pipeline",
+            )
+        snapshot = _low_footprint_snapshot(evidence, score)
+        route = assess_low_footprint_eligibility(
+            local_discovery_score=score.local_discovery_score,
+            fiyu_score=score.fiyu_score,
+            research_confidence=score.fiyu_confidence,
+            evidence_source_count=evidence.total_evidence_sources,
+            product_eligibility=ProductEligibility(
+                score.product_eligible,
+                score.product_eligibility_classification,
+                score.product_eligibility_reasons,
+            ),
+            chain_excluded=score.chain_excluded,
+            fingerprint_payload=snapshot,
+        )
+        connection.execute(
+            """
+            UPDATE public_restaurants
+            SET low_footprint_route_evaluated=1,
+                low_footprint_route_eligible=?, low_footprint_trigger_reason=?,
+                low_footprint_trigger_score_json=?
+            WHERE place_id=?
+            """,
+            (
+                int(route.eligible),
+                route.reason,
+                json.dumps(snapshot, ensure_ascii=False),
+                place_id,
+            ),
+        )
+        connection.execute(
+            """
+            INSERT OR IGNORE INTO low_footprint_research_runs (
+                public_restaurant_id, evidence_fingerprint, status,
+                trigger_reason, trigger_snapshot_json, before_score_json, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                place_id,
+                route.evidence_fingerprint,
+                "eligible" if route.eligible else "not_eligible",
+                route.reason,
+                json.dumps(snapshot, ensure_ascii=False),
+                json.dumps(score.to_dict(), ensure_ascii=False),
+                now,
+            ),
+        )
         connection.commit()
 
 
@@ -998,9 +1326,7 @@ def recover_research_for_retry(
         return result
 
 
-def recalculate_from_stored_evidence(
-    db_path: str | Path, *, place_id: str | None = None
-) -> int:
+def recalculate_from_stored_evidence(db_path: str | Path, *, place_id: str | None = None) -> int:
     """Recalculate all completed rows for free after changing score weights."""
 
     ensure_public_schema(db_path)
@@ -1010,6 +1336,7 @@ def recalculate_from_stored_evidence(
             SELECT
                 p.place_id,
                 p.evidence_json,
+                p.primary_category,
                 r.quality_score,
                 r.underexposure_score,
                 r.digital_footprint_score,
@@ -1024,8 +1351,7 @@ def recalculate_from_stored_evidence(
                 ORDER BY current.is_current DESC, current.id DESC LIMIT 1
             )
             WHERE p.research_status = 'complete' AND (? IS NULL OR p.place_id = ?)
-            """
-            ,
+            """,
             (place_id, place_id),
         ).fetchall()
 
@@ -1042,31 +1368,31 @@ def recalculate_from_stored_evidence(
                 structured = json.loads(row["structured_research_json"] or "{}")
             except json.JSONDecodeError:
                 structured = {}
-            from .public_score import (
-                assess_chain_classification,
-                assess_publication_conflict,
-            )
+            from .card_enrichment import scoring_research_view
 
-            conflict = assess_publication_conflict(evidence, structured)
-            chain = assess_chain_classification(evidence, structured)
-            evidence.chain_classification = chain.classification
-            evidence.restaurant_group_affiliated = chain.group_affiliated
-            evidence.likely_chain = chain.excluded
-            structured["chain_classification"] = chain.classification
-            structured["restaurant_group_affiliated"] = chain.group_affiliated
-            structured["likely_chain"] = chain.excluded
-            structured["chain_classification_reasons"] = list(chain.reasons)
-            score = calculate_fiyu_score(
+            scoring_structured = scoring_research_view(structured)
+            score = evaluate_fiyu_candidate(
                 evidence,
                 internal,
-                conflict_assessment=conflict,
-                chain_assessment=chain,
+                scoring_structured,
+                primary_category=row["primary_category"],
             )
+            now = _utc_now()
             connection.execute(
                 """
                 UPDATE public_restaurants
                 SET local_signal = ?, hiddenness_signal = ?, quality_signal = ?,
-                    independence_signal = ?, fiyu_score = ?, fiyu_confidence = ?,
+                    independence_signal = ?, local_discovery_score = ?,
+                    local_discovery_classification = ?,
+                    local_discovery_components_json = ?,
+                    local_discovery_contribution = ?,
+                    tourist_visibility_classification = ?, tourist_orientation = ?,
+                    tourist_orientation_basis = ?,
+                    tourist_signals_json = ?, local_audience_signals_json = ?,
+                    product_eligible = ?,
+                    product_eligibility_classification = ?,
+                    product_eligibility_reasons_json = ?,
+                    fiyu_score = ?, fiyu_confidence = ?,
                     confidence_band = ?, score_band = ?, score_version = ?,
                     updated_at = ?
                 WHERE place_id = ?
@@ -1076,32 +1402,80 @@ def recalculate_from_stored_evidence(
                     score.hiddenness_signal,
                     score.quality_signal,
                     score.independence_signal,
+                    score.local_discovery_score,
+                    score.local_discovery_classification,
+                    json.dumps(score.local_discovery_components, ensure_ascii=False),
+                    score.local_discovery_contribution,
+                    score.tourist_visibility_classification,
+                    score.tourist_orientation,
+                    score.tourist_orientation_basis,
+                    json.dumps(evidence.tourist_signals, ensure_ascii=False),
+                    json.dumps(evidence.local_audience_signals, ensure_ascii=False),
+                    int(score.product_eligible),
+                    score.product_eligibility_classification,
+                    json.dumps(score.product_eligibility_reasons, ensure_ascii=False),
                     score.fiyu_score,
                     score.fiyu_confidence,
                     score.confidence_band,
                     score.score_band,
                     score.score_version,
-                    _utc_now(),
+                    now,
                     row["place_id"],
                 ),
             )
-            if row["research_run_id"] is not None:
-                connection.execute(
-                    """
-                    UPDATE restaurant_research_runs
-                    SET structured_research_json=?, evidence_json=?, score_json=?
-                    WHERE id=?
-                    """,
-                    (
-                        json.dumps(structured, ensure_ascii=False),
-                        json.dumps(evidence.to_dict(), ensure_ascii=False),
-                        json.dumps(score.to_dict(), ensure_ascii=False),
-                        row["research_run_id"],
-                    ),
-                )
+            _record_score_calculation(
+                connection,
+                place_id=row["place_id"],
+                evidence=evidence,
+                structured_research=scoring_structured,
+                score=score,
+                source_research_run_id=row["research_run_id"],
+                now=now,
+            )
+            snapshot = _low_footprint_snapshot(evidence, score)
+            route = assess_low_footprint_eligibility(
+                local_discovery_score=score.local_discovery_score,
+                fiyu_score=score.fiyu_score,
+                research_confidence=score.fiyu_confidence,
+                evidence_source_count=evidence.total_evidence_sources,
+                product_eligibility=ProductEligibility(
+                    score.product_eligible,
+                    score.product_eligibility_classification,
+                    score.product_eligibility_reasons,
+                ),
+                chain_excluded=score.chain_excluded,
+                fingerprint_payload=snapshot,
+            )
             connection.execute(
-                "UPDATE public_restaurants SET evidence_json=? WHERE place_id=?",
-                (json.dumps(evidence.to_dict(), ensure_ascii=False), row["place_id"]),
+                """
+                UPDATE public_restaurants
+                SET low_footprint_route_evaluated=1,
+                    low_footprint_route_eligible=?, low_footprint_trigger_reason=?,
+                    low_footprint_trigger_score_json=? WHERE place_id=?
+                """,
+                (
+                    int(route.eligible),
+                    route.reason,
+                    json.dumps(snapshot, ensure_ascii=False),
+                    row["place_id"],
+                ),
+            )
+            connection.execute(
+                """
+                INSERT OR IGNORE INTO low_footprint_research_runs (
+                    public_restaurant_id, evidence_fingerprint, status,
+                    trigger_reason, trigger_snapshot_json, before_score_json, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    row["place_id"],
+                    route.evidence_fingerprint,
+                    "eligible" if route.eligible else "not_eligible",
+                    route.reason,
+                    json.dumps(snapshot, ensure_ascii=False),
+                    json.dumps(score.to_dict(), ensure_ascii=False),
+                    now,
+                ),
             )
             count += 1
         connection.commit()
@@ -1142,7 +1516,15 @@ def list_public_restaurants(
         # Public/internal-audit label: this is a web-language signal,
         # not proof of customer nationality or local residency.
         item["local_language_web_signal"] = item.pop("local_signal", None)
-        for field in ("food_tags_json", "signature_dishes_json", "evidence_urls_json"):
+        for field in (
+            "food_tags_json",
+            "signature_dishes_json",
+            "evidence_urls_json",
+            "local_discovery_components_json",
+            "tourist_signals_json",
+            "local_audience_signals_json",
+            "product_eligibility_reasons_json",
+        ):
             output = field.removesuffix("_json")
             try:
                 item[output] = json.loads(item.pop(field) or "[]")
@@ -1158,13 +1540,13 @@ def list_public_restaurants(
 
 
 def get_public_restaurant(db_path: str | Path, place_id: str) -> dict[str, object] | None:
-    rows = _safe_public_rows(db_path, where="p.is_published = 1 AND p.place_id = ?", parameters=(place_id,), limit=1)
+    rows = _safe_public_rows(
+        db_path, where="p.is_published = 1 AND p.place_id = ?", parameters=(place_id,), limit=1
+    )
     return rows[0] if rows else None
 
 
-def get_public_restaurant_detail(
-    db_path: str | Path, place_id: str
-) -> dict[str, object] | None:
+def get_public_restaurant_detail(db_path: str | Path, place_id: str) -> dict[str, object] | None:
     """Return the public summary plus the latest accepted grounded detail fields."""
     restaurant = get_public_restaurant(db_path, place_id)
     if restaurant is None:
@@ -1199,9 +1581,7 @@ def get_public_restaurant_detail(
     return restaurant
 
 
-def list_published_restaurants(
-    db_path: str | Path, *, limit: int = 100
-) -> list[dict[str, object]]:
+def list_published_restaurants(db_path: str | Path, *, limit: int = 100) -> list[dict[str, object]]:
     return _safe_public_rows(db_path, where="p.is_published = 1", parameters=(), limit=limit)
 
 
@@ -1215,15 +1595,19 @@ def _safe_public_rows(
 ) -> list[dict[str, object]]:
     ensure_public_schema(db_path)
     if community_minimum is None:
-        community_minimum = max(
-            1, int(os.getenv("FIYU_COMMUNITY_MINIMUM_RESPONSES", "5"))
-        )
+        community_minimum = max(1, int(os.getenv("FIYU_COMMUNITY_MINIMUM_RESPONSES", "5")))
     with connect(db_path) as connection:
         rows = connection.execute(
             f"""
             SELECT p.place_id, p.name_ja, p.name_en, p.primary_category,
                    r.neighborhood, r.address AS canonical_address,
                    p.fiyu_score, p.score_band, p.description_en,
+                   p.card_description, p.review_themes_json,
+                   p.practical_info_json, p.opening_hours_json,
+                   p.hours_display, p.hours_confidence, p.hours_checked_at,
+                   p.local_discovery_score, p.local_discovery_classification,
+                   p.tourist_visibility_classification, p.tourist_orientation,
+                   p.tourist_orientation_basis,
                    p.food_tags_json, p.signature_dishes_json,
                    p.discovery_area, p.discovery_area_type, p.discovery_areas_json,
                    p.multiple_discovery_areas, p.discovery_area_conflict,
@@ -1258,12 +1642,8 @@ def _safe_public_rows(
         item["core_address_verified"] = bool(item.get("core_address_verified"))
         item["full_address_verified"] = bool(item.get("full_address_verified"))
         item["map_location_approximate"] = bool(item.get("map_location_approximate"))
-        item["location_label"] = (
-            "Approximate area" if item["map_location_approximate"] else None
-        )
-        item["distance_sort_eligible"] = bool(
-            eligible and not item["map_location_approximate"]
-        )
+        item["location_label"] = "Approximate area" if item["map_location_approximate"] else None
+        item["distance_sort_eligible"] = bool(eligible and not item["map_location_approximate"])
         item["directions_coordinates_eligible"] = bool(
             eligible and not item["map_location_approximate"]
         )
@@ -1273,8 +1653,8 @@ def _safe_public_rows(
         # that address only as the compact maps search target so restaurant
         # cards can offer navigation without treating unreviewed coordinates as
         # an exact destination.
-        item["external_map_search_query"] = (
-            item.get("verified_core_address") or item.pop("canonical_address", None)
+        item["external_map_search_query"] = item.get("verified_core_address") or item.pop(
+            "canonical_address", None
         )
         item["map_anchor_id"] = (
             f"{item.get('location_osm_type')}:{item.get('location_osm_id')}"
@@ -1298,9 +1678,7 @@ def _safe_public_rows(
             "osm_id": item.pop("location_osm_id"),
             "osm_version": item.pop("location_osm_version"),
             "osm_timestamp": item.pop("location_osm_timestamp"),
-            "representative_point_method": item.pop(
-                "location_representative_point_method"
-            ),
+            "representative_point_method": item.pop("location_representative_point_method"),
         }
         item["source_reference"] = item.pop("location_source_reference")
         if not eligible:
@@ -1336,6 +1714,54 @@ def _safe_public_rows(
                 item[target] = value if isinstance(value, list) else []
             except json.JSONDecodeError:
                 item[target] = []
+        try:
+            themes = json.loads(item.pop("review_themes_json") or "[]")
+            item["review_themes"] = (
+                [
+                    {
+                        key: theme.get(key)
+                        for key in ("theme", "sentiment", "supporting_source_count", "confidence")
+                    }
+                    for theme in themes
+                    if isinstance(theme, dict)
+                ]
+                if isinstance(themes, list)
+                else []
+            )
+        except json.JSONDecodeError:
+            item["review_themes"] = []
+        try:
+            practical = json.loads(item.pop("practical_info_json") or "{}")
+            if isinstance(practical, dict):
+                from .card_enrichment import PracticalInfo, practical_info_is_useful
+
+                practical.pop("source_urls", None)
+                practical.pop("checked_at", None)
+                item["practical_info"] = (
+                    practical
+                    if practical_info_is_useful(PracticalInfo.model_validate(practical))
+                    else {}
+                )
+            else:
+                item["practical_info"] = {}
+        except (json.JSONDecodeError, ValueError):
+            item["practical_info"] = {}
+        try:
+            opening_hours = json.loads(item.pop("opening_hours_json") or "{}")
+            if isinstance(opening_hours, dict):
+                from .card_enrichment import OpeningHours, hours_are_usable
+
+                opening_hours.pop("sources", None)
+                opening_hours.pop("unresolved_conflicts", None)
+                item["opening_hours"] = (
+                    opening_hours
+                    if hours_are_usable(OpeningHours.model_validate(opening_hours))
+                    else {}
+                )
+            else:
+                item["opening_hours"] = {}
+        except (json.JSONDecodeError, ValueError):
+            item["opening_hours"] = {}
         results.append(item)
     return results
 
@@ -1355,9 +1781,20 @@ def set_publication_status(db_path: str | Path, place_id: str, *, published: boo
 def list_review_candidates(db_path: str | Path, *, limit: int = 20) -> list[dict[str, object]]:
     rows = list_public_restaurants(db_path, published_only=False, limit=limit)
     fields = (
-        "place_id", "name_ja", "name_en", "candidate_title", "primary_category",
-        "neighborhood", "fiyu_score", "fiyu_confidence", "confidence_band",
-        "score_band", "why_fiyu", "research_status", "verification_status", "is_published",
+        "place_id",
+        "name_ja",
+        "name_en",
+        "candidate_title",
+        "primary_category",
+        "neighborhood",
+        "fiyu_score",
+        "fiyu_confidence",
+        "confidence_band",
+        "score_band",
+        "why_fiyu",
+        "research_status",
+        "verification_status",
+        "is_published",
     )
     return [{field: row.get(field) for field in fields} for row in rows]
 

@@ -14,8 +14,10 @@ from fiyu.osm_address_normalization import parse_japanese_address
 from fiyu.osm_index import (
     OSMAddressArea,
     OSMFeature,
+    OSMWardBoundary,
     _point_in_polygon,
     build_osm_index,
+    stable_point_within_polygon,
 )
 
 
@@ -66,13 +68,14 @@ def _feature(
     )
 
 
-def _index(tmp_path, features: list[OSMFeature], *, areas=()):
+def _index(tmp_path, features: list[OSMFeature], *, areas=(), wards=()):
     path = tmp_path / "osm-addresses.sqlite"
     result = build_osm_index(
         tmp_path / "synthetic.osm.pbf",
         path,
         features=features,
         address_areas=areas,
+        ward_boundaries=wards,
     )
     assert result["address_indexed"] == len(features)
     return path
@@ -87,6 +90,7 @@ def _area(
     chome: str | None = "3",
     block: str | None = None,
     polygon=None,
+    extra_tags=None,
 ) -> OSMAddressArea:
     outer = polygon or (
         (35.6800, 139.6260),
@@ -100,11 +104,25 @@ def _area(
         name += f"{chome}丁目"
     if block:
         name += f"{block}番"
+    tags = {"name": name, "boundary": "administrative", "admin_level": "11"}
+    tags.update(extra_tags or {})
     return OSMAddressArea(
         "relation", osm_id, level, neighborhood, ((outer, ()),),
-        {"name": name, "boundary": "administrative", "admin_level": "11"},
+        tags,
         ward=ward, chome=chome, block=block,
         osm_version=4, osm_timestamp="2026-07-01T00:00:00Z",
+    )
+
+
+def _ward(osm_id: int, *, name="Suginami", polygon=None):
+    outer = polygon or (
+        (35.67, 139.60), (35.67, 139.66), (35.72, 139.66),
+        (35.72, 139.60), (35.67, 139.60),
+    )
+    return OSMWardBoundary(
+        name, osm_id, ((outer, ()),),
+        {"name": "杉並区", "name:ja": "杉並区", "boundary": "administrative"},
+        osm_version=8, osm_timestamp="2026-07-01T00:00:00Z",
     )
 
 
@@ -556,7 +574,7 @@ def test_ambiguous_matching_area_polygons_are_rejected(tmp_path):
         LocalOSMAddressGeocoder(index, allow_area_fallback=True).geocode(
             "東京都杉並区浜田山3-30-5"
         )
-    assert error.value.status == "ambiguous"
+    assert error.value.status == "not_found"
 
 
 def test_area_representative_point_lies_inside_concave_polygon(tmp_path):
@@ -573,9 +591,83 @@ def test_area_representative_point_lies_inside_concave_polygon(tmp_path):
     )
     assert result is not None
     assert _point_in_polygon(result.latitude, result.longitude, concave, ())
-    assert result.representative_point_method in {
-        "polygon_centroid_inside", "polygon_scanline_point_on_surface"
-    }
+    assert result.representative_point_method == "stable_polygon_interior_point"
+
+
+def test_missing_neighborhood_polygon_falls_back_to_ward(tmp_path):
+    index = _index(tmp_path, [], wards=[_ward(301)])
+    result = LocalOSMAddressGeocoder(
+        index, allow_area_fallback=True, minimum_area_precision="ward"
+    ).geocode("東京都杉並区浜田山3-30-5", place_id="restaurant-ward")
+    assert result is not None
+    assert result.map_anchor_type == "area"
+    assert result.address_level_match == "ward"
+    assert result.map_location_approximate is True
+
+
+def test_exact_english_locality_name_resolves_legacy_candidate_to_chome(tmp_path):
+    index = _index(
+        tmp_path,
+        [],
+        areas=[
+            _area(
+                302,
+                level="chome",
+                ward="Bunkyo",
+                neighborhood="千駄木",
+                chome="3",
+                extra_tags={"name:en": "Sendagi 3"},
+            )
+        ],
+        wards=[_ward(303, name="Bunkyo")],
+    )
+    result = LocalOSMAddressGeocoder(
+        index, allow_area_fallback=True, minimum_area_precision="ward"
+    ).geocode_polygon(
+        ward="Bunkyo",
+        neighborhood="3 Chome Sendagi",
+        place_id="legacy-sendagi",
+    )
+    assert result is not None
+    assert result.map_anchor_type == "chome"
+    assert result.matched_components["neighborhood"] == "千駄木"
+    assert result.matched_components["chome"] == "3"
+
+
+def test_ambiguous_english_locality_name_does_not_select_polygon(tmp_path):
+    index = _index(
+        tmp_path,
+        [],
+        areas=[
+            _area(304, level="neighborhood", neighborhood="第一", chome=None,
+                  extra_tags={"name:en": "Shared"}),
+            _area(305, level="neighborhood", neighborhood="第二", chome=None,
+                  extra_tags={"name:en": "Shared"}),
+        ],
+        wards=[_ward(306)],
+    )
+    result = LocalOSMAddressGeocoder(
+        index, allow_area_fallback=True, minimum_area_precision="ward"
+    ).geocode_polygon(
+        ward="Suginami", neighborhood="Shared", place_id="legacy-shared"
+    )
+    assert result is not None
+    assert result.address_level_match == "ward"
+
+
+def test_stable_polygon_points_are_inside_repeatable_and_distributed():
+    outer = (
+        (35.67, 139.60), (35.67, 139.66), (35.72, 139.66),
+        (35.72, 139.60), (35.67, 139.60),
+    )
+    polygons = ((outer, ()),)
+    first = stable_point_within_polygon(polygons, "restaurant-a")
+    repeated = stable_point_within_polygon(polygons, "restaurant-a")
+    second = stable_point_within_polygon(polygons, "restaurant-b")
+    assert first == repeated
+    assert first[:2] != second[:2]
+    assert _point_in_polygon(*first[:2], outer, ())
+    assert _point_in_polygon(*second[:2], outer, ())
 
 
 def test_area_fallback_is_strictly_opt_in(tmp_path):

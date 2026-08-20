@@ -21,6 +21,7 @@ from .address_research import (
     record_generated_queries,
     start_address_run,
 )
+from .card_enrichment import CardEnrichment, scoring_research_view
 from .public_catalog import (
     finish_restaurant_research_run,
     get_research_queue,
@@ -34,11 +35,10 @@ from .public_score import (
     FiyuEvidence,
     InternalSignals,
     assess_chain_classification,
-    assess_publication_conflict,
-    calculate_fiyu_score,
+    evaluate_fiyu_candidate,
 )
 
-PROMPT_VERSION = "restaurant-research-v2-address-evidence"
+PROMPT_VERSION = "restaurant-research-v4-card-enrichment"
 
 
 def _ambiguous_request_failure(exc: BaseException) -> bool:
@@ -89,10 +89,27 @@ class RestaurantResearch(BaseModel):
     independent_positive_source_count: int = Field(ge=0)
     total_evidence_sources: int = Field(ge=0)
     conflicting_evidence: bool
+    local_audience: Literal["low", "mixed", "high", "unknown"] = "unknown"
+    local_audience_signals: list[str] = Field(default_factory=list, max_length=8)
+    tourist_orientation: Literal["low", "mixed", "high", "unknown"] = "unknown"
+    tourist_signals: list[str] = Field(default_factory=list, max_length=8)
+    international_visibility: Literal["low", "medium", "high", "unknown"] = "unknown"
+    corporate_visibility: Literal["low", "medium", "high", "unknown"] = "unknown"
+    venue_format: Literal[
+        "fixed_venue",
+        "catering_mobile",
+        "entertainment_first",
+        "service_only",
+        "non_dining_service",
+        "unknown",
+    ] = "unknown"
+    food_drink_primary: bool | None = None
+    product_eligibility_evidence: list[str] = Field(default_factory=list, max_length=6)
 
     why_fiyu: str = Field(min_length=1, max_length=600)
     evidence_urls: list[str] = Field(default_factory=list, max_length=8)
     address_evidence: AddressResearchResult | None = None
+    card_enrichment: CardEnrichment = Field(default_factory=CardEnrichment)
 
     def to_evidence(self) -> FiyuEvidence:
         return FiyuEvidence(
@@ -114,13 +131,23 @@ class RestaurantResearch(BaseModel):
             independent_positive_source_count=self.independent_positive_source_count,
             total_evidence_sources=self.total_evidence_sources,
             conflicting_evidence=self.conflicting_evidence,
+            local_audience=self.local_audience,
+            local_audience_signals=self.local_audience_signals,
+            tourist_orientation=self.tourist_orientation,
+            tourist_signals=self.tourist_signals,
+            international_visibility=self.international_visibility,
+            corporate_visibility=self.corporate_visibility,
+            venue_format=self.venue_format,
+            food_drink_primary=self.food_drink_primary,
         )
 
 
-SYSTEM_PROMPT = """You research Tokyo restaurants for Fiyu, a hidden-gem discovery product.
+SYSTEM_PROMPT = (
+    """You research Tokyo restaurants for Fiyu, a hidden-gem discovery product.
 
 Your job is to collect verifiable evidence, not to invent or directly assign a Fiyu score.
-Use the restaurant name, address, coordinates, and Google place ID to avoid mixing up businesses.
+The ingested candidate and stable place ID are the base entity of record. Do not try to prove that
+the candidate exists. Use its name/address hints to keep enrichment evidence scoped correctly.
 The supplied Google-derived address and coordinates are untrusted identity hints only. They are not
 independent address evidence and must never be copied into address_evidence without a qualifying
 non-Google public source.
@@ -130,7 +157,9 @@ as unknown, not proof. Never infer customer nationality from language.
 
 For japanese_review_share, only provide a number when a source or supplied review sample supports it.
 Otherwise return null. Count unique, relevant sources only. Include URLs supporting the evidence.
-Set conflicting_evidence=true when identity, chain status, closure, or location information conflicts.
+Classify unrelated same-name results as unrelated and exclude them from enrichment/scoring while
+preserving them in address audit evidence. Their existence does not invalidate this candidate.
+Set conflicting_evidence=true only for a relevant current disagreement, not merely sparse results.
 Classify chain behavior separately from ownership. A parent company, restaurant group, chef group,
 or sister restaurant alone does not make the restaurant a chain. Use small_group_distinct_concept
 when a small operator runs distinct names/concepts/menus. Use small_same_brand_chain only with
@@ -138,6 +167,15 @@ evidence of repeated substantially similar same-brand locations. Use large_chain
 with explicit franchise, mass-market, national-chain, or standardized multi-location evidence.
 Use unknown when the evidence is insufficient. Set likely_chain=true only for
 small_same_brand_chain or large_chain_or_franchise, and include concise supporting chain_evidence.
+Classify local_audience, tourist_orientation, international_visibility, and corporate_visibility
+from evidence only. Retain concise tourist_signals and local_audience_signals supporting any
+non-unknown audience/orientation result. Travel-guide or inbound positioning can support tourist
+orientation; multilingual support, reservability, or tourist-district location alone cannot.
+These measure discovery footprint, not restaurant quality or customer demographics.
+Classify venue_format and whether
+food/drink is primary so product eligibility can be evaluated deterministically. Bars, izakaya,
+cafes, and neighborhood drinking venues can be valid fixed venues. Catering/mobile services and
+entertainment-first venues must be identified when the evidence clearly establishes that format.
 Content-language requirements:
 - name_ja must preserve the restaurant's official Japanese name.
 - name_en must be a natural English name or readable Hepburn-style romanization.
@@ -160,8 +198,19 @@ Address evidence is a separate data domain and must not affect any scoring-evide
 Collect address evidence during this same request when reliable public sources are available.
 Never return coordinates, verified-location state, or map eligibility. Follow these additional
 address-evidence instructions:
-""" + ADDRESS_RESEARCH_INSTRUCTIONS + """
 """
+    + ADDRESS_RESEARCH_INSTRUCTIONS
+    + """
+
+Card enrichment is also a separate, presentation-only domain. Populate card_enrichment during this
+same request when sources support it. Write a concrete restrained English card_description, normally
+80-160 characters. Synthesize at most five specific review themes without copying review text; each
+theme requires at least two independent source URLs. Record practical facts only when supported and
+leave unknown values null/unknown. Normalize weekly hours, prioritizing current official sources,
+then official social, reservation platforms, and reputable Japanese directories. Do not use Google
+hours or Google review content. Preserve checked_at, confidence, source URLs, and disagreements.
+"""
+)
 
 
 def _restaurant_prompt(candidate: dict[str, object]) -> str:
@@ -170,17 +219,17 @@ def _restaurant_prompt(candidate: dict[str, object]) -> str:
     )
     return f"""Research this exact restaurant:
 
-Google place ID: {candidate.get('place_id')}
-Name: {candidate.get('title')}
-Address: {candidate.get('address')}
-Neighborhood: {candidate.get('neighborhood')}
-City: {candidate.get('city')}
-Coordinates: {candidate.get('latitude')}, {candidate.get('longitude')}
-Known category: {candidate.get('category') or candidate.get('broad_category')}
-Reviewed discovery areas: {candidate.get('discovery_areas_json') or candidate.get('discovery_area')}
+Google place ID: {candidate.get("place_id")}
+Name: {candidate.get("title")}
+Address: {candidate.get("address")}
+Neighborhood: {candidate.get("neighborhood")}
+City: {candidate.get("city")}
+Coordinates: {candidate.get("latitude")}, {candidate.get("longitude")}
+Known category: {candidate.get("category") or candidate.get("broad_category")}
+Reviewed discovery areas: {candidate.get("discovery_areas_json") or candidate.get("discovery_area")}
 
 Backend-prepared address queries (preserve these in address_evidence.search_queries_attempted):
-{chr(10).join(f'- {query}' for query in address_queries)}
+{chr(10).join(f"- {query}" for query in address_queries)}
 
 Return only the requested structured evidence. Use Japanese search terms where useful.
 """
@@ -217,13 +266,10 @@ def research_candidate(
     if parsed is None:
         raise RuntimeError("OpenAI returned no parsed research result")
     parsed = RestaurantResearch.model_validate(parsed)
-    urls = {
-        url.strip()
-        for url in parsed.evidence_urls
-        if url.startswith(("http://", "https://"))
-    }
+    urls = {url.strip() for url in parsed.evidence_urls if url.startswith(("http://", "https://"))}
 
     return parsed, set(list(urls)[:8])
+
 
 def run_research_batch(
     db_path: str | Path,
@@ -238,9 +284,7 @@ def run_research_batch(
         raise ValueError("limit must be between 1 and 100")
     load_dotenv()
     selected_model = model or os.getenv("OPENAI_MODEL", "gpt-5.6-luna")
-    queue = get_research_queue(
-        db_path, limit=limit, retry_failed=retry_failed, place_id=place_id
-    )
+    queue = get_research_queue(db_path, limit=limit, retry_failed=retry_failed, place_id=place_id)
     if dry_run:
         return {
             "dry_run": True,
@@ -300,7 +344,8 @@ def run_research_batch(
                 digital_footprint_score=float(candidate.get("digital_footprint_score") or 0),
             )
             structured_research = research.model_dump(mode="json")
-            chain = assess_chain_classification(evidence, structured_research)
+            scoring_structured = scoring_research_view(structured_research)
+            chain = assess_chain_classification(evidence, scoring_structured)
             evidence.chain_classification = chain.classification
             evidence.restaurant_group_affiliated = chain.group_affiliated
             evidence.likely_chain = chain.excluded
@@ -308,13 +353,11 @@ def run_research_batch(
             structured_research["restaurant_group_affiliated"] = chain.group_affiliated
             structured_research["likely_chain"] = chain.excluded
             structured_research["chain_classification_reasons"] = list(chain.reasons)
-            score = calculate_fiyu_score(
+            score = evaluate_fiyu_candidate(
                 evidence,
                 internal,
-                conflict_assessment=assess_publication_conflict(
-                    evidence, structured_research
-                ),
-                chain_assessment=chain,
+                scoring_structured,
+                primary_category=research.primary_category,
             )
             save_research_result(
                 db_path,
@@ -334,9 +377,7 @@ def run_research_batch(
                 structured_research=structured_research,
                 usage_metadata={
                     "response_id": getattr(response, "id", None),
-                    "usage": (
-                        getattr(getattr(response, "usage", None), "model_dump", dict)()
-                    ),
+                    "usage": (getattr(getattr(response, "usage", None), "model_dump", dict)()),
                 },
                 research_run_id=research_run_id,
             )

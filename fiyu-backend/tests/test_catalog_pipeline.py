@@ -3,8 +3,12 @@ import json
 import pytest
 
 from fiyu.catalog_pipeline import (
+    _current_score_policy_decision,
+    _row,
+    _shared_address_prefix,
     apply_automatic_publication,
     auto_publish_readiness,
+    backfill_legacy_published_locations,
     location_update_allowed,
     mark_location_attempted,
     publish_candidate,
@@ -109,11 +113,32 @@ def test_research_is_versioned_and_score_is_reproducible(tmp_path):
     assert [row[1] for row in runs] == [0, 1]
 
 
-def test_publish_requires_review_and_location_attempt_but_not_map_eligibility(tmp_path):
+def test_conflicting_blocks_keep_shared_chome_polygon_prefix():
+    prefix = _shared_address_prefix({
+        "municipality_or_ward": ["Taito", "台東区"],
+        "neighborhood": ["竜泉", "竜泉"],
+        "street_or_block": ["1-2-3", "1-9-8"],
+    })
+    assert prefix == {"ward": "Taito", "neighborhood": "竜泉", "chome": "1"}
+
+
+def test_conflicting_chomes_keep_shared_neighborhood_polygon_prefix():
+    prefix = _shared_address_prefix({
+        "municipality_or_ward": ["Taito", "台東区"],
+        "neighborhood": ["竜泉", "竜泉"],
+        "street_or_block": ["1-2-3", "2-9-8"],
+    })
+    assert prefix == {"ward": "Taito", "neighborhood": "竜泉", "chome": None}
+
+
+def test_publish_requires_review_but_location_is_non_blocking(tmp_path):
     path = _db(tmp_path)
     _save(path)
-    with pytest.raises(ValueError, match="review_approval, location_attempt"):
+    with pytest.raises(ValueError, match="review_approval"):
         publish_candidate(path, "place-1")
+    unresolved = publish_readiness(path, "place-1", require_approval=False)
+    assert unresolved.publishable
+    assert unresolved.warnings == ("location_not_attempted",)
     mark_location_attempted(path, "place-1")
     readiness = publish_readiness(path, "place-1", require_approval=False)
     assert readiness.publishable
@@ -126,6 +151,62 @@ def test_publish_requires_review_and_location_attempt_but_not_map_eligibility(tm
             "SELECT is_published FROM public_restaurants WHERE place_id = 'place-1'"
         ).fetchone()[0] == 1
         assert connection.execute("SELECT COUNT(*) FROM fiyu_restaurant_seen").fetchone()[0] == 1
+
+
+def test_legacy_backfill_finalizes_valid_location_without_changing_catalog_or_user_state(
+    tmp_path,
+):
+    path = _db(tmp_path)
+    _save(path)
+    with connect(path) as connection:
+        connection.execute(
+            """
+            UPDATE public_restaurants
+            SET is_published=1, latitude=35.7, longitude=139.7,
+                map_display_eligible=1, location_source='openstreetmap',
+                location_precision='exact',
+                location_verification_status='manually_verified',
+                location_status=NULL, map_location_precision=NULL,
+                location_attempted_at=NULL
+            WHERE place_id='place-1'
+            """
+        )
+        before = connection.execute(
+            """
+            SELECT fiyu_score, description_en, food_tags_json, is_published
+            FROM public_restaurants WHERE place_id='place-1'
+            """
+        ).fetchone()
+        connection.commit()
+
+    result = backfill_legacy_published_locations(
+        path,
+        osm_index=tmp_path / "unused-poi.sqlite",
+        osm_address_index=tmp_path / "unused-address.sqlite",
+    )
+
+    assert result["published_inspected"] == 1
+    assert result["missing_before"] == 1
+    assert result["successfully_backfilled"] == 1
+    assert result["missing_after"] == 0
+    with connect(path) as connection:
+        after = connection.execute(
+            """
+            SELECT fiyu_score, description_en, food_tags_json, is_published,
+                   latitude, longitude, map_location_precision, location_status,
+                   location_attempted_at
+            FROM public_restaurants WHERE place_id='place-1'
+            """
+        ).fetchone()
+        seen_count = connection.execute(
+            "SELECT COUNT(*) FROM fiyu_restaurant_seen"
+        ).fetchone()[0]
+    assert tuple(after[:4]) == tuple(before)
+    assert tuple(after[4:6]) == (35.7, 139.7)
+    assert after[6] == "exact"
+    assert after[7] == "location_active"
+    assert after[8]
+    assert seen_count == 1
 
 
 def test_rejected_candidate_cannot_publish(tmp_path):
@@ -317,7 +398,7 @@ def test_unresolved_poi_invokes_existing_address_fallback(tmp_path, monkeypatch)
     assert calls[0]["dry_run"] is False
     assert calls[0]["published_only"] is False
     assert geocoder_options == [
-        {"allow_area_fallback": True, "minimum_area_precision": "neighborhood"}
+        {"allow_area_fallback": True, "minimum_area_precision": "ward"}
     ]
 
 
@@ -386,14 +467,29 @@ def test_existing_verified_address_skips_paid_address_research(tmp_path, monkeyp
     assert calls == []
 
 
-def test_insufficient_existing_evidence_invokes_dedicated_fallback_once(tmp_path, monkeypatch):
+@pytest.mark.parametrize(
+    "resolution_reason",
+    [
+        "exact_name_candidate_missing_geographic_corroboration",
+        "strong_name_candidate_missing_geographic_corroboration",
+        "no_strong_candidate",
+        "ambiguous_same_name_candidates",
+    ],
+)
+def test_safe_osm_failures_invoke_dedicated_fallback_once(
+    tmp_path, monkeypatch, resolution_reason
+):
     from fiyu import address_geocoder, address_geocoding, address_research, osm_resolver
 
     path = _db(tmp_path)
     monkeypatch.setattr(
         osm_resolver,
         "resolve_osm_locations",
-        lambda *_args, **_kwargs: {"reports": [{"status": "unresolved"}]},
+        lambda *_args, **_kwargs: {
+            "reports": [
+                {"status": "unresolved", "resolution_reason": resolution_reason}
+            ]
+        },
     )
     monkeypatch.setattr(
         address_geocoder, "LocalOSMAddressGeocoder", lambda _path, **_kwargs: object()
@@ -541,18 +637,208 @@ def test_automatic_publication_uses_score_policy_and_defensible_location(tmp_pat
     assert tuple(row) == (1, "auto_published")
 
 
-def test_automatic_publication_rejects_unresolvable_or_score_policy_failure(tmp_path):
+def test_automatic_publication_ignores_location_and_web_identity_diagnostic(tmp_path):
     no_location = _db(tmp_path / "location")
     _make_auto_publishable(no_location, map_eligible=False)
-    assert apply_automatic_publication(no_location, "place-1")["reason"] == (
-        "location_unresolvable"
-    )
+    assert apply_automatic_publication(no_location, "place-1")["published"] is True
 
     score_rejected = _db(tmp_path / "score")
     _make_auto_publishable(score_rejected, score_publishable=False)
-    assert apply_automatic_publication(score_rejected, "place-1")["reason"] == (
-        "identity_or_score_policy_rejected"
+    with connect(score_rejected) as connection:
+        row = connection.execute(
+            "SELECT evidence_json FROM public_restaurants WHERE place_id='place-1'"
+        ).fetchone()
+        evidence = json.loads(row[0])
+        evidence["identity_confidence"] = 0.50
+        connection.execute(
+            "UPDATE public_restaurants SET evidence_json=? WHERE place_id='place-1'",
+            (json.dumps(evidence),),
+        )
+        connection.commit()
+    assert apply_automatic_publication(score_rejected, "place-1")["published"] is True
+
+
+def _add_effective_address_resolution(path, *, add_audit=True):
+    agreement = json.dumps({
+        "material_conflicting_components": [],
+        "component_values": {
+            "municipality_or_ward": ["中野区"],
+            "neighborhood": ["東中野"],
+            "street_or_block": ["4-19-8"],
+        },
+    })
+    with connect(path) as connection:
+        cursor = connection.execute(
+            """
+            INSERT INTO address_evidence (
+                public_restaurant_id, identity_status, identity_confidence,
+                address_raw, municipality_or_ward, neighborhood, street_or_block,
+                component_agreement_json, core_address_verified,
+                full_address_verified, map_location_approximate,
+                source_evidence_json, conflicting_addresses_json,
+                search_queries_json, warnings_json, recommended_action,
+                research_summary, acceptance_status, acceptance_reasons_json,
+                evidence_fingerprint, created_at, updated_at
+            ) VALUES (
+                'place-1', 'confirmed', 0.95, '東京都中野区東中野4-19-8',
+                '中野区', '東中野', '4-19-8', ?, 1, 1, 0,
+                '[]', '[]', '[]',
+                '["A separate older listing is not merged as branch evidence."]',
+                'Use the confirmed current identity.',
+                'Current sources consistently identify the same restaurant.',
+                'provisional', '[]', 'resolved-address',
+                '2099-01-01T00:00:00+00:00', '2099-01-01T00:00:00+00:00'
+            )
+            """,
+            (agreement,),
+        )
+        if add_audit:
+            connection.execute(
+                """
+                INSERT INTO address_decision_audits (
+                    public_restaurant_id, address_evidence_id, decision_version,
+                    acceptance_status, resolution_status, acceptance_reasons_json,
+                    component_agreement_json, temporal_evidence_json,
+                    original_evidence_fingerprint, created_at
+                ) VALUES (
+                    'place-1', ?, 'test-v1', 'provisional',
+                    'address_provisionally_accepted', '[]', ?, '[]',
+                    'resolved-address', '2099-01-01T00:01:00+00:00'
+                )
+                """,
+                (cursor.lastrowid, agreement),
+            )
+        connection.commit()
+
+
+def _set_historical_address_conflict(path, text):
+    with connect(path) as connection:
+        row = connection.execute(
+            """
+            SELECT p.evidence_json, r.id, r.structured_research_json, r.score_json
+            FROM public_restaurants p
+            JOIN restaurant_research_runs r ON r.public_restaurant_id=p.place_id
+            WHERE p.place_id='place-1' AND r.is_current=1
+            """
+        ).fetchone()
+        evidence = json.loads(row["evidence_json"])
+        evidence["conflicting_evidence"] = True
+        structured = json.loads(row["structured_research_json"])
+        structured["address_evidence"] = {
+            "identity_status": "confirmed",
+            "identity_confidence": 0.95,
+            "branch_name": None,
+            "conflicting_address_candidates": [],
+            "recommended_action": text,
+            "warnings": [],
+            "research_summary": text,
+        }
+        score = json.loads(row["score_json"])
+        score["publishable"] = False
+        score["blocking_conflict"] = True
+        score["conflict_classification"] = "material"
+        connection.execute(
+            "UPDATE public_restaurants SET evidence_json=? WHERE place_id='place-1'",
+            (json.dumps(evidence),),
+        )
+        connection.execute(
+            "UPDATE restaurant_research_runs SET structured_research_json=?, score_json=? "
+            "WHERE id=?",
+            (json.dumps(structured), json.dumps(score), row["id"]),
+        )
+        connection.commit()
+
+
+def test_newer_effective_address_audit_clears_same_domain_historical_conflict(tmp_path):
+    path = _db(tmp_path)
+    _make_auto_publishable(path, score_publishable=False)
+    _set_historical_address_conflict(
+        path, "A same-name listing creates an unresolved identity conflict."
     )
+    _add_effective_address_resolution(path)
+    decision = _current_score_policy_decision(path, dict(_row(path, "place-1")))
+    assert decision["historical_score_publishable"] is False
+    assert decision["conflict_superseded"] is True
+    assert decision["publishable"] is True
+
+
+def test_current_structural_address_evidence_can_resolve_without_audit_row(tmp_path):
+    path = _db(tmp_path)
+    _make_auto_publishable(path, score_publishable=False)
+    _set_historical_address_conflict(
+        path, "A same-name listing creates an unresolved address identity conflict."
+    )
+    _add_effective_address_resolution(path, add_audit=False)
+    decision = _current_score_policy_decision(path, dict(_row(path, "place-1")))
+    assert decision["conflict_superseded"] is True
+    assert decision["publishable"] is True
+
+
+def test_current_policy_demotes_identity_confidence_to_diagnostic(tmp_path):
+    path = _db(tmp_path)
+    _make_auto_publishable(path)
+    with connect(path) as connection:
+        row = connection.execute(
+            "SELECT evidence_json FROM public_restaurants WHERE place_id='place-1'"
+        ).fetchone()
+        evidence = json.loads(row[0])
+        evidence["identity_confidence"] = 0.79
+        connection.execute(
+            "UPDATE public_restaurants SET evidence_json=? WHERE place_id='place-1'",
+            (json.dumps(evidence),),
+        )
+        connection.commit()
+    decision = _current_score_policy_decision(path, dict(_row(path, "place-1")))
+    assert decision["diagnostics"]["identity_confidence"] == 0.79
+    assert decision["publishable"] is True
+
+
+def test_current_policy_demotes_research_confidence_to_diagnostic(tmp_path):
+    path = _db(tmp_path)
+    _make_auto_publishable(path)
+    with connect(path) as connection:
+        row = connection.execute(
+            "SELECT id, score_json FROM restaurant_research_runs "
+            "WHERE public_restaurant_id='place-1' AND is_current=1"
+        ).fetchone()
+        score = json.loads(row["score_json"])
+        score["fiyu_confidence"] = 54.99
+        connection.execute(
+            "UPDATE restaurant_research_runs SET score_json=? WHERE id=?",
+            (json.dumps(score), row["id"]),
+        )
+        connection.commit()
+    decision = _current_score_policy_decision(path, dict(_row(path, "place-1")))
+    assert "minimum_confidence" not in decision["conditions"]
+    assert decision["publishable"] is True
+
+
+@pytest.mark.parametrize(
+    ("conflict_text", "expected_reason", "expected_publishable"),
+    [
+        (
+            "The identity conflict includes a confirmed permanent closure.",
+            "protected_non_address_conflict_domain",
+            True,
+        ),
+        (
+            "The address conflict includes an unresolved evidence integrity problem.",
+            "protected_non_address_conflict_domain",
+            False,
+        ),
+    ],
+)
+def test_address_audit_cannot_clear_protected_conflict_domain(
+    tmp_path, conflict_text, expected_reason, expected_publishable
+):
+    path = _db(tmp_path)
+    _make_auto_publishable(path, score_publishable=False)
+    _set_historical_address_conflict(path, conflict_text)
+    _add_effective_address_resolution(path)
+    decision = _current_score_policy_decision(path, dict(_row(path, "place-1")))
+    assert decision["conflict_superseded"] is False
+    assert expected_reason in decision["supersession_reasons"]
+    assert decision["publishable"] is expected_publishable
 
 
 def test_batch_isolates_failures_and_reports_publication(monkeypatch, tmp_path):
@@ -619,7 +905,13 @@ def test_batch_resume_skips_already_terminal_candidates(monkeypatch, tmp_path):
 def test_reviewed_area_anchor_is_broadest_fallback_and_remains_approximate(
     tmp_path, monkeypatch
 ):
-    from fiyu import address_geocoder, address_geocoding, address_research, osm_resolver
+    from fiyu import (
+        address_geocoder,
+        address_geocoding,
+        address_research,
+        catalog_pipeline,
+        osm_resolver,
+    )
 
     path = _db(tmp_path)
     with connect(path) as connection:
@@ -649,21 +941,78 @@ def test_reviewed_area_anchor_is_broadest_fallback_and_remains_approximate(
         "run_address_discovery",
         lambda *_args, **_kwargs: {"persisted": 0, "usage_totals": {}},
     )
+    monkeypatch.setattr(
+        catalog_pipeline,
+        "apply_best_available_polygon_fallback",
+        lambda *_args, **_kwargs: {
+            "status": "location_provisional", "precision": "area",
+            "map_location_approximate": True, "area_name": "Shibuya",
+        },
+    )
 
     result = verify_location(
         path, "place-1", osm_index="poi.sqlite", osm_address_index="address.sqlite"
     )
     assert result["method"] == "area_anchor"
     assert result["trusted_area_anchor"]["area_name"] == "Shibuya"
+
+
+def test_discovery_area_anchor_does_not_override_candidate_locality(
+    tmp_path, monkeypatch
+):
+    from fiyu import (
+        address_geocoder,
+        address_geocoding,
+        address_research,
+        catalog_pipeline,
+        osm_resolver,
+    )
+
+    path = _db(tmp_path)
     with connect(path) as connection:
-        row = connection.execute(
+        connection.execute(
+            "UPDATE public_restaurants SET discovery_area='Shinjuku' WHERE place_id='place-1'"
+        )
+        connection.execute(
             """
-            SELECT map_display_eligible, map_location_approximate,
-                   map_location_precision, map_anchor_type
-            FROM public_restaurants WHERE place_id='place-1'
+            UPDATE restaurants SET neighborhood='Daizawa', city='Setagaya City',
+                address='2-36-21 Daizawa, Setagaya City, Tokyo'
+            WHERE place_id='place-1'
             """
-        ).fetchone()
-    assert tuple(row) == (1, 1, "area", "area")
+        )
+        connection.commit()
+    monkeypatch.setattr(
+        osm_resolver,
+        "resolve_osm_locations",
+        lambda *_args, **_kwargs: {"reports": [{"status": "unresolved"}]},
+    )
+    monkeypatch.setattr(
+        address_geocoder, "LocalOSMAddressGeocoder", lambda _path, **_kwargs: object()
+    )
+    monkeypatch.setattr(
+        address_geocoding,
+        "geocode_verified_addresses",
+        lambda *_args, **_kwargs: {
+            "selected": 0,
+            "location_verified": 0,
+            "location_provisional": 0,
+        },
+    )
+    monkeypatch.setattr(
+        address_research,
+        "run_address_discovery",
+        lambda *_args, **_kwargs: {"persisted": 0, "usage_totals": {}},
+    )
+    monkeypatch.setattr(
+        catalog_pipeline,
+        "apply_best_available_polygon_fallback",
+        lambda *_args, **_kwargs: None,
+    )
+    result = verify_location(
+        path, "place-1", osm_index="poi.sqlite", osm_address_index="address.sqlite"
+    )
+    assert result["method"] == "unresolved"
+    assert result["trusted_area_anchor"] is None
 
 
 def _location(precision, *, source="local_osm_addresses", valid=True):
