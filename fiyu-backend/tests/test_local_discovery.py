@@ -161,6 +161,56 @@ def test_negated_product_exclusion_does_not_misclassify_fixed_venue():
     assert result.eligible
 
 
+@pytest.mark.parametrize(
+    "structured",
+    [
+        {},
+        {"official_website_found": False},
+        {"fixed_venue_evidence": {"counter_seating": True}},
+        {"fixed_venue_evidence": {"table_seating": True}},
+        {"fixed_venue_evidence": {"small_capacity": True}},
+        {"fixed_venue_evidence": {"regular_open_days": 5}},
+        {"fixed_venue_evidence": {"reservation_status": "recommended"}},
+    ],
+)
+def test_unknown_or_positive_fixed_venue_evidence_never_implies_mobile(structured):
+    result = assess_product_eligibility(
+        primary_category="restaurant",
+        venue_format="unknown",
+        food_drink_primary=None,
+        structured_research=structured,
+    )
+    assert result.eligible
+
+
+@pytest.mark.parametrize("category", ["bar", "dining bar", "jazz bar"])
+def test_food_drink_bars_remain_eligible_despite_music_or_karaoke(category):
+    result = assess_product_eligibility(
+        primary_category=category,
+        venue_format="fixed_venue",
+        food_drink_primary=True,
+        structured_research={
+            "product_eligibility_evidence": ["Karaoke and live music are available."]
+        },
+    )
+    assert result.eligible
+
+
+def test_explicit_entertainment_primary_and_food_secondary_rejects():
+    result = assess_product_eligibility(
+        primary_category="live venue",
+        venue_format="entertainment_first",
+        food_drink_primary=False,
+        structured_research={
+            "product_eligibility_evidence": [
+                "Live entertainment is the primary purpose; food and drink are secondary."
+            ]
+        },
+    )
+    assert not result.eligible
+    assert result.classification == "ineligible_entertainment_first"
+
+
 def test_local_discovery_materially_changes_main_score_but_cannot_overwhelm_quality():
     internal = InternalSignals(80, 80, 80)
     local = evaluate_fiyu_candidate(_evidence(), internal, {})

@@ -4,11 +4,11 @@ import asyncio
 import os
 import socket
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal
 
 from dotenv import load_dotenv
 from openai import APIConnectionError, APITimeoutError, OpenAI
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from .address_research import (
     ADDRESS_RESEARCH_INSTRUCTIONS,
@@ -40,6 +40,9 @@ from .public_score import (
 )
 
 PROMPT_VERSION = "restaurant-research-v4-card-enrichment"
+CompactLabel = Annotated[str, Field(max_length=120)]
+CompactEvidence = Annotated[str, Field(max_length=500)]
+EvidenceUrl = Annotated[str, Field(max_length=2000)]
 
 
 def _ambiguous_request_failure(exc: BaseException) -> bool:
@@ -63,8 +66,8 @@ class RestaurantResearch(BaseModel):
     name_ja: str | None = None
     name_en: str | None = None
     primary_category: str | None = None
-    food_tags: list[str] = Field(default_factory=list, max_length=8)
-    signature_dishes: list[str] = Field(default_factory=list, max_length=6)
+    food_tags: list[CompactLabel] = Field(default_factory=list, max_length=8)
+    signature_dishes: list[CompactLabel] = Field(default_factory=list, max_length=6)
     description_en: str | None = Field(default=None, min_length=1, max_length=700)
 
     official_language: Literal["ja", "mixed", "en", "unknown"]
@@ -84,16 +87,16 @@ class RestaurantResearch(BaseModel):
         "large_chain_or_franchise",
         "unknown",
     ] = "unknown"
-    chain_evidence: list[str] = Field(default_factory=list, max_length=6)
+    chain_evidence: list[CompactEvidence] = Field(default_factory=list, max_length=6)
     known_location_count: int = Field(ge=0)
     specialist_restaurant: bool
     independent_positive_source_count: int = Field(ge=0)
     total_evidence_sources: int = Field(ge=0)
     conflicting_evidence: bool
     local_audience: Literal["low", "mixed", "high", "unknown"] = "unknown"
-    local_audience_signals: list[str] = Field(default_factory=list, max_length=8)
+    local_audience_signals: list[CompactEvidence] = Field(default_factory=list, max_length=8)
     tourist_orientation: Literal["low", "mixed", "high", "unknown"] = "unknown"
-    tourist_signals: list[str] = Field(default_factory=list, max_length=8)
+    tourist_signals: list[CompactEvidence] = Field(default_factory=list, max_length=8)
     international_visibility: Literal["low", "medium", "high", "unknown"] = "unknown"
     corporate_visibility: Literal["low", "medium", "high", "unknown"] = "unknown"
     venue_format: Literal[
@@ -105,12 +108,62 @@ class RestaurantResearch(BaseModel):
         "unknown",
     ] = "unknown"
     food_drink_primary: bool | None = None
-    product_eligibility_evidence: list[str] = Field(default_factory=list, max_length=6)
+    product_eligibility_evidence: list[CompactEvidence] = Field(default_factory=list, max_length=6)
 
     why_fiyu: str = Field(min_length=1, max_length=600)
-    evidence_urls: list[str] = Field(default_factory=list, max_length=8)
+    evidence_urls: list[EvidenceUrl] = Field(default_factory=list, max_length=8)
     address_evidence: AddressResearchResult | None = None
     card_enrichment: CardEnrichment = Field(default_factory=CardEnrichment)
+
+    @staticmethod
+    def _bounded_items(values: object, limit: int, count: int) -> object:
+        if not isinstance(values, list):
+            return values
+        bounded: list[object] = []
+        for value in values:
+            if not isinstance(value, str):
+                bounded.append(value)
+                continue
+            compact = " ".join(value.split()).strip()
+            if len(compact) > limit:
+                compact = compact[: limit + 1].rsplit(" ", 1)[0].rstrip(" ,;:")
+            if compact and compact not in bounded:
+                bounded.append(compact)
+        return bounded[:count]
+
+    @field_validator("food_tags", "signature_dishes", mode="before")
+    @classmethod
+    def bound_labels(cls, values: object) -> object:
+        return cls._bounded_items(values, 120, 6)
+
+    @field_validator(
+        "chain_evidence",
+        "local_audience_signals",
+        "tourist_signals",
+        "product_eligibility_evidence",
+        mode="before",
+    )
+    @classmethod
+    def bound_evidence(cls, values: object) -> object:
+        return cls._bounded_items(values, 500, 6)
+
+    @field_validator("evidence_urls", mode="before")
+    @classmethod
+    def bound_urls(cls, values: object) -> object:
+        return cls._bounded_items(values, 2000, 8)
+
+    @field_validator(
+        "food_tags",
+        "signature_dishes",
+        "chain_evidence",
+        "local_audience_signals",
+        "tourist_signals",
+        "product_eligibility_evidence",
+        "evidence_urls",
+    )
+    @classmethod
+    def deduplicate_compact_lists(cls, values: list[str]) -> list[str]:
+        return list(dict.fromkeys(" ".join(value.split()).strip() for value in values if value.strip()))
 
     def to_evidence(self) -> FiyuEvidence:
         return FiyuEvidence(

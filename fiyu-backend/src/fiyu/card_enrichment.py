@@ -330,10 +330,48 @@ class CardEnrichment(BaseModel):
 
 
 def scoring_research_view(structured: dict[str, object] | None) -> dict[str, object]:
-    """Exclude presentation-only enrichment from deterministic product decisions."""
+    """Exclude presentation copy while retaining bounded venue-format facts."""
 
     result = dict(structured or {})
-    result.pop("card_enrichment", None)
+    enrichment = result.pop("card_enrichment", None)
+    if isinstance(enrichment, dict):
+        practical = enrichment.get("practical_info")
+        hours = enrichment.get("opening_hours")
+        practical = practical if isinstance(practical, dict) else {}
+        seating = practical.get("seating")
+        periods = practical.get("service_periods")
+        reservation = practical.get("reservation")
+        seating = seating if isinstance(seating, dict) else {}
+        periods = periods if isinstance(periods, dict) else {}
+        reservation = reservation if isinstance(reservation, dict) else {}
+        regular_open_days = 0
+        if isinstance(hours, dict):
+            regular_open_days = sum(
+                isinstance(hours.get(day), dict)
+                and hours[day].get("status") == "open"
+                for day in DAY_NAMES
+            )
+        fixed_venue_evidence = {
+            "counter_seating": seating.get("counter") is True,
+            "table_seating": seating.get("tables") is True,
+            "private_rooms": seating.get("private_rooms") is True,
+            "small_capacity": seating.get("small_capacity") is True,
+            "reservation_status": reservation.get("status", "unknown"),
+            "lunch_service": periods.get("lunch") is True,
+            "dinner_service": periods.get("dinner") is True,
+            "regular_open_days": regular_open_days,
+            "restaurant_source_count": (
+                len(practical.get("source_urls", []))
+                + len(hours.get("sources", []) if isinstance(hours, dict) else [])
+                + len(enrichment.get("card_description_source_urls", []))
+            ),
+        }
+        if any(
+            value is True or isinstance(value, int) and value > 0
+            for key, value in fixed_venue_evidence.items()
+            if key != "reservation_status"
+        ) or fixed_venue_evidence["reservation_status"] != "unknown":
+            result["fixed_venue_evidence"] = fixed_venue_evidence
     return result
 
 

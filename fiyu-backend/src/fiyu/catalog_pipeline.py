@@ -201,9 +201,13 @@ def _location_context(db_path: str | Path, place_id: str) -> dict[str, object]:
         ward = _ward_in_location_text(row["candidate_city"])
     if not ward:
         ward = _ward_in_location_text(row["candidate_address"])
+    municipality = str(row["verified_ward"] or row["candidate_city"] or "").strip()
+    if normalize_location_name(municipality) in {"", "tokyo", "tokyo prefecture"}:
+        municipality = ""
     neighborhood = row["verified_neighborhood"] or row["candidate_neighborhood"]
     return {
         "ward": ward,
+        "municipality_or_ward": ward or municipality or None,
         "neighborhood": str(neighborhood or "").strip() or None,
         "discovery_area": row["discovery_area"],
     }
@@ -214,12 +218,17 @@ def _anchor_matches_location_context(
 ) -> bool:
     area = normalize_location_name(str(anchor.get("area_name") or ""))
     discovery_area = normalize_location_name(str(context.get("discovery_area") or ""))
-    if not area or area != discovery_area:
+    if not area:
         return False
     ward = str(context.get("ward") or "")
     neighborhood = normalize_location_name(str(context.get("neighborhood") or ""))
     if neighborhood:
-        return area in neighborhood
+        if area in neighborhood:
+            return True
+        if area != discovery_area:
+            return False
+    elif area != discovery_area:
+        return False
     if ward:
         return AREA_ANCHOR_WARDS.get(area) == ward
     return True
@@ -993,6 +1002,12 @@ def backfill_legacy_published_locations(
                 )
                 if polygon is not None:
                     method, detail = "polygon", polygon
+                else:
+                    anchor = _apply_trusted_area_anchor(
+                        db_path, place_id, dry_run=dry_run
+                    )
+                    if anchor is not None:
+                        method, detail = "area_anchor", anchor
 
             if not dry_run:
                 mark_location_attempted(db_path, place_id)
@@ -1175,10 +1190,21 @@ def _shared_address_prefix(
 ) -> dict[str, str | None]:
     from .osm_address_normalization import normalize_tokyo_neighborhood
 
+    def location_container(value: object) -> str | None:
+        raw = str(value or "").strip()
+        if not raw:
+            return None
+        ward = canonical_tokyo_ward(raw)
+        if ward:
+            return ward
+        normalized = normalize_location_name(raw)
+        normalized = re.sub(r"(?:\s+city|[- ]shi|\u5e02)$", "", normalized).strip()
+        return normalized or None
+
     ward_values = values.get("municipality_or_ward") or (
         [fallback_ward] if fallback_ward else []
     )
-    wards = {canonical_tokyo_ward(value) for value in ward_values}
+    wards = {location_container(value) for value in ward_values}
     wards.discard(None)
 
     neighborhood_values = values.get("neighborhood") or (
@@ -1255,7 +1281,7 @@ def _deepest_evidence_location_prefix(
             fallback_street=row["street_or_block"] if row else None,
         )
     evidence_prefix_available = bool(prefix["ward"])
-    ward = prefix["ward"] or context.get("ward")
+    ward = prefix["ward"] or context.get("municipality_or_ward")
     neighborhood = prefix["neighborhood"]
     chome = prefix["chome"]
 
@@ -1503,6 +1529,10 @@ def verify_location(
                 dry_run=dry_run,
                 allow_candidate_context=True,
             )
+            if area_anchor is None:
+                area_anchor = _apply_trusted_area_anchor(
+                    db_path, place_id, dry_run=dry_run
+                )
     if not dry_run:
         mark_location_attempted(db_path, place_id)
     return {
@@ -1697,6 +1727,44 @@ def run_candidate_pipeline(
     }
 
 
+def _batch_stage_counts(
+    results: list[dict[str, object]], failures: list[dict[str, str]]
+) -> dict[str, int]:
+    completed = sum(
+        isinstance(item.get("candidate"), dict) or "published" in item
+        for item in results
+    )
+    research_failures = sum(
+        int((item.get("research") or {}).get("failed", 0) or 0)
+        for item in results
+        if isinstance(item.get("research"), dict)
+    )
+    low_footprint_failures = sum(
+        result.get("status") in {"failed", "needs_retry"}
+        for item in results
+        for result in (
+            (item.get("low_footprint_research") or {}).get("results", [])
+            if isinstance(item.get("low_footprint_research"), dict)
+            else []
+        )
+        if isinstance(result, dict)
+    )
+    location_unresolved = sum(
+        isinstance(item.get("location"), dict)
+        and item["location"].get("method") == "unresolved"
+        for item in results
+    )
+    fatal = len(failures)
+    return {
+        "completed": completed,
+        "research_failures": research_failures,
+        "low_footprint_failures": low_footprint_failures,
+        "location_unresolved_nonfatal": location_unresolved,
+        "fatal_pipeline_failures": fatal,
+        "failed": research_failures + fatal,
+    }
+
+
 def run_pipeline_batch(
     db_path: str | Path,
     *,
@@ -1822,10 +1890,12 @@ def run_pipeline_batch(
         "card_enrichment_completeness": dict(sorted(enrichment_classes.items())),
         "external_usage": total_cost,
     }
+    stage_counts = _batch_stage_counts(results, failures)
     return {
         "selected": len(rows),
-        "completed": len(results),
-        "failed": len(failures),
+        **stage_counts,
+        "processed": stage_counts["completed"],
+        "completed_pipeline_records": stage_counts["completed"],
         "published": sum(bool(item.get("published")) for item in results),
         "auto_rejected": sum(
             isinstance(item.get("publication"), dict)

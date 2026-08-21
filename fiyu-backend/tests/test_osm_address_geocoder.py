@@ -634,6 +634,34 @@ def test_exact_english_locality_name_resolves_legacy_candidate_to_chome(tmp_path
     assert result.matched_components["chome"] == "3"
 
 
+def test_tokyo_municipality_outside_23_wards_can_use_local_polygon(tmp_path):
+    index = _index(
+        tmp_path,
+        [],
+        areas=[
+            _area(
+                330,
+                level="neighborhood",
+                ward="Musashino",
+                neighborhood="Kichijoji Honcho",
+                chome=None,
+                extra_tags={"name:en": "Kichijoji Honcho"},
+            )
+        ],
+        wards=[_ward(331, name="Musashino")],
+    )
+    result = LocalOSMAddressGeocoder(
+        index, allow_area_fallback=True, minimum_area_precision="ward"
+    ).geocode_polygon(
+        ward="Musashino City",
+        neighborhood="Kichijoji Honcho",
+        place_id="outside-23-wards",
+    )
+    assert result is not None
+    assert result.address_level_match == "neighborhood"
+    assert result.representative_point_method == "stable_polygon_interior_point"
+
+
 def test_ambiguous_english_locality_name_does_not_select_polygon(tmp_path):
     index = _index(
         tmp_path,

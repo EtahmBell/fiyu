@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Protocol
 
 from .discovery_areas import canonical_tokyo_ward
+from .location_names import normalize_location_name
 from .osm_address_normalization import normalize_tokyo_neighborhood, parse_japanese_address
 from .osm_index import stable_point_within_polygon
 
@@ -482,7 +483,7 @@ class LocalOSMAddressGeocoder:
         ranks = {"ward": 0, "neighborhood": 1, "chome": 2, "block": 3}
         if minimum_precision not in ranks:
             raise ValueError("invalid minimum polygon precision")
-        ward_norm = canonical_tokyo_ward(ward)
+        ward_norm = canonical_tokyo_ward(ward) or normalize_location_name(ward)
         if not ward_norm:
             return None
         neighborhood_norm = None
@@ -492,6 +493,36 @@ class LocalOSMAddressGeocoder:
             parsed_chome = parsed_chome or inferred_chome
         connection = self._connect()
         try:
+            # Area indexes may contain Tokyo municipalities outside the 23 wards.
+            # Resolve only an exact normalized container alias; never fuzzy-match it.
+            container_names: set[str] = set()
+            if self._has_area_index:
+                container_names.update(
+                    str(row[0])
+                    for row in connection.execute(
+                        "SELECT DISTINCT ward_norm FROM osm_address_areas"
+                    )
+                    if row[0]
+                )
+            if self._has_ward_index:
+                container_names.update(
+                    str(row[0])
+                    for row in connection.execute(
+                        "SELECT DISTINCT ward_name FROM osm_ward_boundaries"
+                    )
+                    if row[0]
+                )
+
+            def container_key(value: str) -> str:
+                normalized = normalize_location_name(value)
+                return re.sub(r"(?:\s+city|[- ]shi|\u5e02)$", "", normalized).strip()
+
+            requested_key = container_key(str(ward_norm))
+            matching_containers = {
+                value for value in container_names if container_key(value) == requested_key
+            }
+            if len(matching_containers) == 1:
+                ward_norm = next(iter(matching_containers))
             rows = []
             if self._has_area_index and neighborhood_norm:
                 rows = connection.execute(

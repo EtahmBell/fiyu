@@ -22,6 +22,7 @@ from .research_worker import RestaurantResearch, _ambiguous_request_failure
 
 LOW_FOOTPRINT_PROMPT_VERSION = "local-gem-research-v3-card-enrichment"
 LOW_FOOTPRINT_MAX_SEARCH_ACTIONS = 8
+LOW_FOOTPRINT_MAX_OUTPUT_TOKENS = 12000
 
 SYSTEM_PROMPT = """You are performing a targeted Japanese/local enrichment pass for Fiyu.
 
@@ -46,6 +47,8 @@ Return the same canonical card_enrichment object used by normal restaurant resea
 Japanese sources to support a compact description, specific multi-source review themes, practical
 visit facts, and normalized current hours. Do not copy review text, use Google review content or
 Google hours, or fill unknown facts. Preserve source URLs, checked_at, confidence, and conflicts.
+Keep every evidence item to a concise factual summary. Never reproduce raw page content, search
+results, or review text. Deduplicate sources and signals and stay within every schema array bound.
 """
 
 
@@ -68,6 +71,22 @@ Existing structured enrichment (retain reliable facts; correct only with stronge
 
 Use Japanese/local search strategies. Return only the requested structured evidence.
 """
+
+
+def _failure_usage_metadata(exc: BaseException) -> dict[str, object]:
+    """Retain provider usage when an SDK exception exposes it, without secrets."""
+
+    usage = getattr(exc, "usage", None)
+    if usage is None:
+        response = getattr(exc, "response", None)
+        usage = getattr(response, "usage", None)
+    if hasattr(usage, "model_dump"):
+        usage = usage.model_dump()
+    return {
+        "usage_available": isinstance(usage, dict),
+        "usage": usage if isinstance(usage, dict) else {},
+        "failure_type": type(exc).__name__,
+    }
 
 
 def _queue(db_path: str | Path, place_ids: list[str] | None, limit: int):
@@ -160,6 +179,7 @@ def run_low_footprint_research(
                 tools=[{"type": "web_search", "search_context_size": "low"}],
                 include=["web_search_call.results"],
                 max_tool_calls=LOW_FOOTPRINT_MAX_SEARCH_ACTIONS,
+                max_output_tokens=LOW_FOOTPRINT_MAX_OUTPUT_TOKENS,
                 input=[
                     {"role": "system", "content": SYSTEM_PROMPT},
                     {"role": "user", "content": _prompt(row)},
@@ -273,12 +293,23 @@ def run_low_footprint_research(
         except Exception as exc:  # noqa: BLE001 - preserve per-candidate paid state.
             status = "needs_retry" if _ambiguous_request_failure(exc) else "failed"
             error = f"{type(exc).__name__}: {exc}"[:2000]
+            failure_usage = _failure_usage_metadata(exc)
             finish_restaurant_research_run(db_path, now_run_id, status=status, error=error)
             with connect(db_path) as connection:
                 connection.execute(
                     "UPDATE low_footprint_research_runs SET status=?, error=?, "
+                    "usage_metadata_json=?, "
                     "completed_at=datetime('now') WHERE id=?",
-                    (status, error, row["low_footprint_run_id"]),
+                    (
+                        status,
+                        error,
+                        json.dumps(failure_usage, ensure_ascii=False),
+                        row["low_footprint_run_id"],
+                    ),
+                )
+                connection.execute(
+                    "UPDATE restaurant_research_runs SET usage_metadata_json=? WHERE id=?",
+                    (json.dumps(failure_usage, ensure_ascii=False), now_run_id),
                 )
                 connection.execute(
                     "UPDATE public_restaurants SET low_footprint_research_attempted=1, "

@@ -76,6 +76,12 @@ class ProductEligibility:
 
 
 @dataclass(frozen=True, slots=True)
+class FixedVisitReadyVenue:
+    established: bool
+    evidence: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
 class LowFootprintEligibility:
     evaluated: bool
     eligible: bool
@@ -86,18 +92,6 @@ class LowFootprintEligibility:
         return asdict(self)
 
 
-_MOBILE_CATERING = re.compile(
-    r"\b(?:catering|caterer|mobile (?:service|business|operation|barbecue|bbq)|"
-    r"customer[- ]selected venues?|delivery[- ]only|not (?:a )?fixed (?:restaurant|venue)|"
-    r"mapped service label)\b|出張(?:料理|バーベキュー)|ケータリング",
-    re.IGNORECASE,
-)
-_ENTERTAINMENT_FIRST = re.compile(
-    r"\b(?:entertainment[- ]first|karaoke[- ]first|karaoke (?:lounge|venue|bar|snack bar)|"
-    r"singing (?:lounge|venue)|food (?:is|appears) secondary)\b|"
-    r"カラオケ(?:店|スナック|ラウンジ)",
-    re.IGNORECASE,
-)
 _NON_DINING_SERVICE = re.compile(
     r"\b(?:event service|rental service|party equipment|meal delivery service|"
     r"food wholesaler|cooking class)\b",
@@ -123,6 +117,20 @@ _NEGATED_PRODUCT_EXCLUSION = re.compile(
 )
 _EVIDENCE_INTEGRITY = re.compile(
     r"\b(?:evidence integrity|fabricat(?:ed|ion)|confirmed source mismatch)\b",
+    re.IGNORECASE,
+)
+
+_AFFIRMATIVE_MOBILE_CATERING = re.compile(
+    r"\b(?:catering[- ]only|delivery[- ]only|event cater(?:er|ing)|private chef|"
+    r"pop[- ]?up[- ]only|food truck|mobile (?:service|business|operation)|"
+    r"customer[- ]selected venues?|no (?:fixed|permanent) (?:restaurant|venue)|"
+    r"service[- ]only operation)\b",
+    re.IGNORECASE,
+)
+_AFFIRMATIVE_ENTERTAINMENT_FIRST = re.compile(
+    r"\b(?:entertainment[- ]first|karaoke[- ]first|nightclub[- ]first|"
+    r"live entertainment (?:is )?(?:the )?primary|events? (?:are|is) (?:the )?primary|"
+    r"food (?:and drink )?(?:is|are|appears?) (?:clearly )?secondary)\b",
     re.IGNORECASE,
 )
 
@@ -286,6 +294,80 @@ def _structured_text(structured: Mapping[str, object] | None) -> str:
     return " ".join(values)
 
 
+def _affirmative_product_evidence_text(
+    structured: Mapping[str, object] | None,
+) -> str:
+    value = (structured or {}).get("product_eligibility_evidence")
+    items = value if isinstance(value, list) else [value]
+    negated = re.compile(
+        r"\b(?:no (?:evidence|indication|sign|suggestion)|not presented as|rather than|"
+        r"not\b[^.]{0,160}\b(?:catering|mobile|delivery[- ]only|service[- ]only|"
+        r"entertainment[- ]first|karaoke[- ]first))\b",
+        re.IGNORECASE,
+    )
+    return " ".join(
+        str(item) for item in items if item and not negated.search(str(item))
+    )
+
+
+def assess_fixed_visit_ready_venue(
+    *,
+    primary_category: str | None,
+    venue_format: str,
+    food_drink_primary: bool | None,
+    structured_research: Mapping[str, object] | None,
+) -> FixedVisitReadyVenue:
+    """Derive positive fixed-venue support from compact structured facts only."""
+
+    evidence: list[str] = []
+    if str(venue_format or "unknown").casefold() == "fixed_venue":
+        evidence.append("structured_fixed_venue")
+    if re.search(
+        r"\b(?:restaurant|cafe|bar|izakaya|bistro|sushi|dining|osteria)\b",
+        str(primary_category or ""),
+        re.IGNORECASE,
+    ):
+        evidence.append("food_drink_venue_category")
+    if food_drink_primary is True:
+        evidence.append("food_drink_primary")
+    if (structured_research or {}).get("official_website_found") is True:
+        evidence.append("official_website")
+    if int((structured_research or {}).get("reservation_platform_count") or 0) > 0:
+        evidence.append("reservation_platform")
+    address_evidence = (structured_research or {}).get("address_evidence")
+    if isinstance(address_evidence, Mapping) and isinstance(
+        address_evidence.get("source_evidence"), list
+    ) and address_evidence["source_evidence"]:
+        evidence.append("independent_fixed_address")
+    fixed = (structured_research or {}).get("fixed_venue_evidence")
+    if isinstance(fixed, Mapping):
+        for field in (
+            "counter_seating",
+            "table_seating",
+            "private_rooms",
+            "small_capacity",
+            "lunch_service",
+            "dinner_service",
+        ):
+            if fixed.get(field) is True:
+                evidence.append(field)
+        if str(fixed.get("reservation_status") or "unknown") != "unknown":
+            evidence.append("reservations")
+        if int(fixed.get("regular_open_days") or 0) > 0:
+            evidence.append("regular_opening_hours")
+        if int(fixed.get("restaurant_source_count") or 0) > 0:
+            evidence.append("restaurant_sources")
+    explicit_text = _affirmative_product_evidence_text(structured_research)
+    if re.search(
+        r"\b(?:fixed (?:restaurant|venue)|dine[- ]in|counter seating|table seating|"
+        r"private rooms?|seat capacity|street address|dining room)\b",
+        explicit_text,
+        re.IGNORECASE,
+    ):
+        evidence.append("explicit_fixed_venue_evidence")
+    return FixedVisitReadyVenue(bool(evidence), tuple(dict.fromkeys(evidence)))
+
+
 def assess_product_eligibility(
     *,
     primary_category: str | None,
@@ -300,17 +382,32 @@ def assess_product_eligibility(
     if _EVIDENCE_INTEGRITY.search(protected_text):
         return ProductEligibility(False, "ineligible_evidence_integrity", ("material_evidence_integrity_failure",))
     normalized_format = str(venue_format or "unknown").casefold()
-    if normalized_format in {"catering_mobile", "service_only"} or _MOBILE_CATERING.search(
-        protected_text
+    fixed = assess_fixed_visit_ready_venue(
+        primary_category=primary_category,
+        venue_format=venue_format,
+        food_drink_primary=food_drink_primary,
+        structured_research=structured_research,
+    )
+    explicit_text = _affirmative_product_evidence_text(structured_research)
+    affirmative_mobile = bool(_AFFIRMATIVE_MOBILE_CATERING.search(explicit_text))
+    if affirmative_mobile or (
+        normalized_format in {"catering_mobile", "service_only"}
+        and food_drink_primary is False
+        and not fixed.established
     ):
         return ProductEligibility(False, "ineligible_mobile_or_catering", ("not_a_fixed_visit_ready_venue",))
-    if normalized_format == "entertainment_first" or _ENTERTAINMENT_FIRST.search(
-        protected_text
+    affirmative_entertainment = bool(
+        _AFFIRMATIVE_ENTERTAINMENT_FIRST.search(explicit_text)
+    )
+    if (
+        (normalized_format == "entertainment_first" or affirmative_entertainment)
+        and food_drink_primary is False
     ):
         return ProductEligibility(False, "ineligible_entertainment_first", ("food_or_drink_is_secondary",))
-    if normalized_format == "non_dining_service" or _NON_DINING_SERVICE.search(
-        protected_text
-    ):
+    if (
+        normalized_format == "non_dining_service"
+        or _NON_DINING_SERVICE.search(explicit_text)
+    ) and food_drink_primary is False:
         return ProductEligibility(False, "ineligible_non_dining_service", ("candidate_is_a_service_not_a_venue",))
     return ProductEligibility(True, "eligible_visit_ready_venue", ("candidate_dataset_entity_with_no_hard_product_exclusion",))
 

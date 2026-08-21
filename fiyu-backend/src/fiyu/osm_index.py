@@ -43,6 +43,19 @@ CLASSIC_MOJIBAKE_PATTERN = re.compile(
 DEFAULT_MAX_SUSPICIOUS_RATE = 0.001  # One per thousand indexed objects.
 DEFAULT_MAX_DIAGNOSTIC_DETAILS = 50
 
+
+def _normalize_tokyo_admin_container(value: str | None) -> str | None:
+    """Keep exact Tokyo municipality names when the value is not a special ward."""
+
+    if not value:
+        return None
+    ward = canonical_tokyo_ward(value)
+    if ward:
+        return ward
+    normalized = normalize_location_name(value)
+    normalized = re.sub(r"(?:\s+city|[- ]shi|\u5e02)$", "", normalized).strip()
+    return normalized or None
+
 INDEX_SCHEMA = """
 CREATE TABLE osm_locations (
     osm_type TEXT NOT NULL,
@@ -688,7 +701,7 @@ def _insert_address_area(
         (
             area.osm_type, area.osm_id, area.osm_version, area.osm_timestamp,
             area.geometry_level, tags.get("name:ja") or tags.get("name") or area.neighborhood,
-            canonical_tokyo_ward(area.ward) if area.ward else None,
+            _normalize_tokyo_admin_container(area.ward),
             normalize_japanese_address_text(area.neighborhood),
             normalize_osm_number(area.chome), normalize_osm_number(area.block),
             latitude, longitude, point_method,

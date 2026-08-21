@@ -402,7 +402,7 @@ def test_unresolved_poi_invokes_existing_address_fallback(tmp_path, monkeypatch)
     ]
 
 
-def test_unresolved_poi_and_address_remain_unresolved(tmp_path, monkeypatch):
+def test_unresolved_poi_and_address_use_final_reviewed_area_fallback(tmp_path, monkeypatch):
     from fiyu import address_geocoder, address_geocoding, osm_resolver
 
     path = _db(tmp_path)
@@ -426,7 +426,8 @@ def test_unresolved_poi_and_address_remain_unresolved(tmp_path, monkeypatch):
     result = verify_location(
         path, "place-1", osm_index="poi.sqlite", osm_address_index="address.sqlite"
     )
-    assert result["method"] == "unresolved"
+    assert result["method"] == "area_anchor"
+    assert result["trusted_area_anchor"]["area_name"] == "Shibuya"
 
 
 def test_existing_verified_address_skips_paid_address_research(tmp_path, monkeypatch):
@@ -877,6 +878,33 @@ def test_batch_isolates_failures_and_reports_publication(monkeypatch, tmp_path):
     assert result["completed"] == 1
     assert result["failed"] == 1
     assert result["published"] == 1
+
+
+def test_batch_stage_counts_represent_50_selected_49_processed_one_research_failure():
+    from fiyu.catalog_pipeline import _batch_stage_counts
+
+    results = [
+        {
+            "candidate": {"place_id": f"place-{index}"},
+            "published": index % 2 == 0,
+            "research": {"failed": 0},
+            "location": {"method": "area_anchor" if index == 0 else "poi"},
+            "low_footprint_research": {
+                "results": [{"status": "failed"}] if index == 1 else []
+            },
+        }
+        for index in range(49)
+    ]
+    results.append({"place_id": "failed", "research": {"failed": 1}, "location": None})
+    counts = _batch_stage_counts(results, [])
+    assert counts == {
+        "completed": 49,
+        "research_failures": 1,
+        "low_footprint_failures": 1,
+        "location_unresolved_nonfatal": 0,
+        "fatal_pipeline_failures": 0,
+        "failed": 1,
+    }
 
 
 def test_batch_summary_reports_scores_location_enrichment_and_usage(monkeypatch, tmp_path):
