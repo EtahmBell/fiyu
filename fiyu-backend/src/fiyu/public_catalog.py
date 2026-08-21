@@ -841,6 +841,10 @@ def seed_public_queue(
     return len(rows)
 
 
+AUTO_RESEARCH_QUEUE_STATUSES = ("pending",)
+AUTO_PIPELINE_RESEARCH_STATUSES = ("complete", *AUTO_RESEARCH_QUEUE_STATUSES)
+
+
 def get_research_queue(
     db_path: str | Path,
     *,
@@ -849,7 +853,11 @@ def get_research_queue(
     place_id: str | None = None,
 ) -> list[dict[str, object]]:
     ensure_public_schema(db_path)
-    statuses = ("pending", "failed") if retry_failed else ("pending",)
+    statuses = (
+        (*AUTO_RESEARCH_QUEUE_STATUSES, "failed")
+        if retry_failed
+        else AUTO_RESEARCH_QUEUE_STATUSES
+    )
     placeholders = ",".join("?" for _ in statuses)
     with connect(db_path) as connection:
         rows = connection.execute(

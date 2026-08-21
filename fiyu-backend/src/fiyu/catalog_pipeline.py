@@ -10,7 +10,7 @@ from pathlib import Path
 from .database import connect
 from .discovery_areas import TOKYO_WARD_NAMES, canonical_tokyo_ward
 from .location_names import normalize_location_name
-from .public_catalog import ensure_public_schema
+from .public_catalog import AUTO_PIPELINE_RESEARCH_STATUSES, ensure_public_schema
 
 PIPELINE_VERSION = "catalog-pipeline-v1"
 
@@ -1780,16 +1780,30 @@ def run_pipeline_batch(
     if limit < 1 or limit > 100:
         raise ValueError("limit must be between 1 and 100")
     ensure_public_schema(db_path)
+    status_placeholders = ",".join("?" for _ in AUTO_PIPELINE_RESEARCH_STATUSES)
     with connect(db_path) as connection:
         rows = connection.execute(
-            """
-            SELECT place_id FROM public_restaurants
-            WHERE (? IS NOT NULL AND place_id=?)
-               OR (? IS NULL AND is_published=0 AND review_status!='auto_rejected')
-            ORDER BY CASE WHEN research_status='complete' THEN 0 ELSE 1 END,
-                     updated_at, place_id LIMIT ?
+            f"""
+            SELECT p.place_id
+            FROM public_restaurants p
+            JOIN restaurants r ON r.place_id=p.place_id
+            WHERE (
+                    (? IS NOT NULL AND p.place_id=?)
+                    OR (? IS NULL AND p.is_published=0
+                        AND p.review_status!='auto_rejected')
+                  )
+              AND p.research_status IN ({status_placeholders})
+            ORDER BY CASE WHEN p.research_status='complete' THEN 0 ELSE 1 END,
+                     p.updated_at, p.place_id
+            LIMIT ?
             """,
-            (place_id, place_id, place_id, limit),
+            (
+                place_id,
+                place_id,
+                place_id,
+                *AUTO_PIPELINE_RESEARCH_STATUSES,
+                limit,
+            ),
         ).fetchall()
     results: list[dict[str, object]] = []
     failures: list[dict[str, str]] = []

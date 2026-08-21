@@ -67,6 +67,32 @@ def _db(tmp_path):
     return path
 
 
+def _add_pipeline_candidate(path, place_id, *, status="pending", updated_at="2026-01-01"):
+    with connect(path) as connection:
+        cursor = connection.execute(
+            """
+            INSERT INTO restaurants (
+                place_id, title, address, neighborhood, rating, review_count,
+                candidate_eligible, internal_fiyu_score, confidence_score,
+                quality_score, underexposure_score, digital_footprint_score,
+                source_areas_json, score_reasons_json, source_files_json
+            ) VALUES (?, ?, 'Tokyo', 'Shibuya', 4.4, 30, 1, 80, 80,
+                      80, 75, 70, '[]', '[]', '[]')
+            """,
+            (place_id, place_id),
+        )
+        connection.execute(
+            """
+            INSERT INTO public_restaurants (
+                place_id, source_restaurant_id, research_status, is_published,
+                review_status, created_at, updated_at
+            ) VALUES (?, ?, ?, 0, 'candidate', ?, ?)
+            """,
+            (place_id, int(cursor.lastrowid), status, updated_at, updated_at),
+        )
+        connection.commit()
+
+
 def _save(path, *, name="Restaurant"):
     evidence = FiyuEvidence(
         matched_restaurant=True,
@@ -878,6 +904,112 @@ def test_batch_isolates_failures_and_reports_publication(monkeypatch, tmp_path):
     assert result["completed"] == 1
     assert result["failed"] == 1
     assert result["published"] == 1
+
+
+def test_retry_blocked_candidates_do_not_consume_batch_limit(monkeypatch, tmp_path):
+    path = _db(tmp_path)
+    with connect(path) as connection:
+        connection.execute(
+            "UPDATE public_restaurants SET research_status='needs_retry' "
+            "WHERE place_id='place-1'"
+        )
+        connection.commit()
+    _add_pipeline_candidate(path, "blocked-failed", status="failed")
+    _add_pipeline_candidate(path, "queue-3", updated_at="2026-01-03")
+    _add_pipeline_candidate(path, "queue-1", updated_at="2026-01-01")
+    _add_pipeline_candidate(path, "queue-2", updated_at="2026-01-02")
+
+    import fiyu.catalog_pipeline as pipeline
+
+    calls = []
+
+    def run(_db_path, place_id, **_kwargs):
+        calls.append(place_id)
+        return {
+            "place_id": place_id,
+            "published": False,
+            "publication": {"outcome": "auto_rejected"},
+            "research": {"responses_requests": 0, "web_search_actions": 0},
+            "low_footprint_research": {"responses_requests": 0, "web_search_actions": 0},
+            "cost": {},
+            "candidate": {"place_id": place_id, "card_enrichment_json": "{}"},
+        }
+
+    monkeypatch.setattr(pipeline, "run_candidate_pipeline", run)
+    result = run_pipeline_batch(path, osm_index="poi.sqlite", limit=3)
+
+    assert calls == ["queue-1", "queue-2", "queue-3"]
+    assert result["selected"] == result["completed"] == 3
+    assert result["failed"] == 0
+    assert result["batch_summary"]["external_usage"]["responses_requests"] == 0
+    assert result["batch_summary"]["external_usage"]["web_search_actions"] == 0
+    with connect(path) as connection:
+        statuses = dict(
+            connection.execute(
+                "SELECT place_id, research_status FROM public_restaurants "
+                "WHERE place_id IN ('place-1', 'blocked-failed')"
+            ).fetchall()
+        )
+    assert statuses == {"place-1": "needs_retry", "blocked-failed": "failed"}
+
+
+def test_pipeline_selection_is_deterministic_and_uses_available_queue(monkeypatch, tmp_path):
+    path = _db(tmp_path)
+    with connect(path) as connection:
+        connection.execute(
+            "UPDATE public_restaurants SET updated_at='2026-01-03' WHERE place_id='place-1'"
+        )
+        connection.commit()
+    _add_pipeline_candidate(path, "complete", status="complete", updated_at="2026-01-09")
+    _add_pipeline_candidate(path, "pending-first", updated_at="2026-01-01")
+
+    import fiyu.catalog_pipeline as pipeline
+
+    calls = []
+    monkeypatch.setattr(
+        pipeline,
+        "run_candidate_pipeline",
+        lambda _db, place_id, **_kwargs: (
+            calls.append(place_id)
+            or {"place_id": place_id, "published": False, "publication": {}}
+        ),
+    )
+    first = run_pipeline_batch(path, osm_index="poi.sqlite", limit=5)
+    first_order = list(calls)
+    calls.clear()
+    second = run_pipeline_batch(path, osm_index="poi.sqlite", limit=5)
+
+    assert first_order == calls == ["complete", "pending-first", "place-1"]
+    assert first["selected"] == second["selected"] == 3
+
+
+def test_explicit_retry_reenters_automatic_pipeline_without_changing_retry_command(
+    monkeypatch, tmp_path
+):
+    path = _db(tmp_path)
+    with connect(path) as connection:
+        connection.execute(
+            "UPDATE public_restaurants SET research_status='failed' WHERE place_id='place-1'"
+        )
+        connection.commit()
+    assert run_pipeline_batch(path, osm_index="poi.sqlite", limit=1)["selected"] == 0
+    recovery = recover_research_for_retry(path, "place-1")
+    assert recovery["new_status"] == "pending"
+
+    import fiyu.catalog_pipeline as pipeline
+
+    calls = []
+    monkeypatch.setattr(
+        pipeline,
+        "run_candidate_pipeline",
+        lambda _db, place_id, **_kwargs: (
+            calls.append(place_id)
+            or {"place_id": place_id, "published": False, "publication": {}}
+        ),
+    )
+    result = run_pipeline_batch(path, osm_index="poi.sqlite", limit=1)
+    assert result["selected"] == 1
+    assert calls == ["place-1"]
 
 
 def test_batch_stage_counts_represent_50_selected_49_processed_one_research_failure():
