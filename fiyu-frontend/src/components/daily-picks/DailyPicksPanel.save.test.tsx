@@ -134,10 +134,10 @@ describe("/picks revealed-card save bookmark", () => {
     expect(assignmentCall).toBeTruthy();
     const [, init] = assignmentCall as [RequestInfo | URL, RequestInit | undefined];
     const body = JSON.parse(String(init?.body)) as {
-      candidate_place_ids: string[];
+      candidate_place_ids?: string[];
       legacy_served_place_ids: string[];
     };
-    expect(body.candidate_place_ids).toEqual(["one", "two", "three", "four", "five", "six"]);
+    expect(body.candidate_place_ids).toBeUndefined();
     expect(body.legacy_served_place_ids).toEqual([]);
     expect(new Headers(init?.headers).get("X-Fiyu-Client-Id")).toBeTruthy();
     expect(

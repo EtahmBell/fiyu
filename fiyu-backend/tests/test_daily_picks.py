@@ -1,14 +1,61 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
 
 from fiyu import api
-from fiyu.daily_picks import seed_served_history, served_place_ids
+from fiyu.daily_picks import (
+    InsufficientUnseenPoolError,
+    assign_daily_picks,
+    get_active_daily_picks,
+    seed_served_history,
+    select_daily_pick_plan,
+    served_place_ids,
+)
 from fiyu.database import SCHEMA, connect
 from fiyu.public_catalog import ensure_public_schema
+
+NOW = datetime(2026, 8, 21, 12, tzinfo=UTC)
+LATITUDE = 35.658
+LONGITUDE = 139.7016
+
+
+def _insert(
+    connection,
+    place_id: str,
+    *,
+    distance_km: float = 1.0,
+    precision: str = "exact",
+    published: int = 1,
+    map_eligible: int = 1,
+    score: float = 70.0,
+) -> None:
+    connection.execute(
+        """
+        INSERT INTO public_restaurants (
+            place_id, name_en, primary_category, food_tags_json,
+            signature_dishes_json, discovery_area, discovery_areas_json,
+            fiyu_score, local_discovery_score, is_published,
+            map_display_eligible, latitude, longitude, map_location_precision,
+            created_at, updated_at
+        ) VALUES (?, ?, 'restaurant', '[]', '[]', 'Shibuya', '[]', ?, ?, ?, ?, ?, ?, ?, 'now', 'now')
+        """,
+        (
+            place_id,
+            place_id,
+            score,
+            100.0 - score,
+            published,
+            map_eligible,
+            LATITUDE,
+            LONGITUDE + distance_km / 90.0,
+            precision,
+        ),
+    )
 
 
 @pytest.fixture
@@ -19,158 +66,217 @@ def daily_picks_db(tmp_path, monkeypatch):
         connection.commit()
     ensure_public_schema(path)
     with connect(path) as connection:
-        connection.executemany(
-            """
-            INSERT INTO public_restaurants (
-                place_id, name_en, primary_category, food_tags_json,
-                signature_dishes_json, discovery_area, discovery_areas_json,
-                fiyu_score, is_published, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, '[]', 'Shibuya', '[]', ?, 1, 'now', 'now')
-            """,
-            [
-                ("one", "One", "sushi", '["sushi"]', 91.0),
-                ("two", "Two", "ramen", '["ramen"]', 89.0),
-                ("three", "Three", "yakitori", '["yakitori"]', 87.0),
-                ("four", "Four", "tempura", '["tempura"]', 85.0),
-                ("five", "Five", "izakaya", '["izakaya"]', 83.0),
-                ("six", "Six", "yakiniku", '["yakiniku"]', 81.0),
-                ("seven", "Seven", "Japanese", '["Japanese cuisine"]', 79.0),
-            ],
-        )
+        for index in range(130):
+            _insert(
+                connection,
+                f"place-{index:03}",
+                distance_km=0.2 + (index % 12) * 0.1,
+                precision=("chome" if index % 5 == 0 else "exact"),
+                score=float(50 + index % 45),
+            )
+        _insert(connection, "unpublished", published=0)
+        _insert(connection, "not-map-eligible", map_eligible=0)
         connection.commit()
     monkeypatch.setattr(api, "DB_PATH", path)
     return path
 
 
-def _owner() -> str:
-    return str(uuid4())
-
-
-def _payload(candidate_ids: list[str] | None = None, *, seed: int = 1) -> dict[str, object]:
-    return {
-        "city_id": "tokyo",
-        "candidate_place_ids": candidate_ids or [
-            "one", "two", "three", "four", "five", "six", "seven"
-        ],
-        "legacy_served_place_ids": [],
-        "categories": [],
-        "non_japanese": "occasionally",
+def _plan(path, **overrides):
+    arguments = {
+        "discovery_latitude": LATITUDE,
+        "discovery_longitude": LONGITUDE,
         "active_area": "Shibuya",
-        "seed": seed,
+        "saved_place_ids": set(),
+        "served_history": {},
+        "now": NOW,
         "requested_count": 3,
+        "seed": 42,
     }
+    arguments.update(overrides)
+    with connect(path) as connection:
+        return select_daily_pick_plan(connection, **arguments)
 
 
-def _assign(client: TestClient, owner: str, payload: dict[str, object]):
-    return client.post(
+def test_complete_catalog_not_frontend_candidate_subset_drives_selection(daily_picks_db):
+    response = TestClient(api.app).post(
         "/daily-picks/assign",
-        headers={"X-Fiyu-Client-Id": owner},
-        json=payload,
+        headers={"X-Fiyu-Client-Id": str(uuid4())},
+        json={
+            "city_id": "tokyo",
+            "candidate_place_ids": ["unpublished", "not-map-eligible"],
+            "discovery_latitude": LATITUDE,
+            "discovery_longitude": LONGITUDE,
+            "active_area": "Shibuya",
+            "seed": 42,
+        },
     )
-
-
-def test_assignment_records_all_picks_as_served_before_any_reveal_or_save(daily_picks_db):
-    owner = _owner()
-    response = _assign(TestClient(api.app), owner, _payload())
-
     assert response.status_code == 200
-    assigned = set(response.json()["place_ids"])
-    assert len(assigned) == 3
-    assert served_place_ids(daily_picks_db, owner_id=owner) == assigned
+    body = response.json()
+    assert len(body["place_ids"]) == 3
+    assert all(place_id.startswith("place-") for place_id in body["place_ids"])
+    assert [row["place_id"] for row in body["restaurants"]] == body["place_ids"]
+    assert all("distance_km" not in row for row in body["restaurants"])
 
 
-def test_future_assignment_excludes_revealed_and_concealed_assignments_equally(daily_picks_db):
-    client = TestClient(api.app)
-    owner = _owner()
-    first = _assign(client, owner, _payload(seed=1)).json()["place_ids"]
-    second_response = _assign(client, owner, _payload(seed=2))
-
-    assert second_response.status_code == 200
-    second = second_response.json()["place_ids"]
-    assert set(first).isdisjoint(second)
-    assert served_place_ids(daily_picks_db, owner_id=owner) == set(first + second)
+def test_saved_unpublished_and_map_ineligible_are_excluded(daily_picks_db):
+    selected, metadata = _plan(
+        daily_picks_db,
+        saved_place_ids={f"place-{index:03}" for index in range(120)},
+    )
+    assert set(selected) <= {f"place-{index:03}" for index in range(120, 130)}
+    assert "unpublished" not in selected and "not-map-eligible" not in selected
+    assert metadata["saved_excluded_count"] == 120
 
 
-def test_save_state_is_not_part_of_repeat_eligibility(daily_picks_db):
-    client = TestClient(api.app)
-    owner = _owner()
-    first = _assign(client, owner, _payload(seed=3)).json()["place_ids"]
+def test_radius_expands_in_order_and_stops_at_first_ten_unseen(daily_picks_db):
+    with connect(daily_picks_db) as connection:
+        connection.execute("UPDATE public_restaurants SET is_published = 0")
+        for index in range(9):
+            _insert(connection, f"near-{index}", distance_km=1.0)
+        for index in range(4):
+            _insert(connection, f"mid-{index}", distance_km=2.6)
+        connection.commit()
+    _, metadata = _plan(daily_picks_db)
+    assert metadata["final_radius_km"] == 3.0
+    assert metadata["unseen_by_radius"] == [
+        {"radius_km": 2.0, "unseen_count": 9},
+        {"radius_km": 3.0, "unseen_count": 13},
+    ]
 
-    # The assignment contract intentionally contains no saved/unsaved input.
-    second = _assign(client, owner, _payload(seed=4)).json()["place_ids"]
-    assert set(first).isdisjoint(second)
+
+@pytest.mark.parametrize(
+    ("base_distance", "added_distance", "expected_radius"),
+    [(2.8, 4.2, 5.0), (4.8, 7.0, 8.0)],
+)
+def test_radius_expands_to_five_and_eight(
+    daily_picks_db, base_distance, added_distance, expected_radius
+):
+    with connect(daily_picks_db) as connection:
+        connection.execute("UPDATE public_restaurants SET is_published = 0")
+        for index in range(9):
+            _insert(connection, f"base-{index}", distance_km=base_distance)
+        for index in range(2):
+            _insert(connection, f"added-{index}", distance_km=added_distance)
+        connection.commit()
+    _, metadata = _plan(daily_picks_db)
+    assert metadata["final_radius_km"] == expected_radius
+    assert [stage["radius_km"] for stage in metadata["unseen_by_radius"]] == [
+        radius for radius in (2.0, 3.0, 5.0, 8.0) if radius <= expected_radius
+    ]
 
 
-def test_same_restaurants_remain_eligible_for_a_different_owner(daily_picks_db):
-    client = TestClient(api.app)
-    first = _assign(client, _owner(), _payload(seed=5)).json()["place_ids"]
-    second = _assign(client, _owner(), _payload(seed=5)).json()["place_ids"]
+def test_recent_seen_never_repeat_and_old_seen_only_fill_at_max_radius(daily_picks_db):
+    all_ids = {f"place-{index:03}" for index in range(130)}
+    unseen = {"place-000", "place-001"}
+    recent = {"place-002", "place-003"}
+    history = {
+        place_id: NOW - (timedelta(days=1) if place_id in recent else timedelta(days=8))
+        for place_id in all_ids - unseen
+    }
+    selected, metadata = _plan(daily_picks_db, served_history=history)
+    assert unseen <= set(selected)
+    assert set(selected).isdisjoint(recent)
+    assert metadata["final_radius_km"] == 8.0
+    assert metadata["repeat_selected_count"] == 1
 
+
+def test_no_old_repeat_means_no_partial_round(daily_picks_db):
+    saved = {f"place-{index:03}" for index in range(2, 130)}
+    with pytest.raises(InsufficientUnseenPoolError):
+        _plan(daily_picks_db, saved_place_ids=saved)
+
+
+def test_exactly_three_unseen_returns_three_without_repeat(daily_picks_db):
+    saved = {f"place-{index:03}" for index in range(3, 130)}
+    selected, metadata = _plan(daily_picks_db, saved_place_ids=saved)
+    assert set(selected) == {"place-000", "place-001", "place-002"}
+    assert metadata["repeat_selected_count"] == 0
+
+
+def test_precision_allowances_and_area_fallback_are_conservative(daily_picks_db):
+    with connect(daily_picks_db) as connection:
+        connection.execute("UPDATE public_restaurants SET is_published = 0")
+        for index in range(10):
+            _insert(connection, f"chome-{index}", distance_km=2.5, precision="chome")
+        _insert(connection, "far-neighborhood", distance_km=4.2, precision="neighborhood")
+        _insert(connection, "area-compatible", distance_km=20, precision="ward")
+        connection.commit()
+    selected, metadata = _plan(daily_picks_db)
+    assert metadata["final_radius_km"] == 2.0
+    assert set(selected) <= {f"chome-{index}" for index in range(10)}
+    assert "far-neighborhood" not in selected and "area-compatible" not in selected
+
+
+def test_random_seed_is_reproducible_and_score_signals_do_not_rank(daily_picks_db):
+    first, _ = _plan(daily_picks_db, seed=7)
+    with connect(daily_picks_db) as connection:
+        connection.execute(
+            """
+            UPDATE public_restaurants
+            SET fiyu_score = 100 - fiyu_score,
+                local_discovery_score = fiyu_score,
+                primary_category = CASE place_id WHEN 'place-000' THEN 'sushi' ELSE 'same' END,
+                food_tags_json = '[\"same\"]'
+            """
+        )
+        connection.commit()
+    second, _ = _plan(daily_picks_db, seed=7)
+    third, _ = _plan(daily_picks_db, seed=8)
     assert first == second
+    assert first != third
+    assert first != tuple(sorted(first))
+
+
+def test_active_snapshot_is_reused_and_history_is_atomic(daily_picks_db):
+    owner = str(uuid4())
+    first = assign_daily_picks(
+        daily_picks_db,
+        owner_id=owner,
+        city_id="tokyo",
+        discovery_latitude=LATITUDE,
+        discovery_longitude=LONGITUDE,
+        active_area="Shibuya",
+        now=NOW,
+        seed=1,
+    )
+    second = assign_daily_picks(
+        daily_picks_db,
+        owner_id=owner,
+        city_id="tokyo",
+        discovery_latitude=LATITUDE,
+        discovery_longitude=LONGITUDE,
+        active_area="Shibuya",
+        now=NOW + timedelta(hours=1),
+        seed=99,
+    )
+    assert second == first
+    assert get_active_daily_picks(daily_picks_db, owner_id=owner, city_id="tokyo", now=NOW) == first
+    assert served_place_ids(daily_picks_db, owner_id=owner) == set(first.place_ids)
+
+
+def test_concurrent_assignment_creates_one_snapshot(daily_picks_db):
+    owner = str(uuid4())
+
+    def assign():
+        return assign_daily_picks(
+            daily_picks_db,
+            owner_id=owner,
+            city_id="tokyo",
+            discovery_latitude=LATITUDE,
+            discovery_longitude=LONGITUDE,
+            active_area="Shibuya",
+            now=NOW,
+            seed=4,
+        )
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        assignments = list(pool.map(lambda _: assign(), range(2)))
+    assert assignments[0] == assignments[1]
+    with connect(daily_picks_db) as connection:
+        assert connection.execute("SELECT count(*) AS n FROM daily_pick_rounds").fetchone()["n"] == 1
 
 
 def test_legacy_history_seed_is_unique(daily_picks_db):
-    owner = _owner()
-    assert seed_served_history(daily_picks_db, owner_id=owner, place_ids=["one", "one"]) == 1
-    assert seed_served_history(daily_picks_db, owner_id=owner, place_ids=["one"]) == 0
-    assert served_place_ids(daily_picks_db, owner_id=owner) == {"one"}
-
-    with connect(daily_picks_db) as connection:
-        count = connection.execute(
-            "SELECT COUNT(*) AS count FROM daily_pick_served_history WHERE owner_id = ?",
-            (owner,),
-        ).fetchone()["count"]
-    assert count == 1
-
-
-def test_insufficient_unseen_pool_never_repeats_or_creates_partial_round(daily_picks_db):
-    client = TestClient(api.app)
-    owner = _owner()
-    candidates = ["one", "two", "three", "four", "five"]
-    first = _assign(client, owner, _payload(candidates, seed=6)).json()["place_ids"]
-    response = _assign(client, owner, _payload(candidates, seed=7))
-
-    assert response.status_code == 409
-    assert response.json()["detail"]["code"] == "insufficient_unseen_pool"
-    assert served_place_ids(daily_picks_db, owner_id=owner) == set(first)
-    with connect(daily_picks_db) as connection:
-        rounds = connection.execute(
-            "SELECT COUNT(*) AS count FROM daily_pick_rounds WHERE owner_id = ?",
-            (owner,),
-        ).fetchone()["count"]
-    assert rounds == 1
-
-
-def test_reliable_legacy_assignment_is_excluded_before_selection(daily_picks_db):
-    client = TestClient(api.app)
-    owner = _owner()
-    payload = _payload(seed=8)
-    payload["legacy_served_place_ids"] = ["one", "two", "three"]
-    response = _assign(client, owner, payload)
-
-    assert response.status_code == 200
-    assert {"one", "two", "three"}.isdisjoint(response.json()["place_ids"])
-
-
-def test_discovery_coordinates_prioritize_nearby_restaurants_without_changing_scores(
-    daily_picks_db,
-):
-    with connect(daily_picks_db) as connection:
-        connection.executemany(
-            "UPDATE public_restaurants SET latitude = ?, longitude = ? WHERE place_id = ?",
-            [
-                (35.6580, 139.7016, "one"),
-                (35.6590, 139.7020, "two"),
-                (35.6600, 139.7030, "three"),
-                (35.8000, 139.9000, "four"),
-            ],
-        )
-        connection.commit()
-    payload = _payload(["one", "two", "three", "four"])
-    payload["discovery_latitude"] = 35.6580
-    payload["discovery_longitude"] = 139.7016
-
-    response = _assign(TestClient(api.app), _owner(), payload)
-
-    assert response.status_code == 200
-    assert set(response.json()["place_ids"]) == {"one", "two", "three"}
+    owner = str(uuid4())
+    assert seed_served_history(daily_picks_db, owner_id=owner, place_ids=["place-000", "place-000"]) == 1
+    assert seed_served_history(daily_picks_db, owner_id=owner, place_ids=["place-000"]) == 0

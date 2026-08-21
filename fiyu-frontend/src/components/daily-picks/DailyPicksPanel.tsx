@@ -11,7 +11,7 @@ import {
 import { RecentDiscoveries } from "@/components/daily-picks/RecentDiscoveries";
 import { FreeOriginOnboarding } from "@/components/location/FreeOriginOnboarding";
 import { Button } from "@/components/ui/Button";
-import { assignDailyPicks } from "@/lib/api/client";
+import { assignDailyPicks, fetchActiveDailyPicks } from "@/lib/api/client";
 import { FiyuApiError } from "@/lib/api/errors";
 import type { PublicRestaurant } from "@/lib/api/schemas";
 import { ACTIVE_FIYU_CITY } from "@/lib/city/editions";
@@ -327,6 +327,8 @@ export function DailyPicksPanel({
   const [searchLocation, setSearchLocation] = useState<ActivePicksDiscoveryLocation | null>(null);
   const [tuning, setTuning] = useState(false);
   const [newMapPlaceCount, setNewMapPlaceCount] = useState(0);
+  const [assignmentRestaurants, setAssignmentRestaurants] = useState<PublicRestaurant[]>([]);
+  const [assignmentAccountId, setAssignmentAccountId] = useState<string | null>(null);
   const findingTimerRef = useRef<number | null>(null);
   const mapNoticeTimerRef = useRef<number | null>(null);
   const developmentGenerationRef = useRef(0);
@@ -339,11 +341,14 @@ export function DailyPicksPanel({
   const currentSelection = active ? selection : null;
   const selectedRestaurants = useMemo(() => {
     if (!currentSelection) return [];
-    const byId = new Map(restaurants.map((restaurant) => [restaurant.place_id, restaurant]));
+    const serverRestaurants = assignmentAccountId === accountId ? assignmentRestaurants : [];
+    const byId = new Map(
+      [...restaurants, ...serverRestaurants].map((restaurant) => [restaurant.place_id, restaurant]),
+    );
     return currentSelection.restaurantIds
       .map((id) => byId.get(id))
       .filter((restaurant): restaurant is PublicRestaurant => Boolean(restaurant));
-  }, [currentSelection, restaurants]);
+  }, [accountId, assignmentAccountId, assignmentRestaurants, currentSelection, restaurants]);
   const hasActivePicks = active && selectedRestaurants.length === 3;
   const recent = useMemo(
     () =>
@@ -411,6 +416,44 @@ export function DailyPicksPanel({
     },
     [storage],
   );
+  const snapshotRef = useRef(snapshot);
+  useEffect(() => {
+    snapshotRef.current = snapshot;
+  }, [snapshot]);
+
+  useEffect(() => {
+    if (injectedStorage !== undefined || !accountId) return;
+    let cancelled = false;
+    void fetchActiveDailyPicks(ACTIVE_FIYU_CITY.id, {
+      clientId: getOrCreateAnonymousOwnerKey(),
+    }).then((assignment) => {
+      if (cancelled || !assignment) return;
+      setAssignmentRestaurants(assignment.restaurants ?? []);
+      setAssignmentAccountId(accountId);
+      const assignedAt = Date.parse(assignment.assigned_at);
+      const expiresAt = Date.parse(assignment.expires_at ?? "");
+      const restoredSnapshot = snapshotRef.current;
+      const previousRevealed = new Set(restoredSnapshot?.selection?.revealedIds ?? []);
+      persist({
+        ...(restoredSnapshot ?? EMPTY_DAILY_PICKS_STATE),
+        version: 3,
+        selection: {
+          restaurantIds: assignment.place_ids,
+          revealedIds: assignment.place_ids.filter((id) => previousRevealed.has(id)),
+          generatedAt: new Date(assignedAt).toISOString(),
+          expiresAt: Number.isFinite(expiresAt)
+            ? new Date(expiresAt).toISOString()
+            : new Date(assignedAt + DAILY_PICKS_DURATION_MS).toISOString(),
+        },
+      });
+    }).catch(() => {
+      // Assignment creation retains the existing error treatment; a missing active
+      // snapshot is a normal first-use state.
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [accountId, injectedStorage, persist]);
 
   const updatePreferences = (preferences: DailyPreferences) => {
     persist({ ...state, preferences });
@@ -447,14 +490,12 @@ export function DailyPicksPanel({
       const assignment = assignDailyPicks(
         {
           city_id: ACTIVE_FIYU_CITY.id,
-          candidate_place_ids: restaurants.map((restaurant) => restaurant.place_id),
           legacy_served_place_ids: accountId ? [] : legacyServedIds,
           categories: state.preferences.categories,
           non_japanese: state.preferences.nonJapanese,
           active_area: requestLocation?.label ?? null,
           discovery_latitude: requestLocation?.latitude ?? null,
           discovery_longitude: requestLocation?.longitude ?? null,
-          seed: Math.floor(generatedAt / DAILY_PICKS_DURATION_MS),
           requested_count: 3,
         },
         { clientId: getOrCreateAnonymousOwnerKey() },
@@ -477,14 +518,24 @@ export function DailyPicksPanel({
           return;
         }
         const assignedAt = Date.parse(result.value.assigned_at);
+        setAssignmentRestaurants(result.value.restaurants ?? []);
+        setAssignmentAccountId(accountId);
         persist({
           ...state,
           version: 3,
           servedRestaurantIds: [...new Set([...legacyServedIds, ...result.value.place_ids])],
-          selection: createDailySelection(
-            result.value.place_ids,
-            Number.isFinite(assignedAt) ? assignedAt : generatedAt,
-          ),
+          selection: {
+            ...createDailySelection(
+              result.value.place_ids,
+              Number.isFinite(assignedAt) ? assignedAt : generatedAt,
+            ),
+            expiresAt:
+              result.value.expires_at ??
+              new Date(
+                (Number.isFinite(assignedAt) ? assignedAt : generatedAt) +
+                  DAILY_PICKS_DURATION_MS,
+              ).toISOString(),
+          },
         });
         finishDiscovery(generation);
       });

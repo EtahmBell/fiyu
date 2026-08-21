@@ -21,9 +21,13 @@ from pydantic import BaseModel, Field, field_validator
 from . import supabase_user_data as shared_user_data
 from .account_deletion import delete_local_account_data
 from .daily_picks import (
+    ACTIVE_SNAPSHOT_DURATION,
+    DailyPickAssignment,
     InsufficientUnseenPoolError,
     assign_daily_picks,
+    get_active_daily_picks,
     seed_served_history,
+    select_daily_pick_plan,
     served_place_ids,
 )
 from .database import connect, decode_restaurant_row
@@ -533,7 +537,7 @@ class DefaultListMembershipResponse(BaseModel):
 
 class DailyPickAssignmentRequest(BaseModel):
     city_id: str = Field(min_length=1, max_length=64)
-    candidate_place_ids: list[str] = Field(min_length=3, max_length=200)
+    candidate_place_ids: list[str] = Field(default_factory=list, max_length=200)
     legacy_served_place_ids: list[str] = Field(default_factory=list, max_length=500)
     categories: list[Literal["sushi", "izakaya", "noodles", "yakiniku", "yakitori", "tempura"]] = (
         Field(default_factory=list, max_length=3)
@@ -542,7 +546,7 @@ class DailyPickAssignmentRequest(BaseModel):
     active_area: str | None = Field(default=None, max_length=120)
     discovery_latitude: float | None = Field(default=None, ge=-90, le=90)
     discovery_longitude: float | None = Field(default=None, ge=-180, le=180)
-    seed: int
+    seed: int | None = None
     requested_count: Literal[3] = 3
 
 
@@ -551,6 +555,8 @@ class DailyPickAssignmentResponse(BaseModel):
     city_id: str
     place_ids: list[str]
     assigned_at: str
+    expires_at: str
+    restaurants: list[PublicRestaurantSummary] = Field(default_factory=list)
 
 
 class SeenRestaurantsResponse(BaseModel):
@@ -1026,6 +1032,38 @@ def public_restaurants(
     return list_published_restaurants(DB_PATH, limit=limit)
 
 
+def _parse_pick_datetime(value: object) -> datetime | None:
+    try:
+        parsed = datetime.fromisoformat(str(value))
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
+
+
+def _shared_assignment(row: dict[str, object]) -> DailyPickAssignment:
+    metadata = row.get("selection_metadata")
+    return DailyPickAssignment(
+        round_id=str(row.get("round_id") or row.get("id")),
+        place_ids=tuple(str(value) for value in row.get("place_ids", [])),
+        assigned_at=str(row["assigned_at"]),
+        expires_at=str(row["expires_at"]),
+        selection_metadata=metadata if isinstance(metadata, dict) else {},
+    )
+
+
+def _daily_pick_response(
+    assignment: DailyPickAssignment, city_id: str
+) -> DailyPickAssignmentResponse:
+    return DailyPickAssignmentResponse(
+        round_id=assignment.round_id,
+        city_id=city_id,
+        place_ids=list(assignment.place_ids),
+        assigned_at=assignment.assigned_at,
+        expires_at=assignment.expires_at,
+        restaurants=_public_restaurants_for_place_ids(assignment.place_ids),
+    )
+
+
 @app.post("/daily-picks/assign", response_model=DailyPickAssignmentResponse)
 def create_daily_pick_assignment(
     request: DailyPickAssignmentRequest,
@@ -1035,40 +1073,85 @@ def create_daily_pick_assignment(
     ensure_public_schema(DB_PATH)
     city_id = _normalize_list_city(request.city_id)
     authenticated_owner = _shared_owner(owner_id)
-    shared_seen = (
-        shared_user_data.seen_place_ids(user_id=str(owner_id)) if authenticated_owner else []
-    )
-    # Browser history is only an anonymous-client compatibility input. Once an
-    # account is authenticated, Supabase is authoritative for what was surfaced.
-    legacy_served_place_ids = [] if authenticated_owner else request.legacy_served_place_ids
-    seed_served_history(
-        DB_PATH,
-        owner_id=owner_id,
-        place_ids=[*shared_seen, *legacy_served_place_ids],
-    )
     active_area = request.active_area
     discovery_latitude = request.discovery_latitude
     discovery_longitude = request.discovery_longitude
-    if _shared_owner(owner_id):
+    if authenticated_owner:
         saved_location = shared_user_data.get_discovery_location(user_id=str(owner_id))
         if saved_location and saved_location.get("location_mode"):
             active_area = str(saved_location["discovery_label"])
             discovery_latitude = float(saved_location["discovery_latitude"])
             discovery_longitude = float(saved_location["discovery_longitude"])
-    try:
-        assignment = assign_daily_picks(
+        active = shared_user_data.get_active_daily_picks(user_id=str(owner_id), city_id=city_id)
+        if active is not None:
+            return _daily_pick_response(_shared_assignment(active), city_id)
+    else:
+        seed_served_history(
             DB_PATH,
             owner_id=owner_id,
-            city_id=city_id,
-            candidate_place_ids=request.candidate_place_ids,
-            categories=request.categories,
-            non_japanese=request.non_japanese,
-            active_area=active_area,
-            discovery_latitude=discovery_latitude,
-            discovery_longitude=discovery_longitude,
-            seed=request.seed,
-            requested_count=request.requested_count,
+            place_ids=request.legacy_served_place_ids,
         )
+
+    if discovery_latitude is None or discovery_longitude is None:
+        anchor = next(
+            (
+                item
+                for item in load_location_anchors()
+                if active_area in {item["area_name"], item["display_name"]}
+            ),
+            load_location_anchors()[0],
+        )
+        active_area = str(anchor["area_name"])
+        discovery_latitude = float(anchor["latitude"])
+        discovery_longitude = float(anchor["longitude"])
+    try:
+        if authenticated_owner:
+            now = datetime.now(UTC)
+            history = {
+                place_id: parsed
+                for place_id, value in shared_user_data.seen_history(
+                    user_id=str(owner_id)
+                ).items()
+                if (parsed := _parse_pick_datetime(value)) is not None
+            }
+            with connect(DB_PATH) as connection:
+                place_ids, metadata = select_daily_pick_plan(
+                    connection,
+                    discovery_latitude=discovery_latitude,
+                    discovery_longitude=discovery_longitude,
+                    active_area=active_area,
+                    saved_place_ids=shared_user_data.saved_place_ids(
+                        user_id=str(owner_id), city_id=city_id
+                    ),
+                    served_history=history,
+                    now=now,
+                    requested_count=request.requested_count,
+                    seed=request.seed,
+                )
+            metadata["discovery_mode"] = (
+                str(saved_location.get("location_mode")) if saved_location else None
+            )
+            assignment = _shared_assignment(
+                shared_user_data.assign_or_get_active_daily_picks(
+                    user_id=str(owner_id),
+                    city_id=city_id,
+                    place_ids=list(place_ids),
+                    assigned_at=now.isoformat(),
+                    expires_at=(now + ACTIVE_SNAPSHOT_DURATION).isoformat(),
+                    selection_metadata=metadata,
+                )
+            )
+        else:
+            assignment = assign_daily_picks(
+                DB_PATH,
+                owner_id=owner_id,
+                city_id=city_id,
+                active_area=active_area,
+                discovery_latitude=discovery_latitude,
+                discovery_longitude=discovery_longitude,
+                seed=request.seed,
+                requested_count=request.requested_count,
+            )
     except InsufficientUnseenPoolError as exc:
         raise HTTPException(
             status_code=409,
@@ -1080,17 +1163,27 @@ def create_daily_pick_assignment(
             },
         ) from None
 
-    if authenticated_owner:
-        shared_user_data.record_seen(
-            user_id=str(owner_id),
-            place_ids=list(assignment.place_ids),
+    logger.info("Daily Picks selection: %s", assignment.selection_metadata)
+    return _daily_pick_response(assignment, city_id)
+
+
+@app.get("/daily-picks/active", response_model=DailyPickAssignmentResponse | None)
+def get_active_daily_pick_assignment(
+    owner_id: Annotated[str, Depends(_owner_id_from_header)],
+    city_id: str = Query(default="tokyo"),
+) -> DailyPickAssignmentResponse | None:
+    _ensure_database()
+    normalized_city = _normalize_list_city(city_id)
+    if _shared_owner(owner_id):
+        active = shared_user_data.get_active_daily_picks(
+            user_id=str(owner_id), city_id=normalized_city
         )
-    return DailyPickAssignmentResponse(
-        round_id=assignment.round_id,
-        city_id=city_id,
-        place_ids=list(assignment.place_ids),
-        assigned_at=assignment.assigned_at,
-    )
+        assignment = _shared_assignment(active) if active else None
+    else:
+        assignment = get_active_daily_picks(
+            DB_PATH, owner_id=owner_id, city_id=normalized_city
+        )
+    return _daily_pick_response(assignment, normalized_city) if assignment else None
 
 
 @app.get("/seen/restaurants", response_model=SeenRestaurantsResponse)

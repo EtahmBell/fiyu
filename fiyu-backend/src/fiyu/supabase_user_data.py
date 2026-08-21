@@ -399,6 +399,94 @@ def seen_place_ids(*, user_id: str) -> list[str]:
     return [str(row["place_id"]) for row in result] if isinstance(result, list) else []
 
 
+def seen_history(*, user_id: str) -> dict[str, str]:
+    result = _request(
+        "fiyu_restaurant_seen",
+        query={
+            "select": "place_id,last_seen_at",
+            "user_id": f"eq.{user_id}",
+            "order": "last_seen_at.desc",
+        },
+    )
+    return (
+        {str(row["place_id"]): str(row["last_seen_at"]) for row in result}
+        if isinstance(result, list)
+        else {}
+    )
+
+
+def saved_place_ids(*, user_id: str, city_id: str) -> set[str]:
+    lists = _rows(
+        "fiyu_restaurant_lists",
+        user_id=user_id,
+        city_id=city_id,
+        list_kind="default",
+    )
+    if not lists:
+        return set()
+    return {
+        str(row["place_id"])
+        for row in list_items(user_id=user_id, list_id=int(lists[0]["id"]))
+    }
+
+
+def get_active_daily_picks(*, user_id: str, city_id: str) -> dict[str, Any] | None:
+    rounds = _request(
+        "fiyu_daily_pick_rounds",
+        query={
+            "select": "id,assigned_at,expires_at,selection_metadata",
+            "user_id": f"eq.{user_id}",
+            "city_id": f"eq.{city_id}",
+            "expires_at": f"gt.{_now()}",
+            "order": "assigned_at.desc,id.desc",
+            "limit": "1",
+        },
+    )
+    if not isinstance(rounds, list) or not rounds:
+        return None
+    row = rounds[0]
+    items = _request(
+        "fiyu_daily_pick_round_items",
+        query={
+            "select": "place_id,position",
+            "user_id": f"eq.{user_id}",
+            "round_id": f"eq.{row['id']}",
+            "order": "position.asc",
+        },
+    )
+    if not isinstance(items, list) or len(items) != 3:
+        return None
+    return {**row, "place_ids": [str(item["place_id"]) for item in items]}
+
+
+def assign_or_get_active_daily_picks(
+    *,
+    user_id: str,
+    city_id: str,
+    place_ids: list[str],
+    assigned_at: str,
+    expires_at: str,
+    selection_metadata: dict[str, object],
+) -> dict[str, Any]:
+    result = _request(
+        "rpc/assign_or_get_active_fiyu_picks",
+        method="POST",
+        body={
+            "p_user_id": user_id,
+            "p_city_id": city_id,
+            "p_place_ids": place_ids,
+            "p_assigned_at": assigned_at,
+            "p_expires_at": expires_at,
+            "p_selection_metadata": selection_metadata,
+        },
+    )
+    if isinstance(result, list) and result:
+        result = result[0]
+    if not isinstance(result, dict) or len(result.get("place_ids", [])) != 3:
+        raise SharedUserDataError("Daily Picks snapshot could not be saved")
+    return result
+
+
 def record_seen(*, user_id: str, place_ids: list[str]) -> None:
     if place_ids:
         _request(

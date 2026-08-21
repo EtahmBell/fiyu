@@ -20,7 +20,10 @@ import {
 } from "@/lib/profile/profileIdentity";
 
 const router = vi.hoisted(() => ({ push: vi.fn() }));
-const dailyApi = vi.hoisted(() => ({ assignDailyPicks: vi.fn() }));
+const dailyApi = vi.hoisted(() => ({
+  assignDailyPicks: vi.fn(),
+  fetchActiveDailyPicks: vi.fn(),
+}));
 const locationApi = vi.hoisted(() => ({ fetchDiscoveryLocation: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => router }));
 vi.mock("@/lib/api/client", async (importOriginal) => {
@@ -28,6 +31,7 @@ vi.mock("@/lib/api/client", async (importOriginal) => {
   return {
     ...actual,
     assignDailyPicks: dailyApi.assignDailyPicks,
+    fetchActiveDailyPicks: dailyApi.fetchActiveDailyPicks,
     fetchDiscoveryLocation: locationApi.fetchDiscoveryLocation,
   };
 });
@@ -122,6 +126,7 @@ beforeEach(() => {
   window.sessionStorage.clear();
   router.push.mockReset();
   dailyApi.assignDailyPicks.mockReset();
+  dailyApi.fetchActiveDailyPicks.mockReset();
   locationApi.fetchDiscoveryLocation.mockReset();
   locationApi.fetchDiscoveryLocation.mockImplementation(() => new Promise(() => undefined));
   dailyApi.assignDailyPicks.mockResolvedValue({
@@ -130,6 +135,7 @@ beforeEach(() => {
     place_ids: ["one", "two", "three"],
     assigned_at: new Date().toISOString(),
   });
+  dailyApi.fetchActiveDailyPicks.mockResolvedValue(null);
   Object.defineProperty(window, "matchMedia", {
     configurable: true,
     value: () => ({

@@ -294,7 +294,13 @@ export const dailyPickAssignmentResponseSchema = z.object({
   city_id: z.string().min(1),
   place_ids: z.array(z.string().min(1)).length(3),
   assigned_at: z.string().min(1),
+  // Optional only for rolling compatibility with a backend that predates the
+  // server-owned snapshot response. Current servers always return both.
+  expires_at: z.string().min(1).optional(),
+  restaurants: z.array(publicRestaurantSchema).length(3).optional(),
 });
+
+export const activeDailyPickAssignmentResponseSchema = dailyPickAssignmentResponseSchema.nullable();
 
 export const visitReactionSchema = z.enum(["love_it", "like_it", "not_for_me"]);
 

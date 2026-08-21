@@ -10,6 +10,7 @@ import {
 import {
   authenticatedMapRestaurantsUrl,
   dailyPicksAssignUrl,
+  dailyPicksActiveUrl,
   discoveryLocationCheckUrl,
   discoveryLocationUrl,
   defaultListItemsUrl,
@@ -53,6 +54,7 @@ import {
   type UserNotification,
   defaultListMembershipResponseSchema,
   dailyPickAssignmentResponseSchema,
+  activeDailyPickAssignmentResponseSchema,
   discoveryLocationSchema,
   currentLocationCheckSchema,
   defaultListMutationResponseSchema,
@@ -322,15 +324,32 @@ export interface ListIdentity {
 
 export interface DailyPickAssignmentRequest {
   city_id: string;
-  candidate_place_ids: string[];
+  candidate_place_ids?: string[];
   legacy_served_place_ids: string[];
   categories: string[];
   non_japanese: "yes" | "occasionally" | "japanese-only";
   active_area: string | null;
   discovery_latitude?: number | null;
   discovery_longitude?: number | null;
-  seed: number;
+  seed?: number;
   requested_count: 3;
+}
+
+export function fetchActiveDailyPicks(
+  cityId: string,
+  identity: ListIdentity,
+  options: RequestOptions = {},
+): Promise<DailyPickAssignmentResponse | null> {
+  return requestJson(
+    dailyPicksActiveUrl(cityId),
+    paths.dailyPicksActive,
+    activeDailyPickAssignmentResponseSchema,
+    {
+      ...options,
+      cache: "no-store",
+      headers: { ...listHeaders(identity), ...(options.headers ?? {}) },
+    },
+  );
 }
 
 export function fetchDiscoveryLocation(options: RequestOptions = {}): Promise<DiscoveryLocation> {

@@ -37,6 +37,7 @@ export const paths = {
   discoveryLocation: "/profiles/me/discovery-location",
   discoveryLocationCheck: "/profiles/me/discovery-location/check-current",
   dailyPicksAssign: "/daily-picks/assign",
+  dailyPicksActive: "/daily-picks/active",
   seenRestaurants: "/seen/restaurants",
   mapRestaurants: "/map/restaurants",
   authenticatedMapRestaurants: "/profiles/me/map-restaurants",
@@ -54,6 +55,10 @@ export const paths = {
 
 export function dailyPicksAssignUrl(): string {
   return `${getApiBaseUrl()}${paths.dailyPicksAssign}`;
+}
+
+export function dailyPicksActiveUrl(cityId: string): string {
+  return `${getApiBaseUrl()}${paths.dailyPicksActive}?city_id=${encodeURIComponent(cityId)}`;
 }
 
 export function seenRestaurantsUrl(): string {

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from collections import defaultdict
 from datetime import UTC, datetime
-from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
@@ -53,6 +52,7 @@ def shared_account_api(tmp_path, monkeypatch):
     items: dict[str, list[dict[str, object]]] = defaultdict(list)
     visits: dict[str, list[dict[str, object]]] = defaultdict(list)
     seen: dict[str, list[str]] = defaultdict(list)
+    snapshots: dict[tuple[str, str], dict[str, object]] = {}
 
     def current_user(header):
         token = (header or "").removeprefix("Bearer ")
@@ -119,6 +119,46 @@ def shared_account_api(tmp_path, monkeypatch):
     )
     monkeypatch.setattr(
         api.shared_user_data, "seen_place_ids", lambda *, user_id: list(seen[user_id])
+    )
+    monkeypatch.setattr(
+        api.shared_user_data,
+        "seen_history",
+        lambda *, user_id: {
+            place_id: "2026-08-08T00:00:00+00:00" for place_id in seen[user_id]
+        },
+    )
+    monkeypatch.setattr(
+        api.shared_user_data,
+        "saved_place_ids",
+        lambda *, user_id, city_id: {
+            str(item["place_id"]) for item in items[user_id]
+        },
+    )
+    monkeypatch.setattr(
+        api.shared_user_data,
+        "get_active_daily_picks",
+        lambda *, user_id, city_id: snapshots.get((user_id, city_id)),
+    )
+
+    def assign_snapshot(
+        *, user_id, city_id, place_ids, assigned_at, expires_at, selection_metadata
+    ):
+        key = (user_id, city_id)
+        if key not in snapshots:
+            snapshots[key] = {
+                "round_id": str(uuid4()),
+                "place_ids": list(place_ids),
+                "assigned_at": assigned_at,
+                "expires_at": expires_at,
+                "selection_metadata": selection_metadata,
+            }
+            seen[user_id].extend(
+                place_id for place_id in place_ids if place_id not in seen[user_id]
+            )
+        return snapshots[key]
+
+    monkeypatch.setattr(
+        api.shared_user_data, "assign_or_get_active_daily_picks", assign_snapshot
     )
     monkeypatch.setattr(
         api.shared_user_data, "get_discovery_location", lambda *, user_id: None
@@ -310,22 +350,11 @@ def test_authenticated_reads_do_not_create_seen_history(shared_account_api):
 
 
 def test_authenticated_assignment_records_only_returned_picks_not_legacy_or_candidate_pool(
-    shared_account_api, monkeypatch
+    shared_account_api,
 ):
     client, user_ids, seen = shared_account_api
     user_id = user_ids["token-b"]
     candidates = [f"candidate-{index}" for index in range(50)]
-    surfaced = candidates[:3]
-    monkeypatch.setattr(
-        api,
-        "assign_daily_picks",
-        lambda *args, **kwargs: SimpleNamespace(
-            round_id="round-authenticated",
-            place_ids=tuple(surfaced),
-            assigned_at="2026-08-11T00:00:00+00:00",
-        ),
-    )
-
     response = client.post(
         "/daily-picks/assign",
         headers=_auth("token-b"),
@@ -339,8 +368,46 @@ def test_authenticated_assignment_records_only_returned_picks_not_legacy_or_cand
     )
 
     assert response.status_code == 200
-    assert response.json()["place_ids"] == surfaced
+    surfaced = response.json()["place_ids"]
+    assert len(surfaced) == 3
+    assert set(surfaced) <= {"tokyo-0", "tokyo-1", "tokyo-2", "tokyo-3"}
     assert seen[user_id] == surfaced
+
+
+def test_authenticated_daily_pick_snapshot_is_reused_and_account_specific(
+    shared_account_api,
+):
+    client, _, _ = shared_account_api
+    payload = {
+        "city_id": "tokyo",
+        "discovery_latitude": 35.65,
+        "discovery_longitude": 139.70,
+        "active_area": "Asakusa",
+        "seed": 3,
+        "requested_count": 3,
+    }
+
+    first = client.post("/daily-picks/assign", headers=_auth("token-a"), json=payload)
+    repeated = client.post(
+        "/daily-picks/assign",
+        headers=_auth("token-a"),
+        json={**payload, "seed": 99},
+    )
+    restored = client.get(
+        "/daily-picks/active",
+        params={"city_id": "tokyo"},
+        headers=_auth("token-a"),
+    )
+    other_account = client.get(
+        "/daily-picks/active",
+        params={"city_id": "tokyo"},
+        headers=_auth("token-b"),
+    )
+
+    assert first.status_code == repeated.status_code == restored.status_code == 200
+    assert repeated.json() == first.json() == restored.json()
+    assert other_account.status_code == 200
+    assert other_account.json() is None
 
 
 def test_invalid_bearer_cannot_select_another_account(shared_account_api):
