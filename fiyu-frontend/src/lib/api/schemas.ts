@@ -86,6 +86,69 @@ const locationProvenanceSchema = z
   .nullish()
   .transform((value) => value ?? null);
 
+const reviewThemeSchema = z.object({
+  theme: z.string(),
+  sentiment: nullableString.optional(),
+  supporting_source_count: nullableNumber.optional(),
+  confidence: nullableNumber.optional(),
+});
+
+const practicalInfoSchema = z.object({
+  reservation: z.object({
+    status: nullableString,
+    confidence: nullableNumber.optional(),
+  }).optional(),
+  seating: z.object({
+    counter: z.boolean().nullable().optional(),
+    tables: z.boolean().nullable().optional(),
+    private_rooms: z.boolean().nullable().optional(),
+    small_capacity: z.boolean().nullable().optional(),
+  }).optional(),
+  visit_style: z.object({
+    solo_friendly: z.boolean().nullable().optional(),
+    group_friendly: z.boolean().nullable().optional(),
+    date_friendly: z.boolean().nullable().optional(),
+  }).optional(),
+  service_periods: z.object({
+    lunch: z.boolean().nullable().optional(),
+    dinner: z.boolean().nullable().optional(),
+    late_night: z.boolean().nullable().optional(),
+  }).optional(),
+  payment: z.object({
+    cash_only: z.boolean().nullable().optional(),
+    cards: z.boolean().nullable().optional(),
+    electronic_payment: z.boolean().nullable().optional(),
+  }).optional(),
+  other: z.array(z.string()).optional(),
+  confidence: nullableNumber.optional(),
+});
+
+const hoursPeriodSchema = z.object({
+  open: nullableString,
+  close: nullableString,
+  label: nullableString.optional(),
+  last_order: nullableString.optional(),
+});
+
+const dayHoursSchema = z.object({
+  status: nullableString,
+  periods: z.array(hoursPeriodSchema).optional(),
+});
+
+const openingHoursSchema = z.object({
+  monday: dayHoursSchema.optional(),
+  tuesday: dayHoursSchema.optional(),
+  wednesday: dayHoursSchema.optional(),
+  thursday: dayHoursSchema.optional(),
+  friday: dayHoursSchema.optional(),
+  saturday: dayHoursSchema.optional(),
+  sunday: dayHoursSchema.optional(),
+  reservation_only: z.boolean().nullable().optional(),
+  schedule_note: nullableString.optional(),
+  confidence: nullableNumber.optional(),
+  checked_at: nullableString.optional(),
+});
+
 /** GET /public/restaurants item, and GET /public/restaurants/{place_id}. */
 export const publicRestaurantSchema = z.object({
   place_id: z.string().min(1),
@@ -94,6 +157,15 @@ export const publicRestaurantSchema = z.object({
   category: nullableString,
   /** Public editorial description. Replaced the internal why_fiyu field. */
   description_en: nullableString,
+  /** Canonical compact public copy produced by the card-enrichment pipeline. */
+  card_description: nullableString.optional(),
+  /** Sanitized, public card-enrichment fields. Evidence provenance stays server-side. */
+  review_themes: z.array(reviewThemeSchema).optional(),
+  practical_info: practicalInfoSchema.optional(),
+  opening_hours: openingHoursSchema.optional(),
+  hours_display: nullableString.optional(),
+  hours_confidence: nullableNumber.optional(),
+  hours_checked_at: nullableString.optional(),
 
   /*
    * Coordinates are gated by the backend: public_catalog.py:903-911 nulls them

@@ -90,6 +90,105 @@ describe("restaurant detail view", () => {
     expect(JSON.stringify(window.sessionStorage)).not.toContain(PHOTO_URL);
   });
 
+  it("uses the same canonical enriched description as the Picks card", () => {
+    const enriched = "A restrained enriched description shared by card and detail views.";
+    const enrichedRestaurant = publicRestaurantDetailSchema.parse({
+      ...restaurant,
+      card_description: enriched,
+      description_en: "An older general description.",
+    });
+    render(
+      <RestaurantDetailShell
+        restaurant={enrichedRestaurant}
+        restaurants={[enrichedRestaurant]}
+      />,
+    );
+    expect(screen.getByText(enriched)).toBeTruthy();
+    expect(screen.queryByText("An older general description.")).toBeNull();
+  });
+
+  it("renders only public-facing detail enrichment and formats known hours", () => {
+    const enrichedRestaurant = publicRestaurantDetailSchema.parse({
+      ...restaurant,
+      review_themes: [{
+        theme: "Quiet counter atmosphere",
+        sentiment: "positive",
+        supporting_source_count: 7,
+        confidence: 0.83,
+      }],
+      practical_info: {
+        reservation: { status: "recommended", confidence: 0.81 },
+        seating: { counter: true, tables: null, private_rooms: false, small_capacity: true },
+        visit_style: { solo_friendly: true, group_friendly: null, date_friendly: false },
+        service_periods: { lunch: true, dinner: true, late_night: null },
+        payment: { cash_only: false, cards: true, electronic_payment: null },
+        other: [],
+        confidence: 0.76,
+      },
+      opening_hours: {
+        monday: {
+          status: "open",
+          periods: [
+            { open: "12:00", close: "14:00", label: "lunch", last_order: "13:30" },
+            { open: "18:00", close: "22:00", label: "dinner", last_order: "21:30" },
+          ],
+        },
+        tuesday: { status: "closed", periods: [] },
+        wednesday: { status: "irregular", periods: [] },
+        thursday: { status: "unknown", periods: [] },
+        reservation_only: true,
+        schedule_note: "Hours may change on public holidays.",
+        confidence: 0.79,
+        checked_at: "2026-08-01T00:00:00Z",
+      },
+      hours_confidence: 0.79,
+      hours_checked_at: "2026-08-01T00:00:00Z",
+    });
+
+    render(<RestaurantDetailShell restaurant={enrichedRestaurant} restaurants={[enrichedRestaurant]} />);
+
+    expect(screen.getByRole("heading", { name: "People like" })).toBeTruthy();
+    expect(screen.getByText("Quiet counter atmosphere")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Good to know" })).toBeTruthy();
+    for (const fact of ["Reservations recommended", "Counter seating", "Small capacity", "Solo-friendly", "Lunch", "Dinner", "Cards accepted"]) {
+      expect(screen.getByText(fact)).toBeTruthy();
+    }
+    expect(screen.getByRole("heading", { name: "Hours" })).toBeTruthy();
+    expect(screen.getByText("Lunch 12:00–14:00, last order 13:30; Dinner 18:00–22:00, last order 21:30")).toBeTruthy();
+    expect(screen.getByText("Closed")).toBeTruthy();
+    expect(screen.getByText("Irregular")).toBeTruthy();
+    expect(screen.getByText("Reservation only")).toBeTruthy();
+    expect(screen.getByText("Hours may change on public holidays.")).toBeTruthy();
+    expect(document.body.textContent).not.toContain("0.83");
+    expect(document.body.textContent).not.toContain("0.79");
+    expect(document.body.textContent).not.toContain("supporting_source_count");
+    expect(document.body.textContent).not.toContain("2026-08-01");
+  });
+
+  it("keeps Koda-style sparse enrichment clean without filler sections", () => {
+    const koda = publicRestaurantDetailSchema.parse({
+      ...restaurant,
+      place_id: "ChIJF0XdG2CJGGARXPEmJ6ULqUA",
+      name_ja: "幸田",
+      name_en: "Koda",
+      card_description: "A compact Tsukiji kappo restaurant serving traditional kaiseki-style Japanese cuisine, including seasonal seafood dishes and fugu.",
+      review_themes: [],
+      practical_info: {},
+      opening_hours: {},
+      restaurant_type_en: null,
+      cuisine_terms_en: [],
+      signature_dishes_en: [],
+    });
+
+    render(<RestaurantDetailShell restaurant={koda} restaurants={[koda]} />);
+
+    expect(screen.getByRole("heading", { name: "About" })).toBeTruthy();
+    expect(screen.getByText(koda.card_description ?? "missing description")).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "People like" })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Good to know" })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Hours" })).toBeNull();
+  });
+
   it("omits unsupported optional sections and degrades cleanly when photos fail", async () => {
     photos.fetch.mockRejectedValueOnce(new Error("provider unavailable"));
     const sparse = publicRestaurantDetailSchema.parse({
@@ -100,6 +199,9 @@ describe("restaurant detail view", () => {
       signature_dishes_en: [],
       supporting_source_urls: [],
       researched_at: null,
+      review_themes: [],
+      practical_info: {},
+      opening_hours: {},
       latitude: null,
       longitude: null,
       map_display_eligible: false,

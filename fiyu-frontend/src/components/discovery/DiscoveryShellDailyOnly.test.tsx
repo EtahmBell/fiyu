@@ -509,6 +509,88 @@ describe("daily-only discovery shell", () => {
     expect(document.querySelectorAll("[data-place-id]")).toHaveLength(0);
   });
 
+  it("renders every revealed assignment restaurant on the desktop map even when it is outside the page catalog", async () => {
+    const accountId = "account-assignment-map";
+    const assignmentRestaurants = [
+      publicRestaurantSchema.parse({
+        place_id: "ChIJI101eACJGGARsfN4y6feOtE",
+        name_ja: "菜・鮮・炭 九二八",
+        name_en: "Kunihachi",
+        latitude: 35.67248869928656,
+        longitude: 139.77404398220284,
+        map_display_eligible: true,
+      }),
+      publicRestaurantSchema.parse({
+        place_id: "ChIJe1D1MyeLGGARBHKRN0-hQUw",
+        name_ja: "ワインと春巻き ROLLS",
+        name_en: "ROLLS wine and springrolls",
+        latitude: 35.657883468626316,
+        longitude: 139.75669375698615,
+        map_display_eligible: true,
+      }),
+      publicRestaurantSchema.parse({
+        place_id: "ChIJF0XdG2CJGGARXPEmJ6ULqUA",
+        name_ja: "幸田",
+        name_en: "Koda",
+        latitude: 35.66981542005488,
+        longitude: 139.77259448466774,
+        map_display_eligible: true,
+      }),
+    ];
+    const placeIds = assignmentRestaurants.map((restaurant) => restaurant.place_id);
+    const now = Date.now();
+    window.localStorage.setItem(
+      dailyPicksStorageKey(accountId),
+      JSON.stringify({
+        version: 3,
+        preferences: { categories: [], nonJapanese: "occasionally" },
+        selection: {
+          ...createDailySelection(placeIds, now - 1_000),
+          revealedIds: placeIds,
+        },
+        discoveries: [],
+        savedRestaurantIds: [],
+      }),
+    );
+    dailyApi.fetchActiveDailyPicks.mockResolvedValueOnce({
+      round_id: "current-assignment",
+      city_id: "tokyo",
+      place_ids: placeIds,
+      restaurants: assignmentRestaurants,
+      assigned_at: new Date(now - 1_000).toISOString(),
+      expires_at: new Date(now + 60_000).toISOString(),
+    });
+    locationApi.fetchDiscoveryLocation.mockResolvedValueOnce(configuredLocation("Shinjuku"));
+    publishProfileIdentity(accountProfile(accountId, "assignmentmap"));
+
+    render(<DiscoveryShell restaurants={[assignmentRestaurants[0]]} areaAnchors={[]} />);
+
+    const mapRegion = await screen.findByTestId("desktop-map-region");
+    await waitFor(() => {
+      expect(mapRegion.querySelectorAll('[data-marker-kind="restaurant"]')).toHaveLength(3);
+    });
+    expect(mapRegion.querySelector('[data-marker-kind="restaurant-cluster"]')).toBeNull();
+    for (const placeId of placeIds) {
+      expect(mapRegion.querySelector(`[data-place-id="${placeId}"]`)).toBeTruthy();
+    }
+
+    const markerPoints = [...mapRegion.querySelectorAll<SVGGElement>('[data-marker-kind="restaurant"]')]
+      .map((marker) => {
+        const circle = marker.querySelector("circle");
+        return `${circle?.getAttribute("cx")}:${circle?.getAttribute("cy")}`;
+      });
+    expect(new Set(markerPoints).size).toBe(3);
+
+    const rollsFrame = document.querySelector(
+      '[data-daily-card-place-id="ChIJe1D1MyeLGGARBHKRN0-hQUw"]',
+    ) as HTMLElement;
+    fireEvent.click(within(rollsFrame).getByTestId("compact-restaurant-card"));
+    expect(
+      mapRegion.querySelector('[data-place-id="ChIJe1D1MyeLGGARBHKRN0-hQUw"]')
+        ?.getAttribute("aria-pressed"),
+    ).toBe("true");
+  });
+
   it("uses the saved current-location record for both fresh-search copy and assignment", async () => {
     locationApi.fetchDiscoveryLocation.mockResolvedValueOnce(
       configuredLocation("Shinjuku", "current"),

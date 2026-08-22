@@ -35,6 +35,58 @@ export interface ClusterOptions {
   baseCellSize?: number;
 }
 
+export interface IndividualMarkerOptions {
+  /** Current map scale; keeps display-only collision separation visually stable. */
+  scale?: number;
+  collisionRadius?: number;
+}
+
+/**
+ * Preserve one rendered entity per restaurant while separating only exact
+ * coordinate collisions. The canonical coordinate is never changed: the small
+ * offset is a deterministic display fallback keyed by restaurant ID.
+ */
+export function individualMarkers<T>(
+  inputs: readonly ClusterInput<T>[],
+  options: IndividualMarkerOptions = {},
+): MarkerCluster<T>[] {
+  const scale = Math.max(1, options.scale ?? 1);
+  const collisionRadius = Math.max(1, options.collisionRadius ?? 24) / scale;
+  const coincident = new Map<string, ClusterInput<T>[]>();
+
+  for (const input of inputs) {
+    const key = `${input.point.x}:${input.point.y}`;
+    const group = coincident.get(key);
+    if (group) group.push(input);
+    else coincident.set(key, [input]);
+  }
+
+  const displayPointById = new Map<string, Point>();
+  for (const group of coincident.values()) {
+    if (group.length === 1) {
+      displayPointById.set(group[0].id, group[0].point);
+      continue;
+    }
+    const ordered = [...group].sort((left, right) => left.id.localeCompare(right.id));
+    ordered.forEach((input, index) => {
+      const angle = -Math.PI / 2 + (index * 2 * Math.PI) / ordered.length;
+      displayPointById.set(
+        input.id,
+        roundPoint({
+          x: input.point.x + Math.cos(angle) * collisionRadius,
+          y: input.point.y + Math.sin(angle) * collisionRadius,
+        }),
+      );
+    });
+  }
+
+  return inputs.map((input) => ({
+    id: input.id,
+    point: displayPointById.get(input.id) ?? input.point,
+    members: [input],
+  }));
+}
+
 /**
  * Group markers that would otherwise overlap.
  *

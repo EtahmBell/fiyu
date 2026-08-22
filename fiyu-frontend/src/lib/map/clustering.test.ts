@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { publicRestaurantSchema } from "@/lib/api/schemas";
 import { mappableRestaurants } from "@/lib/geo/mappable";
-import { BASE_CELL_SIZE, type ClusterInput, clusterMarkers, isCluster } from "@/lib/map/clustering";
+import { BASE_CELL_SIZE, type ClusterInput, clusterMarkers, individualMarkers, isCluster } from "@/lib/map/clustering";
 import { project } from "@/lib/map/projection";
 import restaurantsFixture from "@/test/fixtures/restaurants.json";
 
@@ -86,6 +86,25 @@ describe("clusterMarkers", () => {
   it("carries the original item through untouched", () => {
     const clusters = clusterMarkers([{ id: "x", point: { x: 1, y: 1 }, item: { name: "Bar" } }]);
     expect(clusters[0].members[0].item).toEqual({ name: "Bar" });
+  });
+});
+
+describe("individualMarkers", () => {
+  it("keeps nearby distinct coordinates as separate place-id entities", () => {
+    const markers = [input("a", 100, 100), input("b", 101, 101), input("c", 102, 102)];
+    const result = individualMarkers(markers);
+    expect(result.map((marker) => marker.id)).toEqual(["a", "b", "c"]);
+    expect(result.every((marker) => marker.members.length === 1)).toBe(true);
+    expect(result.map((marker) => marker.point)).toEqual(markers.map((marker) => marker.point));
+  });
+
+  it("deterministically separates exact-coordinate collisions without merging IDs", () => {
+    const markers = [input("b", 100, 100), input("a", 100, 100), input("c", 100, 100)];
+    const first = individualMarkers(markers, { scale: 2 });
+    const second = individualMarkers(markers, { scale: 2 });
+    expect(first).toEqual(second);
+    expect(new Set(first.map((marker) => `${marker.point.x}:${marker.point.y}`)).size).toBe(3);
+    expect(first.map((marker) => marker.id)).toEqual(["b", "a", "c"]);
   });
 });
 

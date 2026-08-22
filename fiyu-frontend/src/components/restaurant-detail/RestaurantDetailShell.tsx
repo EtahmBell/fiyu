@@ -10,6 +10,7 @@ import { TagList } from "@/components/restaurant/TagList";
 import { RestaurantPhotoGallery } from "@/components/restaurant-detail/RestaurantPhotoGallery";
 import { ScoreMark } from "@/components/ui/ScoreMark";
 import type { GooglePhoto, PublicRestaurant, PublicRestaurantDetail } from "@/lib/api/schemas";
+import { canonicalCardDescription } from "@/lib/daily-picks/cardContent";
 import { selectionIsActive, browserDailyPicksStorage } from "@/lib/daily-picks/storage";
 import { recentDiscoveries } from "@/lib/daily-picks/history";
 import { resolveNames } from "@/lib/format/language";
@@ -18,6 +19,7 @@ import { mappableRestaurants } from "@/lib/geo/mappable";
 import { PICKS_DETAIL_MAP_SESSION_KEY } from "@/lib/map/viewportSession";
 import { readPicksReturnState } from "@/lib/navigation/restaurantDetail";
 import { useDefaultList } from "@/lib/lists/useDefaultList";
+import { knownHours, practicalFacts } from "@/lib/restaurant/detailEnrichment";
 import { cn } from "@/lib/utils/cn";
 
 const subscribeClock = (listener: () => void) => {
@@ -218,6 +220,7 @@ function RestaurantDetailContent({
 }) {
   const names = resolveNames(restaurant);
   const title = names.primary?.text ?? "Restaurant";
+  const displayDescription = canonicalCardDescription(restaurant);
   // Photo descriptors are transient component state and are never written to
   // browser storage. The stable callback also prevents a gallery refetch.
   const [photos, setPhotos] = useState<GooglePhoto[]>([]);
@@ -226,6 +229,13 @@ function RestaurantDetailContent({
   const formatDetails = [restaurant.restaurant_type_en, ...restaurant.cuisine_terms_en].filter(
     (value): value is string => Boolean(value?.trim()),
   );
+  const reviewThemes = (restaurant.review_themes ?? [])
+    .map((theme) => theme.theme.trim())
+    .filter(Boolean);
+  const practical = practicalFacts(restaurant.practical_info);
+  const hours = knownHours(restaurant.opening_hours);
+  const scheduleNote = restaurant.opening_hours?.schedule_note?.trim() || null;
+  const hasHours = hours.length > 0 || restaurant.opening_hours?.reservation_only === true || Boolean(scheduleNote);
 
   return (
     <article className="space-y-8 pb-12" style={{ animation: "fiyu-reveal-in 220ms var(--ease-fiyu) both" }}>
@@ -256,10 +266,52 @@ function RestaurantDetailContent({
         {saveError && <p role="status" className="text-xs text-dusty-rose">{saveError}</p>}
       </section>
 
-      {restaurant.description_en && (
+      {displayDescription && (
         <section aria-labelledby="about-heading" className="border-t border-line pt-6">
           <h2 id="about-heading" className="font-display text-2xl text-ink">About</h2>
-          <p className="mt-3 max-w-prose whitespace-pre-line text-[0.9375rem] leading-7 text-ink/85">{restaurant.description_en}</p>
+          <p className="mt-3 max-w-prose whitespace-pre-line text-[0.9375rem] leading-7 text-ink/85">{displayDescription}</p>
+        </section>
+      )}
+
+      {reviewThemes.length > 0 && (
+        <section aria-labelledby="people-like-heading" className="border-t border-line pt-6">
+          <h2 id="people-like-heading" className="font-display text-2xl text-ink">People like</h2>
+          <ul className="mt-3 space-y-2 text-sm leading-6 text-ink/85">
+            {reviewThemes.map((theme) => <li key={theme}>{theme}</li>)}
+          </ul>
+        </section>
+      )}
+
+      {practical.length > 0 && (
+        <section aria-labelledby="good-to-know-heading" className="border-t border-line pt-6">
+          <h2 id="good-to-know-heading" className="font-display text-2xl text-ink">Good to know</h2>
+          <ul className="mt-3 flex flex-wrap gap-2">
+            {practical.map((fact) => (
+              <li key={fact} className="rounded-chip border border-line bg-subtle px-3 py-1.5 text-xs text-ink-muted">
+                {fact}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {hasHours && (
+        <section aria-labelledby="hours-heading" className="border-t border-line pt-6">
+          <h2 id="hours-heading" className="font-display text-2xl text-ink">Hours</h2>
+          {hours.length > 0 && (
+            <dl className="mt-3 grid max-w-md grid-cols-[6rem_minmax(0,1fr)] gap-x-4 gap-y-2 text-sm leading-6">
+              {hours.map((row) => (
+                <div key={row.day} className="contents">
+                  <dt className="text-ink-muted">{row.day}</dt>
+                  <dd className="min-w-0 text-ink/85">{row.value}</dd>
+                </div>
+              ))}
+            </dl>
+          )}
+          {restaurant.opening_hours?.reservation_only === true && (
+            <p className="mt-3 text-sm text-ink/85">Reservation only</p>
+          )}
+          {scheduleNote && <p className="mt-2 max-w-prose text-sm leading-6 text-ink-muted">{scheduleNote}</p>}
         </section>
       )}
 

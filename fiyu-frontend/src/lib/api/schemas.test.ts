@@ -87,6 +87,45 @@ describe("publicRestaurantSchema", () => {
     expect(parsed.signature_dishes).toEqual([]);
   });
 
+  it("preserves the canonical enriched card description", () => {
+    expect(
+      publicRestaurantSchema.parse({
+        place_id: "ChIJtest",
+        card_description: "A focused neighborhood restaurant description.",
+      }).card_description,
+    ).toBe("A focused neighborhood restaurant description.");
+  });
+
+  it("preserves sanitized public enrichment without exposing source provenance", () => {
+    const parsed = publicRestaurantSchema.parse({
+      place_id: "ChIJtest",
+      review_themes: [{
+        theme: "Quiet counter atmosphere",
+        sentiment: "positive",
+        supporting_source_count: 2,
+        confidence: 0.8,
+        source_urls: ["https://internal.example"],
+      }],
+      practical_info: {
+        reservation: { status: "recommended", confidence: 0.7 },
+        source_urls: ["https://internal.example"],
+      },
+      opening_hours: {
+        monday: { status: "closed", periods: [] },
+        sources: [{ url: "https://internal.example" }],
+        unresolved_conflicts: ["internal conflict"],
+      },
+    });
+
+    expect(parsed.review_themes?.[0].theme).toBe("Quiet counter atmosphere");
+    expect(parsed.practical_info?.reservation?.status).toBe("recommended");
+    expect(parsed.opening_hours?.monday?.status).toBe("closed");
+    expect(parsed.review_themes?.[0]).not.toHaveProperty("source_urls");
+    expect(parsed.practical_info).not.toHaveProperty("source_urls");
+    expect(parsed.opening_hours).not.toHaveProperty("sources");
+    expect(parsed.opening_hours).not.toHaveProperty("unresolved_conflicts");
+  });
+
   it("defaults map_display_eligible to false rather than true", () => {
     // Defaulting the other way would plot restaurants the backend never cleared.
     expect(publicRestaurantSchema.parse(minimal).map_display_eligible).toBe(false);

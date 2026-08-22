@@ -51,7 +51,7 @@ export interface DailyPicksPanelProps {
   storage?: DailyPicksStorage;
   onOpenRestaurant?: (restaurant: PublicRestaurant) => void;
   onViewRestaurant?: (restaurant: PublicRestaurant) => void;
-  onVisibleRestaurantIdsChange?: (restaurantIds: string[]) => void;
+  onVisibleRestaurantsChange?: (restaurants: PublicRestaurant[]) => void;
   selectedPlaceId?: string | null;
   scrollToPlaceId?: string | null;
   scrollRequestKey?: number;
@@ -304,7 +304,7 @@ export function DailyPicksPanel({
   storage: injectedStorage,
   onOpenRestaurant,
   onViewRestaurant,
-  onVisibleRestaurantIdsChange,
+  onVisibleRestaurantsChange,
   selectedPlaceId = null,
   scrollToPlaceId = null,
   scrollRequestKey = 0,
@@ -339,16 +339,18 @@ export function DailyPicksPanel({
   const selection = snapshot?.selection ?? null;
   const active = selection ? selectionIsActive(selection, now) : false;
   const currentSelection = active ? selection : null;
-  const selectedRestaurants = useMemo(() => {
-    if (!currentSelection) return [];
+  const restaurantById = useMemo(() => {
     const serverRestaurants = assignmentAccountId === accountId ? assignmentRestaurants : [];
-    const byId = new Map(
+    return new Map(
       [...restaurants, ...serverRestaurants].map((restaurant) => [restaurant.place_id, restaurant]),
     );
+  }, [accountId, assignmentAccountId, assignmentRestaurants, restaurants]);
+  const selectedRestaurants = useMemo(() => {
+    if (!currentSelection) return [];
     return currentSelection.restaurantIds
-      .map((id) => byId.get(id))
+      .map((id) => restaurantById.get(id))
       .filter((restaurant): restaurant is PublicRestaurant => Boolean(restaurant));
-  }, [accountId, assignmentAccountId, assignmentRestaurants, currentSelection, restaurants]);
+  }, [currentSelection, restaurantById]);
   const hasActivePicks = active && selectedRestaurants.length === 3;
   const recent = useMemo(
     () =>
@@ -367,6 +369,12 @@ export function DailyPicksPanel({
       ])].sort(),
     [currentSelection?.revealedIds, recent],
   );
+  const visibleRestaurants = useMemo(
+    () => visibleRestaurantIds
+      .map((placeId) => restaurantById.get(placeId))
+      .filter((restaurant): restaurant is PublicRestaurant => Boolean(restaurant)),
+    [restaurantById, visibleRestaurantIds],
+  );
 
   const registerCardRef = useCallback<DailyCardRefRegistrar>((placeId, node) => {
     if (node) cardRefs.current.set(placeId, node);
@@ -383,8 +391,8 @@ export function DailyPicksPanel({
   }, [scrollRequestKey, scrollToPlaceId]);
 
   useEffect(() => {
-    if (snapshot !== null) onVisibleRestaurantIdsChange?.(visibleRestaurantIds);
-  }, [onVisibleRestaurantIdsChange, snapshot, visibleRestaurantIds]);
+    if (snapshot !== null) onVisibleRestaurantsChange?.(visibleRestaurants);
+  }, [onVisibleRestaurantsChange, snapshot, visibleRestaurants]);
 
   useEffect(
     () => () => {

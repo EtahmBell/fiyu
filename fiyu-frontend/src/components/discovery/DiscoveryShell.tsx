@@ -47,7 +47,7 @@ interface Selection {
 
 interface VisibleRestaurantState {
   ownerKey: string;
-  restaurantIds: string[];
+  restaurants: PublicRestaurant[];
 }
 
 type AccountLocationState =
@@ -84,10 +84,10 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
   const restaurantOwnerKey = identity.profile?.user_id ?? "anonymous";
   const [visibleRestaurantState, setVisibleRestaurantState] =
     useState<VisibleRestaurantState | null>(null);
-  const visibleRestaurantIds = useMemo(
+  const visibleRestaurants = useMemo(
     () =>
       visibleRestaurantState?.ownerKey === restaurantOwnerKey
-        ? visibleRestaurantState.restaurantIds
+        ? visibleRestaurantState.restaurants
         : [],
     [restaurantOwnerKey, visibleRestaurantState],
   );
@@ -162,14 +162,10 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
     return null;
   }, [accountLocation, activeArea, identity.profile, origin]);
 
-  const visibleRestaurants = useMemo(() => {
-    const visible = new Set(visibleRestaurantIds);
-    return restaurants.filter((restaurant) => visible.has(restaurant.place_id));
-  }, [restaurants, visibleRestaurantIds]);
   const mappable = useMemo(() => mappableRestaurants(visibleRestaurants), [visibleRestaurants]);
-  const updateVisibleRestaurantIds = useCallback(
-    (restaurantIds: string[]) =>
-      setVisibleRestaurantState({ ownerKey: restaurantOwnerKey, restaurantIds }),
+  const updateVisibleRestaurants = useCallback(
+    (nextRestaurants: PublicRestaurant[]) =>
+      setVisibleRestaurantState({ ownerKey: restaurantOwnerKey, restaurants: nextRestaurants }),
     [restaurantOwnerKey],
   );
 
@@ -321,7 +317,7 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
                 activeDiscoveryLocation={activeDiscoveryLocation}
                 onOpenRestaurant={selectFromFeed}
                 onViewRestaurant={openRestaurantDetail}
-                onVisibleRestaurantIdsChange={updateVisibleRestaurantIds}
+                onVisibleRestaurantsChange={updateVisibleRestaurants}
                 selectedPlaceId={selection?.placeId ?? null}
                 scrollToPlaceId={selection?.source === "map" ? selection.placeId : null}
                 scrollRequestKey={selection?.navigationKey ?? 0}
@@ -359,6 +355,7 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
             onSelect={selectFromMap}
             surfaceMode="bounded"
             interactive
+            clusterNearbyRestaurants={false}
             viewportSessionKey={PICKS_DETAIL_MAP_SESSION_KEY}
           />
         )}

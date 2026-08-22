@@ -13,7 +13,7 @@ import { MapRestaurantPopup } from "@/components/map/MapRestaurantPopup";
 import { MapStations } from "@/components/map/MapStations";
 import type { MappableRestaurant } from "@/lib/geo/mappable";
 import type { DiscoveryAnchor } from "@/lib/location/anchor";
-import { type MarkerCluster, clusterMarkers } from "@/lib/map/clustering";
+import { type MarkerCluster, clusterMarkers, individualMarkers } from "@/lib/map/clustering";
 import { detailLevelFor, detailLevelLabel } from "@/lib/map/detail";
 import { subscribeToNewlyRevealedMapPlaces } from "@/lib/map/revealEvents";
 import { readMapViewportSession, saveMapViewportSession } from "@/lib/map/viewportSession";
@@ -74,6 +74,8 @@ export interface FiyuMapProps {
   onPlacePin?: (point: LatLng) => void;
   /** Dedicated-map-only compact label for the selected restaurant marker. */
   showSelectedRestaurantPopup?: boolean;
+  /** Keep every restaurant individually selectable instead of grouping nearby pins. */
+  clusterNearbyRestaurants?: boolean;
   /** Called when the interactive map surface, rather than a marker, is pressed. */
   onMapBackgroundClick?: () => void;
   /** Preserve the transform between application surfaces that share this key. */
@@ -116,6 +118,7 @@ export function FiyuMap({
   placingPin = false,
   onPlacePin,
   showSelectedRestaurantPopup = false,
+  clusterNearbyRestaurants = true,
   onMapBackgroundClick,
   viewportSessionKey,
   className,
@@ -167,18 +170,16 @@ export function FiyuMap({
     [plotted],
   );
 
-  const clusters = useMemo(
-    () =>
-      clusterMarkers(
-        plotted.map((restaurant, index) => ({
-          id: restaurant.place_id,
-          point: points[index],
-          item: restaurant,
-        })),
-        { scale: view.k },
-      ),
-    [plotted, points, view.k],
-  );
+  const clusters = useMemo(() => {
+    const inputs = plotted.map((restaurant, index) => ({
+      id: restaurant.place_id,
+      point: points[index],
+      item: restaurant,
+    }));
+    return clusterNearbyRestaurants
+      ? clusterMarkers(inputs, { scale: view.k })
+      : individualMarkers(inputs, { scale: view.k });
+  }, [clusterNearbyRestaurants, plotted, points, view.k]);
 
   /*
    * Detail level, bucketed from the scale.

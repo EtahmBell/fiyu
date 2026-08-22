@@ -36,7 +36,7 @@ describe("compact restaurant card content", () => {
     expect(screen.getByText("Edo Sakaba Umi")).toBeTruthy();
   });
 
-  it("omits Japanese descriptions and tags while using an English metadata fallback", () => {
+  it("omits Japanese descriptions and tags without synthesizing location filler", () => {
     render(
       <CompactRestaurantCard
         restaurant={restaurant({
@@ -53,9 +53,7 @@ describe("compact restaurant card content", () => {
     expect(screen.queryByText("居酒屋")).toBeNull();
     expect(screen.queryByText("日本酒")).toBeNull();
     expect(screen.queryByText("焼き鳥")).toBeNull();
-    const copy = screen.getByText(/Edo Sakaba Umi is an izakaya and standing bar in Jingumae/);
-    expect(copy.textContent).toContain("Its listed dishes include Grilled chicken");
-    expect(copy.textContent).not.toMatch(/A izakaya|popular|local favorite|atmosphere/i);
+    expect(screen.queryByText(/is an izakaya|available listing|discovery area/i)).toBeNull();
     expect(screen.getByText("standing bar")).toBeTruthy();
   });
 
@@ -137,6 +135,22 @@ describe("compact restaurant card content", () => {
       />,
     );
     expect(screen.getByText(researched).className).toContain("line-clamp-4");
+  });
+
+  it("prefers the canonical enriched card description", () => {
+    const enriched = "A compact counter izakaya centered on charcoal-grilled seafood and sake.";
+    render(
+      <CompactRestaurantCard
+        restaurant={restaurant({
+          card_description: enriched,
+          description_en: "Edo Sakaba Umi is a restaurant in Jingumae.",
+        })}
+        saved={false}
+        onToggleSaved={() => {}}
+      />,
+    );
+    expect(screen.getByText(enriched)).toBeTruthy();
+    expect(screen.queryByText(/is a restaurant in Jingumae/i)).toBeNull();
   });
 
   it("gives a working photo a large stable region with accessible overlay attribution", async () => {

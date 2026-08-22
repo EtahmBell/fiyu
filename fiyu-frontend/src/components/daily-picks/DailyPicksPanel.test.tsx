@@ -422,17 +422,17 @@ describe("Today’s Fiyu Picks panel", () => {
       ],
       savedRestaurantIds: [],
     });
-    const onVisibleRestaurantIdsChange = vi.fn();
+    const onVisibleRestaurantsChange = vi.fn();
 
     render(
       <DailyPicksPanel
         restaurants={catalog}
         storage={storage}
-        onVisibleRestaurantIdsChange={onVisibleRestaurantIdsChange}
+        onVisibleRestaurantsChange={onVisibleRestaurantsChange}
       />,
     );
 
-    expect(onVisibleRestaurantIdsChange).toHaveBeenLastCalledWith(["four", "one"]);
+    expect(onVisibleRestaurantsChange).toHaveBeenLastCalledWith([catalog[3], catalog[0]]);
   });
 
   it("removes expired discoveries without removing their saved state", () => {

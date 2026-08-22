@@ -329,6 +329,30 @@ describe("clustering on the map", () => {
       "";
     expect(label).not.toMatch(/popular|trending|busy|favourite|favorite/i);
   });
+
+  it("keeps Picks markers individually selectable by place_id, including collisions", () => {
+    const onSelect = vi.fn();
+    const a = mappable("a", 35.658, 139.7016, { name_en: "Restaurant A" });
+    const b = mappable("b", 35.6582, 139.7018, { name_en: "Restaurant B" });
+    const c = mappable("c", 35.658, 139.7016, { name_en: "Restaurant C" });
+    const { container } = render(
+      <FiyuMap
+        restaurants={[a, b, c]}
+        selectedPlaceId={null}
+        onSelect={onSelect}
+        clusterNearbyRestaurants={false}
+      />,
+    );
+
+    expect(container.querySelectorAll('[data-marker-kind="restaurant"]')).toHaveLength(3);
+    for (const restaurant of [a, b, c]) {
+      const marker = container.querySelector(`[data-place-id="${restaurant.place_id}"]`);
+      expect(marker).toBeTruthy();
+      fireEvent.click(marker as Element);
+      expect(onSelect).toHaveBeenLastCalledWith(restaurant);
+    }
+    expect(container.querySelector('[data-marker-kind="restaurant-cluster"]')).toBeNull();
+  });
 });
 
 describe("map-ineligible restaurants", () => {
