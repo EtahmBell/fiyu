@@ -5,8 +5,8 @@ import Link from "next/link";
 
 import { RestaurantPhoto } from "@/components/restaurant/RestaurantPhoto";
 import { TagList } from "@/components/restaurant/TagList";
+import { FiyuLoadingScreen } from "@/components/states/FiyuLoadingScreen";
 import { ScoreMark } from "@/components/ui/ScoreMark";
-import { Skeleton } from "@/components/ui/Skeleton";
 import { fetchDefaultListSmartViews, fetchRestaurants } from "@/lib/api/client";
 import { DestinationPage } from "@/components/destinations/DestinationPage";
 import { ACTIVE_FIYU_CITY } from "@/lib/city/editions";
@@ -19,12 +19,7 @@ import { ListTabs } from "@/components/lists/ListTabs";
 import { SmartViewCard } from "@/components/lists/SmartViewCard";
 import { PremiumSmartCollectionCard } from "@/components/lists/PremiumSmartCollectionCard";
 import { buildListTagLookup, resolveListTags, type ListTagLookup } from "@/components/lists/listTags";
-import {
-  SMART_VIEW_ORDER,
-  isPremiumSmartView,
-  smartViewTintClass,
-  sortSmartViews,
-} from "@/components/lists/smartViewPresentation";
+import { isPremiumSmartView, sortSmartViews } from "@/components/lists/smartViewPresentation";
 
 function BookmarkIcon({ filled, className }: { filled: boolean; className?: string }) {
   return (
@@ -140,35 +135,6 @@ function SavedRow({
   );
 }
 
-/** Same row geometry, so nothing shifts when the list lands. */
-function SavedRowSkeleton() {
-  return (
-    <li className="min-w-0 rounded-card border border-line bg-surface p-3 sm:p-3.5">
-      <div className="grid min-w-0 grid-cols-1 items-stretch gap-3 min-[480px]:grid-cols-[minmax(8.5rem,30%)_minmax(0,1fr)] min-[480px]:gap-4">
-        <Skeleton className="h-36 w-full rounded-lg min-[480px]:h-full min-[480px]:min-h-36" />
-        <div className="min-w-0">
-          <div className="flex min-w-0 items-start justify-between gap-3">
-            <div className="min-w-0 flex-1 space-y-2.5 pt-0.5">
-              <Skeleton className="h-6 w-3/5" />
-              <Skeleton className="h-3.5 w-2/5" />
-            </div>
-            <div className="flex shrink-0 flex-col items-end gap-1.5">
-              <Skeleton className="h-2 w-7 rounded-full" />
-              <Skeleton className="h-6 w-9" />
-              <Skeleton className="h-px w-7" />
-            </div>
-          </div>
-          <div className="mt-3 flex gap-1.5">
-            <Skeleton className="h-6 w-20 rounded-chip" />
-            <Skeleton className="h-6 w-16 rounded-chip" />
-          </div>
-          <Skeleton className="mt-4 h-4 w-32" />
-        </div>
-      </div>
-    </li>
-  );
-}
-
 /**
  * Contextual strip above the saved rows.
  *
@@ -208,20 +174,6 @@ function SavedCollectionStrip({ countLabel }: { countLabel: string }) {
   );
 }
 
-/** Smart View card geometry in its own tint, so the grid arrives already composed. */
-function SmartViewCardSkeleton({ viewKey }: { viewKey: string }) {
-  return (
-    <li className={cn(smartViewTintClass(viewKey), viewKey === "nearby" && "sm:col-span-2")}>
-      <div className="flex min-h-[10.5rem] h-full flex-col rounded-card border border-[color:var(--fiyu-tint-edge)] bg-[color:var(--fiyu-tint-surface)] px-4 py-4">
-        <div className="size-9 rounded-full bg-[color:var(--fiyu-tint-disk)]" />
-        <Skeleton className="mt-4 h-6 w-2/5" />
-        <Skeleton className="mt-3 h-3.5 w-4/5" />
-        <Skeleton className="mt-auto h-3.5 w-24" />
-      </div>
-    </li>
-  );
-}
-
 const SAVED_PAGE_HEADER = {
   eyebrow: "Tokyo edition",
   title: "Your Tokyo list",
@@ -238,7 +190,7 @@ export function TokyoListPage({ initialTab = "saved" }: { initialTab?: "saved" |
   const cityId = ACTIVE_FIYU_CITY.id;
   const list = useDefaultList(cityId);
   const [activeTab, setActiveTab] = useState<"saved" | "smart">(initialTab);
-  const [smartLoading, setSmartLoading] = useState(false);
+  const [smartLoading, setSmartLoading] = useState(initialTab === "smart");
   const [smartError, setSmartError] = useState<string | null>(null);
   const [smartViews, setSmartViews] = useState<SmartViewCatalogEntry[]>([]);
   const [lockedPremiumView, setLockedPremiumView] = useState<SmartViewCatalogEntry | null>(null);
@@ -323,7 +275,13 @@ export function TokyoListPage({ initialTab = "saved" }: { initialTab?: "saved" |
   return (
     <DestinationPage {...heading}>
       <div className={cn(activeTab === "smart" ? "-mt-3" : "")}> 
-        <ListTabs activeTab={activeTab} onChange={setActiveTab} />
+        <ListTabs
+          activeTab={activeTab}
+          onChange={(tab) => {
+            if (tab === "smart" && smartViews.length === 0) setSmartLoading(true);
+            setActiveTab(tab);
+          }}
+        />
       </div>
 
       {activeTab === "smart" ? (
@@ -334,28 +292,19 @@ export function TokyoListPage({ initialTab = "saved" }: { initialTab?: "saved" |
           aria-label="Smart Views"
           className="space-y-7"
         >
+          {smartLoading ? (
+            <FiyuLoadingScreen contained />
+          ) : (
+            <>
           <section aria-label="Free Smart Views" className="space-y-3">
-            {smartLoading ? (
-              <>
-                <p role="status" aria-live="polite" className="sr-only">
-                  Loading Smart Views…
-                </p>
-                <ul aria-hidden="true" className="grid gap-3 sm:grid-cols-2 sm:gap-4">
-                  {SMART_VIEW_ORDER.slice(0, 5).map((key) => (
-                    <SmartViewCardSkeleton key={key} viewKey={key} />
-                  ))}
-                </ul>
-              </>
-            ) : (
               <ul className="grid gap-3 sm:grid-cols-2 sm:gap-4" role="list">
                 {freeSmartViews.map((view) => (
                   <SmartViewCard key={view.key} view={view} />
                 ))}
               </ul>
-            )}
           </section>
 
-          {(smartLoading || premiumSmartViews.length > 0) && (
+          {premiumSmartViews.length > 0 && (
             <section aria-label="Fiyu Premium" className="space-y-3 border-t border-line pt-5">
               <header>
                 <p className="text-[0.68rem] font-semibold tracking-[0.12em] text-lavender-700 uppercase">
@@ -367,13 +316,6 @@ export function TokyoListPage({ initialTab = "saved" }: { initialTab?: "saved" |
                 </p>
               </header>
 
-              {smartLoading ? (
-                <ul aria-hidden="true" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 sm:gap-4">
-                  {SMART_VIEW_ORDER.slice(5).map((key) => (
-                    <SmartViewCardSkeleton key={key} viewKey={key} />
-                  ))}
-                </ul>
-              ) : (
                 <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 sm:gap-4" role="list">
                   {premiumSmartViews.map((view) => (
                     <PremiumSmartCollectionCard
@@ -383,7 +325,6 @@ export function TokyoListPage({ initialTab = "saved" }: { initialTab?: "saved" |
                     />
                   ))}
                 </ul>
-              )}
             </section>
           )}
 
@@ -391,6 +332,8 @@ export function TokyoListPage({ initialTab = "saved" }: { initialTab?: "saved" |
             <p role="status" className="text-xs text-rose-dust">
               {smartError}
             </p>
+          )}
+            </>
           )}
 
           {lockedPremiumView && (
@@ -431,14 +374,7 @@ export function TokyoListPage({ initialTab = "saved" }: { initialTab?: "saved" |
           {countLabel && <SavedCollectionStrip countLabel={countLabel} />}
 
           {loading ? (
-            <section role="status" aria-busy="true" aria-live="polite" aria-label="Loading your Tokyo list">
-              <span className="sr-only">Loading your saved places…</span>
-              <ul aria-hidden="true" className="space-y-3">
-                <SavedRowSkeleton />
-                <SavedRowSkeleton />
-                <SavedRowSkeleton />
-              </ul>
-            </section>
+            <FiyuLoadingScreen contained />
           ) : list.status === "error" ? (
             // Visually distinct from an empty list: a bordered notice with an
             // action, not the quiet text-led empty state.

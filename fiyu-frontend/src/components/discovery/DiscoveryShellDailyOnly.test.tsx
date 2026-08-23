@@ -6,7 +6,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-li
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DiscoveryShell } from "@/components/discovery/DiscoveryShell";
-import { publicRestaurantSchema } from "@/lib/api/schemas";
+import { mapRestaurantSchema, publicRestaurantSchema } from "@/lib/api/schemas";
 import type { DiscoveryLocation } from "@/lib/api/schemas";
 import {
   DAILY_PICKS_STORAGE_KEY,
@@ -25,6 +25,7 @@ const dailyApi = vi.hoisted(() => ({
   fetchActiveDailyPicks: vi.fn(),
 }));
 const locationApi = vi.hoisted(() => ({ fetchDiscoveryLocation: vi.fn() }));
+const mapApi = vi.hoisted(() => ({ fetchAuthenticatedMapRestaurants: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => router }));
 vi.mock("@/lib/api/client", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/api/client")>();
@@ -33,6 +34,7 @@ vi.mock("@/lib/api/client", async (importOriginal) => {
     assignDailyPicks: dailyApi.assignDailyPicks,
     fetchActiveDailyPicks: dailyApi.fetchActiveDailyPicks,
     fetchDiscoveryLocation: locationApi.fetchDiscoveryLocation,
+    fetchAuthenticatedMapRestaurants: mapApi.fetchAuthenticatedMapRestaurants,
   };
 });
 
@@ -128,6 +130,8 @@ beforeEach(() => {
   dailyApi.assignDailyPicks.mockReset();
   dailyApi.fetchActiveDailyPicks.mockReset();
   locationApi.fetchDiscoveryLocation.mockReset();
+  mapApi.fetchAuthenticatedMapRestaurants.mockReset();
+  mapApi.fetchAuthenticatedMapRestaurants.mockResolvedValue(catalog.slice(0, 3));
   locationApi.fetchDiscoveryLocation.mockImplementation(() => new Promise(() => undefined));
   dailyApi.assignDailyPicks.mockResolvedValue({
     round_id: "round-one",
@@ -451,6 +455,28 @@ describe("daily-only discovery shell", () => {
     expect(screen.queryByText(/Searching near/i)).toBeNull();
   });
 
+  it("does not show preferences while the authenticated active assignment is unresolved", async () => {
+    locationApi.fetchDiscoveryLocation.mockResolvedValueOnce(configuredLocation("Shinjuku"));
+    let resolveAssignment: ((value: null) => void) | undefined;
+    dailyApi.fetchActiveDailyPicks.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveAssignment = resolve;
+      }),
+    );
+    publishProfileIdentity(accountProfile("account-a", "accounta"));
+
+    render(<DiscoveryShell restaurants={catalog} areaAnchors={[]} />);
+
+    expect(await screen.findByTestId("fiyu-loading-screen")).toBeTruthy();
+    expect(screen.queryByText("Choose today’s preferences")).toBeNull();
+    expect(screen.queryByTestId("pre-pick-preferences")).toBeNull();
+
+    await act(async () => resolveAssignment?.(null));
+    expect(
+      await screen.findByRole("heading", { name: "Choose today’s preferences" }),
+    ).toBeTruthy();
+  });
+
   it("omits the mobile mini-map and its reserved space for a fresh account", async () => {
     locationApi.fetchDiscoveryLocation.mockResolvedValueOnce(configuredLocation("Shinjuku"));
     publishProfileIdentity(accountProfile("account-fresh", "fresh"));
@@ -520,13 +546,14 @@ describe("daily-only discovery shell", () => {
         longitude: 139.77404398220284,
         map_display_eligible: true,
       }),
-      publicRestaurantSchema.parse({
+      mapRestaurantSchema.parse({
         place_id: "ChIJe1D1MyeLGGARBHKRN0-hQUw",
         name_ja: "ワインと春巻き ROLLS",
         name_en: "ROLLS wine and springrolls",
         latitude: 35.657883468626316,
         longitude: 139.75669375698615,
         map_display_eligible: true,
+        is_visited: true,
       }),
       publicRestaurantSchema.parse({
         place_id: "ChIJF0XdG2CJGGARXPEmJ6ULqUA",
@@ -561,6 +588,7 @@ describe("daily-only discovery shell", () => {
       expires_at: new Date(now + 60_000).toISOString(),
     });
     locationApi.fetchDiscoveryLocation.mockResolvedValueOnce(configuredLocation("Shinjuku"));
+    mapApi.fetchAuthenticatedMapRestaurants.mockResolvedValue(assignmentRestaurants);
     publishProfileIdentity(accountProfile(accountId, "assignmentmap"));
 
     render(<DiscoveryShell restaurants={[assignmentRestaurants[0]]} areaAnchors={[]} />);
@@ -573,6 +601,13 @@ describe("daily-only discovery shell", () => {
     for (const placeId of placeIds) {
       expect(mapRegion.querySelector(`[data-place-id="${placeId}"]`)).toBeTruthy();
     }
+    const visitedMarker = mapRegion.querySelector(
+      '[data-place-id="ChIJe1D1MyeLGGARBHKRN0-hQUw"]',
+    );
+    expect(visitedMarker?.getAttribute("data-visited")).toBe("true");
+    expect(visitedMarker?.querySelectorAll("circle")[2]?.getAttribute("stroke")).toBe(
+      "var(--map-marker-visited)",
+    );
 
     const markerPoints = [...mapRegion.querySelectorAll<SVGGElement>('[data-marker-kind="restaurant"]')]
       .map((marker) => {

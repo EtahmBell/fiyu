@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
 import packageJson from "../../../package.json";
+import { FiyuLoadingScreen } from "@/components/states/FiyuLoadingScreen";
 import { Button } from "@/components/ui/Button";
 import { authService } from "@/lib/auth/authService";
 import { useIsDesktop } from "@/lib/hooks/useMediaQuery";
@@ -103,20 +104,21 @@ function MobileProfileHome() {
       }
     : profile;
 
+  if (identity.status === "loading") {
+    return (
+      <main className="flex-1 px-5 pb-[calc(var(--spacing-mobile-nav)+2rem)]">
+        <FiyuLoadingScreen contained className="min-h-[60dvh]" />
+      </main>
+    );
+  }
+
   return (
     <main className="flex-1 px-5 pt-8 pb-[calc(var(--spacing-mobile-nav)+2rem)]">
       <div className="mx-auto w-full max-w-xl">
         <h1 className="text-xl font-semibold text-ink">Profile</h1>
-        <div className="flex min-h-60 flex-col items-center pt-7 pb-8 text-center">
-          {identity.status === "loading" ? (
-            <>
-              <span aria-hidden="true" className="size-24 animate-pulse rounded-full bg-subtle" />
-              <span aria-hidden="true" className="mt-4 h-6 w-36 animate-pulse rounded-full bg-subtle" />
-              <span aria-hidden="true" className="mt-3 h-4 w-24 animate-pulse rounded-full bg-subtle" />
-            </>
-          ) : (
+        <div className="mt-6 flex min-h-60 flex-col items-center rounded-2xl border border-lavender-100/70 bg-lavender-50/35 px-4 pt-7 pb-8 text-center">
           <>
-          <ProfileAvatar profile={displayedProfile} size="large" />
+          <ProfileAvatar profile={displayedProfile} size="large" branded />
           <p className="mt-4 font-display text-2xl leading-tight text-ink">
             {displayedProfile.display_name || displayedProfile.username || "Your profile"}
           </p>
@@ -125,12 +127,11 @@ function MobileProfileHome() {
           </p>
           <Link
             href="/profile/edit"
-            className="mt-4 inline-flex min-h-11 items-center rounded-lg border border-line px-4 text-sm font-medium text-ink hover:bg-subtle"
+            className="mt-4 inline-flex min-h-11 items-center rounded-lg border border-lavender-200 bg-white/60 px-4 text-sm font-medium text-plum transition-colors hover:bg-lavender-100/60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600"
           >
             Edit profile
           </Link>
           </>
-          )}
         </div>
 
         <MobileGroup title="Settings">
@@ -269,17 +270,7 @@ function ProfileForm({ mobile }: { mobile: boolean }) {
   };
 
   if (identity.status === "loading") {
-    return (
-      <div aria-label="Loading profile" className="max-w-xl animate-pulse">
-        {!mobile && <div className="h-8 w-36 rounded-full bg-subtle" />}
-        <div className={cn("h-20 w-full rounded-lg bg-subtle", !mobile && "mt-8")} />
-        <div className="mt-7 space-y-6">
-          <div className="h-16 rounded-lg bg-subtle" />
-          <div className="h-16 rounded-lg bg-subtle" />
-          <div className="h-28 rounded-lg bg-subtle" />
-        </div>
-      </div>
-    );
+    return <FiyuLoadingScreen contained />;
   }
 
   const selectImage = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -737,11 +728,23 @@ function UnavailableRow({ label, status = "Not available", href }: { label: stri
   );
 }
 
-function ProfileAvatar({ profile, size = "default" }: { profile: FiyuProfile; size?: "default" | "large" }) {
+function ProfileAvatar({
+  profile,
+  size = "default",
+  branded = false,
+}: {
+  profile: FiyuProfile;
+  size?: "default" | "large";
+  branded?: boolean;
+}) {
   const initials = (profile.username.trim()[0] || profile.display_name.trim()[0] || "F").toUpperCase();
   const sizeClass = size === "large" ? "size-24 text-2xl" : "size-20 text-xl";
   return (
-    <div className={cn("relative shrink-0 overflow-hidden rounded-full border border-line bg-lavender-50 text-lavender-700", sizeClass)}>
+    <div className={cn(
+      "relative shrink-0 overflow-hidden rounded-full border border-line bg-lavender-50 text-lavender-700",
+      branded && "border-lavender-200 bg-lavender-100/70 text-plum shadow-[0_0_0_4px_rgba(226,218,239,0.55)]",
+      sizeClass,
+    )}>
       {profile.profile_image ? (
         <Image src={profile.profile_image} alt="Profile" fill unoptimized className="object-cover" />
       ) : (
@@ -754,7 +757,7 @@ function ProfileAvatar({ profile, size = "default" }: { profile: FiyuProfile; si
 function MobileGroup({ title, children, className }: { title: string; children: React.ReactNode; className?: string }) {
   return (
     <section className={className}>
-      <h2 className={cn(LABEL_CLASS, "px-1")}>{title}</h2>
+      <h2 className={cn(LABEL_CLASS, "px-1 text-lavender-700")}>{title}</h2>
       <div className="mt-2 divide-y divide-line border-y border-line">{children}</div>
     </section>
   );
@@ -762,9 +765,9 @@ function MobileGroup({ title, children, className }: { title: string; children: 
 
 function MobileNavigationRow({ href, label, id }: { href: string; label: string; id?: string }) {
   return (
-    <Link id={id} href={href} className="flex min-h-14 items-center justify-between gap-4 px-1 text-sm font-medium text-ink">
+    <Link id={id} href={href} className="flex min-h-14 items-center justify-between gap-4 rounded-lg px-2 text-sm font-medium text-ink transition-colors hover:bg-lavender-50/55 active:bg-lavender-100/60">
       <span>{label}</span>
-      <span aria-hidden="true" className="text-lg text-ink-faint">›</span>
+      <span aria-hidden="true" className="text-lg text-lavender-500">›</span>
     </Link>
   );
 }

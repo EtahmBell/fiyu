@@ -1,19 +1,20 @@
 import { describe, expect, it } from "vitest";
 
 import { publicRestaurantSchema } from "@/lib/api/schemas";
-import { compactDescription } from "@/lib/daily-picks/cardContent";
+import {
+  canonicalCardDescription,
+  compactDescription,
+} from "@/lib/daily-picks/cardContent";
 
 describe("compactDescription", () => {
-  it("uses two suitable existing English sentences and omits later copy", () => {
+  it("preserves the complete selected description without sentence truncation", () => {
     const restaurant = publicRestaurantSchema.parse({
       place_id: "existing-copy",
       description_en:
         "A counter restaurant focused on seasonal sushi. Reservations are required for its set menu. A third sentence should not reach the compact card.",
     });
 
-    expect(compactDescription(restaurant)).toBe(
-      "A counter restaurant focused on seasonal sushi. Reservations are required for its set menu.",
-    );
+    expect(compactDescription(restaurant)).toBe(restaurant.description_en);
   });
 
   it("does not synthesize location or provenance filler when useful copy is absent", () => {
@@ -39,6 +40,30 @@ describe("compactDescription", () => {
 
     expect(compactDescription(restaurant)).toBe(
       "A compact izakaya focused on charcoal cooking and sake.",
+    );
+  });
+
+  it("falls back from mechanically incomplete card copy to the complete description", () => {
+    const restaurant = publicRestaurantSchema.parse({
+      place_id: "ChIJe1D1MyeLGGARBHKRN0-hQUw",
+      card_description:
+        "A compact wine bar in Hamamatsucho centered on wine and original spring rolls, including four distinct spring-roll varieties described by visitors as more creative than.",
+      description_en:
+        "A compact wine bar in Hamamatsucho centered on wine and original spring rolls, including four distinct spring-roll varieties described by visitors as more creative than conventional Chinese spring rolls.",
+    });
+
+    expect(canonicalCardDescription(restaurant)).toBe(restaurant.description_en);
+    expect(compactDescription(restaurant)).toBe(restaurant.description_en);
+  });
+
+  it("does not add punctuation to source copy", () => {
+    const restaurant = publicRestaurantSchema.parse({
+      place_id: "verbatim",
+      description_en: "A concise description without final punctuation",
+    });
+
+    expect(compactDescription(restaurant)).toBe(
+      "A concise description without final punctuation",
     );
   });
 });

@@ -10,6 +10,7 @@ import {
 } from "@/components/daily-picks/DailyCardFrame";
 import { RecentDiscoveries } from "@/components/daily-picks/RecentDiscoveries";
 import { FreeOriginOnboarding } from "@/components/location/FreeOriginOnboarding";
+import { FiyuLoadingScreen } from "@/components/states/FiyuLoadingScreen";
 import { Button } from "@/components/ui/Button";
 import { assignDailyPicks, fetchActiveDailyPicks } from "@/lib/api/client";
 import { FiyuApiError } from "@/lib/api/errors";
@@ -79,6 +80,10 @@ export interface ActivePicksDiscoveryLocation {
 export const FRESH_PICKS_MIN_VISIBLE_MS = 1_500;
 
 type DiscoveryPhase = "idle" | "finding";
+type ActiveAssignmentState = {
+  accountId: string | null;
+  status: "idle" | "ready" | "error";
+};
 
 function freshSearchLabel(location: ActivePicksDiscoveryLocation | null): string {
   if (location?.mode === "current") return "Searching near you";
@@ -329,6 +334,10 @@ export function DailyPicksPanel({
   const [newMapPlaceCount, setNewMapPlaceCount] = useState(0);
   const [assignmentRestaurants, setAssignmentRestaurants] = useState<PublicRestaurant[]>([]);
   const [assignmentAccountId, setAssignmentAccountId] = useState<string | null>(null);
+  const [activeAssignmentState, setActiveAssignmentState] = useState<ActiveAssignmentState>({
+    accountId: null,
+    status: "idle",
+  });
   const findingTimerRef = useRef<number | null>(null);
   const mapNoticeTimerRef = useRef<number | null>(null);
   const developmentGenerationRef = useRef(0);
@@ -435,28 +444,30 @@ export function DailyPicksPanel({
     void fetchActiveDailyPicks(ACTIVE_FIYU_CITY.id, {
       clientId: getOrCreateAnonymousOwnerKey(),
     }).then((assignment) => {
-      if (cancelled || !assignment) return;
-      setAssignmentRestaurants(assignment.restaurants ?? []);
-      setAssignmentAccountId(accountId);
-      const assignedAt = Date.parse(assignment.assigned_at);
-      const expiresAt = Date.parse(assignment.expires_at ?? "");
-      const restoredSnapshot = snapshotRef.current;
-      const previousRevealed = new Set(restoredSnapshot?.selection?.revealedIds ?? []);
-      persist({
-        ...(restoredSnapshot ?? EMPTY_DAILY_PICKS_STATE),
-        version: 3,
-        selection: {
-          restaurantIds: assignment.place_ids,
-          revealedIds: assignment.place_ids.filter((id) => previousRevealed.has(id)),
-          generatedAt: new Date(assignedAt).toISOString(),
-          expiresAt: Number.isFinite(expiresAt)
-            ? new Date(expiresAt).toISOString()
-            : new Date(assignedAt + DAILY_PICKS_DURATION_MS).toISOString(),
-        },
-      });
+      if (cancelled) return;
+      if (assignment) {
+        setAssignmentRestaurants(assignment.restaurants ?? []);
+        setAssignmentAccountId(accountId);
+        const assignedAt = Date.parse(assignment.assigned_at);
+        const expiresAt = Date.parse(assignment.expires_at ?? "");
+        const restoredSnapshot = snapshotRef.current;
+        const previousRevealed = new Set(restoredSnapshot?.selection?.revealedIds ?? []);
+        persist({
+          ...(restoredSnapshot ?? EMPTY_DAILY_PICKS_STATE),
+          version: 3,
+          selection: {
+            restaurantIds: assignment.place_ids,
+            revealedIds: assignment.place_ids.filter((id) => previousRevealed.has(id)),
+            generatedAt: new Date(assignedAt).toISOString(),
+            expiresAt: Number.isFinite(expiresAt)
+              ? new Date(expiresAt).toISOString()
+              : new Date(assignedAt + DAILY_PICKS_DURATION_MS).toISOString(),
+          },
+        });
+      }
+      setActiveAssignmentState({ accountId, status: "ready" });
     }).catch(() => {
-      // Assignment creation retains the existing error treatment; a missing active
-      // snapshot is a normal first-use state.
+      if (!cancelled) setActiveAssignmentState({ accountId, status: "error" });
     });
     return () => {
       cancelled = true;
@@ -635,6 +646,28 @@ export function DailyPicksPanel({
     });
   };
 
+  const assignmentHydrating =
+    injectedStorage === undefined &&
+    Boolean(accountId) &&
+    activeAssignmentState.accountId !== accountId;
+  if (snapshot === null || assignmentHydrating) {
+    return <FiyuLoadingScreen contained />;
+  }
+  if (
+    injectedStorage === undefined &&
+    accountId &&
+    activeAssignmentState.accountId === accountId &&
+    activeAssignmentState.status === "error" &&
+    !hasActivePicks
+  ) {
+    return (
+      <section role="alert" className="my-5 rounded-card border border-line bg-surface p-5">
+        <h2 className="font-display text-2xl text-ink">We couldn&rsquo;t load today&rsquo;s Picks.</h2>
+        <p className="mt-2 text-sm text-ink-muted">Try this page again in a moment.</p>
+      </section>
+    );
+  }
+
   return (
     <>
       {newMapPlaceCount > 0 && (
@@ -696,16 +729,7 @@ export function DailyPicksPanel({
               : "Choose today’s preferences"}
         </h2>
 
-        {snapshot === null ? (
-          <div
-            role="status"
-            aria-label="Loading Fiyu"
-            className="mt-4 flex min-h-36 items-center justify-center text-center"
-            data-testid="daily-picks-hydrating"
-          >
-            <span className="font-display text-3xl tracking-[-0.02em] text-ink">Fiyu</span>
-          </div>
-        ) : phase === "finding" ? (
+        {phase === "finding" ? (
           <div
             role="status"
             aria-live="polite"

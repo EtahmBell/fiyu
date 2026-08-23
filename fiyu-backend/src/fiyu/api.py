@@ -195,6 +195,10 @@ class PublicRestaurantSummary(BaseModel):
     community_stats_visible: bool = False
 
 
+class MapRestaurantSummary(PublicRestaurantSummary):
+    is_visited: bool = False
+
+
 class PublicRestaurantDetail(PublicRestaurantSummary):
     restaurant_type_en: str | None = None
     cuisine_terms_en: list[str] = Field(default_factory=list)
@@ -1199,11 +1203,11 @@ def get_seen_restaurants(
     return SeenRestaurantsResponse(place_ids=place_ids)
 
 
-@app.get("/map/restaurants", response_model=list[PublicRestaurantSummary])
+@app.get("/map/restaurants", response_model=list[MapRestaurantSummary])
 def get_map_restaurants(
     owner_id: Annotated[str, Depends(_owner_id_from_header)],
 ) -> list[dict[str, object]]:
-    """Join one owner's surfaced history to the current public-safe catalog."""
+    """Return one owner's currently visible, map-safe restaurants."""
     _ensure_database()
     if isinstance(owner_id, OwnerIdentity) and owner_id.authenticated:
         if not shared_user_data.configured():
@@ -1211,7 +1215,7 @@ def get_map_restaurants(
                 status_code=503,
                 detail="Authenticated restaurant history is not configured",
             )
-        place_ids = shared_user_data.seen_place_ids(user_id=str(owner_id))
+        return _authenticated_map_restaurants(str(owner_id))
     else:
         place_ids = served_place_ids(DB_PATH, owner_id=owner_id)
     if not place_ids:
@@ -1231,7 +1235,7 @@ def _public_restaurants_for_place_ids(place_ids: Iterable[str]) -> list[dict[str
 def _map_eligible_public_restaurants_for_place_ids(
     place_ids: Iterable[str],
 ) -> list[dict[str, object]]:
-    """Return only seen restaurants that are safe and usable as map markers."""
+    """Return only current public restaurants that are usable as map markers."""
     restaurants: list[dict[str, object]] = []
     for restaurant in _public_restaurants_for_place_ids(place_ids):
         latitude = restaurant.get("latitude")
@@ -1245,6 +1249,41 @@ def _map_eligible_public_restaurants_for_place_ids(
         ):
             restaurants.append(restaurant)
     return restaurants
+
+
+def _authenticated_map_membership(
+    user_id: str, *, city_id: str = "tokyo"
+) -> tuple[list[str], set[str]]:
+    """Derive Map membership and visit state from current account relationships."""
+    active = shared_user_data.get_active_daily_picks(user_id=user_id, city_id=city_id)
+    active_place_ids = active.get("place_ids", []) if active else []
+    visited_place_ids = list(shared_user_data.visited_place_ids(user_id=user_id))
+    visited_place_id_set = set(visited_place_ids)
+    visible_place_ids = list(
+        dict.fromkeys(str(place_id) for place_id in [*active_place_ids, *visited_place_ids])
+    )
+    return visible_place_ids, visited_place_id_set
+
+
+def _authenticated_map_visible_place_ids(
+    user_id: str, *, city_id: str = "tokyo"
+) -> list[str]:
+    """Return current Picks plus visits; saves and seen history are not Map unlocks."""
+    return _authenticated_map_membership(user_id, city_id=city_id)[0]
+
+
+def _authenticated_map_restaurants(
+    user_id: str, *, city_id: str = "tokyo"
+) -> list[dict[str, object]]:
+    visible_place_ids, visited_place_ids = _authenticated_map_membership(
+        user_id, city_id=city_id
+    )
+    return [
+        {**restaurant, "is_visited": str(restaurant["place_id"]) in visited_place_ids}
+        for restaurant in _map_eligible_public_restaurants_for_place_ids(
+            visible_place_ids
+        )
+    ]
 
 
 def _shared_owner(owner_id: str) -> bool:
@@ -1272,16 +1311,13 @@ def _authenticated_user_id(
     return str(_authenticated_user(authorization)["id"])
 
 
-@app.get("/profiles/me/map-restaurants", response_model=list[PublicRestaurantSummary])
+@app.get("/profiles/me/map-restaurants", response_model=list[MapRestaurantSummary])
 def get_authenticated_map_restaurants(
     user_id: Annotated[str, Depends(_authenticated_user_id)],
 ) -> list[dict[str, object]]:
-    """Intersect the authenticated account's seen history with map eligibility."""
+    """Intersect current Picks, saves, and visits with Map-eligible catalog rows."""
     _ensure_database()
-    seen_place_ids = shared_user_data.seen_place_ids(user_id=user_id)
-    if not seen_place_ids:
-        return []
-    return _map_eligible_public_restaurants_for_place_ids(seen_place_ids)
+    return _authenticated_map_restaurants(user_id)
 
 
 @app.get("/notifications", response_model=list[UserNotificationResponse])

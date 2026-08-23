@@ -290,7 +290,7 @@ describe("map key", () => {
     renderMap();
     fireEvent.click(screen.getByRole("button", { name: /map key/i }));
 
-    for (const label of ["Restaurant", "Station", "Landmark"]) {
+    for (const label of ["Current Pick", "Visited", "Station", "Landmark"]) {
       expect(screen.getByText(label), label).toBeTruthy();
     }
     expect(screen.queryByText("Approximate area")).toBeNull();

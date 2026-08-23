@@ -139,7 +139,7 @@ export function CompactRestaurantCard({
 
         <div className="col-start-2 row-start-2 flex min-w-0 flex-col">
           {description && (
-            <p className="line-clamp-4 max-w-prose text-[0.8125rem] leading-5 text-ink/75 lg:mt-1.5 lg:line-clamp-3 lg:leading-5">
+            <p className="line-clamp-3 max-w-prose text-[0.8125rem] leading-5 text-ink/75 lg:mt-1.5 lg:leading-5">
               {description}
             </p>
           )}

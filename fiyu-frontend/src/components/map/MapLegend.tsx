@@ -13,9 +13,8 @@ import { cn } from "@/lib/utils/cn";
  * button is a real button for keyboard and screen-reader users.
  *
  * Collapsed to a single line by default. A permanent four-row key would occupy
- * the corner of a map that only ever shows a handful of restaurants, and the
- * restaurant pins share one visual treatment because this is an orientation
- * map, not a directions or survey product.
+ * the corner of a map that only ever shows a handful of restaurants. The two
+ * pin treatments communicate account state only: current Picks and places visited.
  *
  * The ODbL credit is not optional and is shown whether the key is open or closed.
  */
@@ -30,10 +29,26 @@ interface LegendEntry {
 const ENTRIES: LegendEntry[] = [
   {
     id: "restaurant",
-    label: "Restaurant",
+    label: "Current Pick",
     swatch: (
       <svg viewBox="0 0 16 16" className="size-4" aria-hidden="true">
         <circle cx="8" cy="8" r="5.5" fill="var(--map-marker-center)" stroke="var(--map-marker)" strokeWidth="2.5" />
+      </svg>
+    ),
+  },
+  {
+    id: "visited",
+    label: "Visited",
+    swatch: (
+      <svg viewBox="0 0 16 16" className="size-4" aria-hidden="true">
+        <circle
+          cx="8"
+          cy="8"
+          r="5.5"
+          fill="var(--map-marker-visited-center)"
+          stroke="var(--map-marker-visited)"
+          strokeWidth="2.5"
+        />
       </svg>
     ),
   },

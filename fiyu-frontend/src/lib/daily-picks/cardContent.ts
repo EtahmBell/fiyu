@@ -1,7 +1,8 @@
 import type { PublicRestaurant } from "@/lib/api/schemas";
 
 const JAPANESE_TEXT = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uff66-\uff9f]/u;
-const SENTENCE_BOUNDARY = /(?<=[.!?])\s+/u;
+const DANGLING_ENDING =
+  /\b(?:and|or|but|than|with|including|such as|for|to|of|in|on|at|from|by|as)[.!?]?$/iu;
 
 export function englishStructuredValue(value: string | null | undefined): string | null {
   const trimmed = value?.trim();
@@ -16,21 +17,11 @@ export function englishCardTags(restaurant: PublicRestaurant): string[] {
 }
 
 export function canonicalCardDescription(restaurant: PublicRestaurant): string | null {
-  return (
-    englishStructuredValue(restaurant.card_description) ??
-    englishStructuredValue(restaurant.description_en)
-  );
+  const cardDescription = englishStructuredValue(restaurant.card_description);
+  if (cardDescription && !DANGLING_ENDING.test(cardDescription)) return cardDescription;
+  return englishStructuredValue(restaurant.description_en);
 }
 
 export function compactDescription(restaurant: PublicRestaurant): string | null {
-  const enriched = englishStructuredValue(restaurant.card_description);
-  if (enriched) return enriched;
-  const fallback = englishStructuredValue(restaurant.description_en);
-  if (!fallback) return null;
-  return fallback
-    .split(SENTENCE_BOUNDARY)
-    .map((sentence) => sentence.trim())
-    .filter(Boolean)
-    .slice(0, 2)
-    .join(" ");
+  return canonicalCardDescription(restaurant);
 }

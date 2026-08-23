@@ -43,8 +43,8 @@ import {
   type DefaultListResponse,
   type GooglePhoto,
   type LocationAnchor,
+  type MapRestaurant,
   type ParsedRestaurantList,
-  type PublicRestaurant,
   type PublicRestaurantDetail,
   type DeleteRestaurantVisitResponse,
   type RestaurantVisit,
@@ -64,9 +64,9 @@ import {
   googlePhotoListSchema,
   googlePhotoSchema,
   locationAnchorListSchema,
+  mapRestaurantListSchema,
   parseRestaurantList,
   publicRestaurantDetailSchema,
-  publicRestaurantListSchema,
   markAllNotificationsReadResponseSchema,
   userNotificationListSchema,
   userNotificationSchema,
@@ -439,8 +439,8 @@ export function fetchSeenRestaurantIds(
 export function fetchMapRestaurants(
   identity: ListIdentity,
   options: RequestOptions = {},
-): Promise<PublicRestaurant[]> {
-  return requestJson(mapRestaurantsUrl(), paths.mapRestaurants, publicRestaurantListSchema, {
+): Promise<MapRestaurant[]> {
+  return requestJson(mapRestaurantsUrl(), paths.mapRestaurants, mapRestaurantListSchema, {
     ...options,
     cache: options.cache ?? "no-store",
     headers: { ...listHeaders(identity), ...(options.headers ?? {}) },
@@ -449,11 +449,11 @@ export function fetchMapRestaurants(
 
 export function fetchAuthenticatedMapRestaurants(
   options: RequestOptions = {},
-): Promise<PublicRestaurant[]> {
+): Promise<MapRestaurant[]> {
   return requestJson(
     authenticatedMapRestaurantsUrl(),
     paths.authenticatedMapRestaurants,
-    publicRestaurantListSchema,
+    mapRestaurantListSchema,
     { ...options, cache: options.cache ?? "no-store" },
   );
 }

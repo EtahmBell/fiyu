@@ -49,7 +49,12 @@ afterEach(() => {
 
 describe("ProfileWorkspace", () => {
   it("renders a route-based mobile settings home with account controls", () => {
-    render(<ProfileWorkspace mobileHome />);
+    render(
+      <>
+        <ApplicationNavigation />
+        <ProfileWorkspace mobileHome />
+      </>,
+    );
 
     expect(screen.getByRole("heading", { name: "Profile" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "Edit profile" }).getAttribute("href")).toBe(
@@ -59,7 +64,39 @@ describe("ProfileWorkspace", () => {
       "/profile/notifications",
     );
     expect(screen.getByRole("link", { name: "Account" }).getAttribute("href")).toBe("/profile/account");
+    expect(screen.getByRole("link", { name: "Edit profile" }).className).toContain(
+      "border-lavender-200",
+    );
+    expect(screen.getByRole("heading", { name: "Settings" }).className).toContain(
+      "text-lavender-700",
+    );
+    expect(screen.getByRole("link", { name: "Notifications" }).className).toContain(
+      "hover:bg-lavender-50/55",
+    );
+    expect(screen.getByRole("navigation", { name: "Mobile primary" }).className).toContain(
+      "fixed",
+    );
     expect(screen.queryByText(/Account features are intentionally absent/)).toBeNull();
+  });
+
+  it("shows neutral loading instead of a default identity while profile state hydrates", async () => {
+    let resolveSession: ((value: null) => void) | undefined;
+    vi.spyOn(authService, "getSession").mockReturnValue(
+      new Promise((resolve) => {
+        resolveSession = resolve;
+      }),
+    );
+    const rendered = render(<ProfileWorkspace mobileHome />);
+
+    fireEvent(window, new Event("fiyu:account-changed"));
+
+    expect(screen.getByRole("status", { name: "Loading Fiyu" })).toBeTruthy();
+    expect(screen.queryByText("Your profile")).toBeNull();
+    expect(screen.queryByRole("link", { name: "Edit profile" })).toBeNull();
+
+    resolveSession?.(null);
+    await waitFor(() => expect(screen.queryByRole("status", { name: "Loading Fiyu" })).toBeNull());
+    expect(rendered.getByRole("heading", { name: "Profile" })).toBeTruthy();
   });
 
   it("loads authenticated fields and propagates saved identity to the header", async () => {

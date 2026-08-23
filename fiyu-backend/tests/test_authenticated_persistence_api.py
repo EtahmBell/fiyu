@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import pytest
@@ -53,6 +53,7 @@ def shared_account_api(tmp_path, monkeypatch):
     visits: dict[str, list[dict[str, object]]] = defaultdict(list)
     seen: dict[str, list[str]] = defaultdict(list)
     snapshots: dict[tuple[str, str], dict[str, object]] = {}
+    clock: dict[str, datetime | None] = {"now": None}
 
     def current_user(header):
         token = (header or "").removeprefix("Bearer ")
@@ -100,6 +101,11 @@ def shared_account_api(tmp_path, monkeypatch):
         visits[user_id].append(row)
         return row
 
+    def delete_shared_visit(*, user_id, visit_id):
+        previous_count = len(visits[user_id])
+        visits[user_id] = [visit for visit in visits[user_id] if visit["id"] != visit_id]
+        return len(visits[user_id]) != previous_count
+
     monkeypatch.setattr(api, "DB_PATH", path)
     monkeypatch.setattr(api, "authenticated_supabase_user", current_user)
     monkeypatch.setattr(api.shared_user_data, "configured", lambda: True)
@@ -112,10 +118,18 @@ def shared_account_api(tmp_path, monkeypatch):
     monkeypatch.setattr(api.shared_user_data, "add_item", add_item)
     monkeypatch.setattr(api.shared_user_data, "remove_item", remove_item)
     monkeypatch.setattr(api.shared_user_data, "create_visit", create_visit)
+    monkeypatch.setattr(api.shared_user_data, "delete_visit", delete_shared_visit)
     monkeypatch.setattr(
         api.shared_user_data,
         "list_visits",
         lambda *, user_id: list(reversed(visits[user_id])),
+    )
+    monkeypatch.setattr(
+        api.shared_user_data,
+        "visited_place_ids",
+        lambda *, user_id: list(
+            dict.fromkeys(str(visit["place_id"]) for visit in reversed(visits[user_id]))
+        ),
     )
     monkeypatch.setattr(
         api.shared_user_data, "seen_place_ids", lambda *, user_id: list(seen[user_id])
@@ -134,11 +148,16 @@ def shared_account_api(tmp_path, monkeypatch):
             str(item["place_id"]) for item in items[user_id]
         },
     )
-    monkeypatch.setattr(
-        api.shared_user_data,
-        "get_active_daily_picks",
-        lambda *, user_id, city_id: snapshots.get((user_id, city_id)),
-    )
+
+    def active_snapshot(*, user_id, city_id):
+        snapshot = snapshots.get((user_id, city_id))
+        if snapshot is None:
+            return None
+        now = clock["now"] or datetime.now(UTC)
+        expires_at = datetime.fromisoformat(str(snapshot["expires_at"]))
+        return snapshot if expires_at > now else None
+
+    monkeypatch.setattr(api.shared_user_data, "get_active_daily_picks", active_snapshot)
 
     def assign_snapshot(
         *, user_id, city_id, place_ids, assigned_at, expires_at, selection_metadata
@@ -170,7 +189,14 @@ def shared_account_api(tmp_path, monkeypatch):
             place_id for place_id in place_ids if place_id not in seen[user_id]
         ),
     )
-    return TestClient(api.app), user_ids, seen
+    client = TestClient(api.app)
+    client.fiyu_test_state = {
+        "items": items,
+        "visits": visits,
+        "snapshots": snapshots,
+        "clock": clock,
+    }
+    return client, user_ids, seen
 
 
 def _auth(token: str) -> dict[str, str]:
@@ -188,7 +214,7 @@ def test_authenticated_map_does_not_accept_anonymous_owner_fallback(shared_accou
     assert response.status_code == 401
 
 
-def test_authenticated_map_intersects_four_eligible_rows_with_seen_history_exactly(
+def test_authenticated_map_uses_current_relationships_not_historical_seen(
     shared_account_api,
 ):
     client, user_ids, seen = shared_account_api
@@ -216,12 +242,18 @@ def test_authenticated_map_intersects_four_eligible_rows_with_seen_history_exact
     assert map_place_ids() == []
 
     seen[user_id].append("tokyo-0")
-    assert map_place_ids() == ["tokyo-0"]
+    assert map_place_ids() == []
 
-    seen[user_id].append("tokyo-1")
-    assert map_place_ids() == ["tokyo-0", "tokyo-1"]
-    assert "tokyo-2" not in map_place_ids()
-    assert "tokyo-3" not in map_place_ids()
+    now = datetime.now(UTC)
+    client.fiyu_test_state["snapshots"][(user_id, "tokyo")] = {
+        "round_id": str(uuid4()),
+        "place_ids": ["tokyo-1", "tokyo-2", "tokyo-3"],
+        "assigned_at": now.isoformat(),
+        "expires_at": (now + timedelta(hours=24)).isoformat(),
+        "selection_metadata": {},
+    }
+    assert map_place_ids() == ["tokyo-1", "tokyo-2", "tokyo-3"]
+    assert "tokyo-0" not in map_place_ids()
 
 
 def test_authenticated_legacy_map_never_falls_back_to_local_served_history(
@@ -233,6 +265,186 @@ def test_authenticated_legacy_map_never_falls_back_to_local_served_history(
     response = client.get("/map/restaurants", headers=_auth("token-b"))
 
     assert response.status_code == 503
+
+
+def test_map_visibility_expires_but_seen_history_and_retained_relationships_remain(
+    shared_account_api,
+):
+    client, user_ids, seen = shared_account_api
+    user_id = user_ids["token-a"]
+    assigned_at = datetime(2026, 8, 22, 12, tzinfo=UTC)
+    place_ids = ["tokyo-0", "tokyo-1", "tokyo-2"]
+    client.fiyu_test_state["snapshots"][(user_id, "tokyo")] = {
+        "round_id": str(uuid4()),
+        "place_ids": place_ids,
+        "assigned_at": assigned_at.isoformat(),
+        "expires_at": (assigned_at + timedelta(hours=24)).isoformat(),
+        "selection_metadata": {},
+    }
+    seen[user_id].extend(place_ids)
+
+    def map_ids() -> list[str]:
+        response = client.get("/profiles/me/map-restaurants", headers=_auth("token-a"))
+        assert response.status_code == 200
+        return [row["place_id"] for row in response.json()]
+
+    client.fiyu_test_state["clock"]["now"] = assigned_at
+    assert map_ids() == place_ids
+    assert map_ids() == place_ids  # a refresh does not replace the active snapshot
+
+    client.fiyu_test_state["clock"]["now"] = assigned_at + timedelta(hours=23)
+    assert map_ids() == place_ids
+
+    saved = client.post(
+        "/lists/default/items",
+        headers=_auth("token-a"),
+        json={"city_id": "tokyo", "place_id": "tokyo-1"},
+    )
+    another_saved = client.post(
+        "/lists/default/items",
+        headers=_auth("token-a"),
+        json={"city_id": "tokyo", "place_id": "tokyo-0"},
+    )
+    visit = client.post(
+        "/log",
+        headers=_auth("token-a"),
+        json={
+            "place_id": "tokyo-2",
+            "visited_at": "2026-08-22T12:00:00Z",
+            "reaction": "like_it",
+            "private_note": "Retained by the canonical visit relationship",
+        },
+    )
+    assert saved.status_code == 200
+    assert another_saved.status_code == 200
+    assert visit.status_code == 201
+
+    client.fiyu_test_state["clock"]["now"] = assigned_at + timedelta(hours=24)
+    assert map_ids() == ["tokyo-2"]
+    assert seen[user_id] == place_ids
+    saved_items = client.get(
+        "/lists/default", params={"city_id": "tokyo"}, headers=_auth("token-a")
+    ).json()["items"]
+    assert {item["place_id"] for item in saved_items} == {"tokyo-0", "tokyo-1"}
+
+    client.fiyu_test_state["clock"]["now"] = assigned_at + timedelta(hours=25)
+    assert map_ids() == ["tokyo-2"]
+    assert seen[user_id] == place_ids
+
+    unsaved = client.request(
+        "DELETE",
+        "/lists/default/items",
+        headers=_auth("token-a"),
+        json={"city_id": "tokyo", "place_id": "tokyo-1"},
+    )
+    assert unsaved.status_code == 200
+    assert map_ids() == ["tokyo-2"]
+    assert seen[user_id] == place_ids
+
+    deleted = client.delete(f"/log/{visit.json()['id']}", headers=_auth("token-a"))
+    assert deleted.status_code == 200
+    assert map_ids() == []
+    assert seen[user_id] == place_ids
+
+
+def test_new_active_round_replaces_old_unsaved_map_membership(shared_account_api):
+    client, user_ids, seen = shared_account_api
+    user_id = user_ids["token-a"]
+    now = datetime(2026, 8, 22, 12, tzinfo=UTC)
+    seen[user_id].extend(["tokyo-0", "tokyo-1", "tokyo-2", "tokyo-3"])
+    client.fiyu_test_state["clock"]["now"] = now
+    client.fiyu_test_state["snapshots"][(user_id, "tokyo")] = {
+        "round_id": str(uuid4()),
+        "place_ids": ["tokyo-1", "tokyo-2", "tokyo-3"],
+        "assigned_at": now.isoformat(),
+        "expires_at": (now + timedelta(hours=24)).isoformat(),
+        "selection_metadata": {},
+    }
+
+    response = client.get("/profiles/me/map-restaurants", headers=_auth("token-a"))
+
+    assert response.status_code == 200
+    assert [row["place_id"] for row in response.json()] == [
+        "tokyo-1",
+        "tokyo-2",
+        "tokyo-3",
+    ]
+    assert "tokyo-0" not in {row["place_id"] for row in response.json()}
+    assert seen[user_id] == ["tokyo-0", "tokyo-1", "tokyo-2", "tokyo-3"]
+
+
+def test_map_visibility_deduplicates_active_saved_and_visited_membership(
+    shared_account_api,
+):
+    client, user_ids, _ = shared_account_api
+    user_id = user_ids["token-a"]
+    now = datetime.now(UTC)
+    client.fiyu_test_state["snapshots"][(user_id, "tokyo")] = {
+        "round_id": str(uuid4()),
+        "place_ids": ["tokyo-0", "tokyo-1", "tokyo-2"],
+        "assigned_at": now.isoformat(),
+        "expires_at": (now + timedelta(hours=24)).isoformat(),
+        "selection_metadata": {},
+    }
+    assert (
+        client.post(
+            "/lists/default/items",
+            headers=_auth("token-a"),
+            json={"city_id": "tokyo", "place_id": "tokyo-0"},
+        ).status_code
+        == 200
+    )
+    assert (
+        client.post(
+            "/log",
+            headers=_auth("token-a"),
+            json={
+                "place_id": "tokyo-0",
+                "visited_at": "2026-08-22T12:00:00Z",
+                "reaction": "love_it",
+            },
+        ).status_code
+        == 201
+    )
+
+    response = client.get("/profiles/me/map-restaurants", headers=_auth("token-a"))
+
+    assert response.status_code == 200
+    returned = [row["place_id"] for row in response.json()]
+    assert returned == ["tokyo-0", "tokyo-1", "tokyo-2"]
+    assert len(returned) == len(set(returned)) == 3
+    by_place_id = {row["place_id"]: row for row in response.json()}
+    assert by_place_id["tokyo-0"]["is_visited"] is True
+    assert by_place_id["tokyo-1"]["is_visited"] is False
+    assert by_place_id["tokyo-2"]["is_visited"] is False
+
+
+def test_map_visibility_still_requires_published_map_eligible_catalog_rows(
+    shared_account_api,
+):
+    client, user_ids, _ = shared_account_api
+    user_id = user_ids["token-a"]
+    now = datetime.now(UTC)
+    client.fiyu_test_state["snapshots"][(user_id, "tokyo")] = {
+        "round_id": str(uuid4()),
+        "place_ids": ["tokyo-0", "tokyo-1", "tokyo-2"],
+        "assigned_at": now.isoformat(),
+        "expires_at": (now + timedelta(hours=24)).isoformat(),
+        "selection_metadata": {},
+    }
+    with connect(api.DB_PATH) as connection:
+        connection.execute(
+            "UPDATE public_restaurants SET map_display_eligible = 0 WHERE place_id = 'tokyo-1'"
+        )
+        connection.execute(
+            "UPDATE public_restaurants SET is_published = 0 WHERE place_id = 'tokyo-2'"
+        )
+        connection.commit()
+
+    response = client.get("/profiles/me/map-restaurants", headers=_auth("token-a"))
+
+    assert response.status_code == 200
+    assert [row["place_id"] for row in response.json()] == ["tokyo-0"]
 
 
 def test_authenticated_lists_log_and_seen_are_account_owned(shared_account_api):
@@ -274,7 +486,7 @@ def test_authenticated_lists_log_and_seen_are_account_owned(shared_account_api):
         for item in client.get(
             "/profiles/me/map-restaurants", headers=_auth("token-a")
         ).json()
-    } == set(surfaced.json()["place_ids"])
+    } == set(surfaced.json()["place_ids"]) | {"tokyo-1"}
 
     assert (
         client.get("/lists/default", params={"city_id": "tokyo"}, headers=_auth("token-b")).json()[

@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DedicatedMap } from "@/components/destinations/DedicatedMap";
 import type { PublicRestaurant } from "@/lib/api/schemas";
-import { publicRestaurantSchema } from "@/lib/api/schemas";
+import { mapRestaurantSchema, publicRestaurantSchema } from "@/lib/api/schemas";
 import { clearProfileIdentity, publishProfileIdentity } from "@/lib/profile/profileIdentity";
 
 const api = vi.hoisted(() => ({
@@ -158,6 +158,114 @@ describe("dedicated user map", () => {
     expect(
       container.querySelector('[data-place-id="ChIJKdddfwDzGGAR1YfPayuwpFo"]'),
     ).toBeTruthy();
+  });
+
+  it("renders visited restaurants with the secondary brass treatment", async () => {
+    const visited = mapRestaurantSchema.parse({
+      ...verifiedLocationCatalog[0],
+      is_visited: true,
+    });
+    api.fetchAuthenticatedMapRestaurants.mockResolvedValue([
+      visited,
+      verifiedLocationCatalog[1],
+    ]);
+    publishProfileIdentity(profile("user-a"));
+    const { container } = render(<DedicatedMap />);
+
+    const visitedPin = await waitFor(() => {
+      const pin = container.querySelector(
+        `[data-marker-kind="restaurant"][data-place-id="${visited.place_id}"]`,
+      );
+      expect(pin).toBeTruthy();
+      return pin as Element;
+    });
+    const activePin = container.querySelector(
+      `[data-marker-kind="restaurant"][data-place-id="${verifiedLocationCatalog[1].place_id}"]`,
+    );
+
+    expect(visitedPin.getAttribute("data-visited")).toBe("true");
+    expect(visitedPin.querySelectorAll("circle")[2]?.getAttribute("stroke")).toBe(
+      "var(--map-marker-visited)",
+    );
+    expect(activePin?.getAttribute("data-visited")).toBe("false");
+    expect(activePin?.querySelectorAll("circle")[2]?.getAttribute("stroke")).toBe(
+      "var(--map-marker)",
+    );
+
+    fireEvent.click(visitedPin);
+    expect(
+      container.querySelector('[data-layer="restaurant-popup"]')?.getAttribute("data-visited"),
+    ).toBe("true");
+    fireEvent.click(screen.getByRole("button", { name: "Map key" }));
+    expect(screen.getByText("Current Pick")).toBeTruthy();
+    expect(screen.getByText("Visited")).toBeTruthy();
+  });
+
+  it("renders only map-eligible rows returned by the authenticated seen endpoint", async () => {
+    const ineligible = publicRestaurantSchema.parse({
+      ...verifiedLocationCatalog[2],
+      place_id: "seen-but-not-map-eligible",
+      map_display_eligible: false,
+    });
+    api.fetchAuthenticatedMapRestaurants.mockResolvedValue([
+      verifiedLocationCatalog[0],
+      ineligible,
+    ]);
+    publishProfileIdentity(profile("user-a"));
+    const { container } = render(<DedicatedMap />);
+
+    await waitFor(() =>
+      expect(
+        container.querySelectorAll('[data-layer="restaurants"] [data-marker-kind="restaurant"]'),
+      ).toHaveLength(1),
+    );
+    expect(container.querySelector('[data-place-id="seen-but-not-map-eligible"]')).toBeNull();
+    expect(api.fetchMapRestaurants).not.toHaveBeenCalled();
+  });
+
+  it("clusters only the restaurants returned for the authenticated account", async () => {
+    const nearbySeen = verifiedLocationCatalog.slice(0, 3).map((restaurant, index) =>
+      publicRestaurantSchema.parse({
+        ...restaurant,
+        latitude: 35.68 + index * 0.00001,
+        longitude: 139.71 + index * 0.00001,
+      }),
+    );
+    api.fetchAuthenticatedMapRestaurants.mockResolvedValue(nearbySeen);
+    publishProfileIdentity(profile("user-a"));
+    const { container } = render(<DedicatedMap />);
+
+    const cluster = await waitFor(() => {
+      const marker = container.querySelector('[data-marker-kind="restaurant-cluster"]');
+      expect(marker).toBeTruthy();
+      return marker;
+    });
+    expect(cluster?.getAttribute("data-place-ids")?.split(",").sort()).toEqual(
+      nearbySeen.map((restaurant) => restaurant.place_id).sort(),
+    );
+    expect(cluster?.textContent).toBe("3");
+    expect(api.fetchMapRestaurants).not.toHaveBeenCalled();
+  });
+
+  it("restores the same unlocked map from the canonical endpoint after remount", async () => {
+    api.fetchAuthenticatedMapRestaurants.mockResolvedValue(verifiedLocationCatalog.slice(0, 2));
+    publishProfileIdentity(profile("user-a"));
+    const first = render(<DedicatedMap />);
+    await waitFor(() =>
+      expect(
+        first.container.querySelectorAll('[data-layer="restaurants"] [data-marker-kind="restaurant"]'),
+      ).toHaveLength(2),
+    );
+    first.unmount();
+
+    const second = render(<DedicatedMap />);
+    await waitFor(() =>
+      expect(
+        second.container.querySelectorAll('[data-layer="restaurants"] [data-marker-kind="restaurant"]'),
+      ).toHaveLength(2),
+    );
+    expect(api.fetchAuthenticatedMapRestaurants).toHaveBeenCalledTimes(2);
+    expect(api.fetchMapRestaurants).not.toHaveBeenCalled();
   });
 
   it("identifies a selected pin, replaces it, and closes from the map or Escape", async () => {

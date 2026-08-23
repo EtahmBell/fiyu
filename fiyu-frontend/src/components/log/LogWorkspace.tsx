@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { RestaurantPhoto } from "@/components/restaurant/RestaurantPhoto";
+import { FiyuLoadingScreen } from "@/components/states/FiyuLoadingScreen";
 import { Button } from "@/components/ui/Button";
 import { Sheet } from "@/components/ui/Sheet";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -352,7 +353,7 @@ export function LogWorkspace({
   return (
     <>
       {isDesktop && (loadState === "loading" ? (
-        <LogSkeleton />
+        <FiyuLoadingScreen contained />
       ) : loadState === "error" ? (
         <section
           role="alert"
@@ -781,7 +782,7 @@ function MobileVisitHistory({
       </header>
       <div className="flex-1 px-5 py-6">
         {loadState === "loading" ? (
-          <LogSkeleton />
+          <FiyuLoadingScreen contained />
         ) : loadState === "error" ? (
           <section role="alert">
             <h3 className="font-display text-xl text-ink">We couldn’t load your history.</h3>
@@ -990,37 +991,5 @@ function VisitEntry({
         </div>
       </article>
     </li>
-  );
-}
-
-/** Loading shape matches the journal run: a month spine, then two entries. */
-function LogSkeleton() {
-  return (
-    <section role="status" aria-label="Loading your Log" aria-busy="true">
-      <span className="sr-only">Loading your Log…</span>
-      <div aria-hidden="true">
-        <Skeleton className="h-3.5 w-24" />
-        <Skeleton className="mt-7 h-7 w-40" />
-        <div className="mt-2 divide-y divide-line border-t border-line">
-          <LogEntrySkeleton />
-          <LogEntrySkeleton />
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function LogEntrySkeleton() {
-  return (
-    <div className="grid gap-3 py-5 min-[480px]:grid-cols-[minmax(8.5rem,28%)_minmax(0,1fr)] min-[480px]:gap-5 sm:py-6">
-      <Skeleton className="h-36 w-full rounded-lg" />
-      <div className="min-w-0">
-        <Skeleton className="h-3 w-16" />
-        <Skeleton className="mt-2.5 h-6 w-3/5" />
-        <Skeleton className="mt-2 h-3.5 w-2/5" />
-        <Skeleton className="mt-4 h-3.5 w-4/5" />
-        <Skeleton className="mt-4 h-4 w-32" />
-      </div>
-    </div>
   );
 }

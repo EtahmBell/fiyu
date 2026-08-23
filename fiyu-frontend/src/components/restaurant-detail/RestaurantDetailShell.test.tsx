@@ -107,6 +107,25 @@ describe("restaurant detail view", () => {
     expect(screen.queryByText("An older general description.")).toBeNull();
   });
 
+  it("shows the complete ROLLS description when incomplete enriched copy is persisted", () => {
+    const fullDescription =
+      "A compact wine bar in Hamamatsucho centered on wine and original spring rolls, including four distinct spring-roll varieties described by visitors as more creative than conventional Chinese spring rolls.";
+    const rolls = publicRestaurantDetailSchema.parse({
+      ...restaurant,
+      place_id: "ChIJe1D1MyeLGGARBHKRN0-hQUw",
+      name_ja: "ROLLS wine and springrolls",
+      card_description:
+        "A compact wine bar in Hamamatsucho centered on wine and original spring rolls, including four distinct spring-roll varieties described by visitors as more creative than.",
+      description_en: fullDescription,
+    });
+
+    render(<RestaurantDetailShell restaurant={rolls} restaurants={[rolls]} />);
+
+    expect(screen.getByRole("heading", { name: "About" })).toBeTruthy();
+    expect(screen.getByText(fullDescription)).toBeTruthy();
+    expect(screen.queryByText(/more creative than\.$/)).toBeNull();
+  });
+
   it("renders only public-facing detail enrichment and formats known hours", () => {
     const enrichedRestaurant = publicRestaurantDetailSchema.parse({
       ...restaurant,

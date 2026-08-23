@@ -37,6 +37,8 @@ import { isWithinBounds } from "@/lib/map/projection";
 export type MappableRestaurant = PublicRestaurant & {
   latitude: number;
   longitude: number;
+  /** Present on authenticated Map rows; absent on ordinary public catalog rows. */
+  is_visited?: boolean;
 };
 
 function isValidLatitude(value: number | null): value is number {

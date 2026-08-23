@@ -24,10 +24,10 @@ export interface MapMarkersProps {
 /**
  * Restaurant pins and cluster bubbles.
  *
- * The map is an orientation surface, not a directions product. Every eligible
- * restaurant therefore uses the same Fiyu pin at the representative point the
- * backend supplied. This component never fabricates, shifts, or recentres a
- * coordinate; approximate area geometry remains a backend provenance concern.
+ * The map is an orientation surface, not a directions product. Pin colour
+ * distinguishes only current Picks from account-owned visit history. This
+ * component never fabricates, shifts, or recentres a coordinate; approximate
+ * area geometry remains a backend provenance concern.
  */
 export function MapMarkers({
   clusters,
@@ -105,6 +105,14 @@ export function MapMarkers({
 
         const restaurant = cluster.members[0].item;
         const selected = restaurant.place_id === selectedPlaceId;
+        const visited = restaurant.is_visited;
+        const marker = visited ? "var(--map-marker-visited)" : "var(--map-marker)";
+        const markerSelected = visited
+          ? "var(--map-marker-visited-selected)"
+          : "var(--map-marker-selected)";
+        const markerCenter = visited
+          ? "var(--map-marker-visited-center)"
+          : "var(--map-marker-center)";
         const label = resolveNames(restaurant).primary?.text ?? "Unnamed restaurant";
 
         return (
@@ -117,6 +125,7 @@ export function MapMarkers({
             data-marker-kind="restaurant"
             data-place-id={restaurant.place_id}
             data-selected={selected ? "true" : "false"}
+            data-visited={visited ? "true" : "false"}
             data-newly-revealed={newlyRevealed ? "true" : undefined}
             className={cn(
               "cursor-pointer focus:outline-none",
@@ -136,7 +145,7 @@ export function MapMarkers({
               cx={x}
               cy={y}
               r={size(MARKER_RADIUS + 7)}
-              fill="var(--map-marker)"
+              fill={marker}
               opacity={selected ? 0.28 : 0}
               className="transition-opacity duration-[180ms] ease-(--ease-fiyu)"
             />
@@ -145,8 +154,8 @@ export function MapMarkers({
               cx={x}
               cy={y}
               r={size(selected ? MARKER_RADIUS + 1.5 : MARKER_RADIUS)}
-              fill={selected ? "var(--map-marker-selected)" : "var(--map-marker-center)"}
-              stroke={selected ? "var(--map-marker-selected)" : "var(--map-marker)"}
+              fill={selected ? markerSelected : markerCenter}
+              stroke={selected ? markerSelected : marker}
               strokeWidth={size(3)}
               className="transition-all duration-[180ms] ease-(--ease-fiyu)"
             />
@@ -155,7 +164,7 @@ export function MapMarkers({
                 cx={x}
                 cy={y}
                 r={size(3.5)}
-                fill="var(--map-marker-center)"
+                fill={markerCenter}
                 className="transition-all duration-[180ms] ease-(--ease-fiyu)"
               />
             )}

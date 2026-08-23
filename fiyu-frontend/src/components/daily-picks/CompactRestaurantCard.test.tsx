@@ -115,8 +115,7 @@ describe("compact restaurant card content", () => {
     expect(japaneseName.parentElement?.parentElement?.className).toContain("col-span-2");
     expect(screen.getByTestId("restaurant-photo-region").className).toContain("h-40");
     expect(screen.getByTestId("restaurant-photo-region").className).toContain("lg:min-h-44");
-    expect(screen.getByText(/A long discovery-card description/).className).toContain("line-clamp-4");
-    expect(screen.getByText(/A long discovery-card description/).className).toContain("lg:line-clamp-3");
+    expect(screen.getByText(/A long discovery-card description/).className).toContain("line-clamp-3");
     expect(screen.getByLabelText("Fiyu score 8.7 out of 10")).toBeTruthy();
     const googleLink = screen.getByRole("link", { name: "Open in Google Maps" });
     expect(googleLink.className).toContain("break-words");
@@ -134,7 +133,7 @@ describe("compact restaurant card content", () => {
         onToggleSaved={() => {}}
       />,
     );
-    expect(screen.getByText(researched).className).toContain("line-clamp-4");
+    expect(screen.getByText(researched).className).toContain("line-clamp-3");
   });
 
   it("prefers the canonical enriched card description", () => {

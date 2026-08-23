@@ -7,6 +7,7 @@ import type { Point } from "@/lib/map/projection";
 import { VIEWBOX_HEIGHT, VIEWBOX_WIDTH } from "@/lib/map/projection";
 import type { MapView } from "@/lib/map/viewport";
 import { restaurantDetailHref } from "@/lib/navigation/restaurantDetail";
+import { cn } from "@/lib/utils/cn";
 
 const PREFERRED_WIDTH = 272;
 const MIN_WIDTH = 220;
@@ -81,7 +82,11 @@ export function MapRestaurantPopup({
     <div
       data-layer="restaurant-popup"
       data-place-id={restaurant.place_id}
-      className="pointer-events-auto absolute z-30 flex h-[10.75rem] min-w-0 flex-col rounded-lg border border-line bg-surface px-4 py-3.5 shadow-md"
+      data-visited={restaurant.is_visited ? "true" : "false"}
+      className={cn(
+        "pointer-events-auto absolute z-30 flex h-[10.75rem] min-w-0 flex-col rounded-lg border bg-surface px-4 py-3.5 shadow-md",
+        restaurant.is_visited ? "border-gold/45" : "border-line",
+      )}
       style={{ left, top, width }}
       onPointerDown={(event) => event.stopPropagation()}
       onClick={(event) => event.stopPropagation()}

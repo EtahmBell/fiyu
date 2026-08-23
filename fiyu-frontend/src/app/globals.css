@@ -142,6 +142,9 @@
   --map-marker: #8b6cf6;
   --map-marker-selected: #3e304f;
   --map-marker-center: #fff9ef;
+  --map-marker-visited: var(--color-gold);
+  --map-marker-visited-selected: #75591f;
+  --map-marker-visited-center: #fffaf0;
   /*
    * Area anchors: the same lavender hue at lower chroma, so an exact pin stays
    * the stronger mark. The distinction is carried by shape (dashed ring, no

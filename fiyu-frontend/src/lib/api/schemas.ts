@@ -247,6 +247,12 @@ export const publicRestaurantSchema = z.object({
 
 export const publicRestaurantListSchema = z.array(publicRestaurantSchema);
 
+/** Account-private presentation state returned only by Map endpoints. */
+export const mapRestaurantSchema = publicRestaurantSchema.extend({
+  is_visited: z.boolean(),
+});
+export const mapRestaurantListSchema = z.array(mapRestaurantSchema);
+
 /**
  * GET /public/restaurants/{place_id}.
  *
@@ -483,6 +489,7 @@ export const smartViewResponseSchema = z.object({
 }));
 
 export type PublicRestaurant = z.infer<typeof publicRestaurantSchema>;
+export type MapRestaurant = z.infer<typeof mapRestaurantSchema>;
 export type PublicRestaurantDetail = z.infer<typeof publicRestaurantDetailSchema>;
 export type PublicRestaurantList = z.infer<typeof publicRestaurantListSchema>;
 export type GooglePhoto = z.infer<typeof googlePhotoSchema>;

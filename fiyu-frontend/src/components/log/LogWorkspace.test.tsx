@@ -164,7 +164,7 @@ describe("LogWorkspace", () => {
 
     render(<LogWorkspace />);
 
-    expect(screen.getByRole("status", { name: "Loading your Log" })).toBeTruthy();
+    expect(screen.getByRole("status", { name: "Loading Fiyu" })).toBeTruthy();
     expect(screen.queryByText("Tokyo Sushi")).toBeNull();
     resolveLog?.([]);
 

@@ -233,13 +233,13 @@ describe("lists page", () => {
     expect(screen.getByRole("link", { name: "View restaurant" })).toBeTruthy();
   });
 
-  it("shows skeleton rows while loading rather than the empty state", () => {
+  it("shows neutral Fiyu loading rather than the empty state", () => {
     defaultList.state.status = "loading";
 
     render(<ListsPage />);
 
     expect(screen.queryByRole("heading", { name: "No saved places yet" })).toBeNull();
-    expect(screen.getByRole("status", { name: "Loading your Tokyo list" })).toBeTruthy();
+    expect(screen.getByRole("status", { name: "Loading Fiyu" })).toBeTruthy();
     expect(screen.queryByText(/^\d+ saved places?$/)).toBeNull();
   });
 

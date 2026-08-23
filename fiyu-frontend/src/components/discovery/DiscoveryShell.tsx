@@ -13,7 +13,10 @@ import { FiyuMap } from "@/components/map/FiyuMap";
 import { MapUnavailable } from "@/components/map/MapUnavailable";
 import { FiyuLoadingScreen } from "@/components/states/FiyuLoadingScreen";
 import { Button } from "@/components/ui/Button";
-import { fetchDiscoveryLocation } from "@/lib/api/client";
+import {
+  fetchAuthenticatedMapRestaurants,
+  fetchDiscoveryLocation,
+} from "@/lib/api/client";
 import type { DiscoveryLocation, PublicRestaurant } from "@/lib/api/schemas";
 import { mappableRestaurants } from "@/lib/geo/mappable";
 import { useGeolocation } from "@/lib/hooks/useGeolocation";
@@ -49,6 +52,11 @@ interface VisibleRestaurantState {
   ownerKey: string;
   restaurants: PublicRestaurant[];
 }
+
+type AccountMapState =
+  | { status: "loading"; ownerKey: string }
+  | { status: "ready"; ownerKey: string; restaurants: PublicRestaurant[] }
+  | { status: "error"; ownerKey: string };
 
 type AccountLocationState =
   | { status: "loading"; userId: string }
@@ -91,6 +99,19 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
         : [],
     [restaurantOwnerKey, visibleRestaurantState],
   );
+  const visibleRestaurantKey = visibleRestaurants
+    .map((restaurant) => restaurant.place_id)
+    .join("|");
+  const [accountMapState, setAccountMapState] = useState<AccountMapState | null>(null);
+  const currentAccountMapState = useMemo(
+    () =>
+      identity.profile
+        ? accountMapState?.ownerKey === identity.profile.user_id
+          ? accountMapState
+          : ({ status: "loading", ownerKey: identity.profile.user_id } as const)
+        : null,
+    [accountMapState, identity.profile],
+  );
   const [homeArea, setHomeArea] = useState<LocationAnchor | null>(null);
   const [continuedWithoutLocation, setContinuedWithoutLocation] = useState(false);
   const scrollRegionRef = useRef<HTMLDivElement>(null);
@@ -121,6 +142,24 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
       });
     return () => controller.abort();
   }, [identity.profile, identity.status, locationRequestKey]);
+
+  useEffect(() => {
+    if (identity.status !== "ready" || !identity.profile) return;
+    const ownerKey = identity.profile.user_id;
+    const controller = new AbortController();
+    void fetchAuthenticatedMapRestaurants({ signal: controller.signal })
+      .then((restaurants) => {
+        if (!controller.signal.aborted) {
+          setAccountMapState({ status: "ready", ownerKey, restaurants });
+        }
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) {
+          setAccountMapState({ status: "error", ownerKey });
+        }
+      });
+    return () => controller.abort();
+  }, [identity.profile, identity.status, visibleRestaurantKey]);
 
   const origin = useMemo<FreeDiscoveryOrigin | null>(() => {
     const current = originFromGeolocation(geolocation.state);
@@ -162,7 +201,16 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
     return null;
   }, [accountLocation, activeArea, identity.profile, origin]);
 
-  const mappable = useMemo(() => mappableRestaurants(visibleRestaurants), [visibleRestaurants]);
+  const mappable = useMemo(() => {
+    const mapRestaurants = identity.profile
+      ? currentAccountMapState?.status === "ready"
+        ? currentAccountMapState.restaurants
+        : currentAccountMapState?.status === "error"
+          ? visibleRestaurants
+          : []
+      : visibleRestaurants;
+    return mappableRestaurants(mapRestaurants);
+  }, [currentAccountMapState, identity.profile, visibleRestaurants]);
   const updateVisibleRestaurants = useCallback(
     (nextRestaurants: PublicRestaurant[]) =>
       setVisibleRestaurantState({ ownerKey: restaurantOwnerKey, restaurants: nextRestaurants }),
@@ -346,7 +394,9 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
         data-testid="desktop-map-region"
         className="hidden min-h-0 min-w-0 overflow-hidden border-l border-line-strong bg-subtle lg:sticky lg:top-header lg:block lg:h-[calc(100dvh-var(--spacing-header))]"
       >
-        {mappable.length === 0 ? (
+        {identity.profile && currentAccountMapState?.status === "loading" ? (
+          <FiyuLoadingScreen />
+        ) : mappable.length === 0 ? (
           <MapUnavailable reason="no-mapped-restaurants" className="h-full" />
         ) : (
           <FiyuMap

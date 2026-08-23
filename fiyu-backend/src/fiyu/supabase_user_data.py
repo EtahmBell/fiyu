@@ -363,6 +363,21 @@ def list_visits(*, user_id: str) -> list[dict[str, Any]]:
     return result if isinstance(result, list) else []
 
 
+def visited_place_ids(*, user_id: str) -> list[str]:
+    """Return unique visited restaurants, ordered by the owner's latest visit."""
+    result = _request(
+        "fiyu_restaurant_visits",
+        query={
+            "select": "place_id",
+            "user_id": f"eq.{user_id}",
+            "order": "visited_at.desc,created_at.desc,id.desc",
+        },
+    )
+    if not isinstance(result, list):
+        return []
+    return list(dict.fromkeys(str(row["place_id"]) for row in result))
+
+
 def get_visit(*, user_id: str, visit_id: str) -> dict[str, Any] | None:
     rows = _rows("fiyu_restaurant_visits", user_id=user_id, id=visit_id)
     return rows[0] if rows else None
