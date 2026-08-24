@@ -368,6 +368,20 @@ class CardEnrichment(BaseModel):
     researched_at: str | None = None
     unresolved_conflicts: list[str] = Field(default_factory=list, max_length=8)
 
+    @field_validator("budget", mode="wrap")
+    @classmethod
+    def discard_invalid_optional_budget(cls, value: object, handler):
+        """Keep an unusable optional budget from invalidating core enrichment."""
+
+        if value is None:
+            return None
+        if isinstance(value, dict) and value.get("minimum") is None and value.get("maximum") is None:
+            return None
+        try:
+            return handler(value)
+        except (TypeError, ValueError, ValidationError):
+            return None
+
     @field_validator("card_description")
     @classmethod
     def clean_description(cls, value: str | None) -> str | None:
@@ -415,6 +429,16 @@ class CardEnrichment(BaseModel):
     @classmethod
     def validate_description_source_urls(cls, values: list[str]) -> list[str]:
         return _clean_http_urls(values)
+
+
+def compact_existing_enrichment(enrichment: CardEnrichment) -> dict[str, object]:
+    """Serialize only meaningful state for the dynamic research request."""
+
+    return enrichment.model_dump(
+        mode="json",
+        exclude_none=True,
+        exclude_defaults=True,
+    )
 
 
 def scoring_research_view(structured: dict[str, object] | None) -> dict[str, object]:
@@ -1086,7 +1110,9 @@ Every practical-info note must also be a complete concise sentence, never a clip
 Populate canonical contact and booking fields only from current official restaurant sources or a
 current permitted reservation platform. Attach the field-supporting sources; never infer a phone,
 URL, booking method, or note. Normalize a supported per-person budget into currency, numeric bounds,
-and band while retaining the source value. Unknown contact and budget fields remain null/empty.
+and band while retaining the source value. If neither a numeric minimum nor maximum is supported,
+return budget as null; never return a structurally empty budget object. Unknown contact fields remain
+null/empty.
 Return the canonical CardEnrichment schema and preserve source URLs, confidence, checked_at, and any
 unresolved disagreement. Search only what is missing from the supplied persisted evidence."""
 
@@ -1323,7 +1349,7 @@ def backfill_card_enrichment(
                     "name_ja": row.get("name_ja"),
                     "name_en": row.get("name_en"),
                     "category": row.get("primary_category"),
-                    "existing_enrichment": current.model_dump(mode="json"),
+                    "existing_enrichment": compact_existing_enrichment(current),
                     "missing": [
                         key
                         for key, value in enrichment_completeness(current).items()
@@ -1332,6 +1358,7 @@ def backfill_card_enrichment(
                     "persisted_source_urls": json.loads(str(row.get("evidence_urls_json") or "[]")),
                 },
                 ensure_ascii=False,
+                separators=(",", ":"),
             )
             response = api_client.responses.parse(
                 model=selected_model,

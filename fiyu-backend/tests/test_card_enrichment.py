@@ -17,6 +17,7 @@ from fiyu.card_enrichment import (
     backfill_canonical_details,
     backfill_card_enrichment,
     compact_card_description,
+    compact_existing_enrichment,
     enrichment_completeness,
     format_opening_hours,
     merge_card_enrichment,
@@ -100,6 +101,101 @@ def test_ambiguous_budget_stays_unknown_and_contact_requires_provenance():
     assert normalize_candidate_budget("about two thousand yen") is None
     with pytest.raises(ValidationError):
         ContactInfo(phone_number="03-1234-5678")
+
+
+def test_empty_optional_researched_budget_does_not_discard_valid_enrichment():
+    payload = _complete_enrichment().model_dump(mode="json")
+    payload["budget"] = {
+        "currency": "JPY",
+        "minimum": None,
+        "maximum": None,
+        "band": "budget",
+        "source_value": None,
+        "source_type": "researched_source",
+        "confidence": 0.7,
+        "sources": [],
+        "checked_at": "2026-08-24T00:00:00Z",
+    }
+
+    enrichment = CardEnrichment.model_validate(payload)
+
+    assert enrichment.budget is None
+    assert enrichment.card_description == payload["card_description"]
+    assert len(enrichment.review_themes) == 1
+    assert enrichment.practical_info.reservation.status == "recommended"
+    assert enrichment.opening_hours.tuesday.status == "open"
+
+
+def test_malformed_optional_budget_is_discarded_without_weakening_core_validation():
+    payload = _complete_enrichment().model_dump(mode="json")
+    payload["budget"] = {
+        "currency": "JPY",
+        "minimum": 5000,
+        "maximum": 1000,
+        "band": "moderate",
+        "source_value": "invalid range",
+        "source_type": "researched_source",
+        "confidence": 0.7,
+        "sources": [],
+        "checked_at": "2026-08-24T00:00:00Z",
+    }
+    assert CardEnrichment.model_validate(payload).budget is None
+
+    payload["card_description"] = "An amazing hidden gem you must visit!"
+    with pytest.raises(ValidationError, match="promotional"):
+        CardEnrichment.model_validate(payload)
+
+
+def test_valid_optional_budget_is_preserved_with_provenance():
+    payload = _complete_enrichment().model_dump(mode="json")
+    payload["budget"] = {
+        "currency": "JPY",
+        "minimum": 4000,
+        "maximum": 4999,
+        "band": "moderate",
+        "source_value": "¥4,000–¥4,999",
+        "source_type": "researched_source",
+        "confidence": 0.86,
+        "sources": [
+            {
+                "url": "https://example.com/budget",
+                "source_type": "restaurant_directory",
+                "checked_at": "2026-08-24T00:00:00Z",
+            }
+        ],
+        "checked_at": "2026-08-24T00:00:00Z",
+    }
+
+    budget = CardEnrichment.model_validate(payload).budget
+
+    assert budget is not None
+    assert (budget.minimum, budget.maximum) == (4000, 4999)
+    assert budget.sources[0].url == "https://example.com/budget"
+
+
+def test_compact_existing_enrichment_omits_defaults_and_round_trips_meaningful_values():
+    enrichment = _complete_enrichment()
+    enrichment.practical_info.seating.counter = False
+    enrichment.unresolved_conflicts = ["Published schedules disagree."]
+
+    compact = compact_existing_enrichment(enrichment)
+
+    assert "budget" not in compact
+    assert "contact" not in compact
+    assert "researched_at" in compact
+    assert "unknown" not in json.dumps(compact)
+    assert compact["practical_info"]["seating"]["counter"] is False
+    assert CardEnrichment.model_validate(compact) == enrichment
+
+
+def test_compact_existing_enrichment_reduces_description_only_payload():
+    enrichment = CardEnrichment(card_description="A small neighborhood restaurant.")
+
+    full = enrichment.model_dump(mode="json")
+    compact = compact_existing_enrichment(enrichment)
+
+    assert compact == {"card_description": "A small neighborhood restaurant."}
+    assert len(json.dumps(compact)) < len(json.dumps(full)) / 10
 
 
 def test_local_canonical_backfill_normalizes_budget_but_does_not_promote_candidate_contact(
