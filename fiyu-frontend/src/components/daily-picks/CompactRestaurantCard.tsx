@@ -129,9 +129,9 @@ export function CompactRestaurantCard({
     >
       <div
         data-testid="compact-card-layout"
-        className="grid min-w-0 grid-cols-[minmax(6.75rem,38%)_minmax(0,1fr)] items-stretch gap-1.5 lg:grid-cols-[minmax(8.5rem,34%)_minmax(0,1fr)] lg:gap-2.5"
+        className="min-w-0"
       >
-        <div className="col-span-2 row-start-1 flex min-w-0 items-start justify-between gap-3 lg:col-span-1 lg:col-start-2">
+        <div className="flex min-w-0 items-start justify-between gap-3">
           <div className="min-w-0 flex-1 pt-0.5">
             <h3
               lang={restaurant.name_ja?.trim() ? "ja" : "en"}
@@ -149,16 +149,15 @@ export function CompactRestaurantCard({
           <ScoreMark score={restaurant.fiyu_score} size="card" />
         </div>
 
-        <RestaurantPhoto
-          placeId={restaurant.place_id}
-          restaurantName={title}
-          fill
-          className="col-start-1 row-start-2 h-20 min-w-0 lg:row-span-2 lg:row-start-1 lg:h-full lg:min-h-44"
-        />
-
-        <div className="col-start-2 row-start-2 flex min-w-0 flex-col">
+        <div className="mt-1.5 flow-root min-w-0 lg:mt-2">
+          <RestaurantPhoto
+            placeId={restaurant.place_id}
+            restaurantName={title}
+            fill
+            className="float-left mr-1.5 mb-0.5 h-20 w-[6.75rem] min-w-0 lg:mr-2.5 lg:h-32 lg:w-[34%]"
+          />
           {description && (
-            <p className="line-clamp-2 max-w-prose text-xs leading-[1.125rem] text-ink/75 lg:mt-1.5 lg:line-clamp-3 lg:text-[0.8125rem] lg:leading-5">
+            <p className="max-h-[5.625rem] overflow-hidden text-xs leading-[1.125rem] text-ink/75 lg:max-h-[8.75rem] lg:text-[0.8125rem] lg:leading-5">
               {description}
             </p>
           )}
@@ -172,7 +171,7 @@ export function CompactRestaurantCard({
           {expirationLabel && (
             <p
               className={cn(
-                "mt-1.5 text-[0.6875rem] lg:mt-2",
+                "clear-both mt-1.5 text-[0.6875rem] lg:mt-2",
                 history ? "font-medium text-gold-700" : "text-ink-faint",
               )}
             >

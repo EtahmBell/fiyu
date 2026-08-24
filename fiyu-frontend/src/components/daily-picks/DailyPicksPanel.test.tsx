@@ -256,7 +256,7 @@ describe("Today’s Fiyu Picks panel", () => {
 
     const context = screen.getByTestId("picks-discovery-context");
     expect(
-      within(context).getByText("Near Shibuya · 3 picks selected for you today"),
+      within(context).getByText("Near Shibuya · 3 picks selected"),
     ).toBeTruthy();
     expect(within(context).getByText("Based on your tastes and nearby area")).toBeTruthy();
     expect(within(context).queryByText("3 picks today")).toBeNull();

@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils/cn";
 const MARKER_RADIUS = 11;
 /** Invisible hit area. Larger than the visual mark so touch targets clear 44px. */
 const HIT_RADIUS = 22;
+const CLUSTER_RADIUS = 17;
 
 export interface MapMarkersProps {
   clusters: MarkerCluster<MappableRestaurant>[];
@@ -45,7 +46,35 @@ export function MapMarkers({
         );
 
         if (cluster.members.length > 1) {
-          return null;
+          const count = cluster.members.length;
+          return (
+            <g
+              key={cluster.id}
+              aria-hidden="true"
+              className={cn(newlyRevealed && "fiyu-map-pin-sprout")}
+            >
+              <circle
+                cx={x}
+                cy={y}
+                r={size(CLUSTER_RADIUS)}
+                fill="var(--map-marker)"
+                stroke="var(--map-marker-center)"
+                strokeWidth={size(2)}
+              />
+              <text
+                x={x}
+                y={y}
+                textAnchor="middle"
+                dominantBaseline="central"
+                fill="var(--map-marker-center)"
+                fontSize={size(13)}
+                className="pointer-events-none select-none font-medium"
+                style={{ fontFamily: "var(--font-sans)" }}
+              >
+                {count}
+              </text>
+            </g>
+          );
         }
 
         const restaurant = cluster.members[0].item;

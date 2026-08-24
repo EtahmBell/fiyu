@@ -316,7 +316,10 @@ describe("clustering on the map", () => {
     const b = mappable("b", 35.6582, 139.7018);
     render(<FiyuMap restaurants={[a, b]} selectedPlaceId={null} onSelect={() => {}} />);
 
-    expect(screen.getByRole("button", { name: /2 restaurants in this area/ })).toBeTruthy();
+    const clusterButton = screen.getByRole("button", { name: /2 restaurants in this area/ });
+    expect(clusterButton.className).toContain("bg-transparent");
+    expect(clusterButton.className).not.toContain("border-2");
+    expect(screen.getByText("2", { selector: "svg text" })).toBeTruthy();
   });
 
   it("does not describe a cluster in terms of popularity", () => {

@@ -819,7 +819,7 @@ describe("daily-only discovery shell", () => {
     expect(dailyApi.assignDailyPicks).not.toHaveBeenCalled();
   });
 
-  it("hydrates a live-GPS round as Near you from persisted assignment metadata", async () => {
+  it("hydrates a live-GPS round without a redundant location prefix", async () => {
     const now = Date.now();
     dailyApi.fetchActiveDailyPicks.mockResolvedValueOnce({
       round_id: "gps-round",
@@ -838,8 +838,8 @@ describe("daily-only discovery shell", () => {
 
     render(<DiscoveryShell restaurants={catalog} areaAnchors={[]} />);
 
-    expect(await screen.findByText(/Near you .*3 picks selected for you today/)).toBeTruthy();
-    expect(screen.queryByText(/Near Ginza .*3 picks selected for you today/)).toBeNull();
+    expect(await screen.findByText("3 picks selected")).toBeTruthy();
+    expect(screen.queryByText(/Near (you|Ginza)/)).toBeNull();
   });
 
   it("falls back to the preview when automatic geolocation permission is denied", async () => {

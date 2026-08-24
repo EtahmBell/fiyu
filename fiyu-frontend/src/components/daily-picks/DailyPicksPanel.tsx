@@ -271,11 +271,12 @@ function PicksDiscoveryContext({
   tuning: boolean;
   onToggleTuning?: () => void;
 }) {
-  const countLabel = pickCount > 0 ? `${pickCount} picks selected for you today` : null;
+  const countLabel = pickCount > 0 ? `${pickCount} picks selected` : null;
+  const namedAreaLabel = areaLabel === "you" ? null : areaLabel;
   const headline =
-    countLabel && areaLabel
-      ? `Near ${areaLabel} · ${countLabel}`
-      : (countLabel ?? (areaLabel ? `Near ${areaLabel}` : null));
+    countLabel && namedAreaLabel
+      ? `Near ${namedAreaLabel} · ${countLabel}`
+      : (countLabel ?? (namedAreaLabel ? `Near ${namedAreaLabel}` : null));
 
   return (
     <div
@@ -286,7 +287,7 @@ function PicksDiscoveryContext({
         {headline && (
           <p className="flex min-w-0 items-center gap-1.5 text-sm leading-5 font-semibold text-plum">
             <CityHeaderMark cityId={ACTIVE_FIYU_CITY.id} />
-            <span className="truncate">{headline}</span>
+            <span className="min-w-0">{headline}</span>
           </p>
         )}
         <p className="mt-1 text-xs leading-5 text-ink-muted">

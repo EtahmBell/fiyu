@@ -77,8 +77,8 @@ describe("compact restaurant card content", () => {
     );
     expect(screen.getByLabelText("Fiyu score 8.7 out of 10")).toBeTruthy();
     expect(screen.getByText("8.7").textContent).toContain("/10");
-    expect(screen.getByText("8.7").className).toContain("text-[2.5rem]");
-    expect(screen.getByTestId("compact-card-layout").className).toContain("34%");
+    expect(screen.getByText("8.7").className).toContain("text-[2rem]");
+    expect(screen.getByText("Fiyu Score").className).toContain("text-[0.5rem]");
     expect(screen.getByText("Fiyu Score")).toBeTruthy();
     expect(screen.queryByText("Approximate area")).toBeNull();
   });
@@ -101,20 +101,21 @@ describe("compact restaurant card content", () => {
     expect(card.className).toContain("w-full");
     const layout = screen.getByTestId("compact-card-layout");
     expect(layout.className).toContain("min-w-0");
-    expect(layout.className).toContain("6.75rem");
-    expect(layout.className).toContain("38%");
-    expect(layout.className).toContain("lg:grid-cols");
-    expect(layout.className).toContain("34%");
+    expect(layout.className).toContain("min-w-0");
     const japaneseName = screen.getByRole("heading", { level: 3 });
     expect(japaneseName.className).not.toContain("truncate");
     expect(japaneseName.className).toContain("break-words");
     const englishName = screen.getByText(/A deliberately long restaurant name/);
     expect(englishName.className).toContain("line-clamp-2");
     expect(englishName.className).toContain("break-words");
-    expect(japaneseName.parentElement?.parentElement?.className).toContain("col-span-2");
-    expect(screen.getByTestId("restaurant-photo-region").className).toContain("h-20");
-    expect(screen.getByTestId("restaurant-photo-region").className).toContain("lg:min-h-44");
-    expect(screen.getByText(/A long discovery-card description/).className).toContain("line-clamp-3");
+    const photo = screen.getByTestId("restaurant-photo-region");
+    expect(photo.className).toContain("float-left");
+    expect(photo.className).toContain("h-20");
+    expect(photo.className).toContain("w-[6.75rem]");
+    const description = screen.getByText(/A long discovery-card description/);
+    expect(description.className).toContain("max-h-[5.625rem]");
+    expect(description.className).toContain("lg:max-h-[8.75rem]");
+    expect(description.className).not.toContain("line-clamp");
     expect(screen.getByLabelText("Fiyu score 8.7 out of 10")).toBeTruthy();
     const googleLink = screen.getByRole("link", { name: "Open in Google Maps" });
     expect(googleLink.className).toContain("break-words");
@@ -132,7 +133,7 @@ describe("compact restaurant card content", () => {
         onToggleSaved={() => {}}
       />,
     );
-    expect(screen.getByText(researched).className).toContain("line-clamp-3");
+    expect(screen.getByText(researched).className).toContain("max-h-[5.625rem]");
   });
 
   it("prefers the canonical enriched card description", () => {

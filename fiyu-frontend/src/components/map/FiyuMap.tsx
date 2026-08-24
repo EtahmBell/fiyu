@@ -531,9 +531,6 @@ export function FiyuMap({
       <div className="pointer-events-none absolute inset-0 z-10" aria-label="Restaurant clusters">
         {clusters.filter((cluster) => cluster.members.length > 1).map((cluster) => {
           const position = clusterButtonPosition(cluster);
-          const newlyRevealed = cluster.members.some((member) =>
-            sproutingPlaceIds.has(member.item.place_id),
-          );
           return (
             <button
               key={cluster.id}
@@ -542,13 +539,10 @@ export function FiyuMap({
               data-marker-kind="restaurant-cluster"
               data-place-ids={cluster.members.map((member) => member.item.place_id).join(",")}
               onClick={() => expandCluster(cluster)}
-              className={cn(
-                "pointer-events-auto absolute flex size-11 -translate-x-1/2 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border-2 border-[var(--map-marker-center)] bg-[var(--map-marker)] text-[0.8125rem] font-medium text-[var(--map-marker-center)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--map-marker)]",
-                newlyRevealed && "fiyu-map-pin-sprout",
-              )}
+              className="pointer-events-auto absolute size-11 -translate-x-1/2 -translate-y-1/2 cursor-pointer rounded-full bg-transparent text-transparent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--map-marker)]"
               style={{ left: position.left, top: position.top }}
             >
-              {cluster.members.length}
+              <span className="sr-only">{cluster.members.length}</span>
             </button>
           );
         })}
