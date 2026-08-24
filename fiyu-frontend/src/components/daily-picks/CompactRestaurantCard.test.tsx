@@ -109,13 +109,20 @@ describe("compact restaurant card content", () => {
     expect(englishName.className).toContain("line-clamp-2");
     expect(englishName.className).toContain("break-words");
     const photo = screen.getByTestId("restaurant-photo-region");
-    expect(photo.className).toContain("float-left");
     expect(photo.className).toContain("h-20");
-    expect(photo.className).toContain("w-[6.75rem]");
+    expect(photo.className).toContain("w-full");
     const description = screen.getByText(/A long discovery-card description/);
-    expect(description.className).toContain("max-h-[5.625rem]");
-    expect(description.className).toContain("lg:max-h-[8.75rem]");
-    expect(description.className).not.toContain("line-clamp");
+    expect(description.className).toContain("line-clamp-2");
+    expect(description.className).toContain("lg:line-clamp-3");
+    const readMore = screen.getByRole("button", { name: "Read more" });
+    expect(readMore.getAttribute("aria-expanded")).toBe("false");
+    fireEvent.click(readMore);
+    expect(photo.className).toContain("float-left");
+    expect(photo.className).toContain("w-[6.75rem]");
+    expect(description.className).not.toContain("line-clamp-2");
+    expect(screen.getByRole("button", { name: "Show less" }).getAttribute("aria-expanded")).toBe(
+      "true",
+    );
     expect(screen.getByLabelText("Fiyu score 8.7 out of 10")).toBeTruthy();
     const googleLink = screen.getByRole("link", { name: "Open in Google Maps" });
     expect(googleLink.className).toContain("break-words");
@@ -133,7 +140,7 @@ describe("compact restaurant card content", () => {
         onToggleSaved={() => {}}
       />,
     );
-    expect(screen.getByText(researched).className).toContain("max-h-[5.625rem]");
+    expect(screen.getByText(researched).className).toContain("line-clamp-2");
   });
 
   it("prefers the canonical enriched card description", () => {
@@ -173,6 +180,7 @@ describe("compact restaurant card content", () => {
 
     const image = await screen.findByRole("img", { name: /photo from Google/ });
     expect(image.className).toContain("object-cover");
+    expect(image.className).toContain("object-center");
     expect(screen.getByTestId("restaurant-photo-region").className).toContain("h-20");
     expect(screen.queryByText(/Photo by/)).toBeNull();
 
@@ -182,10 +190,14 @@ describe("compact restaurant card content", () => {
     expect(screen.getByText(/Photo by/)).toBeTruthy();
     fireEvent.blur(photoRegion, { relatedTarget: document.body });
     fireEvent.click(photoRegion);
-    expect(screen.getByTestId("photo-attribution-overlay")).toBeTruthy();
+    const overlay = screen.getByTestId("photo-attribution-overlay");
+    expect(overlay.className).toContain("h-3");
+    expect(overlay.className).toContain("text-[0.5rem]");
     expect(onOpen).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("link", { name: photoFixture.author_attributions[0].display_name }));
     expect(onOpen).not.toHaveBeenCalled();
+    fireEvent.click(photoRegion);
+    expect(screen.queryByTestId("photo-attribution-overlay")).toBeNull();
   });
 
   it("never renders an internal why_fiyu value", () => {
@@ -365,7 +377,7 @@ describe("compact card interaction", () => {
       name: "Remove restaurant from saved",
     });
     expect(removeSaved.getAttribute("aria-pressed")).toBe("true");
-    expect(removeSaved.className).toContain("text-plum");
+    expect(removeSaved.className).toContain("text-gold-700");
     expect(removeSaved.querySelector("svg")?.getAttribute("fill")).toBe("currentColor");
   });
 });

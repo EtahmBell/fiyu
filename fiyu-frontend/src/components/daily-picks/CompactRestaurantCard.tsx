@@ -1,6 +1,6 @@
 "use client";
 
-import type { KeyboardEvent, MouseEvent } from "react";
+import { useId, useState, type KeyboardEvent, type MouseEvent } from "react";
 
 import { OutboundMapActions } from "@/components/restaurant/OutboundMapActions";
 import { RestaurantPhoto } from "@/components/restaurant/RestaurantPhoto";
@@ -86,6 +86,8 @@ export function CompactRestaurantCard({
   const subtitle = englishName && englishName !== title ? englishName : null;
   const description = compactDescription(restaurant);
   const tags = englishCardTags(restaurant);
+  const [descriptionExpanded, setDescriptionExpanded] = useState(false);
+  const descriptionId = useId();
 
   const open = () => onOpen?.(restaurant);
   const handleClick = (event: MouseEvent<HTMLElement>) => {
@@ -149,18 +151,53 @@ export function CompactRestaurantCard({
           <ScoreMark score={restaurant.fiyu_score} size="card" />
         </div>
 
-        <div className="mt-1.5 flow-root min-w-0 lg:mt-2">
+        <div
+          className={cn(
+            "mt-1.5 min-w-0 lg:mt-2",
+            descriptionExpanded
+              ? "flow-root"
+              : "grid grid-cols-[6.75rem_minmax(0,1fr)] gap-1.5 lg:grid-cols-[34%_minmax(0,1fr)] lg:gap-2.5",
+          )}
+        >
           <RestaurantPhoto
             placeId={restaurant.place_id}
             restaurantName={title}
             fill
-            className="float-left mr-1.5 mb-0.5 h-20 w-[6.75rem] min-w-0 lg:mr-2.5 lg:h-32 lg:w-[34%]"
+            className={cn(
+              "h-20 min-w-0 lg:h-32",
+              descriptionExpanded
+                ? "float-left mr-1.5 mb-0.5 w-[6.75rem] lg:mr-2.5 lg:w-[34%]"
+                : "w-full",
+            )}
           />
-          {description && (
-            <p className="max-h-[5.625rem] overflow-hidden text-xs leading-[1.125rem] text-ink/75 lg:max-h-[8.75rem] lg:text-[0.8125rem] lg:leading-5">
-              {description}
-            </p>
-          )}
+          <div className="min-w-0">
+            {description && (
+              <p
+                id={descriptionId}
+                className={cn(
+                  "text-xs leading-[1.125rem] text-ink/75 lg:text-[0.8125rem] lg:leading-5",
+                  !descriptionExpanded && "line-clamp-2 lg:line-clamp-3",
+                )}
+              >
+                {description}
+              </p>
+            )}
+            {description && (
+              <button
+                type="button"
+                data-no-card-navigation="true"
+                aria-controls={descriptionId}
+                aria-expanded={descriptionExpanded}
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  setDescriptionExpanded((expanded) => !expanded);
+                }}
+                className="mt-0.5 inline-flex min-h-6 items-center text-[0.6875rem] font-medium text-ink-muted underline decoration-gold-line underline-offset-2 transition-colors hover:text-gold-700 hover:decoration-gold focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-gold"
+              >
+                {descriptionExpanded ? "Show less" : "Read more"}
+              </button>
+            )}
 
           {/*
             The expiry line is the one piece of copy on this card that is about
@@ -168,16 +205,17 @@ export function CompactRestaurantCard({
             the champagne. The wording states the status on its own; the colour
             only reinforces it.
           */}
-          {expirationLabel && (
-            <p
-              className={cn(
-                "clear-both mt-1.5 text-[0.6875rem] lg:mt-2",
-                history ? "font-medium text-gold-700" : "text-ink-faint",
-              )}
-            >
-              {expirationLabel}
-            </p>
-          )}
+            {expirationLabel && (
+              <p
+                className={cn(
+                  "clear-both mt-1.5 text-[0.6875rem] lg:mt-2",
+                  history ? "font-medium text-gold-700" : "text-ink-faint",
+                )}
+              >
+                {expirationLabel}
+              </p>
+            )}
+          </div>
         </div>
       </div>
 
@@ -230,7 +268,7 @@ export function CompactRestaurantCard({
               "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600",
               "disabled:cursor-not-allowed disabled:opacity-60",
               saved
-                ? "text-plum hover:text-lavender-900"
+                ? "text-gold-700 hover:text-gold focus-visible:outline-gold"
                 : "text-ink-muted hover:text-plum",
             )}
           >

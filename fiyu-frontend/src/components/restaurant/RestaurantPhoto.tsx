@@ -112,7 +112,7 @@ export function RestaurantPhoto({
               setPhoto(null);
               setFailed(true);
             }}
-            className="absolute inset-0 size-full object-cover"
+            className="absolute inset-0 size-full object-cover object-center"
             style={{ animation: "fiyu-fade-in 260ms var(--ease-fiyu)" }}
           />
         ) : (
@@ -124,7 +124,7 @@ export function RestaurantPhoto({
         <div
           data-testid="photo-attribution-overlay"
           onClick={(event) => event.stopPropagation()}
-          className="absolute inset-x-2 bottom-2 z-20 flex max-h-[48%] flex-wrap items-center gap-x-2 gap-y-1 overflow-y-auto rounded-md bg-plum/90 px-2.5 py-2 text-[0.6875rem] leading-tight text-white shadow-md backdrop-blur-sm"
+          className="absolute inset-x-0 bottom-0 z-20 flex h-3 items-center gap-1.5 overflow-x-auto bg-ink/70 px-1.5 text-[0.5rem] leading-none whitespace-nowrap text-white backdrop-blur-[1px] lg:h-4 lg:text-[0.5625rem]"
         >
           {attribution?.display_name && <span>
             Photo by{" "}
