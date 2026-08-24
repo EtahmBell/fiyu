@@ -77,27 +77,38 @@ export function MapRestaurantPopup({
     )
     .join(" · ");
   const score = restaurant.fiyu_score === null ? null : (restaurant.fiyu_score / 10).toFixed(1);
+  /*
+   * A visited pin, a champagne popup edge and a champagne caret are all colour.
+   * The status is spelled out here as well, so the state survives for anyone who
+   * cannot separate the two accents -- and it is placed ahead of the metadata so
+   * the truncation clips the category rather than the status.
+   */
+  const visited = restaurant.is_visited === true;
+  const edge = visited ? "border-gold/45" : "border-line";
 
   return (
     <div
       data-layer="restaurant-popup"
       data-place-id={restaurant.place_id}
-      data-visited={restaurant.is_visited ? "true" : "false"}
+      data-visited={visited ? "true" : "false"}
       className={cn(
         "pointer-events-auto absolute z-30 flex h-[10.75rem] min-w-0 flex-col rounded-lg border bg-surface px-4 py-3.5 shadow-md",
-        restaurant.is_visited ? "border-gold/45" : "border-line",
+        edge,
       )}
       style={{ left, top, width }}
       onPointerDown={(event) => event.stopPropagation()}
       onClick={(event) => event.stopPropagation()}
     >
+      {/* The caret is part of the popup's edge, so it takes the same colour. */}
       <span
         aria-hidden="true"
-        className={
+        className={cn(
+          "absolute size-3 -translate-x-1/2 rotate-45 bg-surface",
           caretAbove
-            ? "absolute top-full size-3 -translate-x-1/2 -translate-y-1/2 rotate-45 border-r border-b border-line bg-surface"
-            : "absolute bottom-full size-3 -translate-x-1/2 translate-y-1/2 rotate-45 border-t border-l border-line bg-surface"
-        }
+            ? "top-full -translate-y-1/2 border-r border-b"
+            : "bottom-full translate-y-1/2 border-t border-l",
+          edge,
+        )}
         style={{ left: caretLeft }}
       />
       <p className="line-clamp-2 min-w-0 break-words text-base leading-snug font-semibold text-ink">
@@ -108,8 +119,20 @@ export function MapRestaurantPopup({
           {englishName}
         </p>
       )}
-      {metadata && (
-        <p className="mt-2 truncate text-xs text-ink-muted">{metadata}</p>
+      {(visited || metadata) && (
+        <p className="mt-2 flex min-w-0 items-baseline gap-1.5 text-xs text-ink-muted">
+          {visited && (
+            <span className="shrink-0 text-[0.625rem] font-medium tracking-[0.08em] text-gold-700 uppercase">
+              Visited
+            </span>
+          )}
+          {visited && metadata && (
+            <span aria-hidden="true" className="shrink-0 text-gold/70">
+              ·
+            </span>
+          )}
+          {metadata && <span className="truncate">{metadata}</span>}
+        </p>
       )}
       {score && (
         <div

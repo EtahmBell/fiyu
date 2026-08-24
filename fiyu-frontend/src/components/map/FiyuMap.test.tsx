@@ -1,12 +1,12 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { FiyuMap } from "@/components/map/FiyuMap";
 import { publicRestaurantSchema } from "@/lib/api/schemas";
 import { type MappableRestaurant, mappableRestaurants } from "@/lib/geo/mappable";
 import { publishNewlyRevealedMapPlaces } from "@/lib/map/revealEvents";
-import { clearMapViewportSessions } from "@/lib/map/viewportSession";
+import { clearMapViewportSessions, saveMapViewportSession } from "@/lib/map/viewportSession";
 
 /**
  * Fixture coordinates. These are real Tokyo positions used to drive the
@@ -328,6 +328,47 @@ describe("clustering on the map", () => {
       screen.getByRole("button", { name: /2 restaurants in this area/ }).getAttribute("aria-label") ??
       "";
     expect(label).not.toMatch(/popular|trending|busy|favourite|favorite/i);
+  });
+
+  it("zooms a close cluster until its member markers separate", async () => {
+    const a = mappable("a", 35.6978436, 139.7741913, { name_en: "Restaurant A" });
+    const b = mappable("b", 35.69797502625716, 139.77817065934673, {
+      name_en: "Restaurant B",
+    });
+    saveMapViewportSession("cluster-interaction", {
+      resultKey: "a|b",
+      view: { x: 0, y: 0, k: 1 },
+    });
+    const { container } = render(
+      <FiyuMap
+        restaurants={[a, b]}
+        selectedPlaceId={null}
+        onSelect={() => {}}
+        viewportSessionKey="cluster-interaction"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /2 restaurants in this area/ }));
+
+    await waitFor(() => {
+      expect(container.querySelector('[data-marker-kind="restaurant-cluster"]')).toBeNull();
+      expect(container.querySelectorAll('[data-marker-kind="restaurant"]')).toHaveLength(2);
+    });
+  });
+
+  it("lists every restaurant when coincident markers cannot separate at maximum zoom", () => {
+    const onSelect = vi.fn();
+    const a = mappable("a", 35.658, 139.7016, { name_en: "Restaurant A" });
+    const b = mappable("b", 35.658, 139.7016, { name_en: "Restaurant B" });
+    render(<FiyuMap restaurants={[a, b]} selectedPlaceId={null} onSelect={onSelect} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /2 restaurants in this area/ }));
+
+    expect(screen.getByTestId("map-cluster-picker")).toBeTruthy();
+    const restaurantB = screen.getByRole("button", { name: /Restaurant B/ });
+    fireEvent.click(restaurantB);
+    expect(onSelect).toHaveBeenCalledWith(b);
+    expect(screen.queryByTestId("map-cluster-picker")).toBeNull();
   });
 
   it("keeps Picks markers individually selectable by place_id, including collisions", () => {

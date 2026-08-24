@@ -48,7 +48,16 @@ export function RecentDiscoveries({
     );
 
   return (
-    <section aria-labelledby="recent-discoveries-heading" className="border-t border-line pt-5">
+    /*
+     * The rule above this section is the boundary between what Fiyu is showing
+     * the user today and what it has already shown them, so it is the one
+     * divider on the page drawn in champagne rather than neutral grey. Nothing
+     * else about the section's structure changes.
+     */
+    <section
+      aria-labelledby="recent-discoveries-heading"
+      className="border-t border-gold-line pt-5"
+    >
       <h3 id="recent-discoveries-heading" className="font-display text-xl text-ink">
         Recent Discoveries
       </h3>
@@ -72,6 +81,7 @@ export function RecentDiscoveries({
             >
               <CompactRestaurantCard
                 restaurant={restaurant}
+                tone="history"
                 saved={savedRestaurantIds.includes(restaurant.place_id)}
                 savePending={pendingPlaceIds.includes(restaurant.place_id)}
                 expirationLabel={formatExpirationLabel(

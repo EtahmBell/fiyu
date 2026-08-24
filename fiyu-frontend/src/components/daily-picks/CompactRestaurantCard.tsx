@@ -32,11 +32,23 @@ function BookmarkIcon({ filled }: { filled: boolean }) {
   );
 }
 
+/**
+ * Which tense the card is in.
+ *
+ * `current` is a pick from today's selection and stays entirely in the lavender
+ * family. `history` is a place already discovered, and earns the two champagne
+ * details defined below -- a warm top rule and a champagne expiry line -- so a
+ * run of past discoveries reads as a different group from a run of Picks
+ * without either one becoming a different kind of object.
+ */
+export type CompactCardTone = "current" | "history";
+
 export interface CompactRestaurantCardProps {
   restaurant: PublicRestaurant;
   saved: boolean;
   savePending?: boolean;
   expirationLabel?: string;
+  tone?: CompactCardTone;
   onOpen?: (restaurant: PublicRestaurant) => void;
   onViewDetails?: (restaurant: PublicRestaurant) => void;
   onToggleSaved(): void;
@@ -63,10 +75,12 @@ export function CompactRestaurantCard({
   saved,
   savePending = false,
   expirationLabel,
+  tone = "current",
   onOpen,
   onViewDetails,
   onToggleSaved,
 }: CompactRestaurantCardProps) {
+  const history = tone === "history";
   const englishName = englishStructuredValue(restaurant.name_en);
   const title = restaurant.name_ja?.trim() || englishName || "Unnamed restaurant";
   const subtitle = englishName && englishName !== title ? englishName : null;
@@ -96,6 +110,7 @@ export function CompactRestaurantCard({
   return (
     <article
       data-testid="compact-restaurant-card"
+      data-tone={tone}
       role={onOpen ? "button" : undefined}
       tabIndex={onOpen ? 0 : undefined}
       aria-label={onOpen ? `View ${title}` : undefined}
@@ -103,77 +118,97 @@ export function CompactRestaurantCard({
       onDoubleClick={handleDoubleClick}
       onKeyDown={handleKeyDown}
       className={cn(
-        "relative min-w-0 w-full overflow-hidden rounded-card border border-line bg-surface p-3 shadow-[0_6px_20px_-18px_rgba(49,40,61,0.35)] sm:p-3.5 lg:p-3",
+        "relative min-w-0 w-full overflow-hidden rounded-card border border-line bg-surface p-2 shadow-[0_6px_20px_-18px_rgba(49,40,61,0.35)] sm:p-3.5 lg:p-3",
+        // A single warm hairline along the top edge -- the card stays white and
+        // its other three sides stay neutral, so this reads as a rule rather
+        // than as a gold outline.
+        history && "border-t-gold/50",
         onOpen && "cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600",
       )}
       style={{ animation: "fiyu-fade-in 260ms var(--ease-fiyu)" }}
     >
       <div
         data-testid="compact-card-layout"
-        className="grid min-w-0 grid-cols-[minmax(8.75rem,44%)_minmax(0,1fr)] items-stretch gap-3 lg:grid-cols-[minmax(8.5rem,34%)_minmax(0,1fr)] lg:gap-2.5"
+        className="grid min-w-0 grid-cols-[minmax(6.75rem,38%)_minmax(0,1fr)] items-stretch gap-1.5 lg:grid-cols-[minmax(8.5rem,34%)_minmax(0,1fr)] lg:gap-2.5"
       >
         <div className="col-span-2 row-start-1 flex min-w-0 items-start justify-between gap-3 lg:col-span-1 lg:col-start-2">
           <div className="min-w-0 flex-1 pt-0.5">
             <h3
               lang={restaurant.name_ja?.trim() ? "ja" : "en"}
-              className="break-words font-display text-xl leading-tight text-ink lg:line-clamp-2"
+              className="line-clamp-2 break-words font-display text-lg leading-tight text-ink lg:text-xl"
             >
               {title}
             </h3>
             {subtitle && (
-              <p className="mt-1 break-words text-[0.8125rem] leading-snug text-ink-muted lg:line-clamp-2">
+              <p className="mt-0.5 line-clamp-2 break-words text-xs leading-snug text-ink-muted lg:mt-1 lg:text-[0.8125rem]">
                 {subtitle}
               </p>
             )}
           </div>
 
-          <ScoreMark score={restaurant.fiyu_score} size="lg" />
+          <ScoreMark score={restaurant.fiyu_score} size="card" />
         </div>
 
         <RestaurantPhoto
           placeId={restaurant.place_id}
           restaurantName={title}
           fill
-          className="col-start-1 row-start-2 h-40 min-w-0 lg:row-span-2 lg:row-start-1 lg:h-full lg:min-h-44"
+          className="col-start-1 row-start-2 h-20 min-w-0 lg:row-span-2 lg:row-start-1 lg:h-full lg:min-h-44"
         />
 
         <div className="col-start-2 row-start-2 flex min-w-0 flex-col">
           {description && (
-            <p className="line-clamp-3 max-w-prose text-[0.8125rem] leading-5 text-ink/75 lg:mt-1.5 lg:leading-5">
+            <p className="line-clamp-2 max-w-prose text-xs leading-[1.125rem] text-ink/75 lg:mt-1.5 lg:line-clamp-3 lg:text-[0.8125rem] lg:leading-5">
               {description}
             </p>
           )}
 
+          {/*
+            The expiry line is the one piece of copy on this card that is about
+            the past rather than the restaurant, so on a history card it carries
+            the champagne. The wording states the status on its own; the colour
+            only reinforces it.
+          */}
           {expirationLabel && (
-            <p className="mt-2 text-[0.6875rem] text-ink-faint">{expirationLabel}</p>
+            <p
+              className={cn(
+                "mt-1.5 text-[0.6875rem] lg:mt-2",
+                history ? "font-medium text-gold-700" : "text-ink-faint",
+              )}
+            >
+              {expirationLabel}
+            </p>
           )}
         </div>
       </div>
 
-      {tags.length > 0 && <TagList tags={tags} max={3} className="mt-3 lg:mt-2" />}
+      {tags.length > 0 && (
+        <TagList tags={tags} max={3} className="mt-2 hidden lg:flex" />
+      )}
 
       <div
         data-testid="compact-card-footer"
-        className="relative z-10 mt-3 min-w-0 border-t border-line pt-2.5 lg:mt-2 lg:pt-2"
+        className="relative z-10 mt-1.5 min-w-0 border-t border-line pt-1 lg:mt-2 lg:pt-2"
       >
-        <div className="min-w-0 max-w-full" onClick={(event) => event.stopPropagation()}>
-          <OutboundMapActions restaurant={restaurant} variant="footer" />
-        </div>
-        <div className="mt-0.5 flex min-w-0 items-center gap-3">
-          {onViewDetails && (
+        <div className="flex min-w-0 items-center gap-1 lg:block" onClick={(event) => event.stopPropagation()}>
+          <div className="min-w-0 flex-1 lg:max-w-full">
+            <OutboundMapActions restaurant={restaurant} variant="footer" />
+          </div>
+          <div className="flex min-w-0 shrink-0 items-center gap-1 lg:mt-0.5 lg:w-full lg:gap-3">
+            {onViewDetails && (
             <button
               type="button"
               onClick={(event) => {
                 event.stopPropagation();
                 onViewDetails(restaurant);
               }}
-              className="relative z-10 inline-flex min-h-11 min-w-0 items-center gap-1.5 py-2 pr-3 text-left text-sm font-semibold text-plum underline decoration-transparent underline-offset-4 transition-colors hover:decoration-lavender-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600"
+              className="relative z-10 inline-flex min-h-9 min-w-0 items-center gap-1 py-0.5 pr-1 text-left text-xs font-semibold whitespace-nowrap text-plum underline decoration-transparent underline-offset-4 transition-colors hover:decoration-lavender-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600 lg:min-h-11 lg:gap-1.5 lg:py-2 lg:pr-3 lg:text-sm"
             >
               <span>View restaurant</span>
               <span aria-hidden="true">→</span>
             </button>
-          )}
-          <button
+            )}
+            <button
             type="button"
             aria-pressed={saved}
             aria-label={saved ? "Remove restaurant from saved" : "Save restaurant"}
@@ -190,7 +225,7 @@ export function CompactRestaurantCard({
               event.stopPropagation();
             }}
             className={cn(
-              "relative z-10 ml-auto inline-flex size-11 shrink-0 items-center justify-center",
+              "relative z-10 inline-flex size-9 shrink-0 items-center justify-center lg:ml-auto lg:size-11",
               "transition-[color,transform] duration-[180ms]",
               "ease-(--ease-fiyu) active:scale-[0.98]",
               "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600",
@@ -201,7 +236,8 @@ export function CompactRestaurantCard({
             )}
           >
             <BookmarkIcon filled={saved} />
-          </button>
+            </button>
+          </div>
         </div>
       </div>
     </article>

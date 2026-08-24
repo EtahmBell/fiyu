@@ -11,6 +11,7 @@ import {
   authenticatedMapRestaurantsUrl,
   dailyPicksAssignUrl,
   dailyPicksActiveUrl,
+  dailyPicksRecentUrl,
   discoveryLocationCheckUrl,
   discoveryLocationUrl,
   defaultListItemsUrl,
@@ -36,6 +37,7 @@ import {
 } from "@/lib/api/endpoints";
 import {
   type DailyPickAssignmentResponse,
+  type RecentDailyPickRound,
   type DiscoveryLocation,
   type CurrentLocationCheck,
   type DefaultListMembershipResponse,
@@ -55,6 +57,7 @@ import {
   defaultListMembershipResponseSchema,
   dailyPickAssignmentResponseSchema,
   activeDailyPickAssignmentResponseSchema,
+  recentDailyPickRoundListSchema,
   discoveryLocationSchema,
   currentLocationCheckSchema,
   defaultListMutationResponseSchema,
@@ -329,6 +332,7 @@ export interface DailyPickAssignmentRequest {
   categories: string[];
   non_japanese: "yes" | "occasionally" | "japanese-only";
   active_area: string | null;
+  location_mode?: "current" | "preview" | "manual" | null;
   discovery_latitude?: number | null;
   discovery_longitude?: number | null;
   seed?: number;
@@ -344,6 +348,23 @@ export function fetchActiveDailyPicks(
     dailyPicksActiveUrl(cityId),
     paths.dailyPicksActive,
     activeDailyPickAssignmentResponseSchema,
+    {
+      ...options,
+      cache: "no-store",
+      headers: { ...listHeaders(identity), ...(options.headers ?? {}) },
+    },
+  );
+}
+
+export function fetchRecentDailyPicks(
+  cityId: string,
+  identity: ListIdentity,
+  options: RequestOptions = {},
+): Promise<RecentDailyPickRound[]> {
+  return requestJson(
+    dailyPicksRecentUrl(cityId),
+    paths.dailyPicksRecent,
+    recentDailyPickRoundListSchema,
     {
       ...options,
       cache: "no-store",

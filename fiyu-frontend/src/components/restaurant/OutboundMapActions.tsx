@@ -63,7 +63,7 @@ export function OutboundMapActions({
     <ul
       className={cn(
         "flex min-w-0 max-w-full flex-wrap",
-        footer ? "gap-x-3 gap-y-0" : "gap-x-4 gap-y-1",
+        footer ? "flex-nowrap gap-x-1 gap-y-0 lg:flex-wrap lg:gap-x-3" : "gap-x-4 gap-y-1",
         className,
       )}
     >
@@ -79,7 +79,7 @@ export function OutboundMapActions({
             className={cn(
               "relative z-10 break-words transition-colors duration-200 ease-(--ease-fiyu)",
               footer
-                ? "inline-flex min-h-11 items-center gap-1.5 py-2 pr-3 text-xs font-medium text-ink-muted underline decoration-transparent underline-offset-4 hover:text-plum hover:decoration-line-strong"
+                ? "inline-flex min-h-9 items-center gap-0.5 py-0.5 pr-1 text-[0.6875rem] font-medium whitespace-nowrap text-ink-muted underline decoration-transparent underline-offset-4 hover:text-plum hover:decoration-line-strong lg:min-h-11 lg:gap-1.5 lg:py-2 lg:pr-3 lg:text-xs"
                 : "inline-flex min-h-11 items-center gap-1.5 py-2 pr-3 text-xs font-medium text-lavender-700 underline decoration-line underline-offset-2 hover:text-plum hover:decoration-lavender-500",
             )}
           >

@@ -22,10 +22,12 @@ from . import supabase_user_data as shared_user_data
 from .account_deletion import delete_local_account_data
 from .daily_picks import (
     ACTIVE_SNAPSHOT_DURATION,
+    RECENT_DISCOVERY_DURATION,
     DailyPickAssignment,
     InsufficientUnseenPoolError,
     assign_daily_picks,
     get_active_daily_picks,
+    get_recent_daily_pick_rounds,
     seed_served_history,
     select_daily_pick_plan,
     served_place_ids,
@@ -548,6 +550,7 @@ class DailyPickAssignmentRequest(BaseModel):
     )
     non_japanese: Literal["yes", "occasionally", "japanese-only"] = "occasionally"
     active_area: str | None = Field(default=None, max_length=120)
+    location_mode: Literal["current", "preview", "manual"] | None = None
     discovery_latitude: float | None = Field(default=None, ge=-90, le=90)
     discovery_longitude: float | None = Field(default=None, ge=-180, le=180)
     seed: int | None = None
@@ -560,6 +563,17 @@ class DailyPickAssignmentResponse(BaseModel):
     place_ids: list[str]
     assigned_at: str
     expires_at: str
+    discovery_mode: Literal["current", "preview", "manual"] | None = None
+    discovery_label: str | None = None
+    restaurants: list[PublicRestaurantSummary] = Field(default_factory=list)
+
+
+class RecentDailyPickRoundResponse(BaseModel):
+    round_id: str
+    city_id: str
+    place_ids: list[str]
+    assigned_at: str
+    retention_expires_at: str
     restaurants: list[PublicRestaurantSummary] = Field(default_factory=list)
 
 
@@ -1064,6 +1078,8 @@ def _daily_pick_response(
         place_ids=list(assignment.place_ids),
         assigned_at=assignment.assigned_at,
         expires_at=assignment.expires_at,
+        discovery_mode=assignment.selection_metadata.get("discovery_mode"),
+        discovery_label=assignment.selection_metadata.get("discovery_label"),
         restaurants=_public_restaurants_for_place_ids(assignment.place_ids),
     )
 
@@ -1133,8 +1149,13 @@ def create_daily_pick_assignment(
                     seed=request.seed,
                 )
             metadata["discovery_mode"] = (
-                str(saved_location.get("location_mode")) if saved_location else None
+                str(saved_location.get("location_mode"))
+                if saved_location
+                else request.location_mode
             )
+            metadata["discovery_label"] = active_area
+            metadata["discovery_latitude"] = discovery_latitude
+            metadata["discovery_longitude"] = discovery_longitude
             assignment = _shared_assignment(
                 shared_user_data.assign_or_get_active_daily_picks(
                     user_id=str(owner_id),
@@ -1151,6 +1172,7 @@ def create_daily_pick_assignment(
                 owner_id=owner_id,
                 city_id=city_id,
                 active_area=active_area,
+                discovery_mode=request.location_mode,
                 discovery_latitude=discovery_latitude,
                 discovery_longitude=discovery_longitude,
                 seed=request.seed,
@@ -1188,6 +1210,42 @@ def get_active_daily_pick_assignment(
             DB_PATH, owner_id=owner_id, city_id=normalized_city
         )
     return _daily_pick_response(assignment, normalized_city) if assignment else None
+
+
+@app.get("/daily-picks/recent", response_model=list[RecentDailyPickRoundResponse])
+def get_recent_daily_pick_discoveries(
+    owner_id: Annotated[str, Depends(_owner_id_from_header)],
+    city_id: str = Query(default="tokyo"),
+) -> list[RecentDailyPickRoundResponse]:
+    """Return complete expired Picks rounds still inside the existing 72-hour window."""
+    _ensure_database()
+    normalized_city = _normalize_list_city(city_id)
+    now = datetime.now(UTC)
+    if _shared_owner(owner_id):
+        rows = shared_user_data.get_recent_daily_pick_rounds(
+            user_id=str(owner_id),
+            city_id=normalized_city,
+            assigned_after=(now - RECENT_DISCOVERY_DURATION).isoformat(),
+            expired_at_or_before=now.isoformat(),
+        )
+        rounds = [_shared_assignment(row) for row in rows]
+    else:
+        rounds = get_recent_daily_pick_rounds(
+            DB_PATH, owner_id=owner_id, city_id=normalized_city, now=now
+        )
+    return [
+        RecentDailyPickRoundResponse(
+            round_id=round.round_id,
+            city_id=normalized_city,
+            place_ids=list(round.place_ids),
+            assigned_at=round.assigned_at,
+            retention_expires_at=(
+                (_parse_pick_datetime(round.assigned_at) or now) + RECENT_DISCOVERY_DURATION
+            ).isoformat(),
+            restaurants=_public_restaurants_for_place_ids(round.place_ids),
+        )
+        for round in rounds
+    ]
 
 
 @app.get("/seen/restaurants", response_model=SeenRestaurantsResponse)
@@ -1255,12 +1313,31 @@ def _authenticated_map_membership(
     user_id: str, *, city_id: str = "tokyo"
 ) -> tuple[list[str], set[str]]:
     """Derive Map membership and visit state from current account relationships."""
+    now = datetime.now(UTC)
     active = shared_user_data.get_active_daily_picks(user_id=user_id, city_id=city_id)
     active_place_ids = active.get("place_ids", []) if active else []
+    recent_rounds = shared_user_data.get_recent_daily_pick_rounds(
+        user_id=user_id,
+        city_id=city_id,
+        assigned_after=(now - RECENT_DISCOVERY_DURATION).isoformat(),
+        expired_at_or_before=now.isoformat(),
+    )
+    recent_place_ids = [
+        place_id
+        for round_row in recent_rounds
+        for place_id in round_row.get("place_ids", [])
+    ]
     visited_place_ids = list(shared_user_data.visited_place_ids(user_id=user_id))
     visited_place_id_set = set(visited_place_ids)
     visible_place_ids = list(
-        dict.fromkeys(str(place_id) for place_id in [*active_place_ids, *visited_place_ids])
+        dict.fromkeys(
+            str(place_id)
+            for place_id in [
+                *active_place_ids,
+                *recent_place_ids,
+                *visited_place_ids,
+            ]
+        )
     )
     return visible_place_ids, visited_place_id_set
 
@@ -1268,7 +1345,7 @@ def _authenticated_map_membership(
 def _authenticated_map_visible_place_ids(
     user_id: str, *, city_id: str = "tokyo"
 ) -> list[str]:
-    """Return current Picks plus visits; saves and seen history are not Map unlocks."""
+    """Return active/recent Picks plus visits; saves and seen are not Map unlocks."""
     return _authenticated_map_membership(user_id, city_id=city_id)[0]
 
 
@@ -1315,7 +1392,7 @@ def _authenticated_user_id(
 def get_authenticated_map_restaurants(
     user_id: Annotated[str, Depends(_authenticated_user_id)],
 ) -> list[dict[str, object]]:
-    """Intersect current Picks, saves, and visits with Map-eligible catalog rows."""
+    """Intersect active/recent Picks and visits with Map-eligible catalog rows."""
     _ensure_database()
     return _authenticated_map_restaurants(user_id)
 

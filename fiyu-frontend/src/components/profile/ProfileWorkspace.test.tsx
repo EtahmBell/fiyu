@@ -73,6 +73,13 @@ describe("ProfileWorkspace", () => {
     expect(screen.getByRole("link", { name: "Notifications" }).className).toContain(
       "hover:bg-lavender-50/55",
     );
+    const identity = screen.getByTestId("mobile-profile-identity");
+    expect(identity.className).not.toContain("rounded-2xl");
+    expect(identity.className).not.toContain("border-lavender");
+    expect(identity.className).not.toContain("bg-lavender");
+    expect(screen.getByLabelText("Default profile avatar").parentElement?.className).toContain(
+      "bg-lavender-100/70",
+    );
     expect(screen.getByRole("navigation", { name: "Mobile primary" }).className).toContain(
       "fixed",
     );

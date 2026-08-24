@@ -6,17 +6,28 @@
 /*
  * Fiyu design tokens.
  *
- * A warm neutral canvas with a single cool signature: lavender. The contrast
- * between warm paper and cool accent is the identity -- so lavender is spent
- * deliberately, on selection, the score mark, pins, focus and primary actions,
- * and nowhere else.
+ * A warm neutral canvas with two accents that divide the product by tense.
+ *
+ *   Lavender is NOW. Current discovery, active state, selection, focus, the
+ *   primary action and the Fiyu Score. It is the brand, so it is spent
+ *   deliberately and nowhere else.
+ *
+ *   Champagne is THEN. Places already discovered, already visited, already
+ *   logged -- plus the editorial warmth that sits under that history. It never
+ *   competes for the same job as lavender, and it is never the loudest mark on
+ *   a surface: hairlines, small marks and micro-caps metadata only. No fill
+ *   larger than a chip, no outline running all the way round a card, and always
+ *   paired with a word or a shape so colour is never the only signal.
  *
  * Contrast, measured against WCAG 2.1:
  *   lavender-500  3.77:1 on white  -> GRAPHICS ONLY (pins, rules, focus rings)
  *   lavender-600  4.89:1 on white  -> AA for text and for white-on-fill
  *   lavender-700  6.65:1 on white  -> comfortable for small text
+ *   gold          3.20:1 on white  -> GRAPHICS ONLY (pins, rules, hairlines)
+ *   gold-700      5.04:1 on white, 4.64:1 on canvas -> AA for small text
  *   ink-muted     4.76:1 on canvas -> AA for body text
- * Never set text in lavender-500, and never fill a button with it.
+ * Never set text in lavender-500 or in gold, and never fill a button with
+ * either.
  */
 @theme {
   --color-canvas: #f7f5f2;
@@ -35,8 +46,22 @@
   --color-lavender-600: #7657e8;
   --color-lavender-700: #6044c8;
   --color-plum: #31283d;
-  --color-gold: #b18a36;
+
+  /*
+   * Champagne: the secondary accent, four steps deep so a history treatment
+   * never has to reach for a one-off hex.
+   *
+   *   gold-line  the warm peer of --color-line. Swapped in for a neutral
+   *              hairline where that line separates past from present.
+   *   gold-soft  the only permitted champagne fill, and only at chip scale.
+   *   gold       marks and rules: map pins for visited places, accent rules.
+   *   gold-700   the text step. Datelines, expiry, visited status.
+   */
+  --color-gold-line: #e7dcc2;
   --color-gold-soft: #f5ecd5;
+  --color-gold: #b18a36;
+  --color-gold-700: #8a6a1f;
+
   --color-rose-dust: #c58f98;
 
   --color-status-open: #2c6a45;

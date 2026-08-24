@@ -14,6 +14,11 @@ export interface SignatureDishesProps {
  * run of prose rather than chips, so it supports the recommendation instead of
  * competing with it. "Signature" is UI copy; the dish names are API content and
  * are never translated or romanized.
+ *
+ * The label carries the card's one champagne detail. It is the most editorial
+ * field on an otherwise white card -- a house judgement about what to order
+ * rather than a fact about the restaurant -- so it takes the warm accent while
+ * the Fiyu Score above it stays lavender.
  */
 export function SignatureDishes({ dishes, max, className }: SignatureDishesProps) {
   if (dishes.length === 0) return null;
@@ -23,8 +28,8 @@ export function SignatureDishes({ dishes, max, className }: SignatureDishesProps
 
   return (
     <p className={cn("text-[0.6875rem] leading-relaxed text-ink-faint", className)}>
-      <span className="tracking-[0.08em] uppercase">Signature</span>
-      <span aria-hidden="true"> · </span>
+      <span className="font-medium tracking-[0.08em] text-gold-700 uppercase">Signature</span>
+      <span aria-hidden="true" className="text-gold/70"> · </span>
       {visible.map((dish, index) => (
         <span key={dish}>
           {index > 0 && <span aria-hidden="true">, </span>}

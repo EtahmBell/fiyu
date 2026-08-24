@@ -474,6 +474,48 @@ def get_active_daily_picks(*, user_id: str, city_id: str) -> dict[str, Any] | No
     return {**row, "place_ids": [str(item["place_id"]) for item in items]}
 
 
+def get_recent_daily_pick_rounds(
+    *, user_id: str, city_id: str, assigned_after: str, expired_at_or_before: str
+) -> list[dict[str, Any]]:
+    """Return complete historical rounds without consulting interaction state."""
+    rounds = _request(
+        "fiyu_daily_pick_rounds",
+        query={
+            "select": "id,assigned_at,expires_at,selection_metadata",
+            "user_id": f"eq.{user_id}",
+            "city_id": f"eq.{city_id}",
+            "assigned_at": f"gt.{assigned_after}",
+            "expires_at": f"lte.{expired_at_or_before}",
+            "order": "assigned_at.desc,id.desc",
+        },
+    )
+    if not isinstance(rounds, list) or not rounds:
+        return []
+    round_ids = [str(row["id"]) for row in rounds]
+    items = _request(
+        "fiyu_daily_pick_round_items",
+        query={
+            "select": "round_id,place_id,position",
+            "user_id": f"eq.{user_id}",
+            "round_id": f"in.({','.join(round_ids)})",
+            "order": "round_id.asc,position.asc",
+        },
+    )
+    if not isinstance(items, list):
+        return []
+    items_by_round: dict[str, list[dict[str, Any]]] = {}
+    for item in items:
+        items_by_round.setdefault(str(item["round_id"]), []).append(item)
+    result: list[dict[str, Any]] = []
+    for row in rounds:
+        round_items = sorted(
+            items_by_round.get(str(row["id"]), []), key=lambda item: int(item["position"])
+        )
+        if len(round_items) == 3:
+            result.append({**row, "place_ids": [str(item["place_id"]) for item in round_items]})
+    return result
+
+
 def assign_or_get_active_daily_picks(
     *,
     user_id: str,

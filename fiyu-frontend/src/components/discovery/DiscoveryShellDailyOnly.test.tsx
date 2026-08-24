@@ -23,8 +23,12 @@ const router = vi.hoisted(() => ({ push: vi.fn() }));
 const dailyApi = vi.hoisted(() => ({
   assignDailyPicks: vi.fn(),
   fetchActiveDailyPicks: vi.fn(),
+  fetchRecentDailyPicks: vi.fn(),
 }));
-const locationApi = vi.hoisted(() => ({ fetchDiscoveryLocation: vi.fn() }));
+const locationApi = vi.hoisted(() => ({
+  checkCurrentDiscoveryLocation: vi.fn(),
+  fetchDiscoveryLocation: vi.fn(),
+}));
 const mapApi = vi.hoisted(() => ({ fetchAuthenticatedMapRestaurants: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => router }));
 vi.mock("@/lib/api/client", async (importOriginal) => {
@@ -33,6 +37,8 @@ vi.mock("@/lib/api/client", async (importOriginal) => {
     ...actual,
     assignDailyPicks: dailyApi.assignDailyPicks,
     fetchActiveDailyPicks: dailyApi.fetchActiveDailyPicks,
+    fetchRecentDailyPicks: dailyApi.fetchRecentDailyPicks,
+    checkCurrentDiscoveryLocation: locationApi.checkCurrentDiscoveryLocation,
     fetchDiscoveryLocation: locationApi.fetchDiscoveryLocation,
     fetchAuthenticatedMapRestaurants: mapApi.fetchAuthenticatedMapRestaurants,
   };
@@ -120,6 +126,47 @@ function storeRevealedPick(accountId: string | null, placeId: string) {
   );
 }
 
+function installControlledGeolocation() {
+  let success: PositionCallback | undefined;
+  let failure: PositionErrorCallback | undefined;
+  const getCurrentPosition = vi.fn(
+    (nextSuccess: PositionCallback, nextFailure?: PositionErrorCallback | null) => {
+      success = nextSuccess;
+      failure = nextFailure ?? undefined;
+    },
+  );
+  Object.defineProperty(navigator, "geolocation", {
+    configurable: true,
+    value: { getCurrentPosition },
+  });
+  return {
+    getCurrentPosition,
+    grant(latitude: number, longitude: number) {
+      success?.({
+        coords: {
+          latitude,
+          longitude,
+          accuracy: 25,
+          altitude: null,
+          altitudeAccuracy: null,
+          heading: null,
+          speed: null,
+        },
+        timestamp: Date.now(),
+      } as GeolocationPosition);
+    },
+    deny() {
+      failure?.({
+        code: 1,
+        message: "denied",
+        PERMISSION_DENIED: 1,
+        POSITION_UNAVAILABLE: 2,
+        TIMEOUT: 3,
+      });
+    },
+  };
+}
+
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 beforeEach(() => {
@@ -129,10 +176,16 @@ beforeEach(() => {
   router.push.mockReset();
   dailyApi.assignDailyPicks.mockReset();
   dailyApi.fetchActiveDailyPicks.mockReset();
+  dailyApi.fetchRecentDailyPicks.mockReset();
   locationApi.fetchDiscoveryLocation.mockReset();
+  locationApi.checkCurrentDiscoveryLocation.mockReset();
   mapApi.fetchAuthenticatedMapRestaurants.mockReset();
   mapApi.fetchAuthenticatedMapRestaurants.mockResolvedValue(catalog.slice(0, 3));
   locationApi.fetchDiscoveryLocation.mockImplementation(() => new Promise(() => undefined));
+  locationApi.checkCurrentDiscoveryLocation.mockResolvedValue({
+    inside_service_area: false,
+    location: configuredLocation("Ginza", "preview"),
+  });
   dailyApi.assignDailyPicks.mockResolvedValue({
     round_id: "round-one",
     city_id: "tokyo",
@@ -140,6 +193,7 @@ beforeEach(() => {
     assigned_at: new Date().toISOString(),
   });
   dailyApi.fetchActiveDailyPicks.mockResolvedValue(null);
+  dailyApi.fetchRecentDailyPicks.mockResolvedValue([]);
   Object.defineProperty(window, "matchMedia", {
     configurable: true,
     value: () => ({
@@ -166,16 +220,14 @@ describe("daily-only discovery shell", () => {
     [390, 844],
     [430, 932],
     [768, 1024],
-  ])("renders a floating collapsed mini-map beside the primary feed at %ix%i", async (width, height) => {
+  ])("keeps the final mobile Pick reachable above the fixed nav at %ix%i", async (width, height) => {
     Object.defineProperty(window, "innerWidth", { configurable: true, value: width });
     Object.defineProperty(window, "innerHeight", { configurable: true, value: height });
     storeRevealedPick(null, "one");
 
     render(<DiscoveryShell restaurants={catalog} areaAnchors={[]} />);
 
-    expect((await screen.findByTestId("discovery-layout")).className).toContain(
-      "grid-rows-[minmax(0,1fr)]",
-    );
+    expect(await screen.findByTestId("discovery-layout")).toBeTruthy();
     const desktopIntro = screen.getByTestId("desktop-page-intro");
     expect(desktopIntro.className).toContain("hidden");
     expect(desktopIntro.className).toContain("lg:block");
@@ -183,17 +235,11 @@ describe("daily-only discovery shell", () => {
     expect(desktopIntro.textContent).toContain(
       "Authentic, independent, underexposed restaurants",
     );
-    expect(screen.getByTestId("mobile-map-region").className).toContain("fixed");
-    expect(screen.getByTestId("mobile-map-region").className).toContain("right-4");
+    expect(screen.queryByTestId("mobile-map-region")).toBeNull();
     expect(screen.getByTestId("restaurant-scroll-region").className).toContain("row-start-1");
     expect(screen.getByTestId("restaurant-scroll-region").className).toContain("overflow-y-auto");
     expect(screen.getByTestId("restaurant-scroll-region").firstElementChild?.className).toContain(
-      "pb-[calc(17rem+env(safe-area-inset-bottom))]",
-    );
-    expect(screen.getByRole("button", { name: "Expand map" })).toBeTruthy();
-    expect(screen.getByTestId("mobile-map-region").className).toContain("lg:static");
-    expect(screen.getByTestId("mobile-map-region").className).toContain(
-      "bottom-[calc(var(--spacing-mobile-nav)+0.75rem)]",
+      "pb-[calc(var(--spacing-mobile-nav)+1.5rem)]",
     );
     const mobileHeading = screen.getByTestId("mobile-picks-page-header");
     expect(mobileHeading.className).toContain("lg:hidden");
@@ -238,7 +284,7 @@ describe("daily-only discovery shell", () => {
     expect(revealed?.name_en).toBeTruthy();
     expect(screen.getAllByText(revealed?.name_en ?? "")).toHaveLength(1);
     expect(container.querySelectorAll("[data-place-id]")).toHaveLength(1);
-    expect(screen.getByTestId("mobile-map-region")).toBeTruthy();
+    expect(screen.queryByTestId("mobile-map-region")).toBeNull();
     expect(container.querySelector('[data-place-id="two"]')).toBeNull();
     expect(container.querySelector('[data-place-id="three"]')).toBeNull();
   });
@@ -271,21 +317,7 @@ describe("daily-only discovery shell", () => {
     expect(dailyPanel?.className).toContain("min-w-0");
     expect(dailyPanel?.className).toContain("w-full");
 
-    fireEvent.click(screen.getByRole("button", { name: "Expand map" }));
-    const panel = screen.getByTestId("mobile-map-region");
-    expect(panel.dataset.expanded).toBe("true");
-    expect(panel.className).toContain("left-4");
-    expect(panel.className).toContain("h-[min(50dvh,32rem)]");
-    const mapContent = screen.getByRole("img", { name: /Map of Tokyo/ }).querySelector(
-      "g[transform]",
-    ) as SVGGElement;
-    fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
-    const expandedTransform = mapContent.getAttribute("transform");
-    fireEvent.click(screen.getByRole("button", { name: "Collapse map" }));
-    fireEvent.click(screen.getByRole("button", { name: "Expand map" }));
-    expect(mapContent.getAttribute("transform")).toBe(expandedTransform);
-    fireEvent.keyDown(window, { key: "Escape" });
-    expect(panel.dataset.expanded).toBe("false");
+    expect(screen.queryByTestId("mobile-map-region")).toBeNull();
 
     expect(container.querySelector('[data-place-id="two"]')).toBeNull();
     expect(container.querySelector('[data-place-id="three"]')).toBeNull();
@@ -477,6 +509,45 @@ describe("daily-only discovery shell", () => {
     ).toBeTruthy();
   });
 
+  it("restores all three restaurants from a previous persisted round without interactions", async () => {
+    const assignedAt = new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString();
+    dailyApi.fetchRecentDailyPicks.mockResolvedValue([
+      {
+        round_id: "previous-round",
+        city_id: "tokyo",
+        place_ids: catalog.slice(0, 3).map((restaurant) => restaurant.place_id),
+        assigned_at: assignedAt,
+        retention_expires_at: new Date(
+          Date.parse(assignedAt) + 72 * 60 * 60 * 1000,
+        ).toISOString(),
+        restaurants: catalog.slice(0, 3),
+      },
+    ]);
+    locationApi.fetchDiscoveryLocation.mockResolvedValue(configuredLocation("Shinjuku"));
+    publishProfileIdentity(accountProfile("account-a", "accounta"));
+
+    const first = render(<DiscoveryShell restaurants={[]} areaAnchors={[]} />);
+    await waitFor(() => {
+      expect(
+        JSON.parse(window.localStorage.getItem(dailyPicksStorageKey("account-a")) ?? "{}")
+          .discoveries,
+      ).toHaveLength(3);
+    });
+    const recentHeading = await screen.findByRole("heading", { name: "Recent Discoveries" });
+    const recentSection = recentHeading.closest("section");
+    expect(recentSection).not.toBeNull();
+    for (const restaurant of catalog.slice(0, 3)) {
+      expect(
+        await within(recentSection as HTMLElement).findByText(restaurant.name_en ?? ""),
+      ).toBeTruthy();
+    }
+
+    first.unmount();
+    render(<DiscoveryShell restaurants={[]} areaAnchors={[]} />);
+    expect(await screen.findByRole("heading", { name: "Recent Discoveries" })).toBeTruthy();
+    expect(dailyApi.fetchRecentDailyPicks).toHaveBeenCalledTimes(2);
+  });
+
   it("omits the mobile mini-map and its reserved space for a fresh account", async () => {
     locationApi.fetchDiscoveryLocation.mockResolvedValueOnce(configuredLocation("Shinjuku"));
     publishProfileIdentity(accountProfile("account-fresh", "fresh"));
@@ -490,10 +561,10 @@ describe("daily-only discovery shell", () => {
     expect(screen.getByTestId("desktop-map-region").className).toContain("hidden");
     const content = screen.getByTestId("restaurant-scroll-region").firstElementChild;
     expect(content?.className).not.toContain("pb-[calc(17rem");
-    expect(content?.className).toContain("pb-[calc(1.5rem");
+    expect(content?.className).toContain("pb-[calc(var(--spacing-mobile-nav)+1.5rem)]");
   });
 
-  it("shows the mobile mini-map reactively after the first restaurant is revealed", async () => {
+  it("keeps mobile Picks free of a mini-map after the first restaurant is revealed", async () => {
     locationApi.fetchDiscoveryLocation.mockResolvedValueOnce(configuredLocation("Shinjuku"));
     publishProfileIdentity(accountProfile("account-first-pick", "firstpick"));
     render(<DiscoveryShell restaurants={catalog} areaAnchors={[]} />);
@@ -508,16 +579,20 @@ describe("daily-only discovery shell", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Tap to reveal restaurant 1" }));
 
-    expect(screen.getByTestId("mobile-map-region")).toBeTruthy();
-    expect(document.querySelectorAll("[data-place-id]")).toHaveLength(1);
+    expect(screen.queryByTestId("mobile-map-region")).toBeNull();
   });
 
-  it("removes Account A's mini-map while Account B with no markers hydrates", async () => {
+  it("removes Account A's hidden desktop markers while Account B hydrates", async () => {
     storeRevealedPick("account-a", "one");
     locationApi.fetchDiscoveryLocation.mockResolvedValueOnce(configuredLocation("Shinjuku"));
+    mapApi.fetchAuthenticatedMapRestaurants
+      .mockResolvedValueOnce([catalog[0]])
+      .mockResolvedValueOnce([]);
     publishProfileIdentity(accountProfile("account-a", "accounta"));
     render(<DiscoveryShell restaurants={catalog} areaAnchors={[]} />);
-    expect(await screen.findByTestId("mobile-map-region")).toBeTruthy();
+    await waitFor(() => expect(document.querySelectorAll("[data-place-id]")).toHaveLength(1));
+    expect(screen.queryByTestId("mobile-map-region")).toBeNull();
+    mapApi.fetchAuthenticatedMapRestaurants.mockResolvedValue([]);
 
     let resolveAccountB: ((location: DiscoveryLocation) => void) | undefined;
     locationApi.fetchDiscoveryLocation.mockImplementationOnce(
@@ -532,7 +607,7 @@ describe("daily-only discovery shell", () => {
     await act(async () => resolveAccountB?.(configuredLocation("Shibuya")));
     expect(await screen.findByTestId("discovery-layout")).toBeTruthy();
     expect(screen.queryByTestId("mobile-map-region")).toBeNull();
-    expect(document.querySelectorAll("[data-place-id]")).toHaveLength(0);
+    await waitFor(() => expect(document.querySelectorAll("[data-place-id]")).toHaveLength(0));
   });
 
   it("renders every revealed assignment restaurant on the desktop map even when it is outside the page catalog", async () => {
@@ -639,9 +714,148 @@ describe("daily-only discovery shell", () => {
     expect(dailyApi.assignDailyPicks).toHaveBeenCalledWith(
       expect.objectContaining({
         active_area: "Shinjuku",
+        location_mode: "current",
         discovery_latitude: 35.6938,
         discovery_longitude: 139.7034,
       }),
+      expect.anything(),
+    );
+  });
+
+  it("keeps an outside-Tokyo preview when the live device point is still outside", async () => {
+    const gps = installControlledGeolocation();
+    const preview = {
+      ...configuredLocation("Ginza", "preview"),
+      discovery_latitude: 35.6717,
+      discovery_longitude: 139.765,
+    };
+    locationApi.fetchDiscoveryLocation.mockResolvedValueOnce(preview);
+    locationApi.checkCurrentDiscoveryLocation.mockResolvedValueOnce({
+      inside_service_area: false,
+      location: preview,
+    });
+    publishProfileIdentity(accountProfile("account-a", "accounta"));
+    render(<DiscoveryShell restaurants={catalog} areaAnchors={[]} />);
+
+    await waitFor(() => expect(gps.getCurrentPosition).toHaveBeenCalledOnce());
+    act(() => gps.grant(34.6937, 135.5023));
+    fireEvent.click(await screen.findByRole("button", { name: /Find today's restaurants/i }));
+
+    expect(dailyApi.assignDailyPicks).toHaveBeenCalledWith(
+      expect.objectContaining({
+        active_area: "Ginza",
+        discovery_latitude: 35.6717,
+        discovery_longitude: 139.765,
+      }),
+      expect.anything(),
+    );
+  });
+
+  it("promotes confirmed in-Tokyo GPS over a persisted preview for the next round", async () => {
+    const gps = installControlledGeolocation();
+    const preview = configuredLocation("Ginza", "preview");
+    const live = {
+      ...configuredLocation("Shibuya", "current"),
+      discovery_latitude: 35.658,
+      discovery_longitude: 139.7016,
+    };
+    locationApi.fetchDiscoveryLocation.mockResolvedValueOnce(preview);
+    locationApi.checkCurrentDiscoveryLocation.mockResolvedValueOnce({
+      inside_service_area: true,
+      location: live,
+    });
+    publishProfileIdentity(accountProfile("account-a", "accounta"));
+    render(<DiscoveryShell restaurants={catalog} areaAnchors={[]} />);
+
+    await waitFor(() => expect(gps.getCurrentPosition).toHaveBeenCalledOnce());
+    act(() => gps.grant(35.658, 139.7016));
+    await waitFor(() =>
+      expect(locationApi.checkCurrentDiscoveryLocation).toHaveBeenCalledWith(
+        35.658,
+        139.7016,
+      ),
+    );
+    fireEvent.click(await screen.findByRole("button", { name: /Find today's restaurants/i }));
+
+    expect(dailyApi.assignDailyPicks).toHaveBeenCalledWith(
+      expect.objectContaining({
+        active_area: "Shibuya",
+        location_mode: "current",
+        discovery_latitude: 35.658,
+        discovery_longitude: 139.7016,
+      }),
+      expect.anything(),
+    );
+  });
+
+  it("does not regenerate an active snapshot when preview GPS resolves inside Tokyo", async () => {
+    const gps = installControlledGeolocation();
+    const now = Date.now();
+    dailyApi.fetchActiveDailyPicks.mockResolvedValueOnce({
+      round_id: "existing-round",
+      city_id: "tokyo",
+      place_ids: ["one", "two", "three"],
+      restaurants: catalog.slice(0, 3),
+      assigned_at: new Date(now - 1_000).toISOString(),
+      expires_at: new Date(now + 60_000).toISOString(),
+    });
+    locationApi.fetchDiscoveryLocation.mockResolvedValueOnce(
+      configuredLocation("Ginza", "preview"),
+    );
+    locationApi.checkCurrentDiscoveryLocation.mockResolvedValueOnce({
+      inside_service_area: true,
+      location: configuredLocation("Shibuya", "current"),
+    });
+    publishProfileIdentity(accountProfile("account-a", "accounta"));
+    render(<DiscoveryShell restaurants={catalog} areaAnchors={[]} />);
+
+    await waitFor(() => expect(gps.getCurrentPosition).toHaveBeenCalledOnce());
+    act(() => gps.grant(35.658, 139.7016));
+    await screen.findByTestId("discovery-layout");
+    await waitFor(() =>
+      expect(locationApi.checkCurrentDiscoveryLocation).toHaveBeenCalledOnce(),
+    );
+
+    expect(dailyApi.assignDailyPicks).not.toHaveBeenCalled();
+  });
+
+  it("hydrates a live-GPS round as Near you from persisted assignment metadata", async () => {
+    const now = Date.now();
+    dailyApi.fetchActiveDailyPicks.mockResolvedValueOnce({
+      round_id: "gps-round",
+      city_id: "tokyo",
+      place_ids: ["one", "two", "three"],
+      restaurants: catalog.slice(0, 3),
+      assigned_at: new Date(now - 1_000).toISOString(),
+      expires_at: new Date(now + 60_000).toISOString(),
+      discovery_mode: "current",
+      discovery_label: "Ginza",
+    });
+    locationApi.fetchDiscoveryLocation.mockResolvedValueOnce(
+      configuredLocation("Ginza", "current"),
+    );
+    publishProfileIdentity(accountProfile("account-a", "accounta"));
+
+    render(<DiscoveryShell restaurants={catalog} areaAnchors={[]} />);
+
+    expect(await screen.findByText(/Near you .*3 picks selected for you today/)).toBeTruthy();
+    expect(screen.queryByText(/Near Ginza .*3 picks selected for you today/)).toBeNull();
+  });
+
+  it("falls back to the preview when automatic geolocation permission is denied", async () => {
+    const gps = installControlledGeolocation();
+    const preview = configuredLocation("Ginza", "preview");
+    locationApi.fetchDiscoveryLocation.mockResolvedValueOnce(preview);
+    publishProfileIdentity(accountProfile("account-a", "accounta"));
+    render(<DiscoveryShell restaurants={catalog} areaAnchors={[]} />);
+
+    await waitFor(() => expect(gps.getCurrentPosition).toHaveBeenCalledOnce());
+    act(() => gps.deny());
+    fireEvent.click(await screen.findByRole("button", { name: /Find today's restaurants/i }));
+
+    expect(locationApi.checkCurrentDiscoveryLocation).not.toHaveBeenCalled();
+    expect(dailyApi.assignDailyPicks).toHaveBeenCalledWith(
+      expect.objectContaining({ active_area: "Ginza" }),
       expect.anything(),
     );
   });

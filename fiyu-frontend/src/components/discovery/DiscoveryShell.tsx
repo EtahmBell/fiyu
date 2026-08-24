@@ -14,6 +14,7 @@ import { MapUnavailable } from "@/components/map/MapUnavailable";
 import { FiyuLoadingScreen } from "@/components/states/FiyuLoadingScreen";
 import { Button } from "@/components/ui/Button";
 import {
+  checkCurrentDiscoveryLocation,
   fetchAuthenticatedMapRestaurants,
   fetchDiscoveryLocation,
 } from "@/lib/api/client";
@@ -114,9 +115,83 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
   );
   const [homeArea, setHomeArea] = useState<LocationAnchor | null>(null);
   const [continuedWithoutLocation, setContinuedWithoutLocation] = useState(false);
+  const [previewGpsResolution, setPreviewGpsResolution] = useState<{
+    userId: string;
+    pointKey: string;
+  } | null>(null);
+  const previewGpsAttemptUserRef = useRef<string | null>(null);
+  const previewGpsAwaitingRequestUserRef = useRef<string | null>(null);
+  const previewGpsCheckKeyRef = useRef<string | null>(null);
   const scrollRegionRef = useRef<HTMLDivElement>(null);
 
   const geolocation = useGeolocation();
+  const geolocationStatus = geolocation.state.status;
+  const geolocationPoint =
+    geolocation.state.status === "granted" ? geolocation.state.point : null;
+  const geolocationPointKey = geolocationPoint
+    ? `${geolocationPoint.lat}:${geolocationPoint.lng}`
+    : null;
+  const requestGeolocation = geolocation.request;
+
+  useEffect(() => {
+    const userId = identity.profile?.user_id;
+    if (!userId || accountLocation?.location_mode !== "preview") {
+      previewGpsAttemptUserRef.current = null;
+      return;
+    }
+    if (previewGpsAttemptUserRef.current === userId) return;
+    previewGpsAttemptUserRef.current = userId;
+    previewGpsAwaitingRequestUserRef.current = userId;
+    previewGpsCheckKeyRef.current = null;
+    requestGeolocation();
+  }, [
+    accountLocation?.location_mode,
+    identity.profile?.user_id,
+    requestGeolocation,
+  ]);
+
+  useEffect(() => {
+    const userId = identity.profile?.user_id;
+    if (geolocationStatus === "requesting") {
+      previewGpsAwaitingRequestUserRef.current = null;
+      return;
+    }
+    if (
+      !userId ||
+      accountLocation?.location_mode !== "preview" ||
+      !geolocationPoint ||
+      !geolocationPointKey ||
+      previewGpsAwaitingRequestUserRef.current === userId
+    ) {
+      return;
+    }
+    const checkKey = `${userId}:${geolocationPointKey}`;
+    if (previewGpsCheckKeyRef.current === checkKey) return;
+    previewGpsCheckKeyRef.current = checkKey;
+    void checkCurrentDiscoveryLocation(
+      geolocationPoint.lat,
+      geolocationPoint.lng,
+    )
+      .then((result) => {
+        if (result.inside_service_area) {
+          setAccountLocationState((current) =>
+            current?.userId === userId
+              ? { status: "configured", userId, location: result.location }
+              : current,
+          );
+        }
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        setPreviewGpsResolution({ userId, pointKey: geolocationPointKey });
+      });
+  }, [
+    accountLocation?.location_mode,
+    geolocationPoint,
+    geolocationPointKey,
+    geolocationStatus,
+    identity.profile?.user_id,
+  ]);
 
   useEffect(() => {
     if (identity.status !== "ready") return;
@@ -284,7 +359,21 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
     return () => observer.disconnect();
   }, []);
 
-  if (identity.status === "loading" || currentAccountLocationState?.status === "loading") {
+  const previewGpsPending =
+    identity.profile &&
+    accountLocation?.location_mode === "preview" &&
+    !(
+      previewGpsResolution?.userId === identity.profile.user_id &&
+      geolocationPointKey !== null &&
+      previewGpsResolution.pointKey === geolocationPointKey
+    ) &&
+    !["denied", "unavailable", "timeout"].includes(geolocationStatus);
+
+  if (
+    identity.status === "loading" ||
+    currentAccountLocationState?.status === "loading" ||
+    previewGpsPending
+  ) {
     return <FiyuLoadingScreen />;
   }
 
@@ -345,7 +434,7 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
           <div
             className={cn(
               "relative isolate mx-auto min-w-0 w-full max-w-[38rem] px-5 sm:px-8 lg:mx-0 lg:max-w-none lg:pb-10",
-              "pb-[calc(1.5rem+env(safe-area-inset-bottom))] lg:mx-auto lg:max-w-[48rem] lg:pb-10",
+              "pb-[calc(var(--spacing-mobile-nav)+1.5rem)] lg:mx-auto lg:max-w-[48rem] lg:pb-10",
             )}
           >
             {/*

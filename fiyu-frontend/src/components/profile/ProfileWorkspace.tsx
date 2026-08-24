@@ -116,7 +116,10 @@ function MobileProfileHome() {
     <main className="flex-1 px-5 pt-8 pb-[calc(var(--spacing-mobile-nav)+2rem)]">
       <div className="mx-auto w-full max-w-xl">
         <h1 className="text-xl font-semibold text-ink">Profile</h1>
-        <div className="mt-6 flex min-h-60 flex-col items-center rounded-2xl border border-lavender-100/70 bg-lavender-50/35 px-4 pt-7 pb-8 text-center">
+        <div
+          data-testid="mobile-profile-identity"
+          className="mt-6 flex flex-col items-center px-4 pt-2 pb-7 text-center"
+        >
           <>
           <ProfileAvatar profile={displayedProfile} size="large" branded />
           <p className="mt-4 font-display text-2xl leading-tight text-ink">

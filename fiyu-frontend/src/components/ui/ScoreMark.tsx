@@ -1,12 +1,17 @@
 import { formatFiyuScore, scoreAccessibleLabel } from "@/lib/format/score";
 import { cn } from "@/lib/utils/cn";
 
-export type ScoreMarkSize = "sm" | "md" | "lg";
+export type ScoreMarkSize = "sm" | "md" | "lg" | "card";
 
 const SIZES: Record<ScoreMarkSize, { numeral: string; label: string; rule: string }> = {
   sm: { numeral: "text-xl", label: "text-[0.5625rem]", rule: "w-5" },
   md: { numeral: "text-[1.75rem]", label: "text-[0.625rem]", rule: "w-7" },
   lg: { numeral: "text-[2.5rem]", label: "text-[0.6875rem]", rule: "w-9" },
+  card: {
+    numeral: "text-[1.75rem] lg:text-[2.5rem]",
+    label: "text-[0.5625rem] lg:text-[0.6875rem]",
+    rule: "w-6 lg:w-9",
+  },
 };
 
 export interface ScoreMarkProps {
@@ -52,7 +57,7 @@ export function ScoreMark({ score, size = "md", className }: ScoreMarkProps) {
       <span
         aria-hidden="true"
         className={cn(
-          "mt-1.5 font-display leading-none tabular-nums",
+          "mt-1 font-display leading-none tabular-nums lg:mt-1.5",
           hasScore ? "text-plum" : "text-ink-faint",
           numeral,
         )}
@@ -66,7 +71,7 @@ export function ScoreMark({ score, size = "md", className }: ScoreMarkProps) {
       </span>
       <span
         aria-hidden="true"
-        className={cn("mt-2 h-px rounded-full bg-lavender-500", rule, !hasScore && "opacity-30")}
+        className={cn("mt-1.5 h-px rounded-full bg-lavender-500 lg:mt-2", rule, !hasScore && "opacity-30")}
       />
     </div>
   );

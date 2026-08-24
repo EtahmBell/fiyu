@@ -12,6 +12,7 @@ from fiyu.daily_picks import (
     InsufficientUnseenPoolError,
     assign_daily_picks,
     get_active_daily_picks,
+    get_recent_daily_pick_rounds,
     seed_served_history,
     select_daily_pick_plan,
     served_place_ids,
@@ -139,6 +140,7 @@ def test_radius_expands_in_order_and_stops_at_first_ten_unseen(daily_picks_db):
     _, metadata = _plan(daily_picks_db)
     assert metadata["final_radius_km"] == 3.0
     assert metadata["unseen_by_radius"] == [
+        {"radius_km": 1.5, "unseen_count": 9},
         {"radius_km": 2.0, "unseen_count": 9},
         {"radius_km": 3.0, "unseen_count": 13},
     ]
@@ -161,8 +163,37 @@ def test_radius_expands_to_five_and_eight(
     _, metadata = _plan(daily_picks_db)
     assert metadata["final_radius_km"] == expected_radius
     assert [stage["radius_km"] for stage in metadata["unseen_by_radius"]] == [
-        radius for radius in (2.0, 3.0, 5.0, 8.0) if radius <= expected_radius
+        radius for radius in (1.5, 2.0, 3.0, 5.0, 8.0) if radius <= expected_radius
     ]
+
+
+def test_dense_area_stops_at_tighter_first_stage(daily_picks_db):
+    with connect(daily_picks_db) as connection:
+        connection.execute("UPDATE public_restaurants SET is_published = 0")
+        for index in range(10):
+            _insert(connection, f"dense-{index}", distance_km=1.4, precision="exact")
+        _insert(connection, "farther", distance_km=1.8, precision="exact")
+        connection.commit()
+
+    selected, metadata = _plan(daily_picks_db)
+
+    assert metadata["initial_radius_km"] == 1.5
+    assert metadata["final_radius_km"] == 1.5
+    assert metadata["unseen_by_radius"] == [{"radius_km": 1.5, "unseen_count": 10}]
+    assert "farther" not in selected
+
+
+def test_chome_uncertainty_allowance_applies_at_tighter_first_stage(daily_picks_db):
+    with connect(daily_picks_db) as connection:
+        connection.execute("UPDATE public_restaurants SET is_published = 0")
+        for index in range(10):
+            _insert(connection, f"chome-near-{index}", distance_km=2.2, precision="chome")
+        connection.commit()
+
+    _, metadata = _plan(daily_picks_db)
+
+    assert metadata["final_radius_km"] == 1.5
+    assert metadata["unseen_by_radius"] == [{"radius_km": 1.5, "unseen_count": 10}]
 
 
 def test_recent_seen_never_repeat_and_old_seen_only_fill_at_max_radius(daily_picks_db):
@@ -252,6 +283,34 @@ def test_active_snapshot_is_reused_and_history_is_atomic(daily_picks_db):
     assert second == first
     assert get_active_daily_picks(daily_picks_db, owner_id=owner, city_id="tokyo", now=NOW) == first
     assert served_place_ids(daily_picks_db, owner_id=owner) == set(first.place_ids)
+
+
+def test_complete_expired_round_remains_recent_for_72_hours_without_interactions(
+    daily_picks_db,
+):
+    owner = str(uuid4())
+    assignment = assign_daily_picks(
+        daily_picks_db,
+        owner_id=owner,
+        city_id="tokyo",
+        discovery_latitude=LATITUDE,
+        discovery_longitude=LONGITUDE,
+        active_area="Shibuya",
+        now=NOW,
+        seed=1,
+    )
+
+    recent = get_recent_daily_pick_rounds(
+        daily_picks_db, owner_id=owner, city_id="tokyo", now=NOW + timedelta(hours=25)
+    )
+    expired = get_recent_daily_pick_rounds(
+        daily_picks_db, owner_id=owner, city_id="tokyo", now=NOW + timedelta(hours=72)
+    )
+
+    assert recent == [assignment]
+    assert len(recent[0].place_ids) == 3
+    assert expired == []
+    assert served_place_ids(daily_picks_db, owner_id=owner) == set(assignment.place_ids)
 
 
 def test_concurrent_assignment_creates_one_snapshot(daily_picks_db):

@@ -39,8 +39,14 @@ const FACE_SURFACE =
  */
 const CONCEAL_FADE_MS = 160;
 
+/**
+ * The exceptional-score edge is a hairline and nothing more. It used to carry a
+ * champagne glow behind it, which read as a metallic effect and made this the
+ * loudest gold in the product -- on a Current Picks surface, where champagne now
+ * means the opposite of current.
+ */
 function faceEdge(gold: boolean): string {
-  return gold ? "border-gold shadow-[0_0_18px_-10px_var(--color-gold)]" : "border-line-strong";
+  return gold ? "border-gold" : "border-line-strong";
 }
 
 function RevealPrompt() {

@@ -12,10 +12,11 @@ from uuid import uuid4
 from .database import connect
 from .utils import haversine_km
 
-PICKS_RADII_KM = (2.0, 3.0, 5.0, 8.0)
+PICKS_RADII_KM = (1.5, 2.0, 3.0, 5.0, 8.0)
 TARGET_UNSEEN_POOL = 10
 REPEAT_COOLDOWN = timedelta(days=7)
 ACTIVE_SNAPSHOT_DURATION = timedelta(hours=24)
+RECENT_DISCOVERY_DURATION = timedelta(hours=72)
 CHOME_ALLOWANCE_KM = 0.75
 NEIGHBORHOOD_ALLOWANCE_KM = 1.5
 
@@ -396,6 +397,69 @@ def get_active_daily_picks(
         return _active_assignment(connection, owner_id, city_id, now or _now())
 
 
+def get_recent_daily_pick_rounds(
+    db_path: str | Path,
+    *,
+    owner_id: str,
+    city_id: str,
+    now: datetime | None = None,
+) -> list[DailyPickAssignment]:
+    """Return complete expired rounds still inside the discovery-retention window."""
+    ensure_daily_picks_schema(db_path)
+    current = now or _now()
+    cutoff = current - RECENT_DISCOVERY_DURATION
+    with connect(db_path) as connection:
+        rows = connection.execute(
+            """
+            SELECT id, assigned_at, expires_at, selection_metadata_json
+            FROM daily_pick_rounds
+            WHERE owner_id = ? AND city_id = ? AND assigned_at > ?
+            ORDER BY assigned_at DESC, id DESC
+            """,
+            (owner_id, city_id, cutoff.isoformat()),
+        ).fetchall()
+        rounds: list[DailyPickAssignment] = []
+        for row in rows:
+            assigned_at = datetime.fromisoformat(str(row["assigned_at"]))
+            if assigned_at.tzinfo is None:
+                assigned_at = assigned_at.replace(tzinfo=UTC)
+            expires_at_value = row["expires_at"]
+            expires_at = (
+                datetime.fromisoformat(str(expires_at_value))
+                if expires_at_value
+                else assigned_at + ACTIVE_SNAPSHOT_DURATION
+            )
+            if expires_at.tzinfo is None:
+                expires_at = expires_at.replace(tzinfo=UTC)
+            if expires_at > current or assigned_at + RECENT_DISCOVERY_DURATION <= current:
+                continue
+            items = connection.execute(
+                """
+                SELECT restaurant_place_id
+                FROM daily_pick_round_items
+                WHERE round_id = ?
+                ORDER BY position
+                """,
+                (row["id"],),
+            ).fetchall()
+            if len(items) != 3:
+                continue
+            try:
+                metadata = json.loads(row["selection_metadata_json"] or "{}")
+            except json.JSONDecodeError:
+                metadata = {}
+            rounds.append(
+                DailyPickAssignment(
+                    round_id=str(row["id"]),
+                    place_ids=tuple(str(item["restaurant_place_id"]) for item in items),
+                    assigned_at=str(row["assigned_at"]),
+                    expires_at=str(expires_at_value or expires_at.isoformat()),
+                    selection_metadata=metadata if isinstance(metadata, dict) else {},
+                )
+            )
+    return rounds
+
+
 def assign_daily_picks(
     db_path: str | Path,
     *,
@@ -404,6 +468,7 @@ def assign_daily_picks(
     discovery_latitude: float,
     discovery_longitude: float,
     active_area: str | None,
+    discovery_mode: str | None = None,
     requested_count: int = 3,
     seed: int | None = None,
     candidate_place_ids: Iterable[str] | None = None,
@@ -435,6 +500,14 @@ def assign_daily_picks(
             now=assigned,
             requested_count=requested_count,
             seed=seed,
+        )
+        metadata.update(
+            {
+                "discovery_mode": discovery_mode,
+                "discovery_label": active_area,
+                "discovery_latitude": discovery_latitude,
+                "discovery_longitude": discovery_longitude,
+            }
         )
         round_id = str(uuid4())
         expires_at = assigned + ACTIVE_SNAPSHOT_DURATION

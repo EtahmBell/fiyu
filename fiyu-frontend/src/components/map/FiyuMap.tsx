@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnchorMarker } from "@/components/map/AnchorMarker";
 import { MapBase } from "@/components/map/MapBase";
 import { MapControls } from "@/components/map/MapControls";
+import { MapClusterPicker } from "@/components/map/MapClusterPicker";
 import { MapLabels } from "@/components/map/MapLabels";
 import { MapLandmarks } from "@/components/map/MapLandmarks";
 import { MapLegend } from "@/components/map/MapLegend";
@@ -138,6 +139,7 @@ export function FiyuMap({
   const [sproutingPlaceIds, setSproutingPlaceIds] = useState<ReadonlySet<string>>(
     () => new Set(),
   );
+  const [clusterPicker, setClusterPicker] = useState<MarkerCluster<MappableRestaurant> | null>(null);
   const seenRevealEventIds = useRef(new Set<string>());
   const sproutTimers = useRef<number[]>([]);
 
@@ -199,6 +201,11 @@ export function FiyuMap({
     () => new Set(plotted.map((restaurant) => restaurant.place_id)),
     [plotted],
   );
+  const visibleClusterPicker =
+    clusterPicker &&
+    clusterPicker.members.every((member) => plottedPlaceIds.has(member.item.place_id))
+      ? clusterPicker
+      : null;
   const pointByPlaceId = useMemo(
     () => new Map(plotted.map((restaurant, index) => [restaurant.place_id, points[index]])),
     [plotted, points],
@@ -247,6 +254,15 @@ export function FiyuMap({
     // `points` is derived from the same restaurants as resultKey.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resultKey, viewportSessionKey]);
+
+  useEffect(() => {
+    if (!visibleClusterPicker) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setClusterPicker(null);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [visibleClusterPicker]);
 
   useEffect(() => {
     if (!viewportSessionKey || lastFitKey.current !== resultKey) return;
@@ -330,6 +346,7 @@ export function FiyuMap({
       if ((event.target as Element).closest('[role="button"]')) return;
       if ((event.target as Element).closest('[data-layer="restaurant-popup"]')) return;
 
+      setClusterPicker(null);
       onMapBackgroundClick?.();
 
       pointers.current.set(event.pointerId, event.nativeEvent);
@@ -417,9 +434,47 @@ export function FiyuMap({
     (cluster: MarkerCluster<MappableRestaurant>) => {
       markInteracted();
       onMapBackgroundClick?.();
-      setView(fitToPoints(cluster.members.map((member) => member.point), { padding: 160 }));
+      let separatingScale: number | null = null;
+      for (let scale = Math.min(MAX_SCALE, view.k + 0.25); scale <= MAX_SCALE; scale += 0.25) {
+        const candidateClusters = clusterMarkers(cluster.members, { scale });
+        if (candidateClusters.every((candidate) => candidate.members.length === 1)) {
+          separatingScale = scale;
+          break;
+        }
+      }
+      if (separatingScale === null) {
+        setClusterPicker(cluster);
+        return;
+      }
+      setClusterPicker(null);
+      setView(
+        fitToPoints(cluster.members.map((member) => member.point), {
+          padding: 160,
+          maxScale: separatingScale,
+        }),
+      );
     },
-    [markInteracted, onMapBackgroundClick],
+    [markInteracted, onMapBackgroundClick, view.k],
+  );
+
+  const clusterButtonPosition = useCallback(
+    (cluster: MarkerCluster<MappableRestaurant>) => {
+      const renderedScale = Math.min(
+        containerSize.width / VIEWBOX_WIDTH,
+        containerSize.height / VIEWBOX_HEIGHT,
+      );
+      const renderedWidth = VIEWBOX_WIDTH * renderedScale;
+      const renderedHeight = VIEWBOX_HEIGHT * renderedScale;
+      return {
+        left:
+          (containerSize.width - renderedWidth) / 2 +
+          (cluster.point.x * view.k + view.x) * renderedScale,
+        top:
+          (containerSize.height - renderedHeight) / 2 +
+          (cluster.point.y * view.k + view.y) * renderedScale,
+      };
+    },
+    [containerSize.height, containerSize.width, view],
   );
 
   return (
@@ -469,10 +524,35 @@ export function FiyuMap({
             newlyRevealedPlaceIds={sproutingPlaceIds}
             scale={view.k}
             onSelect={onSelect}
-            onExpandCluster={expandCluster}
           />
         </g>
       </svg>
+
+      <div className="pointer-events-none absolute inset-0 z-10" aria-label="Restaurant clusters">
+        {clusters.filter((cluster) => cluster.members.length > 1).map((cluster) => {
+          const position = clusterButtonPosition(cluster);
+          const newlyRevealed = cluster.members.some((member) =>
+            sproutingPlaceIds.has(member.item.place_id),
+          );
+          return (
+            <button
+              key={cluster.id}
+              type="button"
+              aria-label={`${cluster.members.length} restaurants in this area. Activate to zoom in.`}
+              data-marker-kind="restaurant-cluster"
+              data-place-ids={cluster.members.map((member) => member.item.place_id).join(",")}
+              onClick={() => expandCluster(cluster)}
+              className={cn(
+                "pointer-events-auto absolute flex size-11 -translate-x-1/2 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border-2 border-[var(--map-marker-center)] bg-[var(--map-marker)] text-[0.8125rem] font-medium text-[var(--map-marker-center)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--map-marker)]",
+                newlyRevealed && "fiyu-map-pin-sprout",
+              )}
+              style={{ left: position.left, top: position.top }}
+            >
+              {cluster.members.length}
+            </button>
+          );
+        })}
+      </div>
 
       {selectedRestaurant && selectedPoint && (
         <MapRestaurantPopup
@@ -481,6 +561,17 @@ export function FiyuMap({
           view={view}
           containerWidth={containerSize.width}
           containerHeight={containerSize.height}
+        />
+      )}
+
+      {visibleClusterPicker && (
+        <MapClusterPicker
+          restaurants={visibleClusterPicker.members.map((member) => member.item)}
+          onClose={() => setClusterPicker(null)}
+          onSelect={(restaurant) => {
+            setClusterPicker(null);
+            onSelect(restaurant);
+          }}
         />
       )}
 

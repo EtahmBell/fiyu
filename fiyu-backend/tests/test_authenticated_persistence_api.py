@@ -53,6 +53,7 @@ def shared_account_api(tmp_path, monkeypatch):
     visits: dict[str, list[dict[str, object]]] = defaultdict(list)
     seen: dict[str, list[str]] = defaultdict(list)
     snapshots: dict[tuple[str, str], dict[str, object]] = {}
+    recent_rounds: dict[tuple[str, str], list[dict[str, object]]] = defaultdict(list)
     clock: dict[str, datetime | None] = {"now": None}
 
     def current_user(header):
@@ -159,6 +160,22 @@ def shared_account_api(tmp_path, monkeypatch):
 
     monkeypatch.setattr(api.shared_user_data, "get_active_daily_picks", active_snapshot)
 
+    def recent_snapshots(*, user_id, city_id, assigned_after, expired_at_or_before):
+        lower = datetime.fromisoformat(assigned_after)
+        upper = datetime.fromisoformat(expired_at_or_before)
+        return [
+            row
+            for row in recent_rounds[(user_id, city_id)]
+            if datetime.fromisoformat(str(row["assigned_at"])) > lower
+            and datetime.fromisoformat(str(row["expires_at"])) <= upper
+        ]
+
+    monkeypatch.setattr(
+        api.shared_user_data,
+        "get_recent_daily_pick_rounds",
+        recent_snapshots,
+    )
+
     def assign_snapshot(
         *, user_id, city_id, place_ids, assigned_at, expires_at, selection_metadata
     ):
@@ -195,6 +212,7 @@ def shared_account_api(tmp_path, monkeypatch):
         "visits": visits,
         "snapshots": snapshots,
         "clock": clock,
+        "recent_rounds": recent_rounds,
     }
     return client, user_ids, seen
 
@@ -272,7 +290,8 @@ def test_map_visibility_expires_but_seen_history_and_retained_relationships_rema
 ):
     client, user_ids, seen = shared_account_api
     user_id = user_ids["token-a"]
-    assigned_at = datetime(2026, 8, 22, 12, tzinfo=UTC)
+    now = datetime.now(UTC)
+    assigned_at = now - timedelta(hours=23)
     place_ids = ["tokyo-0", "tokyo-1", "tokyo-2"]
     client.fiyu_test_state["snapshots"][(user_id, "tokyo")] = {
         "round_id": str(uuid4()),
@@ -281,6 +300,15 @@ def test_map_visibility_expires_but_seen_history_and_retained_relationships_rema
         "expires_at": (assigned_at + timedelta(hours=24)).isoformat(),
         "selection_metadata": {},
     }
+    client.fiyu_test_state["recent_rounds"][(user_id, "tokyo")].append(
+        {
+            "round_id": str(uuid4()),
+            "place_ids": place_ids,
+            "assigned_at": assigned_at.isoformat(),
+            "expires_at": (assigned_at + timedelta(hours=24)).isoformat(),
+            "selection_metadata": {},
+        }
+    )
     seen[user_id].extend(place_ids)
 
     def map_ids() -> list[str]:
@@ -288,11 +316,9 @@ def test_map_visibility_expires_but_seen_history_and_retained_relationships_rema
         assert response.status_code == 200
         return [row["place_id"] for row in response.json()]
 
-    client.fiyu_test_state["clock"]["now"] = assigned_at
     assert map_ids() == place_ids
     assert map_ids() == place_ids  # a refresh does not replace the active snapshot
 
-    client.fiyu_test_state["clock"]["now"] = assigned_at + timedelta(hours=23)
     assert map_ids() == place_ids
 
     saved = client.post(
@@ -319,15 +345,22 @@ def test_map_visibility_expires_but_seen_history_and_retained_relationships_rema
     assert another_saved.status_code == 200
     assert visit.status_code == 201
 
-    client.fiyu_test_state["clock"]["now"] = assigned_at + timedelta(hours=24)
-    assert map_ids() == ["tokyo-2"]
+    # Once the active snapshot expires, the same persisted round remains on the
+    # Map for the existing Recent Discoveries retention window.
+    client.fiyu_test_state["snapshots"][(user_id, "tokyo")]["expires_at"] = (
+        now - timedelta(hours=1)
+    ).isoformat()
+    recent = client.fiyu_test_state["recent_rounds"][(user_id, "tokyo")][0]
+    recent["assigned_at"] = (now - timedelta(hours=25)).isoformat()
+    recent["expires_at"] = (now - timedelta(hours=1)).isoformat()
+    assert map_ids() == place_ids
     assert seen[user_id] == place_ids
     saved_items = client.get(
         "/lists/default", params={"city_id": "tokyo"}, headers=_auth("token-a")
     ).json()["items"]
     assert {item["place_id"] for item in saved_items} == {"tokyo-0", "tokyo-1"}
 
-    client.fiyu_test_state["clock"]["now"] = assigned_at + timedelta(hours=25)
+    client.fiyu_test_state["recent_rounds"][(user_id, "tokyo")].clear()
     assert map_ids() == ["tokyo-2"]
     assert seen[user_id] == place_ids
 
@@ -595,6 +628,7 @@ def test_authenticated_daily_pick_snapshot_is_reused_and_account_specific(
         "discovery_latitude": 35.65,
         "discovery_longitude": 139.70,
         "active_area": "Asakusa",
+        "location_mode": "preview",
         "seed": 3,
         "requested_count": 3,
     }
@@ -618,8 +652,43 @@ def test_authenticated_daily_pick_snapshot_is_reused_and_account_specific(
 
     assert first.status_code == repeated.status_code == restored.status_code == 200
     assert repeated.json() == first.json() == restored.json()
+    assert first.json()["discovery_mode"] == "preview"
+    assert first.json()["discovery_label"] == "Asakusa"
     assert other_account.status_code == 200
     assert other_account.json() is None
+
+
+def test_recent_discoveries_restore_every_persisted_round_item_with_account_isolation(
+    shared_account_api,
+):
+    client, user_ids, seen = shared_account_api
+    assigned_at = (datetime.now(UTC) - timedelta(hours=25)).isoformat()
+    round_id = str(uuid4())
+    place_ids = ["tokyo-0", "tokyo-1", "tokyo-2"]
+    client.fiyu_test_state["recent_rounds"][(user_ids["token-a"], "tokyo")].append(
+        {
+            "round_id": round_id,
+            "assigned_at": assigned_at,
+            "expires_at": (datetime.now(UTC) - timedelta(hours=1)).isoformat(),
+            "selection_metadata": {},
+            "place_ids": place_ids,
+        }
+    )
+    seen[user_ids["token-a"]].extend(place_ids)
+
+    restored = client.get(
+        "/daily-picks/recent", params={"city_id": "tokyo"}, headers=_auth("token-a")
+    )
+    other_account = client.get(
+        "/daily-picks/recent", params={"city_id": "tokyo"}, headers=_auth("token-b")
+    )
+
+    assert restored.status_code == other_account.status_code == 200
+    assert restored.json()[0]["round_id"] == round_id
+    assert restored.json()[0]["place_ids"] == place_ids
+    assert [row["place_id"] for row in restored.json()[0]["restaurants"]] == place_ids
+    assert other_account.json() == []
+    assert seen[user_ids["token-a"]] == place_ids
 
 
 def test_invalid_bearer_cannot_select_another_account(shared_account_api):

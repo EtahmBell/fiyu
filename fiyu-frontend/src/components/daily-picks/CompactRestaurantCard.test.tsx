@@ -101,19 +101,18 @@ describe("compact restaurant card content", () => {
     expect(card.className).toContain("w-full");
     const layout = screen.getByTestId("compact-card-layout");
     expect(layout.className).toContain("min-w-0");
-    expect(layout.className).toContain("8.75rem");
-    expect(layout.className).toContain("44%");
+    expect(layout.className).toContain("6.75rem");
+    expect(layout.className).toContain("38%");
     expect(layout.className).toContain("lg:grid-cols");
     expect(layout.className).toContain("34%");
     const japaneseName = screen.getByRole("heading", { level: 3 });
     expect(japaneseName.className).not.toContain("truncate");
     expect(japaneseName.className).toContain("break-words");
     const englishName = screen.getByText(/A deliberately long restaurant name/);
-    expect(englishName.className).not.toMatch(/(^|\s)line-clamp-/);
-    expect(englishName.className).toContain("lg:line-clamp-2");
+    expect(englishName.className).toContain("line-clamp-2");
     expect(englishName.className).toContain("break-words");
     expect(japaneseName.parentElement?.parentElement?.className).toContain("col-span-2");
-    expect(screen.getByTestId("restaurant-photo-region").className).toContain("h-40");
+    expect(screen.getByTestId("restaurant-photo-region").className).toContain("h-20");
     expect(screen.getByTestId("restaurant-photo-region").className).toContain("lg:min-h-44");
     expect(screen.getByText(/A long discovery-card description/).className).toContain("line-clamp-3");
     expect(screen.getByLabelText("Fiyu score 8.7 out of 10")).toBeTruthy();
@@ -173,7 +172,7 @@ describe("compact restaurant card content", () => {
 
     const image = await screen.findByRole("img", { name: /photo from Google/ });
     expect(image.className).toContain("object-cover");
-    expect(screen.getByTestId("restaurant-photo-region").className).toContain("h-40");
+    expect(screen.getByTestId("restaurant-photo-region").className).toContain("h-20");
     expect(screen.queryByText(/Photo by/)).toBeNull();
 
     expect(screen.queryByRole("button", { name: "Photo information" })).toBeNull();
@@ -337,6 +336,7 @@ describe("compact card interaction", () => {
     const saveRestaurant = screen.getByRole("button", { name: "Save restaurant" });
 
     expect(screen.getByTestId("compact-card-footer").className).toContain("border-t");
+    expect(screen.getByTestId("compact-card-footer").firstElementChild?.className).toContain("flex");
     for (const mapLink of [googleMaps, appleMaps]) {
       expect(mapLink.className).toContain("min-h-11");
       expect(mapLink.className).not.toContain("rounded-chip");
@@ -347,6 +347,7 @@ describe("compact card interaction", () => {
     expect(viewRestaurant.className).toContain("text-plum");
     expect(viewRestaurant.className).not.toContain("rounded-chip");
     expect(saveRestaurant.className).toContain("size-11");
+    expect(saveRestaurant.className).toContain("size-9");
     expect(saveRestaurant.className).not.toContain("rounded-chip");
     expect(saveRestaurant.querySelector("svg")?.getAttribute("fill")).toBe("none");
 

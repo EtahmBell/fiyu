@@ -10,7 +10,6 @@ import { cn } from "@/lib/utils/cn";
 const MARKER_RADIUS = 11;
 /** Invisible hit area. Larger than the visual mark so touch targets clear 44px. */
 const HIT_RADIUS = 22;
-const CLUSTER_RADIUS = 17;
 
 export interface MapMarkersProps {
   clusters: MarkerCluster<MappableRestaurant>[];
@@ -18,7 +17,6 @@ export interface MapMarkersProps {
   newlyRevealedPlaceIds: ReadonlySet<string>;
   scale: number;
   onSelect: (restaurant: MappableRestaurant) => void;
-  onExpandCluster: (cluster: MarkerCluster<MappableRestaurant>) => void;
 }
 
 /**
@@ -35,7 +33,6 @@ export function MapMarkers({
   newlyRevealedPlaceIds,
   scale,
   onSelect,
-  onExpandCluster,
 }: MapMarkersProps) {
   const size = (value: number) => svgNumber(value / scale);
 
@@ -48,59 +45,7 @@ export function MapMarkers({
         );
 
         if (cluster.members.length > 1) {
-          const count = cluster.members.length;
-          return (
-            <g
-              key={cluster.id}
-              role="button"
-              tabIndex={0}
-              aria-label={`${count} restaurants in this area. Activate to zoom in.`}
-              data-marker-kind="restaurant-cluster"
-              data-place-ids={cluster.members.map((member) => member.item.place_id).join(",")}
-              data-newly-revealed={newlyRevealed ? "true" : undefined}
-              className={cn(
-                "cursor-pointer focus:outline-none [&:focus-visible>circle:first-child]:opacity-100",
-                newlyRevealed && "fiyu-map-pin-sprout",
-              )}
-              onClick={() => onExpandCluster(cluster)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" || event.key === " ") {
-                  event.preventDefault();
-                  onExpandCluster(cluster);
-                }
-              }}
-            >
-              <circle
-                cx={x}
-                cy={y}
-                r={size(CLUSTER_RADIUS + 6)}
-                fill="var(--map-marker)"
-                opacity={0}
-                className="transition-opacity duration-[180ms]"
-              />
-              <circle cx={x} cy={y} r={size(HIT_RADIUS)} fill="transparent" />
-              <circle
-                cx={x}
-                cy={y}
-                r={size(CLUSTER_RADIUS)}
-                fill="var(--map-marker)"
-                stroke="var(--map-marker-center)"
-                strokeWidth={size(2)}
-              />
-              <text
-                x={x}
-                y={y}
-                textAnchor="middle"
-                dominantBaseline="central"
-                fill="var(--map-marker-center)"
-                fontSize={size(13)}
-                className="pointer-events-none select-none font-medium"
-                style={{ fontFamily: "var(--font-sans)" }}
-              >
-                {count}
-              </text>
-            </g>
-          );
+          return null;
         }
 
         const restaurant = cluster.members[0].item;

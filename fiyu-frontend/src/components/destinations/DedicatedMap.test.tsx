@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DedicatedMap } from "@/components/destinations/DedicatedMap";
@@ -193,12 +193,16 @@ describe("dedicated user map", () => {
     );
 
     fireEvent.click(visitedPin);
-    expect(
-      container.querySelector('[data-layer="restaurant-popup"]')?.getAttribute("data-visited"),
-    ).toBe("true");
+    const popup = container.querySelector('[data-layer="restaurant-popup"]');
+    expect(popup?.getAttribute("data-visited")).toBe("true");
+    // The brass edge is reinforced by the word, so the state does not rest on
+    // colour alone.
+    expect(within(popup as HTMLElement).getByText("Visited")).toBeTruthy();
+
     fireEvent.click(screen.getByRole("button", { name: "Map key" }));
-    expect(screen.getByText("Current Pick")).toBeTruthy();
-    expect(screen.getByText("Visited")).toBeTruthy();
+    const legend = document.getElementById("fiyu-map-legend") as HTMLElement;
+    expect(within(legend).getByText("Current Pick")).toBeTruthy();
+    expect(within(legend).getByText("Visited")).toBeTruthy();
   });
 
   it("renders only map-eligible rows returned by the authenticated seen endpoint", async () => {

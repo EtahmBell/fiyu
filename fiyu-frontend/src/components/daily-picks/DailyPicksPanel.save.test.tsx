@@ -105,6 +105,8 @@ describe("/picks revealed-card save bookmark", () => {
   it("requests an owner-scoped backend assignment and mirrors all assigned IDs as served", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
       const url = String(input);
+      if (url.includes("/daily-picks/active")) return json(200, null);
+      if (url.includes("/daily-picks/recent")) return json(200, []);
       if (url.includes("/daily-picks/assign")) {
         return json(200, {
           round_id: "round-one",
@@ -120,7 +122,7 @@ describe("/picks revealed-card save bookmark", () => {
     const restaurants = ["one", "two", "three", "four", "five", "six"].map(restaurant);
 
     render(<DailyPicksPanel restaurants={restaurants} />);
-    fireEvent.click(screen.getByRole("button", { name: /Find today's restaurants/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /Find today's restaurants/i }));
 
     expect(screen.getAllByTestId("daily-picks-loader-dot")).toHaveLength(3);
     expect(screen.queryByTestId("city-loading-sequence")).toBeNull();
@@ -161,6 +163,8 @@ describe("/picks revealed-card save bookmark", () => {
     );
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
       const url = String(input);
+      if (url.includes("/daily-picks/active")) return json(200, null);
+      if (url.includes("/daily-picks/recent")) return json(200, []);
       if (url.includes("/daily-picks/assign")) {
         return json(200, {
           round_id: "round-account",
@@ -180,7 +184,7 @@ describe("/picks revealed-card save bookmark", () => {
         restaurants={["one", "two", "three", "four"].map(restaurant)}
       />,
     );
-    fireEvent.click(screen.getByRole("button", { name: /Find today's restaurants/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /Find today's restaurants/i }));
 
     await waitFor(() => {
       expect(screen.getAllByTestId("concealed-restaurant-card")).toHaveLength(3);

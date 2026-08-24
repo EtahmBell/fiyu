@@ -58,3 +58,37 @@ def test_active_pick_lookup_uses_strict_expiration_boundary(monkeypatch):
     assert active is not None
     assert active["place_ids"] == ["a", "b", "c"]
     assert requests[0][1]["expires_at"] == "gt.2026-08-22T12:00:00+00:00"
+
+
+def test_recent_round_lookup_returns_all_three_persisted_items(monkeypatch):
+    requests: list[tuple[str, dict[str, str]]] = []
+
+    def request(path, *, query):
+        requests.append((path, query))
+        if path == "fiyu_daily_pick_rounds":
+            return [
+                {
+                    "id": "round-a",
+                    "assigned_at": "2026-08-21T12:00:00+00:00",
+                    "expires_at": "2026-08-22T12:00:00+00:00",
+                    "selection_metadata": {},
+                }
+            ]
+        return [
+            {"round_id": "round-a", "place_id": "c", "position": 2},
+            {"round_id": "round-a", "place_id": "a", "position": 0},
+            {"round_id": "round-a", "place_id": "b", "position": 1},
+        ]
+
+    monkeypatch.setattr(supabase_user_data, "_request", request)
+
+    rounds = supabase_user_data.get_recent_daily_pick_rounds(
+        user_id="user-a",
+        city_id="tokyo",
+        assigned_after="2026-08-20T12:00:00+00:00",
+        expired_at_or_before="2026-08-22T13:00:00+00:00",
+    )
+
+    assert rounds[0]["place_ids"] == ["a", "b", "c"]
+    assert requests[0][1]["assigned_at"] == "gt.2026-08-20T12:00:00+00:00"
+    assert requests[0][1]["expires_at"] == "lte.2026-08-22T13:00:00+00:00"
