@@ -124,8 +124,12 @@ export function CompactRestaurantCard({
         // A single warm hairline along the top edge -- the card stays white and
         // its other three sides stay neutral, so this reads as a rule rather
         // than as a gold outline.
-        history && "border-t-gold/50",
-        onOpen && "cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600",
+        history ? "border-t-gold/50" : "border-t-lavender-500/45",
+        onOpen &&
+          cn(
+            "cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2",
+            history ? "focus-visible:outline-gold" : "focus-visible:outline-lavender-600",
+          ),
       )}
       style={{ animation: "fiyu-fade-in 260ms var(--ease-fiyu)" }}
     >
@@ -148,7 +152,7 @@ export function CompactRestaurantCard({
             )}
           </div>
 
-          <ScoreMark score={restaurant.fiyu_score} size="card" />
+          <ScoreMark score={restaurant.fiyu_score} size="card" tone={tone} />
         </div>
 
         <div

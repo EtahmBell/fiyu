@@ -181,23 +181,51 @@ describe("compact restaurant card content", () => {
     const image = await screen.findByRole("img", { name: /photo from Google/ });
     expect(image.className).toContain("object-cover");
     expect(image.className).toContain("object-center");
+    expect(image.style.objectPosition).toBe("50% 58%");
     expect(screen.getByTestId("restaurant-photo-region").className).toContain("h-20");
     expect(screen.queryByText(/Photo by/)).toBeNull();
 
     expect(screen.queryByRole("button", { name: "Photo information" })).toBeNull();
     const photoRegion = screen.getByTestId("restaurant-photo-region");
-    fireEvent.focus(photoRegion);
-    expect(screen.getByText(/Photo by/)).toBeTruthy();
-    fireEvent.blur(photoRegion, { relatedTarget: document.body });
     fireEvent.click(photoRegion);
     const overlay = screen.getByTestId("photo-attribution-overlay");
     expect(overlay.className).toContain("h-3");
     expect(overlay.className).toContain("text-[0.5rem]");
-    expect(onOpen).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("link", { name: photoFixture.author_attributions[0].display_name }));
+    expect(overlay.className).toContain("pointer-events-none");
     expect(onOpen).not.toHaveBeenCalled();
     fireEvent.click(photoRegion);
     expect(screen.queryByTestId("photo-attribution-overlay")).toBeNull();
+  });
+
+  it("uses lavender for current cards and brass for recent-history score accents", () => {
+    const { rerender } = render(
+      <CompactRestaurantCard
+        restaurant={restaurant()}
+        saved={false}
+        onOpen={() => {}}
+        onToggleSaved={() => {}}
+      />,
+    );
+    const card = screen.getByTestId("compact-restaurant-card");
+    const score = screen.getByLabelText("Fiyu score 8.7 out of 10");
+    expect(card.className).toContain("border-t-lavender-500/45");
+    expect(card.className).toContain("focus-visible:outline-lavender-600");
+    expect(screen.getByText("Fiyu Score").className).toContain("text-lavender-700");
+    expect((score.lastElementChild as HTMLElement).className).toContain("bg-lavender-500");
+
+    rerender(
+      <CompactRestaurantCard
+        restaurant={restaurant()}
+        saved={false}
+        tone="history"
+        onOpen={() => {}}
+        onToggleSaved={() => {}}
+      />,
+    );
+    expect(card.className).toContain("border-t-gold/50");
+    expect(card.className).toContain("focus-visible:outline-gold");
+    expect(screen.getByText("Fiyu Score").className).toContain("text-gold-700");
+    expect((score.lastElementChild as HTMLElement).className).toContain("bg-gold");
   });
 
   it("never renders an internal why_fiyu value", () => {

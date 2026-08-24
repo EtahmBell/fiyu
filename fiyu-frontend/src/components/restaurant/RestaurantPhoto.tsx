@@ -42,8 +42,6 @@ export function RestaurantPhoto({
   const { ref, inView } = useInView<HTMLDivElement>();
   const [photo, setPhoto] = useState<GooglePhoto | null>(null);
   const [failed, setFailed] = useState(false);
-  const [hovered, setHovered] = useState(false);
-  const [focused, setFocused] = useState(false);
   const [tappedOpen, setTappedOpen] = useState(false);
 
   useEffect(() => {
@@ -65,7 +63,7 @@ export function RestaurantPhoto({
   const hasPhotoInformation = Boolean(
     attribution?.display_name || photo?.google_maps_uri || photo?.flag_content_uri,
   );
-  const informationVisible = hasPhotoInformation && (hovered || focused || tappedOpen);
+  const informationVisible = hasPhotoInformation && tappedOpen;
 
   return (
     <div
@@ -75,8 +73,6 @@ export function RestaurantPhoto({
       tabIndex={photo && hasPhotoInformation ? 0 : undefined}
       aria-label={photo && hasPhotoInformation ? "Photo attribution" : undefined}
       aria-expanded={photo && hasPhotoInformation ? informationVisible : undefined}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
       onClick={(event) => {
         if (!photo || !hasPhotoInformation) return;
         event.stopPropagation();
@@ -84,10 +80,10 @@ export function RestaurantPhoto({
       }}
       onKeyDown={(event) => {
         if (event.key === "Escape") setTappedOpen(false);
-      }}
-      onFocusCapture={() => setFocused(true)}
-      onBlurCapture={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget)) setFocused(false);
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          setTappedOpen((open) => !open);
+        }
       }}
       className={cn(
         "relative overflow-hidden rounded-lg bg-lavender-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600",
@@ -113,7 +109,10 @@ export function RestaurantPhoto({
               setFailed(true);
             }}
             className="absolute inset-0 size-full object-cover object-center"
-            style={{ animation: "fiyu-fade-in 260ms var(--ease-fiyu)" }}
+            style={{
+              animation: "fiyu-fade-in 260ms var(--ease-fiyu)",
+              objectPosition: fill ? "50% 58%" : "50% 50%",
+            }}
           />
         ) : (
           <PhotoPlaceholder pending={inView && !failed} unavailable={failed} />
@@ -123,8 +122,7 @@ export function RestaurantPhoto({
       {informationVisible && photo && (
         <div
           data-testid="photo-attribution-overlay"
-          onClick={(event) => event.stopPropagation()}
-          className="absolute inset-x-0 bottom-0 z-20 flex h-3 items-center gap-1.5 overflow-x-auto bg-ink/70 px-1.5 text-[0.5rem] leading-none whitespace-nowrap text-white backdrop-blur-[1px] lg:h-4 lg:text-[0.5625rem]"
+          className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex h-3 items-center gap-1.5 overflow-hidden bg-ink/70 px-1.5 text-[0.5rem] leading-none whitespace-nowrap text-white backdrop-blur-[1px] lg:h-4 lg:text-[0.5625rem]"
         >
           {attribution?.display_name && <span>
             Photo by{" "}

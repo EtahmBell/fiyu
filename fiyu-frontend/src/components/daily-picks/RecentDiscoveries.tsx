@@ -77,6 +77,7 @@ export function RecentDiscoveries({
               key={restaurant.place_id}
               placeId={restaurant.place_id}
               selected={selectedPlaceId === restaurant.place_id}
+              tone="history"
               registerRef={registerCardRef}
             >
               <CompactRestaurantCard

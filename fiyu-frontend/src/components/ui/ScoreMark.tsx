@@ -17,6 +17,7 @@ const SIZES: Record<ScoreMarkSize, { numeral: string; label: string; rule: strin
 export interface ScoreMarkProps {
   score: number | null;
   size?: ScoreMarkSize;
+  tone?: "current" | "history";
   className?: string;
 }
 
@@ -30,7 +31,7 @@ export interface ScoreMarkProps {
  *
  * No stars: this is Fiyu's editorial score, not an external rating.
  */
-export function ScoreMark({ score, size = "md", className }: ScoreMarkProps) {
+export function ScoreMark({ score, size = "md", tone = "current", className }: ScoreMarkProps) {
   const { numeral, label, rule } = SIZES[size];
   const hasScore = score !== null && Number.isFinite(score);
 
@@ -43,7 +44,8 @@ export function ScoreMark({ score, size = "md", className }: ScoreMarkProps) {
       <span
         aria-hidden="true"
         className={cn(
-          "leading-none font-medium tracking-[0.18em] text-lavender-700 uppercase",
+          "leading-none font-medium tracking-[0.18em] uppercase",
+          tone === "history" ? "text-gold-700" : "text-lavender-700",
           hasScore ? "opacity-100" : "opacity-50",
           label,
         )}
@@ -74,7 +76,8 @@ export function ScoreMark({ score, size = "md", className }: ScoreMarkProps) {
         aria-hidden="true"
         className={cn(
           size === "card" ? "mt-1 lg:mt-2" : "mt-1.5 lg:mt-2",
-          "h-px rounded-full bg-lavender-500",
+          "h-px rounded-full",
+          tone === "history" ? "bg-gold" : "bg-lavender-500",
           rule,
           !hasScore && "opacity-30",
         )}
