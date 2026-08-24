@@ -52,8 +52,8 @@ describe("Today’s Fiyu Picks panel", () => {
     const firstStorage = createDailyPicksStorage(window.localStorage);
     const firstRender = render(<DailyPicksPanel restaurants={catalog} storage={firstStorage} />);
 
-    expect(screen.getByRole("heading", { name: "Choose today’s preferences" })).toBeTruthy();
-    expect(screen.getByTestId("pre-pick-preferences")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Today’s Fiyu Picks" })).toBeTruthy();
+    expect(screen.queryByTestId("pre-pick-preferences")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /Find today's restaurants/i }));
     expect(screen.queryByTestId("pre-pick-preferences")).toBeNull();
     expect(screen.getByText("Searching nearby")).toBeTruthy();
@@ -154,35 +154,33 @@ describe("Today’s Fiyu Picks panel", () => {
     ).toBe(true);
   });
 
-  it("treats Surprise me as an exclusive cuisine choice", () => {
+  it("does not present disconnected preference controls", () => {
     const storage = createDailyPicksStorage(window.localStorage);
     render(<DailyPicksPanel restaurants={catalog} storage={storage} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Sushi" }));
-    fireEvent.click(screen.getByRole("button", { name: "Izakaya" }));
-    expect(storage.getSnapshot()?.preferences.categories).toEqual(["sushi", "izakaya"]);
-    fireEvent.click(screen.getByRole("button", { name: "Surprise me" }));
-    expect(storage.getSnapshot()?.preferences.categories).toEqual([]);
+    expect(screen.queryByText("Food interests")).toBeNull();
+    expect(screen.queryByText("Non-Japanese restaurants")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Edit preferences" })).toBeNull();
+    expect(screen.getByRole("heading", { name: "Today’s Fiyu Picks" })).toBeTruthy();
   });
 
-  it("allows no more than three cuisine choices", () => {
+  it("preserves stored preference data without presenting it as a Picks control", () => {
     const storage = createDailyPicksStorage(window.localStorage);
+    storage.save({
+      ...storage.getSnapshot()!,
+      preferences: { categories: ["sushi", "izakaya"], nonJapanese: "japanese-only" },
+    });
     render(<DailyPicksPanel restaurants={catalog} storage={storage} />);
 
-    for (const name of ["Sushi", "Izakaya", "Noodles"]) {
-      fireEvent.click(screen.getByRole("button", { name }));
-    }
-    const fourth = screen.getByRole("button", { name: "Yakiniku" });
-    expect(fourth).toHaveProperty("disabled", true);
-    fireEvent.click(fourth);
-    expect(storage.getSnapshot()?.preferences.categories).toEqual([
-      "sushi",
-      "izakaya",
-      "noodles",
-    ]);
+    expect(storage.getSnapshot()?.preferences).toEqual({
+      categories: ["sushi", "izakaya"],
+      nonJapanese: "japanese-only",
+    });
+    expect(screen.queryByRole("button", { name: "Sushi" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Japanese only" })).toBeNull();
   });
 
-  it("returns to prefilled preferences after the cooldown expires", () => {
+  it("returns to the neutral Picks entry point after the cooldown expires", () => {
     const now = Date.UTC(2026, 6, 30, 12);
     vi.useFakeTimers();
     vi.setSystemTime(now);
@@ -196,10 +194,9 @@ describe("Today’s Fiyu Picks panel", () => {
     });
 
     render(<DailyPicksPanel restaurants={catalog} storage={storage} />);
-    expect(screen.getByRole("heading", { name: "Choose today’s preferences" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Sushi" }).getAttribute("aria-pressed")).toBe("true");
-    expect(screen.getByRole("button", { name: "Tempura" }).getAttribute("aria-pressed")).toBe("true");
-    expect(screen.getByRole("button", { name: "Japanese only" }).getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByRole("heading", { name: "Today’s Fiyu Picks" })).toBeTruthy();
+    expect(screen.queryByText("Food interests")).toBeNull();
+    expect(screen.getByRole("button", { name: /Find today's restaurants/i })).toBeTruthy();
     expect(screen.queryByTestId("concealed-restaurant-card")).toBeNull();
   });
 
@@ -228,7 +225,7 @@ describe("Today’s Fiyu Picks panel", () => {
     expect(screen.getAllByTestId("concealed-restaurant-card")).toHaveLength(3);
   });
 
-  it("presents the mobile discovery context as a light preference module", () => {
+  it("presents the mobile discovery context without taste claims or preference controls", () => {
     const now = Date.UTC(2026, 6, 30, 12);
     vi.useFakeTimers();
     vi.setSystemTime(now);
@@ -258,7 +255,7 @@ describe("Today’s Fiyu Picks panel", () => {
     expect(
       within(context).getByText("Near Shibuya · 3 picks selected"),
     ).toBeTruthy();
-    expect(within(context).getByText("Based on your tastes and nearby area")).toBeTruthy();
+    expect(within(context).getByText("Selected near Shibuya")).toBeTruthy();
     expect(within(context).queryByText("3 picks today")).toBeNull();
     expect(within(context).queryByText("Selected around your tastes and nearby area")).toBeNull();
     expect(context.querySelector('[data-city-signature-mark="tokyo"]')).toBeTruthy();
@@ -267,11 +264,8 @@ describe("Today’s Fiyu Picks panel", () => {
     expect(context.className).not.toContain("border-b");
     expect(context.className).not.toContain("shadow");
 
-    const editPreferences = within(context).getByRole("button", { name: "Edit preferences" });
-    expect(editPreferences.getAttribute("aria-expanded")).toBe("false");
-    fireEvent.click(editPreferences);
-    expect(editPreferences.getAttribute("aria-expanded")).toBe("true");
-    expect(screen.getByText("Saved for your next picks. Today's selection stays as it is.")).toBeTruthy();
+    expect(within(context).queryByRole("button", { name: "Edit preferences" })).toBeNull();
+    expect(within(context).queryByText(/Based on your tastes/)).toBeNull();
   });
 
   it("publishes and temporarily reports only newly revealed map-eligible places", () => {

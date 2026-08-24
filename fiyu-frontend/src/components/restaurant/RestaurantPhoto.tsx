@@ -91,7 +91,7 @@ export function RestaurantPhoto({
       )}
     >
       {/* Aspect box reserved up front, so nothing reflows when the image lands. */}
-      <div className={cn("relative w-full", fill ? "h-full min-h-44" : "aspect-[16/9]")}>
+      <div className={cn("relative w-full", fill ? "h-full" : "aspect-[16/9]")}>
         {photo ? (
           // A plain <img>, not next/image: the backend returns a short-lived
           // Google media URL, and next/image would cache it well beyond that

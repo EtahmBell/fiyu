@@ -487,7 +487,7 @@ describe("daily-only discovery shell", () => {
     expect(screen.queryByText(/Searching near/i)).toBeNull();
   });
 
-  it("does not show preferences while the authenticated active assignment is unresolved", async () => {
+  it("does not show the Picks entry point while the authenticated assignment is unresolved", async () => {
     locationApi.fetchDiscoveryLocation.mockResolvedValueOnce(configuredLocation("Shinjuku"));
     let resolveAssignment: ((value: null) => void) | undefined;
     dailyApi.fetchActiveDailyPicks.mockReturnValueOnce(
@@ -500,12 +500,12 @@ describe("daily-only discovery shell", () => {
     render(<DiscoveryShell restaurants={catalog} areaAnchors={[]} />);
 
     expect(await screen.findByTestId("fiyu-loading-screen")).toBeTruthy();
-    expect(screen.queryByText("Choose today’s preferences")).toBeNull();
+    expect(screen.queryByText("Today’s Fiyu Picks")).toBeNull();
     expect(screen.queryByTestId("pre-pick-preferences")).toBeNull();
 
     await act(async () => resolveAssignment?.(null));
     expect(
-      await screen.findByRole("heading", { name: "Choose today’s preferences" }),
+      await screen.findByRole("heading", { name: "Today’s Fiyu Picks" }),
     ).toBeTruthy();
   });
 

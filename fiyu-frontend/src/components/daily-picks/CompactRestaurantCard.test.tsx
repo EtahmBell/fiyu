@@ -182,11 +182,15 @@ describe("compact restaurant card content", () => {
     expect(image.className).toContain("object-cover");
     expect(image.className).toContain("object-center");
     expect(image.style.objectPosition).toBe("50% 58%");
-    expect(screen.getByTestId("restaurant-photo-region").className).toContain("h-20");
+    const photoRegion = screen.getByTestId("restaurant-photo-region");
+    expect(photoRegion.className).toContain("h-20");
+    expect(photoRegion.firstElementChild?.className).toContain("h-full");
+    expect(photoRegion.firstElementChild?.className).not.toContain("min-h-44");
+    expect(image.getAttribute("width")).toBe(String(photoFixture.width));
+    expect(image.getAttribute("height")).toBe(String(photoFixture.height));
     expect(screen.queryByText(/Photo by/)).toBeNull();
 
     expect(screen.queryByRole("button", { name: "Photo information" })).toBeNull();
-    const photoRegion = screen.getByTestId("restaurant-photo-region");
     fireEvent.click(photoRegion);
     const overlay = screen.getByTestId("photo-attribution-overlay");
     expect(overlay.className).toContain("h-3");

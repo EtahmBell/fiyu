@@ -17,11 +17,7 @@ import { FiyuApiError } from "@/lib/api/errors";
 import type { PublicRestaurant } from "@/lib/api/schemas";
 import { ACTIVE_FIYU_CITY } from "@/lib/city/editions";
 import {
-  JAPANESE_FOOD_PREFERENCES,
   selectDailyRestaurants,
-  type DailyPreferences,
-  type JapaneseFoodPreference,
-  type NonJapanesePreference,
 } from "@/lib/daily-picks/selection";
 import { recentDiscoveries, recordRevealedDiscovery } from "@/lib/daily-picks/history";
 import { UNLIMITED_PICKS_DEV_MODE } from "@/lib/daily-picks/developmentMode";
@@ -137,118 +133,6 @@ function remainingLabel(milliseconds: number): string {
   return remainder === 0 ? `${hours}h` : `${hours}h ${remainder}m`;
 }
 
-function PreferenceControls({
-  preferences,
-  onChange,
-}: {
-  preferences: DailyPreferences;
-  onChange(preferences: DailyPreferences): void;
-}) {
-  const toggleCategory = (category: JapaneseFoodPreference) => {
-    const selected = preferences.categories.includes(category);
-    if (!selected && preferences.categories.length >= 3) return;
-    onChange({
-      ...preferences,
-      categories: selected
-        ? preferences.categories.filter((item) => item !== category)
-        : [...preferences.categories, category],
-    });
-  };
-
-  return (
-    <div className="space-y-5" data-testid="pre-pick-preferences">
-      <fieldset>
-        <legend className="flex items-baseline gap-2 text-sm text-ink">
-          <span className="text-[0.68rem] font-semibold tracking-[0.12em] text-lavender-700 uppercase">
-            Step 1
-          </span>
-          <span className="font-medium text-ink">Food interests</span>
-        </legend>
-        <p className="mt-1 text-xs text-ink-muted">Choose up to three, or let Fiyu surprise you.</p>
-        <div className="mt-2.5 flex flex-wrap gap-2">
-          {JAPANESE_FOOD_PREFERENCES.map((preference) => {
-            const selected = preferences.categories.includes(preference.id);
-            return (
-              <button
-                key={preference.id}
-                type="button"
-                aria-pressed={selected}
-                disabled={!selected && preferences.categories.length >= 3}
-                onClick={() => toggleCategory(preference.id)}
-                className={
-                  selected
-                    ? "inline-flex min-h-9 items-center rounded-lg border border-lavender-500 bg-lavender-100/65 px-3.5 text-sm font-medium text-plum focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600"
-                    : "inline-flex min-h-9 items-center rounded-lg border border-line bg-surface px-3.5 text-sm text-ink-muted hover:border-lavender-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600 disabled:cursor-not-allowed disabled:opacity-40"
-                }
-              >
-                {preference.label}
-              </button>
-            );
-          })}
-          <button
-            type="button"
-            aria-pressed={preferences.categories.length === 0}
-            onClick={() => onChange({ ...preferences, categories: [] })}
-            className={
-              preferences.categories.length === 0
-                ? "inline-flex min-h-9 items-center rounded-lg border border-plum bg-lavender-100/65 px-3.5 text-sm font-medium text-plum focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-plum"
-                : "inline-flex min-h-9 items-center rounded-lg border border-line bg-surface px-3.5 text-sm font-medium text-plum hover:border-plum focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-plum"
-            }
-          >
-            Surprise me
-          </button>
-        </div>
-      </fieldset>
-
-      <fieldset>
-        <legend className="flex items-baseline gap-2 text-sm text-ink">
-          <span className="text-[0.68rem] font-semibold tracking-[0.12em] text-lavender-700 uppercase">
-            Step 2
-          </span>
-          <span className="font-medium text-ink">Non-Japanese restaurants</span>
-        </legend>
-        {/*
-         * A grid, not inline-flex thirds: three `w-1/3` inline-level buttons
-         * are separated by collapsible whitespace, so the row overran its
-         * container and the selected fill broke across the wrap. Grid tracks
-         * divide the width exactly and stretch every segment to one height.
-         */}
-        <div className="mt-2.5 grid min-w-0 grid-cols-1 overflow-hidden rounded-lg border border-line bg-surface sm:grid-cols-3">
-          {([
-            ["japanese-only", "Japanese only"],
-            ["occasionally", "Mostly Japanese"],
-            ["yes", "Open to anything"],
-          ] as const satisfies readonly (readonly [NonJapanesePreference, string])[]).map(
-            ([value, label], index) => {
-              const selected = preferences.nonJapanese === value;
-              return (
-                <button
-                  key={value}
-                  type="button"
-                  aria-pressed={selected}
-                  onClick={() => onChange({ ...preferences, nonJapanese: value })}
-                  className={[
-                    "flex min-h-11 min-w-0 items-center justify-center px-2.5 text-center text-sm leading-tight transition-colors sm:px-3",
-                    // Inset ring: an offset outline would be clipped by the
-                    // control's own overflow-hidden corners.
-                    "focus-visible:relative focus-visible:z-10 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-lavender-600",
-                    index > 0 ? "border-t border-line sm:border-t-0 sm:border-l" : "",
-                    selected
-                      ? "bg-lavender-100/65 font-medium text-plum"
-                      : "text-ink-muted hover:bg-subtle",
-                  ].join(" ")}
-                >
-                  {label}
-                </button>
-              );
-            },
-          )}
-        </div>
-      </fieldset>
-    </div>
-  );
-}
-
 /**
  * Discovery context beneath the mobile `Picks` heading.
  *
@@ -258,18 +142,14 @@ function PreferenceControls({
  * entirely, and with no resolved origin the area prefix simply disappears.
  *
  * A lightly tinted, compact context strip keeps this distinct from the heavier
- * restaurant cards while preserving the existing preference action.
+ * restaurant cards.
  */
 function PicksDiscoveryContext({
   areaLabel,
   pickCount,
-  tuning,
-  onToggleTuning,
 }: {
   areaLabel: string | null;
   pickCount: number;
-  tuning: boolean;
-  onToggleTuning?: () => void;
 }) {
   const countLabel = pickCount > 0 ? `${pickCount} picks selected` : null;
   const namedAreaLabel = areaLabel === "you" ? null : areaLabel;
@@ -277,6 +157,9 @@ function PicksDiscoveryContext({
     countLabel && namedAreaLabel
       ? `Near ${namedAreaLabel} · ${countLabel}`
       : (countLabel ?? (namedAreaLabel ? `Near ${namedAreaLabel}` : null));
+  const contextLabel = namedAreaLabel
+    ? `Selected near ${namedAreaLabel}`
+    : "Selected near your current location";
 
   return (
     <div
@@ -291,21 +174,10 @@ function PicksDiscoveryContext({
           </p>
         )}
         <p className="mt-1 text-xs leading-5 text-ink-muted">
-          Based on your tastes and nearby area
+          {contextLabel}
         </p>
       </div>
 
-      {onToggleTuning && (
-        <button
-          type="button"
-          onClick={onToggleTuning}
-          aria-expanded={tuning}
-          aria-controls={tuning ? "picks-preference-tuning" : undefined}
-          className="inline-flex min-h-9 shrink-0 items-center rounded-chip border border-lavender-100 bg-white/55 px-3 text-xs font-medium text-lavender-700 transition-colors duration-200 ease-(--ease-fiyu) hover:border-lavender-600 hover:bg-white"
-        >
-          Edit preferences
-        </button>
-      )}
     </div>
   );
 }
@@ -338,7 +210,6 @@ export function DailyPicksPanel({
   const [inventoryMessage, setInventoryMessage] = useState<string | null>(null);
   const [phase, setPhase] = useState<DiscoveryPhase>("idle");
   const [searchLocation, setSearchLocation] = useState<ActivePicksDiscoveryLocation | null>(null);
-  const [tuning, setTuning] = useState(false);
   const [newMapPlaceCount, setNewMapPlaceCount] = useState(0);
   const [assignmentRestaurants, setAssignmentRestaurants] = useState<PublicRestaurant[]>([]);
   const [assignmentAccountId, setAssignmentAccountId] = useState<string | null>(null);
@@ -521,10 +392,6 @@ export function DailyPicksPanel({
       cancelled = true;
     };
   }, [accountId, injectedStorage, persist]);
-
-  const updatePreferences = (preferences: DailyPreferences) => {
-    persist({ ...state, preferences });
-  };
 
   const finishDiscovery = (generation: number) => {
     if (generation !== assignmentGenerationRef.current) return;
@@ -739,33 +606,19 @@ export function DailyPicksPanel({
         </p>
       )}
 
-      <PicksDiscoveryContext
-        areaLabel={
-          assignmentLocation?.accountId === accountId && assignmentLocation.mode === "current"
-            ? "you"
-            : assignmentLocation?.accountId === accountId && assignmentLocation.label
-              ? assignmentLocation.label
-              : activeDiscoveryLocation?.mode === "current"
-                ? "you"
-                : activeDiscoveryLocation?.label?.trim() || null
-        }
-        pickCount={hasActivePicks ? selectedRestaurants.length : 0}
-        tuning={tuning}
-        // Tuning is only offered while a selection is active: without one the
-        // same controls are already the primary content of the panel below.
-        onToggleTuning={hasActivePicks ? () => setTuning((open) => !open) : undefined}
-      />
-
-      {hasActivePicks && tuning && (
-        <div
-          id="picks-preference-tuning"
-          className="mt-4 rounded-card border border-line bg-lavender-50/35 p-4 lg:hidden"
-        >
-          <PreferenceControls preferences={state.preferences} onChange={updatePreferences} />
-          <p className="mt-4 text-xs leading-5 text-ink-muted">
-            Saved for your next picks. Today&apos;s selection stays as it is.
-          </p>
-        </div>
+      {hasActivePicks && (
+        <PicksDiscoveryContext
+          areaLabel={
+            assignmentLocation?.accountId === accountId && assignmentLocation.mode === "current"
+              ? "you"
+              : assignmentLocation?.accountId === accountId && assignmentLocation.label
+                ? assignmentLocation.label
+                : activeDiscoveryLocation?.mode === "current"
+                  ? "you"
+                  : activeDiscoveryLocation?.label?.trim() || null
+          }
+          pickCount={selectedRestaurants.length}
+        />
       )}
 
       <section
@@ -783,9 +636,7 @@ export function DailyPicksPanel({
         >
           {phase === "finding"
             ? "Fresh Picks"
-            : hasActivePicks
-              ? "Today’s Fiyu Picks"
-              : "Choose today’s preferences"}
+            : "Today’s Fiyu Picks"}
         </h2>
 
         {phase === "finding" ? (
@@ -837,10 +688,6 @@ export function DailyPicksPanel({
 
             {!hasActivePicks && (
               <div className="space-y-4 px-0.5 sm:space-y-5">
-                <div className="rounded-card border border-lavender-100/85 bg-surface px-4 py-4 sm:px-5 sm:py-4.5">
-                  <PreferenceControls preferences={state.preferences} onChange={updatePreferences} />
-                </div>
-
                 {originSetup && !originSetup.origin ? (
                   <div className="rounded-xl border border-lavender-100/75 bg-surface px-4 py-3.5 sm:px-5 sm:py-4">
                     <FreeOriginOnboarding setup={originSetup} />
