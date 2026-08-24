@@ -289,13 +289,16 @@ class PracticalInfo(BaseModel):
         return _clean_http_urls(values)
 
 
+_CANONICAL_HOURS_TIME = r"(?:[01]\d|2[0-9]):[0-5]\d"
+
+
 class HoursPeriod(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    open: str
-    close: str
+    open: str = Field(pattern=_CANONICAL_HOURS_TIME)
+    close: str = Field(pattern=_CANONICAL_HOURS_TIME)
     label: Literal["lunch", "dinner", "late_night", "other"] | None = None
-    last_order: str | None = None
+    last_order: str | None = Field(default=None, pattern=_CANONICAL_HOURS_TIME)
 
     @field_validator("last_order", mode="before")
     @classmethod
@@ -303,9 +306,7 @@ class HoursPeriod(BaseModel):
         # A combined value such as "food 21:00; drinks 21:30" cannot be mapped
         # safely to the schema's single last-order field. Preserve the periods
         # and conflicts while leaving this optional field unknown.
-        if isinstance(value, str) and not re.fullmatch(
-            r"(?:[01]\d|2[0-9]):[0-5]\d", value.strip()
-        ):
+        if isinstance(value, str) and not re.fullmatch(_CANONICAL_HOURS_TIME, value.strip()):
             return None
         return value
 
@@ -314,7 +315,7 @@ class HoursPeriod(BaseModel):
     def validate_time(cls, value: str | None) -> str | None:
         if value is None:
             return None
-        if not re.fullmatch(r"(?:[01]\d|2[0-9]):[0-5]\d", value):
+        if not re.fullmatch(_CANONICAL_HOURS_TIME, value):
             raise ValueError("time must use HH:MM (hours through 29 support overnight service)")
         return value
 
@@ -324,6 +325,41 @@ class DayHours(BaseModel):
 
     status: Literal["open", "closed", "unknown", "irregular"] = "unknown"
     periods: list[HoursPeriod] = Field(default_factory=list, max_length=4)
+
+    @model_validator(mode="before")
+    @classmethod
+    def discard_malformed_optional_periods(cls, value: object) -> object:
+        """Preserve usable periods without letting optional day data reject enrichment."""
+
+        if isinstance(value, cls):
+            return value
+        if not isinstance(value, dict):
+            return {"status": "unknown", "periods": []}
+
+        status = value.get("status", "unknown")
+        if status not in {"open", "closed", "unknown", "irregular"}:
+            status = "unknown"
+
+        raw_periods = value.get("periods", [])
+        valid_periods: list[dict[str, object]] = []
+        if isinstance(raw_periods, list):
+            for raw_period in raw_periods:
+                try:
+                    period = HoursPeriod.model_validate(raw_period)
+                except (TypeError, ValueError, ValidationError):
+                    continue
+                valid_periods.append(period.model_dump(mode="python"))
+                if len(valid_periods) == 4:
+                    break
+
+        if status == "open" and not valid_periods:
+            status = "unknown"
+        elif status in {"closed", "unknown"} and valid_periods:
+            # Conflicting status/period evidence cannot establish either state.
+            status = "unknown"
+            valid_periods = []
+
+        return {"status": status, "periods": valid_periods}
 
     @model_validator(mode="after")
     def validate_periods(self) -> DayHours:
@@ -381,6 +417,18 @@ class CardEnrichment(BaseModel):
             return handler(value)
         except (TypeError, ValueError, ValidationError):
             return None
+
+    @field_validator("opening_hours", mode="wrap")
+    @classmethod
+    def discard_invalid_optional_hours(cls, value: object, handler):
+        """Keep unusable optional hours from invalidating core enrichment."""
+
+        if value is None:
+            return OpeningHours()
+        try:
+            return handler(value)
+        except (TypeError, ValueError, ValidationError):
+            return OpeningHours()
 
     @field_validator("card_description")
     @classmethod
@@ -1113,6 +1161,11 @@ URL, booking method, or note. Normalize a supported per-person budget into curre
 and band while retaining the source value. If neither a numeric minimum nor maximum is supported,
 return budget as null; never return a structurally empty budget object. Unknown contact fields remain
 null/empty.
+Opening and closing times must use canonical HH:MM values (hours through 29 are allowed for
+overnight service). Never put text such as "last" in a time field. A day marked open must contain
+at least one valid period. If reliable hours cannot be represented this way, return that day as
+unknown with no periods, or leave opening hours unavailable; never fabricate a time or infer that a
+day is closed from missing periods.
 Return the canonical CardEnrichment schema and preserve source URLs, confidence, checked_at, and any
 unresolved disagreement. Search only what is missing from the supplied persisted evidence."""
 

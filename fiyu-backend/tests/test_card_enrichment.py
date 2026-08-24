@@ -167,10 +167,76 @@ def test_valid_optional_budget_is_preserved_with_provenance():
     }
 
     budget = CardEnrichment.model_validate(payload).budget
-
     assert budget is not None
     assert (budget.minimum, budget.maximum) == (4000, 4999)
     assert budget.sources[0].url == "https://example.com/budget"
+
+
+def test_karaoke_bar_ao_malformed_close_only_discards_affected_days():
+    payload = _complete_enrichment().model_dump(mode="json")
+    malformed_period = {
+        "open": "18:00",
+        "close": "last",
+        "label": "late_night",
+        "last_order": None,
+    }
+    payload["opening_hours"]["friday"] = {
+        "status": "open",
+        "periods": [malformed_period],
+    }
+    payload["opening_hours"]["saturday"] = {
+        "status": "open",
+        "periods": [malformed_period],
+    }
+
+    enrichment = CardEnrichment.model_validate(payload)
+
+    assert enrichment.opening_hours.friday == DayHours()
+    assert enrichment.opening_hours.saturday == DayHours()
+    assert enrichment.opening_hours.tuesday.status == "open"
+    assert enrichment.card_description == payload["card_description"]
+    assert len(enrichment.review_themes) == 1
+    assert enrichment.practical_info.reservation.status == "recommended"
+
+
+def test_veganic_monkey_magic_open_days_without_periods_become_unknown():
+    payload = _complete_enrichment().model_dump(mode="json")
+    for day in ("thursday", "friday", "saturday"):
+        payload["opening_hours"][day] = {"status": "open", "periods": []}
+
+    enrichment = CardEnrichment.model_validate(payload)
+
+    for day in ("thursday", "friday", "saturday"):
+        assert getattr(enrichment.opening_hours, day) == DayHours()
+    assert enrichment.opening_hours.tuesday.status == "open"
+    assert enrichment.card_description == payload["card_description"]
+    assert len(enrichment.review_themes) == 1
+    assert enrichment.practical_info.reservation.status == "recommended"
+
+
+def test_unusable_optional_hours_block_does_not_discard_core_enrichment():
+    payload = _complete_enrichment().model_dump(mode="json")
+    payload["opening_hours"] = {"unsupported_schedule_shape": "daily except holidays"}
+
+    enrichment = CardEnrichment.model_validate(payload)
+
+    assert enrichment.opening_hours == OpeningHours()
+    assert enrichment.card_description == payload["card_description"]
+    assert len(enrichment.review_themes) == 1
+    assert enrichment.practical_info.reservation.status == "recommended"
+
+
+def test_valid_hours_and_valid_periods_survive_optional_hours_sanitization():
+    payload = _complete_enrichment().model_dump(mode="json")
+    payload["opening_hours"]["friday"]["periods"].append(
+        {"open": "22:00", "close": "26:00", "label": "late_night", "last_order": "25:30"}
+    )
+
+    enrichment = CardEnrichment.model_validate(payload)
+
+    assert enrichment.opening_hours.friday.status == "open"
+    assert len(enrichment.opening_hours.friday.periods) == 3
+    assert enrichment.opening_hours.friday.periods[-1].close == "26:00"
 
 
 def test_compact_existing_enrichment_omits_defaults_and_round_trips_meaningful_values():

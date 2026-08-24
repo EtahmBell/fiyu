@@ -263,6 +263,11 @@ theme requires at least two independent source URLs. Record practical facts only
 leave unknown values null/unknown. Normalize weekly hours, prioritizing current official sources,
 then official social, reservation platforms, and reputable Japanese directories. Do not use Google
 hours or Google review content. Preserve checked_at, confidence, source URLs, and disagreements.
+Opening and closing times must use canonical HH:MM values (hours through 29 are allowed for
+overnight service). Never put text such as "last" in a time field. A day marked open must contain
+at least one valid period. If reliable hours cannot be represented this way, return that day as
+unknown with no periods, or leave opening hours unavailable; never fabricate a time or infer that a
+day is closed from missing periods.
 Populate canonical contact/booking fields only when a current official restaurant source or current
 permitted reservation platform supports the exact value. Never copy candidate contact hints into
 the output. Attach the supporting source and leave unsupported phone, booking URL, method, and note
