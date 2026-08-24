@@ -215,8 +215,9 @@ GET /public/restaurants/{place_id}/photos?limit=5
 
 The `/public/restaurants` endpoints return only manually published rows and only
 frontend-safe fields. `fiyu_score` is an editorial/research score, not a community rating.
-Google ratings, review counts, prices, opening hours, and other operational details are not
-part of the public contract.
+Google ratings, review counts, and raw provider operational fields are not part of the public
+contract. Sanitized, source-aware card enrichment may expose canonical hours, reservation/contact,
+and normalized per-person budget fields when known; unsupported values remain absent.
 
 ### Public catalog workflow
 

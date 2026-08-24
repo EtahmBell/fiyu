@@ -29,7 +29,7 @@ const subscribeClock = (listener: () => void) => {
 const currentMinute = () => Math.floor(Date.now() / 60_000) * 60_000;
 const serverMinute = () => 0;
 
-function safeExternalUrl(value: string | null): string | null {
+function safeExternalUrl(value: string | null | undefined): string | null {
   if (!value) return null;
   try {
     const url = new URL(value);
@@ -57,6 +57,22 @@ function formatResearchDate(value: string | null): string | null {
     day: "numeric",
     timeZone: "UTC",
   }).format(date);
+}
+
+function formatBudget(restaurant: PublicRestaurantDetail): string | null {
+  const budget = restaurant.budget;
+  if (!budget) return null;
+  const formatter = new Intl.NumberFormat("ja-JP", {
+    style: "currency",
+    currency: budget.currency,
+    maximumFractionDigits: 0,
+  });
+  if (budget.minimum !== null && budget.maximum !== null) {
+    return `${formatter.format(budget.minimum)}–${formatter.format(budget.maximum)} per person`;
+  }
+  if (budget.minimum !== null) return `${formatter.format(budget.minimum)}+ per person`;
+  if (budget.maximum !== null) return `Up to ${formatter.format(budget.maximum)} per person`;
+  return null;
 }
 
 function BackIcon() {
@@ -236,6 +252,11 @@ function RestaurantDetailContent({
   const hours = knownHours(restaurant.opening_hours);
   const scheduleNote = restaurant.opening_hours?.schedule_note?.trim() || null;
   const hasHours = hours.length > 0 || restaurant.opening_hours?.reservation_only === true || Boolean(scheduleNote);
+  const budget = formatBudget(restaurant);
+  const bookingUrl = safeExternalUrl(restaurant.booking_url);
+  const hasContact = Boolean(
+    budget || restaurant.phone_number || bookingUrl || restaurant.contact_note || restaurant.booking_methods?.length,
+  );
 
   return (
     <article className="space-y-8 pb-12" style={{ animation: "fiyu-reveal-in 220ms var(--ease-fiyu) both" }}>
@@ -292,6 +313,19 @@ function RestaurantDetailContent({
               </li>
             ))}
           </ul>
+        </section>
+      )}
+
+      {hasContact && (
+        <section aria-labelledby="booking-heading" className="border-t border-line pt-6">
+          <h2 id="booking-heading" className="font-display text-2xl text-ink">Booking and budget</h2>
+          <dl className="mt-3 grid max-w-md grid-cols-[6rem_minmax(0,1fr)] gap-x-4 gap-y-2 text-sm leading-6">
+            {budget && <><dt className="text-ink-muted">Budget</dt><dd className="text-ink/85">{budget}</dd></>}
+            {restaurant.phone_number && <><dt className="text-ink-muted">Phone</dt><dd><a className="text-lavender-700 underline underline-offset-2" href={`tel:${restaurant.phone_number}`}>{restaurant.phone_number}</a></dd></>}
+            {(restaurant.booking_methods?.length ?? 0) > 0 && <><dt className="text-ink-muted">Booking</dt><dd className="text-ink/85">{restaurant.booking_methods?.map((method) => formatTagForDisplay(method)).join(", ")}</dd></>}
+            {bookingUrl && <><dt className="text-ink-muted">Online</dt><dd><a className="text-lavender-700 underline underline-offset-2" href={bookingUrl} target="_blank" rel="noopener noreferrer nofollow">Book online ↗</a></dd></>}
+          </dl>
+          {restaurant.contact_note && <p className="mt-3 max-w-prose text-sm leading-6 text-ink-muted">{restaurant.contact_note}</p>}
         </section>
       )}
 

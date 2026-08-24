@@ -21,7 +21,7 @@ from pydantic import (
 
 from .database import connect
 
-CARD_ENRICHMENT_PROMPT_VERSION = "restaurant-card-enrichment-v1"
+CARD_ENRICHMENT_PROMPT_VERSION = "restaurant-card-enrichment-v2-contact-budget"
 CARD_ENRICHMENT_MAX_SEARCH_ACTIONS = 5
 DAY_NAMES = (
     "monday",
@@ -132,8 +132,94 @@ class ReviewTheme(BaseModel):
 class ReservationInfo(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    status: Literal["recommended", "required", "usually_not_needed", "unknown"] = "unknown"
+    status: Literal[
+        "required",
+        "strongly_recommended",
+        "recommended",
+        "walk_ins_ok",
+        "usually_not_needed",
+        "unknown",
+    ] = "unknown"
     confidence: float | None = Field(default=None, ge=0, le=1)
+
+
+class ContactInfo(BaseModel):
+    """Canonical public contact data with field-specific supporting sources."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    booking_methods: list[
+        Literal["phone", "online", "restaurant_website", "reservation_platform", "in_person"]
+    ] = Field(default_factory=list, max_length=5)
+    phone_number: str | None = Field(default=None, max_length=40)
+    booking_url: str | None = Field(default=None, max_length=2000)
+    contact_note: str | None = Field(default=None, max_length=180)
+    confidence: float | None = Field(default=None, ge=0, le=1)
+    sources: list[EnrichmentSource] = Field(default_factory=list, max_length=8)
+    checked_at: str | None = None
+
+    @field_validator("phone_number")
+    @classmethod
+    def clean_phone(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        compact = " ".join(value.split()).strip()
+        digits = re.sub(r"\D", "", compact)
+        if len(digits) < 9 or len(digits) > 15:
+            raise ValueError("phone number must contain 9-15 digits")
+        return compact
+
+    @field_validator("booking_url")
+    @classmethod
+    def clean_booking_url(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        value = value.strip()
+        if not value.startswith(("https://", "http://")):
+            raise ValueError("booking URL must use HTTP(S)")
+        return value
+
+    @field_validator("contact_note")
+    @classmethod
+    def clean_contact_note(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        value = " ".join(value.split()).strip()
+        return value or None
+
+    @model_validator(mode="after")
+    def require_sources_for_contact_values(self) -> ContactInfo:
+        if (self.phone_number or self.booking_url or self.contact_note or self.booking_methods) and not (
+            self.sources
+        ):
+            raise ValueError("canonical contact values require a supporting source")
+        return self
+
+
+class BudgetInfo(BaseModel):
+    """City-extensible normalized per-person spend estimate."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    currency: str = Field(min_length=3, max_length=3)
+    minimum: int | None = Field(default=None, ge=0)
+    maximum: int | None = Field(default=None, ge=0)
+    band: Literal["budget", "moderate", "upscale", "splurge"]
+    source_value: str | None = Field(default=None, max_length=80)
+    source_type: Literal["candidate_price_import", "researched_source"]
+    confidence: float = Field(ge=0, le=1)
+    sources: list[EnrichmentSource] = Field(default_factory=list, max_length=8)
+    checked_at: str | None = None
+
+    @model_validator(mode="after")
+    def validate_range_and_sources(self) -> BudgetInfo:
+        if self.minimum is None and self.maximum is None:
+            raise ValueError("budget requires at least one numeric bound")
+        if self.minimum is not None and self.maximum is not None and self.minimum > self.maximum:
+            raise ValueError("budget minimum cannot exceed maximum")
+        if self.source_type == "researched_source" and not self.sources:
+            raise ValueError("researched budget requires a supporting source")
+        return self
 
 
 class SeatingInfo(BaseModel):
@@ -276,6 +362,8 @@ class CardEnrichment(BaseModel):
     card_description_source_urls: list[str] = Field(default_factory=list, max_length=8)
     review_themes: list[ReviewTheme] = Field(default_factory=list, max_length=5)
     practical_info: PracticalInfo = Field(default_factory=PracticalInfo)
+    contact: ContactInfo = Field(default_factory=ContactInfo)
+    budget: BudgetInfo | None = None
     opening_hours: OpeningHours = Field(default_factory=OpeningHours)
     researched_at: str | None = None
     unresolved_conflicts: list[str] = Field(default_factory=list, max_length=8)
@@ -472,6 +560,67 @@ def practical_info_is_useful(info: PracticalInfo) -> bool:
     )
 
 
+_JPY_PRICE_RANGE = re.compile(
+    r"^\s*[¥￥]\s*([\d,]+)\s*[–—-]\s*([\d,]+)\s*$"
+)
+_JPY_PRICE_PLUS = re.compile(r"^\s*[¥￥]\s*([\d,]+)\s*\+\s*$")
+
+
+def _budget_band(minimum: int | None, maximum: int | None) -> str:
+    if maximum is None and (minimum or 0) >= 10_000:
+        return "splurge"
+    representative = maximum if maximum is not None else minimum or 0
+    if representative <= 2_000:
+        return "budget"
+    if representative <= 5_000:
+        return "moderate"
+    if representative <= 10_000:
+        return "upscale"
+    return "splurge"
+
+
+def normalize_candidate_budget(raw_value: str | None) -> BudgetInfo | None:
+    """Normalize the finite imported JPY range vocabulary; ambiguous text stays null."""
+
+    if not raw_value:
+        return None
+    value = " ".join(raw_value.split()).strip()
+    match = _JPY_PRICE_RANGE.fullmatch(value)
+    if match:
+        minimum, maximum = (int(part.replace(",", "")) for part in match.groups())
+        # The source vocabulary uses ``¥1–¥1,000`` as its lowest bucket, not a
+        # literal one-yen expected spend. Keep the useful upper bound and
+        # normalize its lower edge to zero.
+        if minimum == 1:
+            minimum = 0
+        return BudgetInfo(
+            currency="JPY",
+            minimum=minimum,
+            maximum=maximum,
+            band=_budget_band(minimum, maximum),
+            source_value=value,
+            source_type="candidate_price_import",
+            confidence=0.8,
+        )
+    match = _JPY_PRICE_PLUS.fullmatch(value)
+    if match:
+        minimum = int(match.group(1).replace(",", ""))
+        return BudgetInfo(
+            currency="JPY",
+            minimum=minimum,
+            maximum=None,
+            band=_budget_band(minimum, None),
+            source_value=value,
+            source_type="candidate_price_import",
+            confidence=0.8,
+        )
+    return None
+
+
+def contact_info_is_useful(info: ContactInfo) -> bool:
+    return bool(info.booking_methods or info.phone_number or info.booking_url or info.contact_note)
+
+
 def _conservative_practical_merge(
     existing: PracticalInfo, incoming: PracticalInfo
 ) -> PracticalInfo:
@@ -566,6 +715,28 @@ def merge_card_enrichment(
                 if same_authority
                 else incoming.practical_info
             )
+
+    if contact_info_is_useful(incoming.contact):
+        current_key = (
+            result.contact.confidence or 0,
+            _parse_timestamp(result.contact.checked_at),
+        )
+        incoming_key = (
+            incoming.contact.confidence or 0,
+            _parse_timestamp(incoming.contact.checked_at),
+        )
+        if not contact_info_is_useful(result.contact) or incoming_key >= current_key:
+            result.contact = incoming.contact
+
+    if incoming.budget is not None:
+        current_budget = result.budget
+        current_key = (
+            current_budget.confidence if current_budget else 0,
+            _parse_timestamp(current_budget.checked_at if current_budget else None),
+        )
+        incoming_key = (incoming.budget.confidence, _parse_timestamp(incoming.budget.checked_at))
+        if current_budget is None or incoming_key >= current_key:
+            result.budget = incoming.budget
 
     if hours_are_usable(incoming.opening_hours):
         current = result.opening_hours
@@ -732,7 +903,10 @@ def persist_card_enrichment(
             card_description=?, card_description_confidence=?,
             card_description_checked_at=?, review_themes_json=?,
             review_themes_checked_at=?, practical_info_json=?,
-            practical_info_checked_at=?, opening_hours_json=?, hours_display=?,
+            practical_info_checked_at=?, reservation_status=?, reservation_confidence=?,
+            booking_methods_json=?, phone_number=?, booking_url=?, contact_note=?,
+            contact_checked_at=?, budget_json=?, budget_source_value=?,
+            opening_hours_json=?, hours_display=?,
             hours_confidence=?, hours_checked_at=?, card_enrichment_json=?,
             card_enrichment_conflicts_json=?, enrichment_updated_at=?, updated_at=?
         WHERE place_id=?
@@ -747,6 +921,26 @@ def persist_card_enrichment(
             merged.researched_at if merged.review_themes else None,
             json.dumps(merged.practical_info.model_dump(mode="json"), ensure_ascii=False),
             merged.practical_info.checked_at,
+            merged.practical_info.reservation.status,
+            merged.practical_info.reservation.confidence,
+            json.dumps(merged.contact.booking_methods, ensure_ascii=False),
+            merged.contact.phone_number,
+            merged.contact.booking_url,
+            merged.contact.contact_note,
+            merged.contact.checked_at,
+            (
+                json.dumps(
+                    {
+                        key: value
+                        for key, value in merged.budget.model_dump(mode="json").items()
+                        if key not in {"source_value", "sources"}
+                    },
+                    ensure_ascii=False,
+                )
+                if merged.budget
+                else None
+            ),
+            merged.budget.source_value if merged.budget else None,
             json.dumps(merged.opening_hours.model_dump(mode="json"), ensure_ascii=False),
             hours_display,
             merged.opening_hours.confidence,
@@ -761,6 +955,126 @@ def persist_card_enrichment(
     return merged
 
 
+def backfill_canonical_details(
+    db_path: str | Path, *, dry_run: bool = False
+) -> dict[str, object]:
+    """Populate canonical reservation/budget fields from existing structured data only.
+
+    Imported phone and website values are deliberately not promoted: they are
+    Google-derived candidate hints without field-specific independent provenance.
+    """
+
+    from .public_catalog import ensure_public_schema
+
+    ensure_public_schema(db_path)
+    with connect(db_path) as connection:
+        rows = connection.execute(
+            """SELECT p.place_id, p.card_enrichment_json, p.practical_info_json,
+                      p.reservation_status, p.reservation_confidence,
+                      p.booking_methods_json, p.phone_number, p.booking_url,
+                      p.contact_note, p.budget_json, p.budget_source_value,
+                      r.price, r.phone, r.website
+               FROM public_restaurants p
+               LEFT JOIN restaurants r ON r.place_id=p.place_id
+               WHERE p.is_published=1
+               ORDER BY p.place_id"""
+        ).fetchall()
+
+    report: dict[str, object] = {
+        "published_inspected": len(rows),
+        "changed": 0,
+        "known_reservation_status": 0,
+        "normalized_budget": 0,
+        "canonical_phone": 0,
+        "booking_url": 0,
+        "booking_methods": 0,
+        "candidate_phone_not_promoted": 0,
+        "candidate_website_not_promoted": 0,
+        "ambiguous_price_not_normalized": 0,
+    }
+    for row in rows:
+        try:
+            current = CardEnrichment.model_validate_json(row["card_enrichment_json"] or "{}")
+        except ValidationError:
+            current = CardEnrichment()
+        try:
+            practical = PracticalInfo.model_validate_json(row["practical_info_json"] or "{}")
+        except ValidationError:
+            practical = PracticalInfo()
+        if not practical_info_is_useful(current.practical_info) and practical_info_is_useful(
+            practical
+        ):
+            current.practical_info = practical
+        budget = normalize_candidate_budget(row["price"])
+        if budget is not None and current.budget is None:
+            current.budget = budget
+        elif row["price"] and budget is None:
+            report["ambiguous_price_not_normalized"] = (
+                int(report["ambiguous_price_not_normalized"]) + 1
+            )
+        if row["phone"]:
+            report["candidate_phone_not_promoted"] = (
+                int(report["candidate_phone_not_promoted"]) + 1
+            )
+        if row["website"]:
+            report["candidate_website_not_promoted"] = (
+                int(report["candidate_website_not_promoted"]) + 1
+            )
+        if current.practical_info.reservation.status != "unknown":
+            report["known_reservation_status"] = int(report["known_reservation_status"]) + 1
+        if current.budget is not None:
+            report["normalized_budget"] = int(report["normalized_budget"]) + 1
+        if current.contact.phone_number:
+            report["canonical_phone"] = int(report["canonical_phone"]) + 1
+        if current.contact.booking_url:
+            report["booking_url"] = int(report["booking_url"]) + 1
+        if current.contact.booking_methods:
+            report["booking_methods"] = int(report["booking_methods"]) + 1
+
+        before = row["card_enrichment_json"] or "{}"
+        after = json.dumps(current.model_dump(mode="json"), ensure_ascii=False)
+        public_budget = (
+            {
+                key: value
+                for key, value in current.budget.model_dump(mode="json").items()
+                if key not in {"source_value", "sources"}
+            }
+            if current.budget
+            else None
+        )
+        changed = json.loads(before) != json.loads(after) or any(
+            (
+                row["reservation_status"] != current.practical_info.reservation.status,
+                row["reservation_confidence"]
+                != current.practical_info.reservation.confidence,
+                json.loads(row["booking_methods_json"] or "[]")
+                != current.contact.booking_methods,
+                row["phone_number"] != current.contact.phone_number,
+                row["booking_url"] != current.contact.booking_url,
+                row["contact_note"] != current.contact.contact_note,
+                (json.loads(row["budget_json"]) if row["budget_json"] else None)
+                != public_budget,
+                row["budget_source_value"]
+                != (current.budget.source_value if current.budget else None),
+            )
+        )
+        if changed:
+            report["changed"] = int(report["changed"]) + 1
+        if changed and not dry_run:
+            with connect(db_path) as connection:
+                persist_card_enrichment(
+                    connection,
+                    place_id=row["place_id"],
+                    incoming=current,
+                    provider="local_deterministic",
+                    model=None,
+                    prompt_version="canonical-details-local-v1",
+                    phase="canonical_details_local",
+                )
+                connection.commit()
+    return report
+
+
 TARGETED_ENRICHMENT_INSTRUCTIONS = """Research user-facing card enrichment for this exact restaurant.
 Do not score, classify, locate, or assess publication. Synthesize review themes without copying review
 text and require two independent supporting sources for each theme. Each theme must be a complete,
@@ -769,6 +1083,10 @@ hours, then official social, current reservation platforms, and reputable Japane
 use Google-derived hours or Google review content. Unknown facts must remain unknown. The compact
 description must be concrete, restrained English, normally 80-160 characters, with no superlatives.
 Every practical-info note must also be a complete concise sentence, never a clipped fragment.
+Populate canonical contact and booking fields only from current official restaurant sources or a
+current permitted reservation platform. Attach the field-supporting sources; never infer a phone,
+URL, booking method, or note. Normalize a supported per-person budget into currency, numeric bounds,
+and band while retaining the source value. Unknown contact and budget fields remain null/empty.
 Return the canonical CardEnrichment schema and preserve source URLs, confidence, checked_at, and any
 unresolved disagreement. Search only what is missing from the supplied persisted evidence."""
 

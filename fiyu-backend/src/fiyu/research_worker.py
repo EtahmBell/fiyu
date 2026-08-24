@@ -39,7 +39,7 @@ from .public_score import (
     evaluate_fiyu_candidate,
 )
 
-PROMPT_VERSION = "restaurant-research-v4-card-enrichment"
+PROMPT_VERSION = "restaurant-research-v5-canonical-contact-budget"
 CompactLabel = Annotated[str, Field(max_length=120)]
 CompactEvidence = Annotated[str, Field(max_length=500)]
 EvidenceUrl = Annotated[str, Field(max_length=2000)]
@@ -263,6 +263,11 @@ theme requires at least two independent source URLs. Record practical facts only
 leave unknown values null/unknown. Normalize weekly hours, prioritizing current official sources,
 then official social, reservation platforms, and reputable Japanese directories. Do not use Google
 hours or Google review content. Preserve checked_at, confidence, source URLs, and disagreements.
+Populate canonical contact/booking fields only when a current official restaurant source or current
+permitted reservation platform supports the exact value. Never copy candidate contact hints into
+the output. Attach the supporting source and leave unsupported phone, booking URL, method, and note
+unknown. Normalize a source-supported per-person budget into currency, numeric bounds, and band,
+retaining the raw source value. Do not infer budget from cuisine or restaurant style.
 """
 )
 

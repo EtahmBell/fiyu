@@ -25,7 +25,9 @@ export function practicalFacts(info: PracticalInfo | undefined): string[] {
   const facts: string[] = [];
   const reservation = info.reservation?.status;
   if (reservation === "required") facts.push("Reservations required");
+  if (reservation === "strongly_recommended") facts.push("Reservations strongly recommended");
   if (reservation === "recommended") facts.push("Reservations recommended");
+  if (reservation === "walk_ins_ok") facts.push("Walk-ins welcome");
   if (reservation === "usually_not_needed") facts.push("Reservations usually not needed");
 
   if (info.seating?.counter === true) facts.push("Counter seating");
@@ -88,4 +90,3 @@ export function knownHours(hours: OpeningHours | undefined): HoursRow[] {
   }
   return rows;
 }
-

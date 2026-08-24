@@ -41,6 +41,15 @@ CREATE TABLE IF NOT EXISTS public_restaurants (
     review_themes_checked_at TEXT,
     practical_info_json TEXT NOT NULL DEFAULT '{}',
     practical_info_checked_at TEXT,
+    reservation_status TEXT NOT NULL DEFAULT 'unknown',
+    reservation_confidence REAL,
+    booking_methods_json TEXT NOT NULL DEFAULT '[]',
+    phone_number TEXT,
+    booking_url TEXT,
+    contact_note TEXT,
+    contact_checked_at TEXT,
+    budget_json TEXT,
+    budget_source_value TEXT,
     opening_hours_json TEXT NOT NULL DEFAULT '{}',
     hours_display TEXT,
     hours_confidence REAL,
@@ -572,6 +581,15 @@ PUBLIC_CARD_ENRICHMENT_COLUMNS = {
     "review_themes_checked_at": "TEXT",
     "practical_info_json": "TEXT NOT NULL DEFAULT '{}'",
     "practical_info_checked_at": "TEXT",
+    "reservation_status": "TEXT NOT NULL DEFAULT 'unknown'",
+    "reservation_confidence": "REAL",
+    "booking_methods_json": "TEXT NOT NULL DEFAULT '[]'",
+    "phone_number": "TEXT",
+    "booking_url": "TEXT",
+    "contact_note": "TEXT",
+    "contact_checked_at": "TEXT",
+    "budget_json": "TEXT",
+    "budget_source_value": "TEXT",
     "opening_hours_json": "TEXT NOT NULL DEFAULT '{}'",
     "hours_display": "TEXT",
     "hours_confidence": "REAL",
@@ -1612,6 +1630,9 @@ def _safe_public_rows(
                    p.fiyu_score, p.score_band, p.description_en,
                    p.card_description, p.review_themes_json,
                    p.practical_info_json, p.opening_hours_json,
+                   p.reservation_status, p.reservation_confidence,
+                   p.booking_methods_json, p.phone_number, p.booking_url,
+                   p.contact_note, p.budget_json,
                    p.hours_display, p.hours_confidence, p.hours_checked_at,
                    p.local_discovery_score, p.local_discovery_classification,
                    p.tourist_visibility_classification, p.tourist_orientation,
@@ -1765,6 +1786,16 @@ def _safe_public_rows(
                 item["practical_info"] = {}
         except (json.JSONDecodeError, ValueError):
             item["practical_info"] = {}
+        try:
+            methods = json.loads(item.pop("booking_methods_json") or "[]")
+            item["booking_methods"] = methods if isinstance(methods, list) else []
+        except json.JSONDecodeError:
+            item["booking_methods"] = []
+        try:
+            budget = json.loads(item.pop("budget_json") or "null")
+            item["budget"] = budget if isinstance(budget, dict) else None
+        except json.JSONDecodeError:
+            item["budget"] = None
         try:
             opening_hours = json.loads(item.pop("opening_hours_json") or "{}")
             if isinstance(opening_hours, dict):

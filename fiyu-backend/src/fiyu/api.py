@@ -157,6 +157,13 @@ class PublicRestaurantSummary(BaseModel):
     card_description: str | None = None
     review_themes: list[dict[str, object]] = Field(default_factory=list)
     practical_info: dict[str, object] = Field(default_factory=dict)
+    reservation_status: str = "unknown"
+    reservation_confidence: float | None = None
+    booking_methods: list[str] = Field(default_factory=list)
+    phone_number: str | None = None
+    booking_url: str | None = None
+    contact_note: str | None = None
+    budget: dict[str, object] | None = None
     opening_hours: dict[str, object] = Field(default_factory=dict)
     hours_display: str | None = None
     hours_confidence: float | None = None

@@ -184,6 +184,34 @@ describe("restaurant detail view", () => {
     expect(document.body.textContent).not.toContain("2026-08-01");
   });
 
+  it("renders known canonical booking, contact, and budget fields", () => {
+    const enrichedRestaurant = publicRestaurantDetailSchema.parse({
+      ...restaurant,
+      reservation_status: "strongly_recommended",
+      booking_methods: ["phone", "online"],
+      phone_number: "03-1234-5678",
+      booking_url: "https://reserve.example/detail-place",
+      contact_note: "Same-day bookings may be limited.",
+      budget: {
+        currency: "JPY",
+        minimum: 3000,
+        maximum: 5000,
+        band: "moderate",
+        source_type: "candidate_price_import",
+        confidence: 0.8,
+      },
+    });
+
+    render(<RestaurantDetailShell restaurant={enrichedRestaurant} restaurants={[enrichedRestaurant]} />);
+
+    expect(screen.getByRole("heading", { name: "Booking and budget" })).toBeTruthy();
+    expect(screen.getByText((text) => text.includes("3,000") && text.includes("5,000 per person"))).toBeTruthy();
+    expect(screen.getByRole("link", { name: "03-1234-5678" }).getAttribute("href")).toBe("tel:03-1234-5678");
+    expect(screen.getByText("Phone, Online")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Book online ↗" }).getAttribute("href")).toBe("https://reserve.example/detail-place");
+    expect(screen.getByText("Same-day bookings may be limited.")).toBeTruthy();
+  });
+
   it("keeps Koda-style sparse enrichment clean without filler sections", () => {
     const koda = publicRestaurantDetailSchema.parse({
       ...restaurant,

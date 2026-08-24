@@ -282,6 +282,38 @@ def test_public_card_enrichment_omits_internal_source_provenance(public_db):
     assert row["hours_checked_at"] == "2026-08-20T00:00:00+00:00"
 
 
+def test_public_detail_exposes_sanitized_canonical_booking_and_budget(public_db):
+    with connect(public_db) as connection:
+        connection.execute(
+            """UPDATE public_restaurants SET reservation_status='strongly_recommended',
+                   reservation_confidence=0.9, booking_methods_json='["phone", "online"]',
+                   phone_number='03-1234-5678', booking_url='https://reserve.example/eligible',
+                   contact_note='Same-day bookings may be limited.',
+                   budget_json=? , budget_source_value='raw internal value'
+               WHERE place_id='eligible'""",
+            (
+                json.dumps(
+                    {
+                        "currency": "JPY",
+                        "minimum": 3000,
+                        "maximum": 5000,
+                        "band": "moderate",
+                        "source_type": "candidate_price_import",
+                        "confidence": 0.8,
+                    }
+                ),
+            ),
+        )
+        connection.commit()
+    row = TestClient(api.app).get("/public/restaurants/eligible").json()
+    assert row["reservation_status"] == "strongly_recommended"
+    assert row["booking_methods"] == ["phone", "online"]
+    assert row["phone_number"] == "03-1234-5678"
+    assert row["booking_url"] == "https://reserve.example/eligible"
+    assert row["budget"]["band"] == "moderate"
+    assert "budget_source_value" not in row
+
+
 def test_photo_endpoint_preserves_attribution_without_persisting(public_db, monkeypatch):
     with connect(public_db) as connection:
         before = dict(

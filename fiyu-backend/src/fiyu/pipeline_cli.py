@@ -109,6 +109,12 @@ def _parser() -> argparse.ArgumentParser:
     backfill_enrichment.add_argument("--retry-failed", action="store_true")
     backfill_enrichment.add_argument("--dry-run", action="store_true")
 
+    canonical_details = commands.add_parser(
+        "backfill-canonical-details",
+        help="Normalize reservation and budget fields from existing local structured data",
+    )
+    canonical_details.add_argument("--dry-run", action="store_true")
+
     retry_enrichment = commands.add_parser(
         "retry-card-enrichment",
         help="Explicitly authorize retry of one ambiguous targeted enrichment request",
@@ -222,6 +228,10 @@ def main() -> None:
         from .card_enrichment import authorize_card_enrichment_retry
 
         result = authorize_card_enrichment_retry(db, args.place_id, dry_run=args.dry_run)
+    elif args.command == "backfill-canonical-details":
+        from .card_enrichment import backfill_canonical_details
+
+        result = backfill_canonical_details(db, dry_run=args.dry_run)
     elif args.command == "review":
         result = inspect_candidate(db, args.place_id)
     elif args.command in {"approve", "reject"}:

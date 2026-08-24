@@ -5,6 +5,7 @@ from pydantic import ValidationError
 
 from fiyu.card_enrichment import (
     CardEnrichment,
+    ContactInfo,
     DayHours,
     EnrichmentSource,
     HoursPeriod,
@@ -13,11 +14,13 @@ from fiyu.card_enrichment import (
     ReservationInfo,
     ReviewTheme,
     authorize_card_enrichment_retry,
+    backfill_canonical_details,
     backfill_card_enrichment,
     compact_card_description,
     enrichment_completeness,
     format_opening_hours,
     merge_card_enrichment,
+    normalize_candidate_budget,
     persist_card_enrichment,
     scoring_research_view,
 )
@@ -74,6 +77,63 @@ def _complete_enrichment() -> CardEnrichment:
         opening_hours=_hours(),
         researched_at="2026-08-20T00:00:00+00:00",
     )
+
+
+@pytest.mark.parametrize(
+    ("raw", "minimum", "maximum", "band"),
+    [
+        ("¥1–1,000", 0, 1_000, "budget"),
+        ("¥1,000–2,000", 1_000, 2_000, "budget"),
+        ("¥3,000–6,000", 3_000, 6_000, "upscale"),
+        ("¥10,000+", 10_000, None, "splurge"),
+    ],
+)
+def test_normalize_candidate_budget(raw, minimum, maximum, band):
+    budget = normalize_candidate_budget(raw)
+    assert budget is not None
+    assert (budget.minimum, budget.maximum, budget.band) == (minimum, maximum, band)
+    assert budget.currency == "JPY"
+    assert budget.source_value == raw
+
+
+def test_ambiguous_budget_stays_unknown_and_contact_requires_provenance():
+    assert normalize_candidate_budget("about two thousand yen") is None
+    with pytest.raises(ValidationError):
+        ContactInfo(phone_number="03-1234-5678")
+
+
+def test_local_canonical_backfill_normalizes_budget_but_does_not_promote_candidate_contact(
+    tmp_path,
+):
+    path = _db(tmp_path)
+    with connect(path) as connection:
+        connection.execute(
+            """UPDATE restaurants SET price='¥2,000–3,000', phone='03-1234-5678',
+                      website='https://candidate.example/reserve'
+               WHERE place_id='published'"""
+        )
+        connection.execute(
+            """UPDATE public_restaurants SET practical_info_json=?
+               WHERE place_id='published'""",
+            (json.dumps({"reservation": {"status": "walk_ins_ok", "confidence": 0.9}}),),
+        )
+        connection.commit()
+
+    report = backfill_canonical_details(path)
+    assert report["normalized_budget"] == 1
+    assert report["candidate_phone_not_promoted"] == 1
+    assert report["candidate_website_not_promoted"] == 1
+    with connect(path) as connection:
+        row = connection.execute(
+            """SELECT reservation_status, phone_number, booking_url, budget_json,
+                      budget_source_value FROM public_restaurants WHERE place_id='published'"""
+        ).fetchone()
+    assert row["reservation_status"] == "walk_ins_ok"
+    assert row["phone_number"] is None
+    assert row["booking_url"] is None
+    assert json.loads(row["budget_json"])["band"] == "moderate"
+    assert row["budget_source_value"] == "¥2,000–3,000"
+    assert backfill_canonical_details(path, dry_run=True)["changed"] == 0
 
 
 def _db(tmp_path):
