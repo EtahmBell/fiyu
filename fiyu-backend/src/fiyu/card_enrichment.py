@@ -21,7 +21,7 @@ from pydantic import (
 
 from .database import connect
 
-CARD_ENRICHMENT_PROMPT_VERSION = "restaurant-card-enrichment-v2-contact-budget"
+CARD_ENRICHMENT_PROMPT_VERSION = "restaurant-card-enrichment-v3-contact-provenance"
 CARD_ENRICHMENT_MAX_SEARCH_ACTIONS = 5
 DAY_NAMES = (
     "monday",
@@ -213,6 +213,94 @@ class ContactInfo(BaseModel):
         ):
             raise ValueError("canonical contact values require a supporting source")
         return self
+
+
+_CONTACT_SOURCE_TYPES = {
+    "official_website",
+    "official_social",
+    "reservation_platform",
+}
+_BOOKING_METHODS = {
+    "phone",
+    "online",
+    "restaurant_website",
+    "reservation_platform",
+    "in_person",
+}
+
+
+def sanitize_optional_contact(value: object) -> ContactInfo:
+    """Keep only supported, independently valid optional contact values."""
+
+    if isinstance(value, ContactInfo):
+        raw = value.model_dump(mode="json")
+    elif isinstance(value, dict):
+        raw = value
+    else:
+        return ContactInfo()
+
+    sources: list[EnrichmentSource] = []
+    raw_sources = raw.get("sources")
+    if isinstance(raw_sources, list):
+        for source in raw_sources[:8]:
+            try:
+                validated = EnrichmentSource.model_validate(source)
+            except (TypeError, ValueError, ValidationError):
+                continue
+            if validated.source_type not in _CONTACT_SOURCE_TYPES:
+                continue
+            if all(existing.url != validated.url for existing in sources):
+                sources.append(validated)
+
+    # Contact provenance is block-level in the canonical schema. Without at
+    # least one contact-appropriate source, none of its public values are safe.
+    if not sources:
+        return ContactInfo()
+
+    source_payload = [source.model_dump(mode="json") for source in sources]
+    cleaned: dict[str, object] = {"sources": source_payload}
+
+    raw_methods = raw.get("booking_methods")
+    if isinstance(raw_methods, list):
+        methods = list(
+            dict.fromkeys(method for method in raw_methods if method in _BOOKING_METHODS)
+        )
+        if methods:
+            cleaned["booking_methods"] = methods
+
+    for field in ("phone_number", "booking_url", "contact_note"):
+        candidate = raw.get(field)
+        if candidate is None:
+            continue
+        try:
+            validated = ContactInfo.model_validate(
+                {"sources": source_payload, field: candidate}
+            )
+        except (TypeError, ValueError, ValidationError):
+            continue
+        normalized = getattr(validated, field)
+        if normalized is not None:
+            cleaned[field] = normalized
+
+    confidence = raw.get("confidence")
+    if (
+        isinstance(confidence, (int, float))
+        and not isinstance(confidence, bool)
+        and 0 <= confidence <= 1
+    ):
+        cleaned["confidence"] = confidence
+    checked_at = raw.get("checked_at")
+    if isinstance(checked_at, str) and checked_at.strip():
+        cleaned["checked_at"] = checked_at.strip()
+
+    if not any(cleaned.get(field) for field in (
+        "booking_methods",
+        "phone_number",
+        "booking_url",
+        "contact_note",
+    )):
+        return ContactInfo()
+    return ContactInfo.model_validate(cleaned)
 
 
 class BudgetInfo(BaseModel):
@@ -437,6 +525,13 @@ class CardEnrichment(BaseModel):
     opening_hours: OpeningHours = Field(default_factory=OpeningHours)
     researched_at: str | None = None
     unresolved_conflicts: list[str] = Field(default_factory=list, max_length=8)
+
+    @field_validator("contact", mode="before")
+    @classmethod
+    def discard_unsupported_optional_contact(cls, value: object) -> ContactInfo:
+        """Keep optional contact failures from invalidating core enrichment."""
+
+        return sanitize_optional_contact(value)
 
     @field_validator("budget", mode="wrap")
     @classmethod
@@ -1201,8 +1296,10 @@ use Google-derived hours or Google review content. Unknown facts must remain unk
 description must be concrete, restrained English, normally 80-160 characters, with no superlatives.
 Every practical-info note must also be a complete concise sentence, never a clipped fragment.
 Populate canonical contact and booking fields only from current official restaurant sources or a
-current permitted reservation platform. Attach the field-supporting sources; never infer a phone,
-URL, booking method, or note. Normalize a supported per-person budget into currency, numeric bounds,
+current permitted reservation platform. Every populated phone, URL, booking method, and contact note
+must be supported by at least one attached appropriate source; omit each unsupported field separately.
+If no contact value is supported, return empty contact data. Never infer contact data. Normalize a
+supported per-person budget into currency, numeric bounds,
 and band while retaining the source value. If neither a numeric minimum nor maximum is supported,
 return budget as null; never return a structurally empty budget object. Unknown contact fields remain
 null/empty.

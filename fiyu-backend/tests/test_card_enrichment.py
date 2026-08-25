@@ -103,6 +103,91 @@ def test_ambiguous_budget_stays_unknown_and_contact_requires_provenance():
         ContactInfo(phone_number="03-1234-5678")
 
 
+@pytest.mark.parametrize(
+    "contact",
+    [
+        {
+            "booking_methods": ["in_person"],
+            "phone_number": "03-1234-5678",
+            "booking_url": None,
+            "contact_note": "Ask at the restaurant about reservations.",
+            "confidence": 0.8,
+            "sources": [],
+            "checked_at": "2026-08-25T00:00:00+00:00",
+        },
+        {
+            "booking_methods": ["reservation_platform"],
+            "phone_number": None,
+            "booking_url": "https://reserve.example/yorimichi",
+            "contact_note": None,
+            "confidence": 0.7,
+            "sources": [],
+            "checked_at": None,
+        },
+    ],
+)
+def test_unsupported_contact_failure_shapes_do_not_discard_valid_enrichment(contact):
+    payload = _complete_enrichment().model_dump(mode="json")
+    payload["contact"] = contact
+
+    enrichment = CardEnrichment.model_validate(payload)
+
+    assert enrichment.contact == ContactInfo()
+    assert enrichment.card_description == payload["card_description"]
+    assert len(enrichment.review_themes) == 1
+    assert enrichment.practical_info.reservation.status == "recommended"
+    assert enrichment.opening_hours.tuesday.status == "open"
+
+
+def test_malformed_contact_fields_are_dropped_individually():
+    payload = _complete_enrichment().model_dump(mode="json")
+    payload["contact"] = {
+        "booking_methods": ["phone", "unsupported_method"],
+        "phone_number": "not a phone number",
+        "booking_url": "https://reserve.example/restaurant",
+        "contact_note": "Use the official reservation page.",
+        "confidence": 0.9,
+        "sources": [
+            {
+                "url": "https://reserve.example/restaurant",
+                "source_type": "reservation_platform",
+                "checked_at": "2026-08-25T00:00:00+00:00",
+            }
+        ],
+        "checked_at": "2026-08-25T00:00:00+00:00",
+    }
+
+    contact = CardEnrichment.model_validate(payload).contact
+
+    assert contact.phone_number is None
+    assert contact.booking_methods == ["phone"]
+    assert contact.booking_url == "https://reserve.example/restaurant"
+    assert contact.contact_note == "Use the official reservation page."
+
+
+def test_valid_supported_contact_is_preserved_unchanged():
+    payload = _complete_enrichment().model_dump(mode="json")
+    payload["contact"] = {
+        "booking_methods": ["phone", "reservation_platform"],
+        "phone_number": "03-1234-5678",
+        "booking_url": "https://reserve.example/restaurant",
+        "contact_note": "Same-day reservations may be limited.",
+        "confidence": 0.9,
+        "sources": [
+            {
+                "url": "https://reserve.example/restaurant",
+                "source_type": "reservation_platform",
+                "checked_at": "2026-08-25T00:00:00+00:00",
+            }
+        ],
+        "checked_at": "2026-08-25T00:00:00+00:00",
+    }
+
+    contact = CardEnrichment.model_validate(payload).contact
+
+    assert contact.model_dump(mode="json") == payload["contact"]
+
+
 def test_empty_optional_researched_budget_does_not_discard_valid_enrichment():
     payload = _complete_enrichment().model_dump(mode="json")
     payload["budget"] = {

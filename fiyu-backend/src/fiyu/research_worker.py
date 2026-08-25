@@ -39,7 +39,7 @@ from .public_score import (
     evaluate_fiyu_candidate,
 )
 
-PROMPT_VERSION = "restaurant-research-v5-canonical-contact-budget"
+PROMPT_VERSION = "restaurant-research-v6-contact-provenance"
 CompactLabel = Annotated[str, Field(max_length=120)]
 CompactEvidence = Annotated[str, Field(max_length=500)]
 EvidenceUrl = Annotated[str, Field(max_length=2000)]
@@ -272,8 +272,10 @@ Optional notes must be coherent natural-language English unless a necessary rest
 proper noun is quoted in its original script. Never emit malformed mixed-script fragments.
 Populate canonical contact/booking fields only when a current official restaurant source or current
 permitted reservation platform supports the exact value. Never copy candidate contact hints into
-the output. Attach the supporting source and leave unsupported phone, booking URL, method, and note
-unknown. Normalize a source-supported per-person budget into currency, numeric bounds, and band,
+the output. Every populated phone, booking URL, booking method, and contact note must be supported by
+at least one attached appropriate source; omit each unsupported field separately. If no contact value
+is supported, return empty contact data. Normalize a source-supported per-person budget into currency,
+numeric bounds, and band,
 retaining the raw source value. If neither a numeric minimum nor maximum is supported, return budget
 as null; never return a structurally empty budget object. Do not infer budget from cuisine or
 restaurant style.

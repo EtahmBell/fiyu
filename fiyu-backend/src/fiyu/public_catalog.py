@@ -1633,6 +1633,7 @@ def _safe_public_rows(
                    p.reservation_status, p.reservation_confidence,
                    p.booking_methods_json, p.phone_number, p.booking_url,
                    p.contact_note, p.budget_json,
+                   p.card_enrichment_json,
                    p.hours_display, p.hours_confidence, p.hours_checked_at,
                    p.local_discovery_score, p.local_discovery_classification,
                    p.tourist_visibility_classification, p.tourist_orientation,
@@ -1786,11 +1787,20 @@ def _safe_public_rows(
                 item["practical_info"] = {}
         except (json.JSONDecodeError, ValueError):
             item["practical_info"] = {}
+        item.pop("booking_methods_json", None)
+        raw_enrichment = item.pop("card_enrichment_json", "{}")
         try:
-            methods = json.loads(item.pop("booking_methods_json") or "[]")
-            item["booking_methods"] = methods if isinstance(methods, list) else []
-        except json.JSONDecodeError:
-            item["booking_methods"] = []
+            from .card_enrichment import CardEnrichment
+
+            contact = CardEnrichment.model_validate_json(raw_enrichment or "{}").contact
+        except (ValueError, TypeError):
+            from .card_enrichment import ContactInfo
+
+            contact = ContactInfo()
+        item["booking_methods"] = contact.booking_methods
+        item["phone_number"] = contact.phone_number
+        item["booking_url"] = contact.booking_url
+        item["contact_note"] = contact.contact_note
         try:
             budget = json.loads(item.pop("budget_json") or "null")
             item["budget"] = budget if isinstance(budget, dict) else None

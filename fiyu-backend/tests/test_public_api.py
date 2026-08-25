@@ -283,13 +283,29 @@ def test_public_card_enrichment_omits_internal_source_provenance(public_db):
 
 
 def test_public_detail_exposes_sanitized_canonical_booking_and_budget(public_db):
+    supported_contact = {
+        "booking_methods": ["phone", "online"],
+        "phone_number": "03-1234-5678",
+        "booking_url": "https://reserve.example/eligible",
+        "contact_note": "Same-day bookings may be limited.",
+        "confidence": 0.9,
+        "sources": [
+            {
+                "url": "https://reserve.example/eligible",
+                "source_type": "reservation_platform",
+                "checked_at": "2026-08-25T00:00:00+00:00",
+            }
+        ],
+        "checked_at": "2026-08-25T00:00:00+00:00",
+    }
     with connect(public_db) as connection:
         connection.execute(
             """UPDATE public_restaurants SET reservation_status='strongly_recommended',
                    reservation_confidence=0.9, booking_methods_json='["phone", "online"]',
                    phone_number='03-1234-5678', booking_url='https://reserve.example/eligible',
                    contact_note='Same-day bookings may be limited.',
-                   budget_json=? , budget_source_value='raw internal value'
+                   budget_json=? , budget_source_value='raw internal value',
+                   card_enrichment_json=?
                WHERE place_id='eligible'""",
             (
                 json.dumps(
@@ -302,6 +318,7 @@ def test_public_detail_exposes_sanitized_canonical_booking_and_budget(public_db)
                         "confidence": 0.8,
                     }
                 ),
+                json.dumps({"contact": supported_contact}),
             ),
         )
         connection.commit()
@@ -312,6 +329,34 @@ def test_public_detail_exposes_sanitized_canonical_booking_and_budget(public_db)
     assert row["booking_url"] == "https://reserve.example/eligible"
     assert row["budget"]["band"] == "moderate"
     assert "budget_source_value" not in row
+
+
+def test_public_detail_never_exposes_unsupported_contact(public_db):
+    unsupported_contact = {
+        "booking_methods": ["phone", "reservation_platform"],
+        "phone_number": "03-1234-5678",
+        "booking_url": "https://reserve.example/eligible",
+        "contact_note": "Same-day bookings may be limited.",
+        "confidence": 0.9,
+        "sources": [],
+        "checked_at": "2026-08-25T00:00:00+00:00",
+    }
+    with connect(public_db) as connection:
+        connection.execute(
+            """UPDATE public_restaurants SET booking_methods_json='["phone"]',
+                   phone_number='03-1234-5678', booking_url='https://reserve.example/eligible',
+                   contact_note='Same-day bookings may be limited.', card_enrichment_json=?
+               WHERE place_id='eligible'""",
+            (json.dumps({"contact": unsupported_contact}),),
+        )
+        connection.commit()
+
+    row = TestClient(api.app).get("/public/restaurants/eligible").json()
+
+    assert row["booking_methods"] == []
+    assert row["phone_number"] is None
+    assert row["booking_url"] is None
+    assert row["contact_note"] is None
 
 
 def test_photo_endpoint_preserves_attribution_without_persisting(public_db, monkeypatch):
