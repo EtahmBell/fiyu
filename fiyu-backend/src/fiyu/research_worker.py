@@ -268,6 +268,8 @@ overnight service). Never put text such as "last" in a time field. A day marked 
 at least one valid period. If reliable hours cannot be represented this way, return that day as
 unknown with no periods, or leave opening hours unavailable; never fabricate a time or infer that a
 day is closed from missing periods.
+Optional notes must be coherent natural-language English unless a necessary restaurant or place
+proper noun is quoted in its original script. Never emit malformed mixed-script fragments.
 Populate canonical contact/booking fields only when a current official restaurant source or current
 permitted reservation platform supports the exact value. Never copy candidate contact hints into
 the output. Attach the supporting source and leave unsupported phone, booking URL, method, and note

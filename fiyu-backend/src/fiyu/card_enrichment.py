@@ -50,6 +50,28 @@ _THEME_UNEXPECTED_SCRIPT = re.compile(
 _INCOMPLETE_FACT_END = re.compile(
     r"\b(?:although|because|despite|if|unless|until|while)\s+\w+$", re.IGNORECASE
 )
+_MALFORMED_MIXED_KANA_FRAGMENT = re.compile(
+    r"(?:[a-z]{2,}[\u3040-\u309f]|[\u3040-\u309f][a-z]{2,})(?=$|[^A-Za-z\u3040-\u309f])"
+)
+
+
+def _clean_optional_note(value: object, *, max_length: int) -> str | None:
+    """Drop clearly corrupted optional prose without attempting to rewrite it."""
+
+    if not isinstance(value, str):
+        return None
+    compact = " ".join(value.split()).strip()
+    if not compact or len(compact) > max_length:
+        return None
+    ascii_letter_count = len(re.findall(r"[A-Za-z]", compact))
+    japanese_character_count = len(re.findall(r"[\u3040-\u30ff\u3400-\u9fff]", compact))
+    if (
+        ascii_letter_count >= max(12, japanese_character_count * 2)
+        and japanese_character_count > 0
+        and _MALFORMED_MIXED_KANA_FRAGMENT.search(compact)
+    ):
+        return None
+    return compact
 
 
 def _clean_http_urls(values: list[str]) -> list[str]:
@@ -179,13 +201,10 @@ class ContactInfo(BaseModel):
             raise ValueError("booking URL must use HTTP(S)")
         return value
 
-    @field_validator("contact_note")
+    @field_validator("contact_note", mode="before")
     @classmethod
-    def clean_contact_note(cls, value: str | None) -> str | None:
-        if value is None:
-            return None
-        value = " ".join(value.split()).strip()
-        return value or None
+    def clean_contact_note(cls, value: object) -> str | None:
+        return _clean_optional_note(value, max_length=180)
 
     @model_validator(mode="after")
     def require_sources_for_contact_values(self) -> ContactInfo:
@@ -268,17 +287,16 @@ class PracticalInfo(BaseModel):
     source_urls: list[str] = Field(default_factory=list, max_length=8)
     checked_at: str | None = None
 
-    @field_validator("other")
+    @field_validator("other", mode="before")
     @classmethod
-    def clean_other(cls, values: list[str]) -> list[str]:
+    def clean_other(cls, values: object) -> list[str]:
+        if not isinstance(values, list):
+            return []
         cleaned: list[str] = []
-        for value in values:
-            fact = " ".join(value.split()).strip()
+        for value in values[:8]:
+            fact = _clean_optional_note(value, max_length=180)
             if not fact or _INCOMPLETE_FACT_END.search(fact):
                 continue
-            if len(fact) > 180:
-                shortened = fact[:181].rsplit(" ", 1)[0].rstrip(" ,;:")
-                fact = f"{shortened}."
             if fact not in cleaned:
                 cleaned.append(fact)
         return cleaned
@@ -387,6 +405,22 @@ class OpeningHours(BaseModel):
     checked_at: str | None = None
     unresolved_conflicts: list[str] = Field(default_factory=list, max_length=6)
 
+    @field_validator("schedule_note", mode="before")
+    @classmethod
+    def clean_schedule_note(cls, value: object) -> str | None:
+        return _clean_optional_note(value, max_length=160)
+
+    @field_validator("unresolved_conflicts", mode="before")
+    @classmethod
+    def clean_optional_conflicts(cls, values: object) -> list[str]:
+        if not isinstance(values, list):
+            return []
+        return [
+            cleaned
+            for value in values[:6]
+            if (cleaned := _clean_optional_note(value, max_length=500)) is not None
+        ]
+
 
 class CardEnrichment(BaseModel):
     """Canonical model shared by normal, low-footprint, and targeted research."""
@@ -429,6 +463,17 @@ class CardEnrichment(BaseModel):
             return handler(value)
         except (TypeError, ValueError, ValidationError):
             return OpeningHours()
+
+    @field_validator("unresolved_conflicts", mode="before")
+    @classmethod
+    def clean_optional_conflicts(cls, values: object) -> list[str]:
+        if not isinstance(values, list):
+            return []
+        return [
+            cleaned
+            for value in values[:8]
+            if (cleaned := _clean_optional_note(value, max_length=500)) is not None
+        ]
 
     @field_validator("card_description")
     @classmethod
@@ -1166,6 +1211,8 @@ overnight service). Never put text such as "last" in a time field. A day marked 
 at least one valid period. If reliable hours cannot be represented this way, return that day as
 unknown with no periods, or leave opening hours unavailable; never fabricate a time or infer that a
 day is closed from missing periods.
+Optional notes must be coherent natural-language English unless a necessary restaurant or place
+proper noun is quoted in its original script. Never emit malformed mixed-script fragments.
 Return the canonical CardEnrichment schema and preserve source URLs, confidence, checked_at, and any
 unresolved disagreement. Search only what is missing from the supplied persisted evidence."""
 

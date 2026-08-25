@@ -239,6 +239,50 @@ def test_valid_hours_and_valid_periods_survive_optional_hours_sanitization():
     assert enrichment.opening_hours.friday.periods[-1].close == "26:00"
 
 
+def test_malformed_mixed_script_schedule_note_is_dropped():
+    hours = OpeningHours(
+        reservation_only=True,
+        schedule_note=(
+            "The official site lists Thursday through Saturday, but an older directory hasら"
+        ),
+    )
+
+    assert hours.schedule_note is None
+    assert hours.reservation_only is True
+
+
+def test_valid_english_and_japanese_optional_notes_are_preserved():
+    english = "Friday hours vary during public holidays."
+    japanese = "営業時間は不定休です。鮨さいとうの案内をご確認ください。"
+
+    assert OpeningHours(schedule_note=english).schedule_note == english
+    assert OpeningHours(schedule_note=japanese).schedule_note == japanese
+    assert (
+        ContactInfo(contact_note="Book 鮨さいとう through its official reservation page.", sources=[_source()]).contact_note
+        == "Book 鮨さいとう through its official reservation page."
+    )
+
+
+def test_malformed_optional_note_does_not_invalidate_enrichment():
+    payload = _complete_enrichment().model_dump(mode="json")
+    payload["contact"] = {
+        "booking_methods": [],
+        "phone_number": None,
+        "booking_url": None,
+        "contact_note": "The official booking page hasら",
+        "confidence": 0.8,
+        "sources": [],
+        "checked_at": "2026-08-24T00:00:00Z",
+    }
+
+    enrichment = CardEnrichment.model_validate(payload)
+
+    assert enrichment.contact.contact_note is None
+    assert enrichment.card_description == payload["card_description"]
+    assert len(enrichment.review_themes) == 1
+    assert enrichment.opening_hours.tuesday.status == "open"
+
+
 def test_compact_existing_enrichment_omits_defaults_and_round_trips_meaningful_values():
     enrichment = _complete_enrichment()
     enrichment.practical_info.seating.counter = False
