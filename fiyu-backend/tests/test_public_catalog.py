@@ -113,6 +113,10 @@ def test_existing_public_schema_migrates_without_changing_data(tmp_path):
         "tourist_signals_json",
         "local_audience_signals_json",
         "product_eligible",
+        "access_model",
+        "access_confidence",
+        "access_evidence_json",
+        "access_evidence_urls_json",
         "low_footprint_route_evaluated",
         "low_footprint_route_eligible",
         "card_description",
@@ -163,6 +167,35 @@ def test_recalculation_preserves_publication_status(tmp_path):
         ).fetchone()[0]
 
     assert unpublished == 0
+
+
+def test_recalculation_preserves_canonical_legacy_access_assessment(tmp_path):
+    path = _catalog_db(tmp_path)
+    with connect(path) as connection:
+        connection.execute(
+            """
+            UPDATE public_restaurants
+            SET access_model = 'referral_required', access_confidence = 0.91,
+                access_evidence_json = '["An existing member must introduce the guest."]',
+                access_evidence_urls_json = '["https://restaurant.example/access"]'
+            WHERE place_id = 'place-1'
+            """
+        )
+        connection.commit()
+
+    recalculate_from_stored_evidence(path)
+
+    with connect(path) as connection:
+        row = connection.execute(
+            """
+            SELECT access_model, product_eligible,
+                   product_eligibility_classification
+            FROM public_restaurants WHERE place_id = 'place-1'
+            """
+        ).fetchone()
+    assert row["access_model"] == "referral_required"
+    assert row["product_eligible"] == 0
+    assert row["product_eligibility_classification"] == "ineligible_restricted_access"
 
 
 def test_recalculation_appends_score_audit_without_rewriting_research_history(tmp_path):

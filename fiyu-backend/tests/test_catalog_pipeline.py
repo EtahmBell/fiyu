@@ -840,6 +840,40 @@ def test_current_policy_demotes_research_confidence_to_diagnostic(tmp_path):
     assert decision["publishable"] is True
 
 
+def test_current_policy_rejects_affirmatively_supported_members_only_access(tmp_path):
+    path = _db(tmp_path)
+    _make_auto_publishable(path)
+    with connect(path) as connection:
+        row = connection.execute(
+            "SELECT id, structured_research_json, score_json "
+            "FROM restaurant_research_runs "
+            "WHERE public_restaurant_id='place-1' AND is_current=1"
+        ).fetchone()
+        structured = json.loads(row["structured_research_json"])
+        structured.update(
+            {
+                "access_model": "members_only",
+                "access_confidence": 0.95,
+                "access_evidence": ["The official page states that access is members-only."],
+                "access_evidence_urls": ["https://restaurant.example/access"],
+            }
+        )
+        historical_score = json.loads(row["score_json"])["fiyu_score"]
+        connection.execute(
+            "UPDATE restaurant_research_runs SET structured_research_json=? WHERE id=?",
+            (json.dumps(structured), row["id"]),
+        )
+        connection.commit()
+
+    decision = _current_score_policy_decision(path, dict(_row(path, "place-1")))
+    assert decision["conditions"]["product_eligible"] is False
+    assert decision["current_score"]["product_eligibility_classification"] == (
+        "ineligible_restricted_access"
+    )
+    assert decision["current_score"]["fiyu_score"] == historical_score
+    assert decision["publishable"] is False
+
+
 @pytest.mark.parametrize(
     ("conflict_text", "expected_reason", "expected_publishable"),
     [

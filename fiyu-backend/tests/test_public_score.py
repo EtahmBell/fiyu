@@ -1,5 +1,6 @@
 import pytest
 
+from fiyu.local_discovery import ProductEligibility
 from fiyu.public_score import (
     FiyuEvidence,
     InternalSignals,
@@ -53,6 +54,32 @@ def test_weak_web_identity_is_diagnostic_not_a_score_or_publication_cap() -> Non
     assert result.fiyu_score > 65
     assert result.fiyu_confidence < 80
     assert result.publishable is True
+
+
+def test_restricted_access_is_a_publication_gate_not_a_score_penalty() -> None:
+    evidence = FiyuEvidence(
+        matched_restaurant=True,
+        identity_confidence=0.95,
+        official_language="ja",
+        japanese_source_count=4,
+        tourist_coverage="low",
+        known_location_count=1,
+        total_evidence_sources=4,
+    )
+    internal = InternalSignals(quality_score=85, underexposure_score=85, digital_footprint_score=85)
+    eligible = calculate_fiyu_score(evidence, internal)
+    restricted = calculate_fiyu_score(
+        evidence,
+        internal,
+        product_eligibility=ProductEligibility(
+            False,
+            "ineligible_restricted_access",
+            ("affirmative_members_only",),
+        ),
+    )
+    assert restricted.fiyu_score == eligible.fiyu_score
+    assert restricted.product_eligible is False
+    assert restricted.publishable is False
 
 
 def test_chain_is_not_publishable() -> None:

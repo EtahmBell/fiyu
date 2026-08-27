@@ -768,7 +768,12 @@ def calculate_fiyu_score(
     # A known chain should not receive a strong hidden-gem score.
     if chain.excluded:
         fiyu_score = min(fiyu_score, 54.99)
-    if not product.eligible:
+    # Restricted public access is a hard product gate, not a quality penalty.
+    # Existing non-venue product exclusions retain their historical score cap.
+    if (
+        not product.eligible
+        and product.classification != "ineligible_restricted_access"
+    ):
         fiyu_score = min(fiyu_score, 49.99)
 
     source_coverage = clamp(evidence.total_evidence_sources / 5.0 * 100.0)

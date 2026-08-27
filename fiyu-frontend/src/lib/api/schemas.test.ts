@@ -356,7 +356,7 @@ describe("locationAnchorListSchema", () => {
 });
 
 describe("dailyPickAssignmentResponseSchema", () => {
-  it("requires exactly three backend-assigned restaurant IDs", () => {
+  it("accepts repaired partial assignments but rejects oversized responses", () => {
     const response = {
       round_id: "round-one",
       city_id: "tokyo",
@@ -365,8 +365,17 @@ describe("dailyPickAssignmentResponseSchema", () => {
     };
     expect(dailyPickAssignmentResponseSchema.parse(response).place_ids).toEqual(response.place_ids);
     expect(
-      dailyPickAssignmentResponseSchema.safeParse({ ...response, place_ids: ["one", "two"] })
-        .success,
+      dailyPickAssignmentResponseSchema.parse({ ...response, place_ids: ["one", "two"] })
+        .place_ids,
+    ).toEqual(["one", "two"]);
+    expect(dailyPickAssignmentResponseSchema.parse({ ...response, place_ids: [] }).place_ids).toEqual(
+      [],
+    );
+    expect(
+      dailyPickAssignmentResponseSchema.safeParse({
+        ...response,
+        place_ids: ["one", "two", "three", "four"],
+      }).success,
     ).toBe(false);
   });
 });

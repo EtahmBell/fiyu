@@ -69,7 +69,7 @@ export function RestaurantPhoto({
     <div
       ref={ref}
       data-testid="restaurant-photo-region"
-      data-no-card-navigation={photo && hasPhotoInformation ? "true" : undefined}
+      data-no-card-navigation="true"
       tabIndex={photo && hasPhotoInformation ? 0 : undefined}
       aria-label={photo && hasPhotoInformation ? "Photo attribution" : undefined}
       aria-expanded={photo && hasPhotoInformation ? informationVisible : undefined}

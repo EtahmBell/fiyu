@@ -385,14 +385,14 @@ export const defaultListMembershipResponseSchema = z.object({
 export const dailyPickAssignmentResponseSchema = z.object({
   round_id: z.string().min(1),
   city_id: z.string().min(1),
-  place_ids: z.array(z.string().min(1)).length(3),
+  place_ids: z.array(z.string().min(1)).max(3),
   assigned_at: z.string().min(1),
   // Optional only for rolling compatibility with a backend that predates the
   // server-owned snapshot response. Current servers always return both.
   expires_at: z.string().min(1).optional(),
   discovery_mode: z.enum(["current", "preview", "manual"]).nullable().optional(),
   discovery_label: z.string().nullable().optional(),
-  restaurants: z.array(publicRestaurantSchema).length(3).optional(),
+  restaurants: z.array(publicRestaurantSchema).max(3).optional(),
 });
 
 export const activeDailyPickAssignmentResponseSchema = dailyPickAssignmentResponseSchema.nullable();
@@ -400,10 +400,10 @@ export const activeDailyPickAssignmentResponseSchema = dailyPickAssignmentRespon
 export const recentDailyPickRoundSchema = z.object({
   round_id: z.string().min(1),
   city_id: z.string().min(1),
-  place_ids: z.array(z.string().min(1)).length(3),
+  place_ids: z.array(z.string().min(1)).max(3),
   assigned_at: z.string().min(1),
   retention_expires_at: z.string().min(1),
-  restaurants: z.array(publicRestaurantSchema).length(3),
+  restaurants: z.array(publicRestaurantSchema).max(3),
 });
 
 export const recentDailyPickRoundListSchema = z.array(recentDailyPickRoundSchema);

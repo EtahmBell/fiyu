@@ -102,6 +102,62 @@ afterEach(() => {
 });
 
 describe("/picks revealed-card save bookmark", () => {
+  it("restores a repaired partial active round without treating it as a load error", async () => {
+    const assignedAt = new Date().toISOString();
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.includes("/daily-picks/active")) {
+        return json(200, {
+          round_id: "repaired-round",
+          city_id: "tokyo",
+          place_ids: ["one"],
+          assigned_at: assignedAt,
+          expires_at: new Date(Date.now() + DAILY_PICKS_DURATION_MS).toISOString(),
+          restaurants: [restaurant("one")],
+        });
+      }
+      if (url.includes("/daily-picks/recent")) return json(200, []);
+      if (url.includes("/lists/default")) return json(200, listBody([]));
+      throw new Error(`Unexpected request: ${url}`);
+    });
+    const DailyPicksPanel = await loadDailyPicksPanel();
+
+    render(<DailyPicksPanel accountId="account-a" restaurants={[]} />);
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId("concealed-restaurant-card")).toHaveLength(1);
+    });
+    expect(screen.queryByText("We couldn’t load today’s Picks.")).toBeNull();
+  });
+
+  it("renders a graceful empty active round when no replacement exists", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.includes("/daily-picks/active")) {
+        return json(200, {
+          round_id: "empty-repaired-round",
+          city_id: "tokyo",
+          place_ids: [],
+          assigned_at: new Date().toISOString(),
+          expires_at: new Date(Date.now() + DAILY_PICKS_DURATION_MS).toISOString(),
+          restaurants: [],
+        });
+      }
+      if (url.includes("/daily-picks/recent")) return json(200, []);
+      if (url.includes("/lists/default")) return json(200, listBody([]));
+      throw new Error(`Unexpected request: ${url}`);
+    });
+    const DailyPicksPanel = await loadDailyPicksPanel();
+
+    render(<DailyPicksPanel accountId="account-a" restaurants={[]} />);
+
+    expect(
+      await screen.findByText("No eligible Picks are available for this selection right now."),
+    ).toBeTruthy();
+    expect(screen.queryByText("We couldn’t load today’s Picks.")).toBeNull();
+    expect(screen.queryByRole("button", { name: /Find today's restaurants/i })).toBeNull();
+  });
+
   it("requests an owner-scoped backend assignment and mirrors all assigned IDs as served", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
       const url = String(input);

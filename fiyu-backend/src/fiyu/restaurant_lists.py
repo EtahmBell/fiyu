@@ -381,7 +381,7 @@ def get_published_restaurant_city(
             SELECT r.city
             FROM public_restaurants p
             LEFT JOIN restaurants r ON r.place_id = p.place_id
-            WHERE p.place_id = ? AND p.is_published = 1
+            WHERE p.place_id = ? AND p.is_published = 1 AND p.product_eligible = 1
             LIMIT 1
             """,
             (place_id,),

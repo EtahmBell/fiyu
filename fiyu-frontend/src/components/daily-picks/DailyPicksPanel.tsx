@@ -241,7 +241,7 @@ export function DailyPicksPanel({
       .map((id) => restaurantById.get(id))
       .filter((restaurant): restaurant is PublicRestaurant => Boolean(restaurant));
   }, [currentSelection, restaurantById]);
-  const hasActivePicks = active && selectedRestaurants.length === 3;
+  const hasActivePicks = active && selectedRestaurants.length > 0;
   const recent = useMemo(
     () =>
       recentDiscoveries(
@@ -686,7 +686,13 @@ export function DailyPicksPanel({
               </div>
             )}
 
-            {!hasActivePicks && (
+            {active && selectedRestaurants.length === 0 && (
+              <p role="status" className="py-4 text-sm leading-6 text-ink-muted">
+                No eligible Picks are available for this selection right now.
+              </p>
+            )}
+
+            {!active && (
               <div className="space-y-4 px-0.5 sm:space-y-5">
                 {originSetup && !originSetup.origin ? (
                   <div className="rounded-xl border border-lavender-100/75 bg-surface px-4 py-3.5 sm:px-5 sm:py-4">

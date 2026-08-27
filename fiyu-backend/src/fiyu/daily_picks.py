@@ -257,6 +257,7 @@ def _published_catalog(connection: Any) -> list[dict[str, object]]:
                    discovery_area, discovery_areas_json
             FROM public_restaurants
             WHERE is_published = 1
+              AND product_eligible = 1
               AND map_display_eligible = 1
               AND latitude IS NOT NULL
               AND longitude IS NOT NULL
@@ -277,10 +278,18 @@ def select_daily_pick_plan(
     now: datetime,
     requested_count: int = 3,
     seed: int | None = None,
+    excluded_place_ids: set[str] | None = None,
+    allow_partial: bool = False,
 ) -> tuple[tuple[str, ...], dict[str, object]]:
     """Plan one V1 selection from the complete canonical catalog without writing."""
     catalog = _published_catalog(connection)
-    unsaved = [row for row in catalog if str(row["place_id"]) not in saved_place_ids]
+    additionally_excluded = excluded_place_ids or set()
+    unsaved = [
+        row
+        for row in catalog
+        if str(row["place_id"]) not in saved_place_ids
+        and str(row["place_id"]) not in additionally_excluded
+    ]
     recent_ids = {
         place_id
         for place_id, served_at in served_history.items()
@@ -319,13 +328,16 @@ def select_daily_pick_plan(
             row for row in final_pool if str(row["place_id"]) in old_repeat_ids
         ]
         needed = requested_count - len(final_unseen)
-        if len(repeat_reserve) < needed:
+        if len(repeat_reserve) < needed and not allow_partial:
             raise InsufficientUnseenPoolError(
                 len(final_unseen) + len(repeat_reserve), requested_count
             )
-        selected_rows = [*final_unseen, *rng.sample(repeat_reserve, needed)]
+        selected_rows = [
+            *final_unseen,
+            *rng.sample(repeat_reserve, min(needed, len(repeat_reserve))),
+        ]
         rng.shuffle(selected_rows)
-        repeat_count = needed
+        repeat_count = min(needed, len(repeat_reserve))
 
     chosen_ids = tuple(str(row["place_id"]) for row in selected_rows)
     precision_distribution: dict[str, int] = {}
@@ -338,7 +350,9 @@ def select_daily_pick_plan(
         "final_radius_km": final_radius,
         "target_unseen_pool": TARGET_UNSEEN_POOL,
         "unseen_by_radius": stages,
-        "saved_excluded_count": len(catalog) - len(unsaved),
+        "saved_excluded_count": sum(
+            str(row["place_id"]) in saved_place_ids for row in catalog
+        ),
         "recent_excluded_count": sum(
             str(row["place_id"]) in recent_ids for row in final_pool
         ),
@@ -350,6 +364,68 @@ def select_daily_pick_plan(
         "precision_distribution": precision_distribution,
     }
     return chosen_ids, metadata
+
+
+def plan_repaired_daily_picks(
+    connection: Any,
+    assignment: DailyPickAssignment,
+    *,
+    discovery_latitude: float,
+    discovery_longitude: float,
+    active_area: str | None,
+    saved_place_ids: set[str],
+    served_history: Mapping[str, datetime],
+    now: datetime,
+    requested_count: int = 3,
+    seed: int | None = None,
+) -> tuple[DailyPickAssignment, tuple[str, ...]]:
+    eligible_ids = {str(row["place_id"]) for row in _published_catalog(connection)}
+    preserved = tuple(
+        place_id for place_id in assignment.place_ids if place_id in eligible_ids
+    )[:requested_count]
+    missing_count = requested_count - len(preserved)
+    if missing_count <= 0 and preserved == assignment.place_ids:
+        return assignment, ()
+
+    replacements: tuple[str, ...] = ()
+    repair_metadata: dict[str, object] = {}
+    if missing_count:
+        replacements, repair_metadata = select_daily_pick_plan(
+            connection,
+            discovery_latitude=discovery_latitude,
+            discovery_longitude=discovery_longitude,
+            active_area=active_area,
+            saved_place_ids=saved_place_ids,
+            served_history=served_history,
+            now=now,
+            requested_count=missing_count,
+            seed=seed,
+            excluded_place_ids=set(preserved),
+            allow_partial=True,
+        )
+    repaired_ids = (*preserved, *replacements)
+    metadata = {
+        **assignment.selection_metadata,
+        **repair_metadata,
+        "discovery_label": active_area,
+        "discovery_latitude": discovery_latitude,
+        "discovery_longitude": discovery_longitude,
+        "chosen_place_ids": list(repaired_ids),
+        "snapshot_repaired_at": now.isoformat(),
+        "snapshot_removed_place_ids": [
+            place_id for place_id in assignment.place_ids if place_id not in preserved
+        ],
+    }
+    return (
+        DailyPickAssignment(
+            assignment.round_id,
+            repaired_ids,
+            assignment.assigned_at,
+            assignment.expires_at,
+            metadata,
+        ),
+        replacements,
+    )
 
 
 def _active_assignment(connection: Any, owner_id: str, city_id: str, now: datetime) -> DailyPickAssignment | None:
@@ -374,8 +450,6 @@ def _active_assignment(connection: Any, owner_id: str, city_id: str, now: dateti
         """,
         (row["id"],),
     ).fetchall()
-    if len(items) != 3:
-        return None
     try:
         metadata = json.loads(row["selection_metadata_json"] or "{}")
     except json.JSONDecodeError:
@@ -395,6 +469,105 @@ def get_active_daily_picks(
     ensure_daily_picks_schema(db_path)
     with connect(db_path) as connection:
         return _active_assignment(connection, owner_id, city_id, now or _now())
+
+
+def _persist_repaired_assignment(
+    connection: Any,
+    *,
+    owner_id: str,
+    assignment: DailyPickAssignment,
+    added_ids: tuple[str, ...],
+    repaired_at: datetime,
+) -> None:
+    connection.execute(
+        "DELETE FROM daily_pick_round_items WHERE round_id = ?", (assignment.round_id,)
+    )
+    connection.executemany(
+        """
+        INSERT INTO daily_pick_round_items (round_id, position, restaurant_place_id)
+        VALUES (?, ?, ?)
+        """,
+        (
+            (assignment.round_id, position, place_id)
+            for position, place_id in enumerate(assignment.place_ids)
+        ),
+    )
+    connection.execute(
+        "UPDATE daily_pick_rounds SET selection_metadata_json = ? WHERE id = ?",
+        (
+            json.dumps(assignment.selection_metadata, ensure_ascii=False, sort_keys=True),
+            assignment.round_id,
+        ),
+    )
+    connection.executemany(
+        """
+        INSERT INTO daily_pick_served_history (
+            owner_id, restaurant_place_id, first_served_at, last_served_at,
+            served_count, selection_round_id
+        ) VALUES (?, ?, ?, ?, 1, ?)
+        ON CONFLICT(owner_id, restaurant_place_id) DO UPDATE SET
+            last_served_at = excluded.last_served_at,
+            served_count = daily_pick_served_history.served_count + 1,
+            selection_round_id = excluded.selection_round_id
+        """,
+        (
+            (
+                owner_id,
+                place_id,
+                repaired_at.isoformat(),
+                repaired_at.isoformat(),
+                assignment.round_id,
+            )
+            for place_id in added_ids
+        ),
+    )
+
+
+def repair_active_daily_picks(
+    db_path: str | Path,
+    *,
+    owner_id: str,
+    city_id: str,
+    discovery_latitude: float,
+    discovery_longitude: float,
+    active_area: str | None,
+    requested_count: int = 3,
+    seed: int | None = None,
+    now: datetime | None = None,
+) -> DailyPickAssignment | None:
+    """Repair one active local snapshot without deleting its historical relationships."""
+    ensure_daily_picks_schema(db_path)
+    repaired_at = now or _now()
+    with connect(db_path) as connection:
+        connection.execute("BEGIN IMMEDIATE")
+        active = _active_assignment(connection, owner_id, city_id, repaired_at)
+        if active is None:
+            connection.commit()
+            return None
+        repaired, added_ids = plan_repaired_daily_picks(
+            connection,
+            active,
+            discovery_latitude=discovery_latitude,
+            discovery_longitude=discovery_longitude,
+            active_area=active_area,
+            saved_place_ids=_saved_from_connection(connection, owner_id, city_id),
+            served_history=_history_from_connection(connection, owner_id),
+            now=repaired_at,
+            requested_count=requested_count,
+            seed=seed,
+        )
+        if repaired.place_ids == active.place_ids:
+            connection.commit()
+            return active
+        _persist_repaired_assignment(
+            connection,
+            owner_id=owner_id,
+            assignment=repaired,
+            added_ids=added_ids,
+            repaired_at=repaired_at,
+        )
+        connection.commit()
+    return repaired
 
 
 def get_recent_daily_pick_rounds(
@@ -442,8 +615,6 @@ def get_recent_daily_pick_rounds(
                 """,
                 (row["id"],),
             ).fetchall()
-            if len(items) != 3:
-                continue
             try:
                 metadata = json.loads(row["selection_metadata_json"] or "{}")
             except json.JSONDecodeError:
@@ -488,8 +659,36 @@ def assign_daily_picks(
         connection.execute("BEGIN IMMEDIATE")
         active = _active_assignment(connection, owner_id, city_id, assigned)
         if active is not None:
+            repaired, added_ids = plan_repaired_daily_picks(
+                connection,
+                active,
+                discovery_latitude=float(
+                    active.selection_metadata.get("discovery_latitude")
+                    or discovery_latitude
+                ),
+                discovery_longitude=float(
+                    active.selection_metadata.get("discovery_longitude")
+                    or discovery_longitude
+                ),
+                active_area=str(
+                    active.selection_metadata.get("discovery_label") or active_area or ""
+                ) or None,
+                saved_place_ids=_saved_from_connection(connection, owner_id, city_id),
+                served_history=_history_from_connection(connection, owner_id),
+                now=assigned,
+                requested_count=requested_count,
+                seed=seed,
+            )
+            if repaired.place_ids != active.place_ids:
+                _persist_repaired_assignment(
+                    connection,
+                    owner_id=owner_id,
+                    assignment=repaired,
+                    added_ids=added_ids,
+                    repaired_at=assigned,
+                )
             connection.commit()
-            return active
+            return repaired
         selected, metadata = select_daily_pick_plan(
             connection,
             discovery_latitude=discovery_latitude,

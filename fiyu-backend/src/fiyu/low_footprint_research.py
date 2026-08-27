@@ -20,7 +20,7 @@ from .public_catalog import (
 from .public_score import InternalSignals, assess_chain_classification, evaluate_fiyu_candidate
 from .research_worker import RestaurantResearch, _ambiguous_request_failure
 
-LOW_FOOTPRINT_PROMPT_VERSION = "local-gem-research-v3-card-enrichment"
+LOW_FOOTPRINT_PROMPT_VERSION = "local-gem-research-v4-public-access"
 LOW_FOOTPRINT_MAX_SEARCH_ACTIONS = 8
 LOW_FOOTPRINT_MAX_OUTPUT_TOKENS = 12000
 
@@ -39,6 +39,15 @@ local directories, Tabelog, Retty, Hot Pepper, official Instagram/X/websites, ne
 sources, Japanese blogs, and local articles. Unrelated same-name results must be excluded from scoring
 and retained only as audit context. Sparse results are valid and are not evidence that the candidate is
 fake or poor quality. Never invent dishes, quality, local popularity, or customer demographics.
+
+Classify access_model from affirmative sources. Reservation-required or hard-to-book public venues
+remain public-accessible. Use public_membership only when an ordinary user can independently join;
+use referral_required, invitation_only, or members_only only with explicit sourced restrictions such
+as 会員制, 完全会員制, 紹介制, 招待制, 一見さんお断り, or required referral/accompaniment by
+an existing member. Include concise access_evidence, access_confidence, and exact supporting
+access_evidence_urls for a restricted classification. Otherwise use unknown. Hiddenness, low review
+count, price, prestige, omakase format, sparse web presence, or booking difficulty are not access
+restrictions.
 
 Return a complete RestaurantResearch object that combines reliable existing evidence supplied in the
 request with newly found evidence. Local visibility fields measure discovery footprint, not quality.

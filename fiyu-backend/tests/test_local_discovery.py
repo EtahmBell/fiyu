@@ -144,6 +144,120 @@ def test_neighborhood_bar_remains_product_eligible():
     assert result.eligible
 
 
+@pytest.mark.parametrize(
+    ("access_model", "evidence"),
+    [
+        ("referral_required", "An existing member must introduce the guest."),
+        ("invitation_only", "The restaurant accepts guests by invitation only."),
+        ("members_only", "The official page describes the venue as members-only."),
+    ],
+)
+def test_affirmatively_supported_restricted_access_is_product_ineligible(
+    access_model, evidence
+):
+    result = assess_product_eligibility(
+        primary_category="restaurant",
+        venue_format="fixed_venue",
+        food_drink_primary=True,
+        structured_research={
+            "access_model": access_model,
+            "access_confidence": 0.9,
+            "access_evidence": [evidence],
+            "access_evidence_urls": ["https://restaurant.example/access"],
+        },
+    )
+    assert not result.eligible
+    assert result.classification == "ineligible_restricted_access"
+    assert result.reasons == (f"affirmative_{access_model}",)
+
+
+@pytest.mark.parametrize(
+    "access_model",
+    ["public", "reservation_required", "public_membership", "unknown"],
+)
+def test_public_access_models_remain_product_eligible(access_model):
+    result = assess_product_eligibility(
+        primary_category="restaurant",
+        venue_format="fixed_venue",
+        food_drink_primary=True,
+        structured_research={
+            "access_model": access_model,
+            "access_confidence": 0.9,
+            "access_evidence": ["Any member of the public can book or join directly."],
+            "access_evidence_urls": ["https://restaurant.example/access"],
+        },
+    )
+    assert result.eligible
+
+
+@pytest.mark.parametrize(
+    "missing_field",
+    ["access_evidence", "access_evidence_urls", "access_confidence"],
+)
+def test_restricted_access_requires_affirmative_sourced_evidence(missing_field):
+    structured = {
+        "access_model": "members_only",
+        "access_confidence": 0.9,
+        "access_evidence": ["The venue is explicitly members-only."],
+        "access_evidence_urls": ["https://restaurant.example/access"],
+    }
+    structured.pop(missing_field)
+    result = assess_product_eligibility(
+        primary_category="restaurant",
+        venue_format="fixed_venue",
+        food_drink_primary=True,
+        structured_research=structured,
+    )
+    assert result.eligible
+
+
+def test_restricted_enum_with_non_affirmative_text_does_not_exclude():
+    result = assess_product_eligibility(
+        primary_category="restaurant",
+        venue_format="fixed_venue",
+        food_drink_primary=True,
+        structured_research={
+            "access_model": "members_only",
+            "access_confidence": 0.95,
+            "access_evidence": ["The restaurant is prestigious and difficult to book."],
+            "access_evidence_urls": ["https://restaurant.example/profile"],
+        },
+    )
+    assert result.eligible
+
+
+def test_negated_members_only_evidence_does_not_exclude():
+    result = assess_product_eligibility(
+        primary_category="restaurant",
+        venue_format="fixed_venue",
+        food_drink_primary=True,
+        structured_research={
+            "access_model": "members_only",
+            "access_confidence": 0.95,
+            "access_evidence": ["The restaurant is not members-only."],
+            "access_evidence_urls": ["https://restaurant.example/access"],
+        },
+    )
+    assert result.eligible
+
+
+def test_booking_difficulty_does_not_imply_restricted_access():
+    result = assess_product_eligibility(
+        primary_category="omakase restaurant",
+        venue_format="fixed_venue",
+        food_drink_primary=True,
+        structured_research={
+            "access_model": "reservation_required",
+            "access_confidence": 0.95,
+            "access_evidence": [
+                "The restaurant is small, expensive, phone-only, and difficult to book."
+            ],
+            "access_evidence_urls": ["https://restaurant.example/reservations"],
+        },
+    )
+    assert result.eligible
+
+
 def test_negated_product_exclusion_does_not_misclassify_fixed_venue():
     result = assess_product_eligibility(
         primary_category="bar",

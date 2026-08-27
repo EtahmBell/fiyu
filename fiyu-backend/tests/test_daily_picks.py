@@ -13,6 +13,7 @@ from fiyu.daily_picks import (
     assign_daily_picks,
     get_active_daily_picks,
     get_recent_daily_pick_rounds,
+    repair_active_daily_picks,
     seed_served_history,
     select_daily_pick_plan,
     served_place_ids,
@@ -120,13 +121,19 @@ def test_complete_catalog_not_frontend_candidate_subset_drives_selection(daily_p
 
 
 def test_saved_unpublished_and_map_ineligible_are_excluded(daily_picks_db):
+    with connect(daily_picks_db) as connection:
+        connection.execute(
+            "UPDATE public_restaurants SET product_eligible = 0 WHERE place_id = 'place-129'"
+        )
+        connection.commit()
     selected, metadata = _plan(
         daily_picks_db,
-        saved_place_ids={f"place-{index:03}" for index in range(120)},
+        saved_place_ids={f"place-{index:03}" for index in range(119)},
     )
-    assert set(selected) <= {f"place-{index:03}" for index in range(120, 130)}
+    assert set(selected) <= {f"place-{index:03}" for index in range(119, 129)}
+    assert "place-129" not in selected
     assert "unpublished" not in selected and "not-map-eligible" not in selected
-    assert metadata["saved_excluded_count"] == 120
+    assert metadata["saved_excluded_count"] == 119
 
 
 def test_radius_expands_in_order_and_stops_at_first_ten_unseen(daily_picks_db):
@@ -333,6 +340,105 @@ def test_concurrent_assignment_creates_one_snapshot(daily_picks_db):
     assert assignments[0] == assignments[1]
     with connect(daily_picks_db) as connection:
         assert connection.execute("SELECT count(*) AS n FROM daily_pick_rounds").fetchone()["n"] == 1
+
+
+def test_local_active_snapshot_repair_is_persisted_and_concurrent_safe(daily_picks_db):
+    owner = str(uuid4())
+    original = assign_daily_picks(
+        daily_picks_db,
+        owner_id=owner,
+        city_id="tokyo",
+        discovery_latitude=LATITUDE,
+        discovery_longitude=LONGITUDE,
+        active_area="Shibuya",
+        now=NOW,
+        seed=1,
+    )
+    removed = set(original.place_ids[1:])
+    with connect(daily_picks_db) as connection:
+        connection.executemany(
+            "UPDATE public_restaurants SET product_eligible = 0 WHERE place_id = ?",
+            ((place_id,) for place_id in removed),
+        )
+        connection.commit()
+
+    def repair():
+        return repair_active_daily_picks(
+            daily_picks_db,
+            owner_id=owner,
+            city_id="tokyo",
+            discovery_latitude=LATITUDE,
+            discovery_longitude=LONGITUDE,
+            active_area="Shibuya",
+            now=NOW + timedelta(hours=1),
+            seed=7,
+        )
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        repaired = list(pool.map(lambda _: repair(), range(2)))
+
+    assert repaired[0] == repaired[1]
+    assert repaired[0] is not None
+    assert repaired[0].round_id == original.round_id
+    assert repaired[0].place_ids[0] == original.place_ids[0]
+    assert len(repaired[0].place_ids) == 3
+    assert set(repaired[0].place_ids).isdisjoint(removed)
+    assert get_active_daily_picks(
+        daily_picks_db,
+        owner_id=owner,
+        city_id="tokyo",
+        now=NOW + timedelta(hours=2),
+    ) == repaired[0]
+    assert set(original.place_ids).issubset(served_place_ids(daily_picks_db, owner_id=owner))
+    recent = get_recent_daily_pick_rounds(
+        daily_picks_db,
+        owner_id=owner,
+        city_id="tokyo",
+        now=NOW + timedelta(hours=25),
+    )
+    assert recent[0].place_ids == repaired[0].place_ids
+    assert set(recent[0].place_ids).isdisjoint(removed)
+
+
+def test_local_active_snapshot_repair_persists_empty_when_inventory_is_exhausted(
+    daily_picks_db,
+):
+    owner = str(uuid4())
+    original = assign_daily_picks(
+        daily_picks_db,
+        owner_id=owner,
+        city_id="tokyo",
+        discovery_latitude=LATITUDE,
+        discovery_longitude=LONGITUDE,
+        active_area="Shibuya",
+        now=NOW,
+        seed=1,
+    )
+    with connect(daily_picks_db) as connection:
+        connection.execute("UPDATE public_restaurants SET product_eligible = 0")
+        connection.commit()
+
+    repaired = repair_active_daily_picks(
+        daily_picks_db,
+        owner_id=owner,
+        city_id="tokyo",
+        discovery_latitude=LATITUDE,
+        discovery_longitude=LONGITUDE,
+        active_area="Shibuya",
+        now=NOW + timedelta(hours=1),
+        seed=7,
+    )
+
+    assert repaired is not None
+    assert repaired.round_id == original.round_id
+    assert repaired.place_ids == ()
+    assert get_active_daily_picks(
+        daily_picks_db,
+        owner_id=owner,
+        city_id="tokyo",
+        now=NOW + timedelta(hours=2),
+    ) == repaired
+    assert set(original.place_ids).issubset(served_place_ids(daily_picks_db, owner_id=owner))
 
 
 def test_legacy_history_seed_is_unique(daily_picks_db):

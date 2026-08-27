@@ -6,6 +6,7 @@ import re
 import secrets
 from collections.abc import Iterable
 from datetime import UTC, date, datetime
+from hashlib import sha256
 from math import cos, isfinite, radians
 from pathlib import Path
 from typing import Annotated, Literal
@@ -28,6 +29,8 @@ from .daily_picks import (
     assign_daily_picks,
     get_active_daily_picks,
     get_recent_daily_pick_rounds,
+    plan_repaired_daily_picks,
+    repair_active_daily_picks,
     seed_served_history,
     select_daily_pick_plan,
     served_place_ids,
@@ -1079,15 +1082,110 @@ def _shared_assignment(row: dict[str, object]) -> DailyPickAssignment:
 def _daily_pick_response(
     assignment: DailyPickAssignment, city_id: str
 ) -> DailyPickAssignmentResponse:
+    restaurants = _public_restaurants_for_place_ids(assignment.place_ids)
+    visible_place_ids = [str(restaurant["place_id"]) for restaurant in restaurants]
     return DailyPickAssignmentResponse(
         round_id=assignment.round_id,
         city_id=city_id,
-        place_ids=list(assignment.place_ids),
+        place_ids=visible_place_ids,
         assigned_at=assignment.assigned_at,
         expires_at=assignment.expires_at,
         discovery_mode=assignment.selection_metadata.get("discovery_mode"),
         discovery_label=assignment.selection_metadata.get("discovery_label"),
-        restaurants=_public_restaurants_for_place_ids(assignment.place_ids),
+        restaurants=restaurants,
+    )
+
+
+def _assignment_repair_origin(
+    assignment: DailyPickAssignment,
+    saved_location: dict[str, object] | None = None,
+) -> tuple[float, float, str | None]:
+    metadata = assignment.selection_metadata
+    latitude = metadata.get("discovery_latitude")
+    longitude = metadata.get("discovery_longitude")
+    label = str(metadata.get("discovery_label") or "").strip() or None
+    if isinstance(latitude, (int, float)) and isinstance(longitude, (int, float)):
+        return float(latitude), float(longitude), label
+    if saved_location:
+        return (
+            float(saved_location["discovery_latitude"]),
+            float(saved_location["discovery_longitude"]),
+            str(saved_location.get("discovery_label") or "").strip() or label,
+        )
+    anchors = load_location_anchors()
+    anchor = next(
+        (
+            item
+            for item in anchors
+            if label in {item["area_name"], item["display_name"]}
+        ),
+        anchors[0],
+    )
+    return float(anchor["latitude"]), float(anchor["longitude"]), str(anchor["area_name"])
+
+
+def _repair_shared_active_assignment(
+    *,
+    owner_id: str,
+    city_id: str,
+    assignment: DailyPickAssignment,
+    saved_location: dict[str, object] | None = None,
+) -> DailyPickAssignment:
+    latitude, longitude, active_area = _assignment_repair_origin(
+        assignment, saved_location
+    )
+    repaired_at = datetime.now(UTC)
+    history = {
+        place_id: parsed
+        for place_id, value in shared_user_data.seen_history(user_id=owner_id).items()
+        if (parsed := _parse_pick_datetime(value)) is not None
+    }
+    stable_seed = int.from_bytes(
+        sha256(assignment.round_id.encode("utf-8")).digest()[:8], "big"
+    )
+    with connect(DB_PATH) as connection:
+        repaired, _ = plan_repaired_daily_picks(
+            connection,
+            assignment,
+            discovery_latitude=latitude,
+            discovery_longitude=longitude,
+            active_area=active_area,
+            saved_place_ids=shared_user_data.saved_place_ids(
+                user_id=owner_id, city_id=city_id
+            ),
+            served_history=history,
+            now=repaired_at,
+            requested_count=3,
+            seed=stable_seed,
+        )
+    if repaired.place_ids == assignment.place_ids:
+        return assignment
+    return _shared_assignment(
+        shared_user_data.repair_active_daily_picks(
+            user_id=owner_id,
+            round_id=assignment.round_id,
+            expected_place_ids=list(assignment.place_ids),
+            place_ids=list(repaired.place_ids),
+            selection_metadata=repaired.selection_metadata,
+            repaired_at=repaired_at.isoformat(),
+        )
+    )
+
+
+def _recent_daily_pick_response(
+    assignment: DailyPickAssignment, city_id: str, now: datetime
+) -> RecentDailyPickRoundResponse:
+    restaurants = _public_restaurants_for_place_ids(assignment.place_ids)
+    return RecentDailyPickRoundResponse(
+        round_id=assignment.round_id,
+        city_id=city_id,
+        place_ids=[str(restaurant["place_id"]) for restaurant in restaurants],
+        assigned_at=assignment.assigned_at,
+        retention_expires_at=(
+            (_parse_pick_datetime(assignment.assigned_at) or now)
+            + RECENT_DISCOVERY_DURATION
+        ).isoformat(),
+        restaurants=restaurants,
     )
 
 
@@ -1111,7 +1209,13 @@ def create_daily_pick_assignment(
             discovery_longitude = float(saved_location["discovery_longitude"])
         active = shared_user_data.get_active_daily_picks(user_id=str(owner_id), city_id=city_id)
         if active is not None:
-            return _daily_pick_response(_shared_assignment(active), city_id)
+            assignment = _repair_shared_active_assignment(
+                owner_id=str(owner_id),
+                city_id=city_id,
+                assignment=_shared_assignment(active),
+                saved_location=saved_location,
+            )
+            return _daily_pick_response(assignment, city_id)
     else:
         seed_served_history(
             DB_PATH,
@@ -1173,6 +1277,12 @@ def create_daily_pick_assignment(
                     selection_metadata=metadata,
                 )
             )
+            assignment = _repair_shared_active_assignment(
+                owner_id=str(owner_id),
+                city_id=city_id,
+                assignment=assignment,
+                saved_location=saved_location,
+            )
         else:
             assignment = assign_daily_picks(
                 DB_PATH,
@@ -1208,14 +1318,37 @@ def get_active_daily_pick_assignment(
     _ensure_database()
     normalized_city = _normalize_list_city(city_id)
     if _shared_owner(owner_id):
+        saved_location = shared_user_data.get_discovery_location(user_id=str(owner_id))
         active = shared_user_data.get_active_daily_picks(
             user_id=str(owner_id), city_id=normalized_city
         )
-        assignment = _shared_assignment(active) if active else None
+        assignment = (
+            _repair_shared_active_assignment(
+                owner_id=str(owner_id),
+                city_id=normalized_city,
+                assignment=_shared_assignment(active),
+                saved_location=saved_location,
+            )
+            if active
+            else None
+        )
     else:
         assignment = get_active_daily_picks(
             DB_PATH, owner_id=owner_id, city_id=normalized_city
         )
+        if assignment:
+            latitude, longitude, active_area = _assignment_repair_origin(assignment)
+            assignment = repair_active_daily_picks(
+                DB_PATH,
+                owner_id=owner_id,
+                city_id=normalized_city,
+                discovery_latitude=latitude,
+                discovery_longitude=longitude,
+                active_area=active_area,
+                seed=int.from_bytes(
+                    sha256(assignment.round_id.encode("utf-8")).digest()[:8], "big"
+                ),
+            )
     return _daily_pick_response(assignment, normalized_city) if assignment else None
 
 
@@ -1241,17 +1374,7 @@ def get_recent_daily_pick_discoveries(
             DB_PATH, owner_id=owner_id, city_id=normalized_city, now=now
         )
     return [
-        RecentDailyPickRoundResponse(
-            round_id=round.round_id,
-            city_id=normalized_city,
-            place_ids=list(round.place_ids),
-            assigned_at=round.assigned_at,
-            retention_expires_at=(
-                (_parse_pick_datetime(round.assigned_at) or now) + RECENT_DISCOVERY_DURATION
-            ).isoformat(),
-            restaurants=_public_restaurants_for_place_ids(round.place_ids),
-        )
-        for round in rounds
+        _recent_daily_pick_response(round, normalized_city, now) for round in rounds
     ]
 
 

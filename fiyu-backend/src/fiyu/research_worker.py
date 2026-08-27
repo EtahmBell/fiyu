@@ -23,6 +23,7 @@ from .address_research import (
     start_address_run,
 )
 from .card_enrichment import CardEnrichment, scoring_research_view
+from .local_discovery import AccessModel
 from .public_catalog import (
     finish_restaurant_research_run,
     get_research_queue,
@@ -39,7 +40,7 @@ from .public_score import (
     evaluate_fiyu_candidate,
 )
 
-PROMPT_VERSION = "restaurant-research-v6-contact-provenance"
+PROMPT_VERSION = "restaurant-research-v7-public-access"
 CompactLabel = Annotated[str, Field(max_length=120)]
 CompactEvidence = Annotated[str, Field(max_length=500)]
 EvidenceUrl = Annotated[str, Field(max_length=2000)]
@@ -109,6 +110,10 @@ class RestaurantResearch(BaseModel):
     ] = "unknown"
     food_drink_primary: bool | None = None
     product_eligibility_evidence: list[CompactEvidence] = Field(default_factory=list, max_length=6)
+    access_model: AccessModel = "unknown"
+    access_confidence: float | None = Field(default=None, ge=0, le=1)
+    access_evidence: list[CompactEvidence] = Field(default_factory=list, max_length=6)
+    access_evidence_urls: list[EvidenceUrl] = Field(default_factory=list, max_length=6)
 
     why_fiyu: str = Field(min_length=1, max_length=600)
     evidence_urls: list[EvidenceUrl] = Field(default_factory=list, max_length=8)
@@ -141,6 +146,7 @@ class RestaurantResearch(BaseModel):
         "local_audience_signals",
         "tourist_signals",
         "product_eligibility_evidence",
+        "access_evidence",
         mode="before",
     )
     @classmethod
@@ -152,6 +158,11 @@ class RestaurantResearch(BaseModel):
     def bound_urls(cls, values: object) -> object:
         return cls._bounded_items(values, 2000, 8)
 
+    @field_validator("access_evidence_urls", mode="before")
+    @classmethod
+    def bound_access_urls(cls, values: object) -> object:
+        return cls._bounded_items(values, 2000, 6)
+
     @field_validator(
         "food_tags",
         "signature_dishes",
@@ -160,6 +171,8 @@ class RestaurantResearch(BaseModel):
         "tourist_signals",
         "product_eligibility_evidence",
         "evidence_urls",
+        "access_evidence",
+        "access_evidence_urls",
     )
     @classmethod
     def deduplicate_compact_lists(cls, values: list[str]) -> list[str]:
@@ -230,6 +243,16 @@ Classify venue_format and whether
 food/drink is primary so product eligibility can be evaluated deterministically. Bars, izakaya,
 cafes, and neighborhood drinking venues can be valid fixed venues. Catering/mobile services and
 entertainment-first venues must be identified when the evidence clearly establishes that format.
+Classify public access separately. Use access_model=public for ordinary walk-in access and
+reservation_required when any member of the public can book without an introduction. Use
+public_membership only when an ordinary user can independently join or purchase membership without
+a personal introduction. Use referral_required, invitation_only, or members_only only when a source
+affirmatively establishes that restriction (for example 会員制, 完全会員制, 紹介制, 招待制,
+一見さんお断り, or an existing-member referral/accompaniment requirement). Every restricted
+classification requires concise access_evidence, access_confidence, and the exact supporting URLs
+in access_evidence_urls. If access is ambiguous or lacks affirmative sourced evidence, use unknown.
+Never infer restricted access from reservation difficulty, phone-only booking, small size, omakase
+format, price, prestige, a hidden location, low review count, or sparse web presence.
 Content-language requirements:
 - name_ja must preserve the restaurant's official Japanese name.
 - name_en must be a natural English name or readable Hepburn-style romanization.

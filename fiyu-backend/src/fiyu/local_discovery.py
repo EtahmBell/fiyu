@@ -16,6 +16,20 @@ LocalDiscoveryClassification = Literal[
     "high_local_discovery_low_footprint",
 ]
 
+AccessModel = Literal[
+    "public",
+    "reservation_required",
+    "public_membership",
+    "referral_required",
+    "invitation_only",
+    "members_only",
+    "unknown",
+]
+
+RESTRICTED_ACCESS_MODELS = frozenset(
+    {"referral_required", "invitation_only", "members_only"}
+)
+
 LOCAL_DISCOVERY_WEIGHTS = {
     "underexposure": 0.25,
     "web_scarcity": 0.15,
@@ -133,6 +147,31 @@ _AFFIRMATIVE_ENTERTAINMENT_FIRST = re.compile(
     r"food (?:and drink )?(?:is|are|appears?) (?:clearly )?secondary)\b",
     re.IGNORECASE,
 )
+_NEGATED_RESTRICTED_ACCESS = re.compile(
+    r"\b(?:not|isn't|is not) (?:members?[- ]only|referral[- ](?:only|required)|"
+    r"invitation[- ]only|introduction[- ]based)\b|"
+    r"\bno (?:evidence|indication|sign|requirement)\b[^.]{0,120}"
+    r"\b(?:membership|referral|invitation|introduction)\b",
+    re.IGNORECASE,
+)
+_RESTRICTED_ACCESS_EVIDENCE = {
+    "referral_required": re.compile(
+        r"紹介制|\b(?:referral[- ](?:only|required)|introduction[- ]based|"
+        r"existing member (?:must|is required to) (?:refer|introduce)|"
+        r"members? and their introducers?)\b",
+        re.IGNORECASE,
+    ),
+    "invitation_only": re.compile(
+        r"招待制|\b(?:invitation[- ]only|invite[- ]only|by invitation only)\b",
+        re.IGNORECASE,
+    ),
+    "members_only": re.compile(
+        r"完全会員制|会員制|一見さんお断り|\b(?:members?[- ]only|"
+        r"only (?:current |existing )?members?|"
+        r"first[- ]time (?:visitors?|guests?) (?:are )?not accepted)\b",
+        re.IGNORECASE,
+    ),
+}
 
 
 def _level(value: str, *, low: float, medium: float, high: float, unknown: float) -> float:
@@ -376,6 +415,38 @@ def assess_product_eligibility(
     structured_research: Mapping[str, object] | None,
 ) -> ProductEligibility:
     """Trust candidate existence while gating only clear Fiyu product mismatches."""
+
+    access_model = str(
+        (structured_research or {}).get("access_model") or "unknown"
+    ).casefold()
+    access_evidence = (structured_research or {}).get("access_evidence")
+    access_urls = (structured_research or {}).get("access_evidence_urls")
+    access_confidence = (structured_research or {}).get("access_confidence")
+    access_evidence_text = " ".join(
+        str(item) for item in access_evidence
+    ) if isinstance(access_evidence, list) else ""
+    access_pattern = _RESTRICTED_ACCESS_EVIDENCE.get(access_model)
+    affirmative_access_evidence = (
+        isinstance(access_evidence, list)
+        and any(str(item).strip() for item in access_evidence)
+        and access_pattern is not None
+        and bool(
+            access_pattern.search(
+                _NEGATED_RESTRICTED_ACCESS.sub("", access_evidence_text)
+            )
+        )
+        and isinstance(access_urls, list)
+        and any(str(item).startswith(("https://", "http://")) for item in access_urls)
+        and isinstance(access_confidence, (int, float))
+        and not isinstance(access_confidence, bool)
+        and float(access_confidence) >= 0.70
+    )
+    if access_model in RESTRICTED_ACCESS_MODELS and affirmative_access_evidence:
+        return ProductEligibility(
+            False,
+            "ineligible_restricted_access",
+            (f"affirmative_{access_model}",),
+        )
 
     text = " ".join([str(primary_category or ""), venue_format, _structured_text(structured_research)])
     protected_text = _NEGATED_PRODUCT_EXCLUSION.sub("", text)

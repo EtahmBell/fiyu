@@ -196,6 +196,32 @@ def shared_account_api(tmp_path, monkeypatch):
     monkeypatch.setattr(
         api.shared_user_data, "assign_or_get_active_daily_picks", assign_snapshot
     )
+
+    def repair_snapshot(
+        *,
+        user_id,
+        round_id,
+        expected_place_ids,
+        place_ids,
+        selection_metadata,
+        repaired_at,
+    ):
+        key = next(
+            key
+            for key, value in snapshots.items()
+            if key[0] == user_id and str(value["round_id"]) == round_id
+        )
+        snapshot = snapshots[key]
+        if snapshot["place_ids"] == expected_place_ids:
+            added = [place_id for place_id in place_ids if place_id not in expected_place_ids]
+            snapshot["place_ids"] = list(place_ids)
+            snapshot["selection_metadata"] = selection_metadata
+            seen[user_id].extend(
+                place_id for place_id in added if place_id not in seen[user_id]
+            )
+        return snapshot
+
+    monkeypatch.setattr(api.shared_user_data, "repair_active_daily_picks", repair_snapshot)
     monkeypatch.setattr(
         api.shared_user_data, "get_discovery_location", lambda *, user_id: None
     )
@@ -219,6 +245,32 @@ def shared_account_api(tmp_path, monkeypatch):
 
 def _auth(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
+
+
+def _add_catalog_restaurants(*place_ids: str) -> None:
+    with connect(api.DB_PATH) as connection:
+        for index, place_id in enumerate(place_ids, start=4):
+            connection.execute(
+                """
+                INSERT INTO restaurants
+                    (place_id, title, city, neighborhood, latitude, longitude,
+                     rating, review_count)
+                VALUES (?, ?, 'Tokyo', 'Asakusa', ?, ?, 4.4, 20)
+                """,
+                (place_id, place_id, 35.65 + index * 0.001, 139.70 + index * 0.001),
+            )
+            connection.execute(
+                """
+                INSERT INTO public_restaurants
+                    (place_id, name_en, primary_category, food_tags_json,
+                     signature_dishes_json, latitude, longitude,
+                     map_display_eligible, is_published, product_eligible,
+                     created_at, updated_at)
+                VALUES (?, ?, 'sushi', '[]', '[]', ?, ?, 1, 1, 1, 'now', 'now')
+                """,
+                (place_id, place_id, 35.65 + index * 0.001, 139.70 + index * 0.001),
+            )
+        connection.commit()
 
 
 def test_authenticated_map_does_not_accept_anonymous_owner_fallback(shared_account_api):
@@ -478,6 +530,227 @@ def test_map_visibility_still_requires_published_map_eligible_catalog_rows(
 
     assert response.status_code == 200
     assert [row["place_id"] for row in response.json()] == ["tokyo-0"]
+
+
+def test_product_exclusion_filters_discovery_but_preserves_saved_and_visit_history(
+    shared_account_api,
+):
+    client, user_ids, _ = shared_account_api
+    user_id = user_ids["token-a"]
+    now = datetime.now(UTC)
+    snapshot = {
+        "round_id": str(uuid4()),
+        "place_ids": ["tokyo-0", "tokyo-1", "tokyo-2"],
+        "assigned_at": now.isoformat(),
+        "expires_at": (now + timedelta(hours=24)).isoformat(),
+        "selection_metadata": {},
+    }
+    client.fiyu_test_state["snapshots"][(user_id, "tokyo")] = snapshot
+    client.fiyu_test_state["recent_rounds"][(user_id, "tokyo")].append(
+        {
+            **snapshot,
+            "round_id": str(uuid4()),
+            "assigned_at": (now - timedelta(hours=25)).isoformat(),
+            "expires_at": (now - timedelta(hours=1)).isoformat(),
+        }
+    )
+    assert client.post(
+        "/lists/default/items",
+        headers=_auth("token-a"),
+        json={"city_id": "tokyo", "place_id": "tokyo-1"},
+    ).status_code == 200
+    assert client.post(
+        "/log",
+        headers=_auth("token-a"),
+        json={
+            "place_id": "tokyo-1",
+            "visited_at": "2026-08-22T12:00:00Z",
+            "reaction": "like_it",
+            "private_note": "Historical relationship remains private and readable",
+        },
+    ).status_code == 201
+
+    with connect(api.DB_PATH) as connection:
+        connection.execute(
+            "UPDATE public_restaurants SET product_eligible = 0 WHERE place_id = 'tokyo-1'"
+        )
+        connection.commit()
+
+    active = client.get(
+        "/daily-picks/active", params={"city_id": "tokyo"}, headers=_auth("token-a")
+    )
+    recent = client.get(
+        "/daily-picks/recent", params={"city_id": "tokyo"}, headers=_auth("token-a")
+    )
+    map_rows = client.get(
+        "/profiles/me/map-restaurants", headers=_auth("token-a")
+    )
+    saved = client.get(
+        "/lists/default", params={"city_id": "tokyo"}, headers=_auth("token-a")
+    )
+    visits = client.get("/log", headers=_auth("token-a"))
+
+    assert active.status_code == recent.status_code == map_rows.status_code == 200
+    assert active.json()["place_ids"] == ["tokyo-0", "tokyo-2", "tokyo-3"]
+    assert [row["place_id"] for row in active.json()["restaurants"]] == [
+        "tokyo-0",
+        "tokyo-2",
+        "tokyo-3",
+    ]
+    assert recent.json()[0]["place_ids"] == ["tokyo-0", "tokyo-2"]
+    assert "tokyo-1" not in {row["place_id"] for row in map_rows.json()}
+    assert [row["place_id"] for row in saved.json()["items"]] == ["tokyo-1"]
+    assert [row["place_id"] for row in visits.json()] == ["tokyo-1"]
+    assert visits.json()[0]["private_note"] == (
+        "Historical relationship remains private and readable"
+    )
+    assert client.fiyu_test_state["snapshots"][(user_id, "tokyo")]["place_ids"] == [
+        "tokyo-0",
+        "tokyo-2",
+        "tokyo-3",
+    ]
+
+
+@pytest.mark.parametrize("excluded_count", [1, 2, 3])
+def test_active_snapshot_repairs_only_ineligible_slots_and_persists(
+    shared_account_api, excluded_count
+):
+    client, user_ids, seen = shared_account_api
+    user_id = user_ids["token-a"]
+    _add_catalog_restaurants("tokyo-4", "tokyo-5")
+    original = ["tokyo-0", "tokyo-1", "tokyo-2"]
+    excluded = original[-excluded_count:]
+    preserved = original[:-excluded_count]
+    now = datetime.now(UTC)
+    client.fiyu_test_state["snapshots"][(user_id, "tokyo")] = {
+        "round_id": str(uuid4()),
+        "place_ids": original.copy(),
+        "assigned_at": now.isoformat(),
+        "expires_at": (now + timedelta(hours=24)).isoformat(),
+        "selection_metadata": {
+            "discovery_latitude": 35.65,
+            "discovery_longitude": 139.70,
+            "discovery_label": "Asakusa",
+        },
+    }
+    seen[user_id].extend(original)
+    with connect(api.DB_PATH) as connection:
+        connection.executemany(
+            "UPDATE public_restaurants SET product_eligible = 0 WHERE place_id = ?",
+            ((place_id,) for place_id in excluded),
+        )
+        connection.commit()
+
+    first = client.get(
+        "/daily-picks/active", params={"city_id": "tokyo"}, headers=_auth("token-a")
+    )
+    second = client.get(
+        "/daily-picks/active", params={"city_id": "tokyo"}, headers=_auth("token-a")
+    )
+
+    assert first.status_code == second.status_code == 200
+    repaired_ids = first.json()["place_ids"]
+    assert second.json()["place_ids"] == repaired_ids
+    assert repaired_ids[: len(preserved)] == preserved
+    assert len(repaired_ids) == 3
+    assert not set(repaired_ids).intersection(excluded)
+    assert client.fiyu_test_state["snapshots"][(user_id, "tokyo")][
+        "place_ids"
+    ] == repaired_ids
+    assert set(original).issubset(seen[user_id])
+
+
+def test_snapshot_replacements_respect_saved_cooldown_and_unseen_rules(
+    shared_account_api, monkeypatch
+):
+    client, user_ids, seen = shared_account_api
+    user_id = user_ids["token-a"]
+    _add_catalog_restaurants("tokyo-4", "tokyo-5", "tokyo-6")
+    now = datetime.now(UTC)
+    original = ["tokyo-0", "tokyo-1", "tokyo-2"]
+    seen[user_id].extend([*original, "tokyo-4", "tokyo-6"])
+    client.fiyu_test_state["snapshots"][(user_id, "tokyo")] = {
+        "round_id": str(uuid4()),
+        "place_ids": original.copy(),
+        "assigned_at": now.isoformat(),
+        "expires_at": (now + timedelta(hours=24)).isoformat(),
+        "selection_metadata": {
+            "discovery_latitude": 35.65,
+            "discovery_longitude": 139.70,
+            "discovery_label": "Asakusa",
+        },
+    }
+    assert client.post(
+        "/lists/default/items",
+        headers=_auth("token-a"),
+        json={"city_id": "tokyo", "place_id": "tokyo-3"},
+    ).status_code == 200
+    monkeypatch.setattr(
+        api.shared_user_data,
+        "seen_history",
+        lambda *, user_id: {
+            **{place_id: (now - timedelta(days=8)).isoformat() for place_id in original},
+            "tokyo-4": now.isoformat(),
+            "tokyo-6": (now - timedelta(days=8)).isoformat(),
+        },
+    )
+    with connect(api.DB_PATH) as connection:
+        connection.execute(
+            "UPDATE public_restaurants SET product_eligible = 0 "
+            "WHERE place_id IN ('tokyo-1', 'tokyo-2')"
+        )
+        connection.commit()
+
+    response = client.get(
+        "/daily-picks/active", params={"city_id": "tokyo"}, headers=_auth("token-a")
+    )
+
+    assert response.status_code == 200
+    assert response.json()["place_ids"][0] == "tokyo-0"
+    assert set(response.json()["place_ids"][1:]) == {"tokyo-5", "tokyo-6"}
+    assert "tokyo-3" not in response.json()["place_ids"]
+    assert "tokyo-4" not in response.json()["place_ids"]
+    assert {"tokyo-1", "tokyo-2", "tokyo-4"}.issubset(seen[user_id])
+
+
+def test_active_snapshot_with_no_replacements_returns_and_persists_empty_gracefully(
+    shared_account_api,
+):
+    client, user_ids, seen = shared_account_api
+    user_id = user_ids["token-a"]
+    now = datetime.now(UTC)
+    original = ["tokyo-0", "tokyo-1", "tokyo-2"]
+    seen[user_id].extend(original)
+    client.fiyu_test_state["snapshots"][(user_id, "tokyo")] = {
+        "round_id": str(uuid4()),
+        "place_ids": original.copy(),
+        "assigned_at": now.isoformat(),
+        "expires_at": (now + timedelta(hours=24)).isoformat(),
+        "selection_metadata": {
+            "discovery_latitude": 35.65,
+            "discovery_longitude": 139.70,
+            "discovery_label": "Asakusa",
+        },
+    }
+    with connect(api.DB_PATH) as connection:
+        connection.execute("UPDATE public_restaurants SET product_eligible = 0")
+        connection.commit()
+
+    first = client.get(
+        "/daily-picks/active", params={"city_id": "tokyo"}, headers=_auth("token-a")
+    )
+    second = client.get(
+        "/daily-picks/active", params={"city_id": "tokyo"}, headers=_auth("token-a")
+    )
+
+    assert first.status_code == second.status_code == 200
+    assert first.json()["place_ids"] == first.json()["restaurants"] == []
+    assert second.json()["place_ids"] == []
+    assert client.fiyu_test_state["snapshots"][(user_id, "tokyo")]["place_ids"] == []
+    assert seen[user_id] == original
+    assert client.get(
+        "/profiles/me/map-restaurants", headers=_auth("token-a")
+    ).json() == []
 
 
 def test_authenticated_lists_log_and_seen_are_account_owned(shared_account_api):

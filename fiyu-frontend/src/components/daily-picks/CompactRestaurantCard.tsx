@@ -1,6 +1,13 @@
 "use client";
 
-import { useId, useState, type KeyboardEvent, type MouseEvent } from "react";
+import {
+  useId,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type MouseEvent,
+  type PointerEvent,
+} from "react";
 
 import { OutboundMapActions } from "@/components/restaurant/OutboundMapActions";
 import { RestaurantPhoto } from "@/components/restaurant/RestaurantPhoto";
@@ -66,8 +73,23 @@ function nestedInteractiveTarget(
   return interactive !== null && interactive !== currentTarget;
 }
 
-function hasFinePointer(): boolean {
-  return typeof window.matchMedia === "function" && window.matchMedia("(pointer: fine)").matches;
+const MOBILE_CARD_QUERY = "(max-width: 63.999rem)";
+const DOUBLE_TAP_WINDOW_MS = 320;
+const TAP_MOVEMENT_TOLERANCE_PX = 12;
+const DOUBLE_TAP_DISTANCE_PX = 24;
+
+interface TapPoint {
+  at: number;
+  x: number;
+  y: number;
+}
+
+function isMobileCardViewport(): boolean {
+  return typeof window.matchMedia === "function" && window.matchMedia(MOBILE_CARD_QUERY).matches;
+}
+
+function distance(first: { x: number; y: number }, second: { x: number; y: number }): number {
+  return Math.hypot(first.x - second.x, first.y - second.y);
 }
 
 export function CompactRestaurantCard({
@@ -88,20 +110,60 @@ export function CompactRestaurantCard({
   const tags = englishCardTags(restaurant);
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
   const descriptionId = useId();
+  const pointerStart = useRef<{ pointerId: number; x: number; y: number } | null>(null);
+  const lastTap = useRef<TapPoint | null>(null);
 
   const open = () => onOpen?.(restaurant);
   const handleClick = (event: MouseEvent<HTMLElement>) => {
     if (!nestedInteractiveTarget(event.target, event.currentTarget)) open();
   };
-  const handleDoubleClick = (event: MouseEvent<HTMLElement>) => {
+  const handlePointerDown = (event: PointerEvent<HTMLElement>) => {
     if (
       !onViewDetails ||
-      !hasFinePointer() ||
+      !isMobileCardViewport() ||
+      event.pointerType !== "touch" ||
+      !event.isPrimary ||
       nestedInteractiveTarget(event.target, event.currentTarget)
     ) {
+      pointerStart.current = null;
+      lastTap.current = null;
       return;
     }
-    onViewDetails(restaurant);
+    pointerStart.current = {
+      pointerId: event.pointerId,
+      x: event.clientX,
+      y: event.clientY,
+    };
+  };
+  const handlePointerUp = (event: PointerEvent<HTMLElement>) => {
+    const start = pointerStart.current;
+    pointerStart.current = null;
+    if (
+      !start ||
+      start.pointerId !== event.pointerId ||
+      !onViewDetails ||
+      !isMobileCardViewport() ||
+      event.pointerType !== "touch" ||
+      !event.isPrimary ||
+      nestedInteractiveTarget(event.target, event.currentTarget) ||
+      distance(start, { x: event.clientX, y: event.clientY }) > TAP_MOVEMENT_TOLERANCE_PX
+    ) {
+      lastTap.current = null;
+      return;
+    }
+
+    const tap = { at: Date.now(), x: event.clientX, y: event.clientY };
+    const previous = lastTap.current;
+    if (
+      previous &&
+      tap.at - previous.at <= DOUBLE_TAP_WINDOW_MS &&
+      distance(previous, tap) <= DOUBLE_TAP_DISTANCE_PX
+    ) {
+      lastTap.current = null;
+      onViewDetails(restaurant);
+      return;
+    }
+    lastTap.current = tap;
   };
   const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => {
     if (event.target !== event.currentTarget || (event.key !== "Enter" && event.key !== " ")) return;
@@ -117,7 +179,12 @@ export function CompactRestaurantCard({
       tabIndex={onOpen ? 0 : undefined}
       aria-label={onOpen ? `View ${title}` : undefined}
       onClick={handleClick}
-      onDoubleClick={handleDoubleClick}
+      onPointerDown={handlePointerDown}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={() => {
+        pointerStart.current = null;
+        lastTap.current = null;
+      }}
       onKeyDown={handleKeyDown}
       className={cn(
         "relative min-w-0 w-full overflow-hidden rounded-card border border-line bg-surface p-2 shadow-[0_6px_20px_-18px_rgba(49,40,61,0.35)] sm:p-3.5 lg:p-3",

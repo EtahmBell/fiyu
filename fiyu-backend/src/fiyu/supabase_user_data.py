@@ -469,7 +469,7 @@ def get_active_daily_picks(*, user_id: str, city_id: str) -> dict[str, Any] | No
             "order": "position.asc",
         },
     )
-    if not isinstance(items, list) or len(items) != 3:
+    if not isinstance(items, list) or len(items) > 3:
         return None
     return {**row, "place_ids": [str(item["place_id"]) for item in items]}
 
@@ -511,7 +511,7 @@ def get_recent_daily_pick_rounds(
         round_items = sorted(
             items_by_round.get(str(row["id"]), []), key=lambda item: int(item["position"])
         )
-        if len(round_items) == 3:
+        if len(round_items) <= 3:
             result.append({**row, "place_ids": [str(item["place_id"]) for item in round_items]})
     return result
 
@@ -539,8 +539,49 @@ def assign_or_get_active_daily_picks(
     )
     if isinstance(result, list) and result:
         result = result[0]
-    if not isinstance(result, dict) or len(result.get("place_ids", [])) != 3:
+    result_place_ids = result.get("place_ids", []) if isinstance(result, dict) else []
+    if (
+        not isinstance(result, dict)
+        or not isinstance(result_place_ids, list)
+        or len(result_place_ids) > 3
+        or len(set(result_place_ids)) != len(result_place_ids)
+    ):
         raise SharedUserDataError("Daily Picks snapshot could not be saved")
+    return result
+
+
+def repair_active_daily_picks(
+    *,
+    user_id: str,
+    round_id: str,
+    expected_place_ids: list[str],
+    place_ids: list[str],
+    selection_metadata: dict[str, object],
+    repaired_at: str,
+) -> dict[str, Any]:
+    """Atomically replace only the expected active snapshot and record new seen rows."""
+    result = _request(
+        "rpc/repair_active_fiyu_picks",
+        method="POST",
+        body={
+            "p_user_id": user_id,
+            "p_round_id": round_id,
+            "p_expected_place_ids": expected_place_ids,
+            "p_place_ids": place_ids,
+            "p_selection_metadata": selection_metadata,
+            "p_repaired_at": repaired_at,
+        },
+    )
+    if isinstance(result, list) and result:
+        result = result[0]
+    returned_ids = result.get("place_ids", []) if isinstance(result, dict) else None
+    if (
+        not isinstance(result, dict)
+        or not isinstance(returned_ids, list)
+        or len(returned_ids) > 3
+        or len(returned_ids) != len(set(returned_ids))
+    ):
+        raise SharedUserDataError("Daily Picks snapshot could not be repaired")
     return result
 
 

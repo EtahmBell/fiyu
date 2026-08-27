@@ -7,6 +7,7 @@ import {
   createDailyPicksStorage,
   dailyPicksStorageKey,
   createDailySelection,
+  parseDailyPicksState,
   selectionIsActive,
 } from "@/lib/daily-picks/storage";
 
@@ -127,5 +128,33 @@ describe("daily picks storage", () => {
 
   it("rejects anything other than three unique IDs", () => {
     expect(() => createDailySelection(["a", "a", "b"], 0)).toThrow(/exactly three unique/);
+  });
+
+  it("restores repaired partial and empty active snapshots", () => {
+    const generatedAt = "2026-08-27T00:00:00.000Z";
+    const expiresAt = "2026-08-28T00:00:00.000Z";
+    const partial = parseDailyPicksState(
+      JSON.stringify({
+        version: 3,
+        preferences: { categories: [], nonJapanese: "occasionally" },
+        selection: {
+          restaurantIds: ["a", "b"],
+          revealedIds: ["a"],
+          generatedAt,
+          expiresAt,
+        },
+        discoveries: [],
+        savedRestaurantIds: [],
+      }),
+    );
+    const empty = parseDailyPicksState(
+      JSON.stringify({
+        ...partial,
+        selection: { restaurantIds: [], revealedIds: [], generatedAt, expiresAt },
+      }),
+    );
+
+    expect(partial.selection?.restaurantIds).toEqual(["a", "b"]);
+    expect(empty.selection?.restaurantIds).toEqual([]);
   });
 });

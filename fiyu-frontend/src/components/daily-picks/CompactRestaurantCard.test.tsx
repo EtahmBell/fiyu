@@ -22,6 +22,32 @@ function restaurant(overrides: Partial<PublicRestaurant> = {}): PublicRestaurant
   });
 }
 
+function setMobileViewport(mobile: boolean) {
+  vi.stubGlobal(
+    "matchMedia",
+    vi.fn().mockImplementation((query: string) => ({
+      matches: mobile && query === "(max-width: 63.999rem)",
+    })),
+  );
+}
+
+function touchTap(element: Element, x = 40, y = 40) {
+  fireEvent.pointerDown(element, {
+    pointerId: 1,
+    pointerType: "touch",
+    isPrimary: true,
+    clientX: x,
+    clientY: y,
+  });
+  fireEvent.pointerUp(element, {
+    pointerId: 1,
+    pointerType: "touch",
+    isPrimary: true,
+    clientX: x,
+    clientY: y,
+  });
+}
+
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
@@ -295,11 +321,8 @@ describe("compact card interaction", () => {
     expect(onOpen).not.toHaveBeenCalled();
   });
 
-  it("uses a fine-pointer double-click on card content as a detail shortcut", () => {
-    vi.stubGlobal(
-      "matchMedia",
-      vi.fn().mockReturnValue({ matches: true }),
-    );
+  it("opens details from a mobile double tap on non-interactive card content", () => {
+    setMobileViewport(true);
     const onOpen = vi.fn();
     const onViewDetails = vi.fn();
     const value = restaurant();
@@ -313,42 +336,39 @@ describe("compact card interaction", () => {
       />,
     );
 
-    fireEvent.doubleClick(screen.getByRole("heading", { level: 3 }));
+    const heading = screen.getByRole("heading", { level: 3 });
+    touchTap(heading);
+    touchTap(heading);
 
     expect(onViewDetails).toHaveBeenCalledOnce();
     expect(onViewDetails).toHaveBeenCalledWith(value);
     expect(onOpen).not.toHaveBeenCalled();
   });
 
-  it("does not open details from double-clicks on nested card actions", () => {
-    vi.stubGlobal(
-      "matchMedia",
-      vi.fn().mockReturnValue({ matches: true }),
-    );
+  it("preserves a mobile single tap without unexpectedly opening details", () => {
+    setMobileViewport(true);
+    const onOpen = vi.fn();
     const onViewDetails = vi.fn();
     render(
       <CompactRestaurantCard
         restaurant={restaurant()}
         saved={false}
-        onOpen={vi.fn()}
+        onOpen={onOpen}
         onViewDetails={onViewDetails}
-        onToggleSaved={vi.fn()}
+        onToggleSaved={() => {}}
       />,
     );
 
-    fireEvent.doubleClick(screen.getByRole("button", { name: "Save restaurant" }));
-    fireEvent.doubleClick(screen.getByRole("link", { name: "Open in Google Maps" }));
-    fireEvent.doubleClick(screen.getByRole("link", { name: "Open in Apple Maps" }));
-    fireEvent.doubleClick(screen.getByRole("button", { name: "View restaurant" }));
+    const heading = screen.getByRole("heading", { level: 3 });
+    touchTap(heading);
+    fireEvent.click(heading);
 
+    expect(onOpen).toHaveBeenCalledOnce();
     expect(onViewDetails).not.toHaveBeenCalled();
   });
 
-  it("does not add a mobile double-tap navigation gesture", () => {
-    vi.stubGlobal(
-      "matchMedia",
-      vi.fn().mockReturnValue({ matches: false }),
-    );
+  it("does not add desktop double-click detail navigation", () => {
+    setMobileViewport(false);
     const onViewDetails = vi.fn();
     render(
       <CompactRestaurantCard
@@ -361,6 +381,64 @@ describe("compact card interaction", () => {
     );
 
     fireEvent.doubleClick(screen.getByRole("heading", { level: 3 }));
+
+    expect(onViewDetails).not.toHaveBeenCalled();
+  });
+
+  it("excludes photo, Save, and Read more from mobile double-tap navigation", () => {
+    setMobileViewport(true);
+    const onViewDetails = vi.fn();
+    render(
+      <CompactRestaurantCard
+        restaurant={restaurant()}
+        saved={false}
+        onOpen={vi.fn()}
+        onViewDetails={onViewDetails}
+        onToggleSaved={vi.fn()}
+      />,
+    );
+
+    for (const element of [
+      screen.getByTestId("restaurant-photo-region"),
+      screen.getByRole("button", { name: "Save restaurant" }),
+      screen.getByRole("button", { name: "Read more" }),
+    ]) {
+      touchTap(element);
+      touchTap(element);
+    }
+
+    expect(onViewDetails).not.toHaveBeenCalled();
+  });
+
+  it("does not treat a scrolling gesture as either tap in a double tap", () => {
+    setMobileViewport(true);
+    const onViewDetails = vi.fn();
+    render(
+      <CompactRestaurantCard
+        restaurant={restaurant()}
+        saved={false}
+        onOpen={vi.fn()}
+        onViewDetails={onViewDetails}
+        onToggleSaved={() => {}}
+      />,
+    );
+
+    const heading = screen.getByRole("heading", { level: 3 });
+    fireEvent.pointerDown(heading, {
+      pointerId: 1,
+      pointerType: "touch",
+      isPrimary: true,
+      clientX: 40,
+      clientY: 40,
+    });
+    fireEvent.pointerUp(heading, {
+      pointerId: 1,
+      pointerType: "touch",
+      isPrimary: true,
+      clientX: 40,
+      clientY: 90,
+    });
+    touchTap(heading);
 
     expect(onViewDetails).not.toHaveBeenCalled();
   });

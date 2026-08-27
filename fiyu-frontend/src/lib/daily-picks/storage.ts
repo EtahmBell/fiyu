@@ -110,7 +110,7 @@ export function parseDailyPicksState(raw: string | null): DailyPicksState {
     const generatedAt = selectionValue?.generatedAt;
     const expiresAt = selectionValue?.expiresAt;
     const selection =
-      restaurantIds.length === 3 &&
+      restaurantIds.length <= 3 &&
       typeof generatedAt === "string" &&
       Number.isFinite(Date.parse(generatedAt)) &&
       typeof expiresAt === "string" &&

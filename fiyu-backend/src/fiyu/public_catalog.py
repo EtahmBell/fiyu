@@ -121,6 +121,10 @@ CREATE TABLE IF NOT EXISTS public_restaurants (
     product_eligible INTEGER NOT NULL DEFAULT 1,
     product_eligibility_classification TEXT,
     product_eligibility_reasons_json TEXT NOT NULL DEFAULT '[]',
+    access_model TEXT NOT NULL DEFAULT 'unknown',
+    access_confidence REAL,
+    access_evidence_json TEXT NOT NULL DEFAULT '[]',
+    access_evidence_urls_json TEXT NOT NULL DEFAULT '[]',
     low_footprint_route_evaluated INTEGER NOT NULL DEFAULT 0,
     low_footprint_route_eligible INTEGER NOT NULL DEFAULT 0,
     low_footprint_trigger_reason TEXT,
@@ -621,6 +625,10 @@ PUBLIC_LOCAL_DISCOVERY_COLUMNS = {
     "product_eligible": "INTEGER NOT NULL DEFAULT 1",
     "product_eligibility_classification": "TEXT",
     "product_eligibility_reasons_json": "TEXT NOT NULL DEFAULT '[]'",
+    "access_model": "TEXT NOT NULL DEFAULT 'unknown'",
+    "access_confidence": "REAL",
+    "access_evidence_json": "TEXT NOT NULL DEFAULT '[]'",
+    "access_evidence_urls_json": "TEXT NOT NULL DEFAULT '[]'",
     "low_footprint_route_evaluated": "INTEGER NOT NULL DEFAULT 0",
     "low_footprint_route_eligible": "INTEGER NOT NULL DEFAULT 0",
     "low_footprint_trigger_reason": "TEXT",
@@ -702,6 +710,51 @@ ADDRESS_TABLE_COLUMNS = {
 
 def _utc_now() -> str:
     return datetime.now(UTC).isoformat()
+
+
+_ACCESS_MODELS = {
+    "public",
+    "reservation_required",
+    "public_membership",
+    "referral_required",
+    "invitation_only",
+    "members_only",
+    "unknown",
+}
+
+
+def _canonical_access_fields(
+    structured_research: dict[str, object] | None,
+) -> tuple[str, float | None, list[str], list[str]]:
+    structured = structured_research or {}
+    model = str(structured.get("access_model") or "unknown").casefold()
+    if model not in _ACCESS_MODELS:
+        model = "unknown"
+    confidence_value = structured.get("access_confidence")
+    confidence = (
+        float(confidence_value)
+        if isinstance(confidence_value, (int, float))
+        and not isinstance(confidence_value, bool)
+        and 0 <= float(confidence_value) <= 1
+        else None
+    )
+    raw_evidence = structured.get("access_evidence")
+    evidence = list(
+        dict.fromkeys(
+            " ".join(str(item).split())
+            for item in raw_evidence[:6]
+            if str(item).strip()
+        )
+    ) if isinstance(raw_evidence, list) else []
+    raw_urls = structured.get("access_evidence_urls")
+    urls = list(
+        dict.fromkeys(
+            str(item).strip()
+            for item in raw_urls[:6]
+            if str(item).startswith(("https://", "http://"))
+        )
+    ) if isinstance(raw_urls, list) else []
+    return model, confidence, evidence, urls
 
 
 def _score_evidence_fingerprint(
@@ -1010,6 +1063,9 @@ def save_research_result(
 ) -> None:
     now = _utc_now()
     evidence_urls = tuple(sorted(set(evidence_urls)))
+    access_model, access_confidence, access_evidence, access_evidence_urls = (
+        _canonical_access_fields(structured_research)
+    )
     verification_status = "automatically_researched"
     with connect(db_path) as connection:
         connection.execute(
@@ -1039,6 +1095,10 @@ def save_research_result(
                 product_eligible = ?,
                 product_eligibility_classification = ?,
                 product_eligibility_reasons_json = ?,
+                access_model = ?,
+                access_confidence = ?,
+                access_evidence_json = ?,
+                access_evidence_urls_json = ?,
                 fiyu_score = ?,
                 fiyu_confidence = ?,
                 confidence_band = ?,
@@ -1080,6 +1140,10 @@ def save_research_result(
                 int(score.product_eligible),
                 score.product_eligibility_classification,
                 json.dumps(score.product_eligibility_reasons, ensure_ascii=False),
+                access_model,
+                access_confidence,
+                json.dumps(access_evidence, ensure_ascii=False),
+                json.dumps(access_evidence_urls, ensure_ascii=False),
                 score.fiyu_score,
                 score.fiyu_confidence,
                 score.confidence_band,
@@ -1363,6 +1427,10 @@ def recalculate_from_stored_evidence(db_path: str | Path, *, place_id: str | Non
                 p.place_id,
                 p.evidence_json,
                 p.primary_category,
+                p.access_model,
+                p.access_confidence,
+                p.access_evidence_json,
+                p.access_evidence_urls_json,
                 r.quality_score,
                 r.underexposure_score,
                 r.digital_footprint_score,
@@ -1397,6 +1465,22 @@ def recalculate_from_stored_evidence(db_path: str | Path, *, place_id: str | Non
             from .card_enrichment import scoring_research_view
 
             scoring_structured = scoring_research_view(structured)
+            stored_access_model = str(row["access_model"] or "unknown").casefold()
+            if stored_access_model != "unknown":
+                scoring_structured["access_model"] = stored_access_model
+                scoring_structured["access_confidence"] = row["access_confidence"]
+                for column, field in (
+                    ("access_evidence_json", "access_evidence"),
+                    ("access_evidence_urls_json", "access_evidence_urls"),
+                ):
+                    try:
+                        value = json.loads(row[column] or "[]")
+                    except json.JSONDecodeError:
+                        value = []
+                    scoring_structured[field] = value if isinstance(value, list) else []
+            access_model, access_confidence, access_evidence, access_evidence_urls = (
+                _canonical_access_fields(scoring_structured)
+            )
             score = evaluate_fiyu_candidate(
                 evidence,
                 internal,
@@ -1418,6 +1502,8 @@ def recalculate_from_stored_evidence(db_path: str | Path, *, place_id: str | Non
                     product_eligible = ?,
                     product_eligibility_classification = ?,
                     product_eligibility_reasons_json = ?,
+                    access_model = ?, access_confidence = ?,
+                    access_evidence_json = ?, access_evidence_urls_json = ?,
                     fiyu_score = ?, fiyu_confidence = ?,
                     confidence_band = ?, score_band = ?, score_version = ?,
                     updated_at = ?
@@ -1440,6 +1526,10 @@ def recalculate_from_stored_evidence(db_path: str | Path, *, place_id: str | Non
                     int(score.product_eligible),
                     score.product_eligibility_classification,
                     json.dumps(score.product_eligibility_reasons, ensure_ascii=False),
+                    access_model,
+                    access_confidence,
+                    json.dumps(access_evidence, ensure_ascii=False),
+                    json.dumps(access_evidence_urls, ensure_ascii=False),
                     score.fiyu_score,
                     score.fiyu_confidence,
                     score.confidence_band,
@@ -1567,7 +1657,10 @@ def list_public_restaurants(
 
 def get_public_restaurant(db_path: str | Path, place_id: str) -> dict[str, object] | None:
     rows = _safe_public_rows(
-        db_path, where="p.is_published = 1 AND p.place_id = ?", parameters=(place_id,), limit=1
+        db_path,
+        where="p.is_published = 1 AND p.product_eligible = 1 AND p.place_id = ?",
+        parameters=(place_id,),
+        limit=1,
     )
     return rows[0] if rows else None
 
@@ -1608,7 +1701,12 @@ def get_public_restaurant_detail(db_path: str | Path, place_id: str) -> dict[str
 
 
 def list_published_restaurants(db_path: str | Path, *, limit: int = 100) -> list[dict[str, object]]:
-    return _safe_public_rows(db_path, where="p.is_published = 1", parameters=(), limit=limit)
+    return _safe_public_rows(
+        db_path,
+        where="p.is_published = 1 AND p.product_eligible = 1",
+        parameters=(),
+        limit=limit,
+    )
 
 
 def _safe_public_rows(

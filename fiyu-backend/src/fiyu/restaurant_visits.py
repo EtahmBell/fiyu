@@ -86,7 +86,8 @@ def create_visit(
     now = _utc_now()
     with connect(db_path) as connection:
         published = connection.execute(
-            "SELECT 1 FROM public_restaurants WHERE place_id = ? AND is_published = 1",
+            "SELECT 1 FROM public_restaurants "
+            "WHERE place_id = ? AND is_published = 1 AND product_eligible = 1",
             (place_id,),
         ).fetchone()
         if published is None:

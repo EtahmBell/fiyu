@@ -668,6 +668,19 @@ def _current_score_policy_decision(
         from .card_enrichment import scoring_research_view
 
         effective_structured = scoring_research_view(effective_structured)
+        access_model = str(row.get("access_model") or "unknown").casefold()
+        if access_model != "unknown":
+            effective_structured["access_model"] = access_model
+            effective_structured["access_confidence"] = row.get("access_confidence")
+            for column, field in (
+                ("access_evidence_json", "access_evidence"),
+                ("access_evidence_urls_json", "access_evidence_urls"),
+            ):
+                try:
+                    value = json.loads(str(row.get(column) or "[]"))
+                except json.JSONDecodeError:
+                    value = []
+                effective_structured[field] = value if isinstance(value, list) else []
         conflict = assess_publication_conflict(evidence, effective_structured)
         current_score = evaluate_fiyu_candidate(
             evidence,

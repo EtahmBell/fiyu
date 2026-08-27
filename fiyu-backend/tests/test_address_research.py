@@ -1758,6 +1758,27 @@ def test_existing_research_without_address_is_backward_compatible_and_score_unch
     )
 
 
+def test_research_access_fields_are_structured_and_backward_compatible():
+    legacy = RestaurantResearch.model_validate(_research_payload())
+    assert legacy.access_model == "unknown"
+    assert legacy.access_evidence == []
+    assert legacy.access_evidence_urls == []
+
+    payload = _research_payload()
+    payload.update(
+        {
+            "access_model": "referral_required",
+            "access_confidence": 0.92,
+            "access_evidence": ["An existing member must introduce each new guest."],
+            "access_evidence_urls": ["https://restaurant.example/access"],
+        }
+    )
+    research = RestaurantResearch.model_validate(payload)
+    assert research.access_model == "referral_required"
+    assert research.access_confidence == 0.92
+    assert research.access_evidence_urls == ["https://restaurant.example/access"]
+
+
 def test_combined_future_research_uses_one_response_and_no_second_address_call(
     tmp_path, monkeypatch
 ):

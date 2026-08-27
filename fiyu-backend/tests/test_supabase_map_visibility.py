@@ -60,6 +60,43 @@ def test_active_pick_lookup_uses_strict_expiration_boundary(monkeypatch):
     assert requests[0][1]["expires_at"] == "gt.2026-08-22T12:00:00+00:00"
 
 
+def test_active_pick_repair_accepts_partial_snapshot_and_uses_atomic_rpc(monkeypatch):
+    captured: dict[str, object] = {}
+
+    def request(path, *, method, body):
+        captured.update({"path": path, "method": method, "body": body})
+        return {
+            "round_id": "round-a",
+            "assigned_at": "2026-08-21T12:00:00+00:00",
+            "expires_at": "2026-08-22T12:00:00+00:00",
+            "selection_metadata": body["p_selection_metadata"],
+            "place_ids": body["p_place_ids"],
+        }
+
+    monkeypatch.setattr(supabase_user_data, "_request", request)
+
+    repaired = supabase_user_data.repair_active_daily_picks(
+        user_id="user-a",
+        round_id="round-a",
+        expected_place_ids=["a", "excluded-b", "excluded-c"],
+        place_ids=["a", "d"],
+        selection_metadata={"snapshot_repaired_at": "now"},
+        repaired_at="2026-08-21T13:00:00+00:00",
+    )
+
+    assert repaired["place_ids"] == ["a", "d"]
+    assert captured["path"] == "rpc/repair_active_fiyu_picks"
+    assert captured["method"] == "POST"
+    assert captured["body"] == {
+        "p_user_id": "user-a",
+        "p_round_id": "round-a",
+        "p_expected_place_ids": ["a", "excluded-b", "excluded-c"],
+        "p_place_ids": ["a", "d"],
+        "p_selection_metadata": {"snapshot_repaired_at": "now"},
+        "p_repaired_at": "2026-08-21T13:00:00+00:00",
+    }
+
+
 def test_recent_round_lookup_returns_all_three_persisted_items(monkeypatch):
     requests: list[tuple[str, dict[str, str]]] = []
 
