@@ -75,6 +75,23 @@ function formatBudget(restaurant: PublicRestaurantDetail): string | null {
   return null;
 }
 
+function formatReservationStatus(value: string | null | undefined): string | null {
+  switch (value) {
+    case "required":
+      return "Reservation required";
+    case "strongly_recommended":
+      return "Reservation strongly recommended";
+    case "recommended":
+      return "Reservation recommended";
+    case "walk_ins_ok":
+      return "Walk-ins welcome";
+    case "usually_not_needed":
+      return "Reservations usually not needed";
+    default:
+      return null;
+  }
+}
+
 function BackIcon() {
   return (
     <svg aria-hidden="true" viewBox="0 0 20 20" className="size-4 fill-none stroke-current">
@@ -253,13 +270,14 @@ function RestaurantDetailContent({
   const scheduleNote = restaurant.opening_hours?.schedule_note?.trim() || null;
   const hasHours = hours.length > 0 || restaurant.opening_hours?.reservation_only === true || Boolean(scheduleNote);
   const budget = formatBudget(restaurant);
+  const reservationStatus = formatReservationStatus(restaurant.reservation_status);
   const bookingUrl = safeExternalUrl(restaurant.booking_url);
   const hasContact = Boolean(
-    budget || restaurant.phone_number || bookingUrl || restaurant.contact_note || restaurant.booking_methods?.length,
+    reservationStatus || budget || restaurant.phone_number || bookingUrl || restaurant.contact_note || restaurant.booking_methods?.length,
   );
 
   return (
-    <article className="space-y-8 pb-12" style={{ animation: "fiyu-reveal-in 220ms var(--ease-fiyu) both" }}>
+    <article className="space-y-8 pb-[calc(var(--spacing-mobile-nav)+1.25rem)] lg:pb-12" style={{ animation: "fiyu-reveal-in 220ms var(--ease-fiyu) both" }}>
       <RestaurantPhotoGallery
         placeId={restaurant.place_id}
         restaurantName={title}
@@ -320,6 +338,7 @@ function RestaurantDetailContent({
         <section aria-labelledby="booking-heading" className="border-t border-line pt-6">
           <h2 id="booking-heading" className="font-display text-2xl text-ink">Booking and budget</h2>
           <dl className="mt-3 grid max-w-md grid-cols-[6rem_minmax(0,1fr)] gap-x-4 gap-y-2 text-sm leading-6">
+            {reservationStatus && <><dt className="sr-only">Reservation policy</dt><dd className="col-span-2 text-ink/85">{reservationStatus}</dd></>}
             {budget && <><dt className="text-ink-muted">Budget</dt><dd className="text-ink/85">{budget}</dd></>}
             {restaurant.phone_number && <><dt className="text-ink-muted">Phone</dt><dd><a className="text-lavender-700 underline underline-offset-2" href={`tel:${restaurant.phone_number}`}>{restaurant.phone_number}</a></dd></>}
             {(restaurant.booking_methods?.length ?? 0) > 0 && <><dt className="text-ink-muted">Booking</dt><dd className="text-ink/85">{restaurant.booking_methods?.map((method) => formatTagForDisplay(method)).join(", ")}</dd></>}

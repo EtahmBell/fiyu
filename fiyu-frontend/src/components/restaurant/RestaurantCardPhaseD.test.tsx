@@ -225,7 +225,7 @@ describe("photos", () => {
     expect(screen.getAllByText("Fiyu").length).toBeGreaterThan(0);
   });
 
-  it("reveals photo attribution on pointer hover", async () => {
+  it("reveals photo attribution on click and hides it on a second click", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue({
@@ -241,7 +241,8 @@ describe("photos", () => {
     expect(image.getAttribute("src")).toBe(photoFixture.media_url);
     expect(screen.queryByText(/Photo by/)).toBeNull();
 
-    fireEvent.mouseEnter(screen.getByTestId("restaurant-photo-region"));
+    const photoRegion = screen.getByTestId("restaurant-photo-region");
+    fireEvent.click(photoRegion);
 
     // Attribution must travel with the photo.
     const author = photoFixture.author_attributions[0];
@@ -255,11 +256,11 @@ describe("photos", () => {
     expect(screen.getByRole("link", { name: "Report" }).getAttribute("href")).toBe(
       photoFixture.flag_content_uri,
     );
-    fireEvent.mouseLeave(screen.getByTestId("restaurant-photo-region"));
+    fireEvent.click(photoRegion);
     expect(screen.queryByText(/Photo by/)).toBeNull();
   });
 
-  it("reveals attribution through keyboard focus and a touch-style tap", async () => {
+  it("toggles attribution with Enter and Space and closes it with Escape", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue({
@@ -273,15 +274,15 @@ describe("photos", () => {
 
     expect(screen.queryByRole("button", { name: "Photo information" })).toBeNull();
     const photoRegion = screen.getByTestId("restaurant-photo-region");
-    fireEvent.focus(photoRegion);
+    fireEvent.keyDown(photoRegion, { key: "Enter" });
     expect(screen.getByTestId("photo-attribution-overlay")).toBeTruthy();
-    fireEvent.blur(photoRegion, { relatedTarget: document.body });
+    fireEvent.keyDown(photoRegion, { key: " " });
     expect(screen.queryByTestId("photo-attribution-overlay")).toBeNull();
 
-    fireEvent.click(photoRegion);
+    fireEvent.keyDown(photoRegion, { key: "Enter" });
     expect(photoRegion.getAttribute("aria-expanded")).toBe("true");
     expect(screen.getByTestId("photo-attribution-overlay")).toBeTruthy();
-    fireEvent.click(photoRegion);
+    fireEvent.keyDown(photoRegion, { key: "Escape" });
     expect(photoRegion.getAttribute("aria-expanded")).toBe("false");
   });
 

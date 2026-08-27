@@ -51,7 +51,7 @@ _INCOMPLETE_FACT_END = re.compile(
     r"\b(?:although|because|despite|if|unless|until|while)\s+\w+$", re.IGNORECASE
 )
 _MALFORMED_MIXED_KANA_FRAGMENT = re.compile(
-    r"(?:[a-z]{2,}[\u3040-\u309f]|[\u3040-\u309f][a-z]{2,})(?=$|[^A-Za-z\u3040-\u309f])"
+    r"(?:[a-z]{2,}[\u3040-\u309f]|[\u3040-\u309f][a-z]+)(?=$|[^A-Za-z\u3040-\u309f])"
 )
 
 

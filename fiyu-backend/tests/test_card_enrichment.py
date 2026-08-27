@@ -324,13 +324,15 @@ def test_valid_hours_and_valid_periods_survive_optional_hours_sanitization():
     assert enrichment.opening_hours.friday.periods[-1].close == "26:00"
 
 
-def test_malformed_mixed_script_schedule_note_is_dropped():
-    hours = OpeningHours(
-        reservation_only=True,
-        schedule_note=(
-            "The official site lists Thursday through Saturday, but an older directory hasら"
-        ),
-    )
+@pytest.mark.parametrize(
+    "schedule_note",
+    [
+        "The official site lists Thursday through Saturday, but an older directory hasら",
+        "Last entry is listed as 13:00はl",
+    ],
+)
+def test_malformed_mixed_script_schedule_note_is_dropped(schedule_note):
+    hours = OpeningHours(reservation_only=True, schedule_note=schedule_note)
 
     assert hours.schedule_note is None
     assert hours.reservation_only is True

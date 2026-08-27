@@ -3,7 +3,6 @@ import type { ComponentType, SVGProps } from "react";
 import {
   TokyoDiscoveriesEmptyIllustration,
   TokyoFishIllustration,
-  TokyoKikuMark,
   TokyoListsEmptyIllustration,
   TokyoMochiIllustration,
   TokyoNoodleIllustration,

@@ -9,6 +9,11 @@ export default defineConfig({
     // `@vitest-environment jsdom` docblock at the top of the file.
     environment: "node",
     include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
+    // The map/detail suites are CPU-heavy under jsdom. Running files in parallel
+    // made otherwise-fast assertions exceed Vitest's timeout only under the full
+    // suite, while every affected file passed in isolation. Serial files keep the
+    // release gate deterministic without weakening assertion timeouts.
+    fileParallelism: false,
   },
   resolve: {
     alias: {

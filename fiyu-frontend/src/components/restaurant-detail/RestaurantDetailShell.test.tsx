@@ -205,11 +205,28 @@ describe("restaurant detail view", () => {
     render(<RestaurantDetailShell restaurant={enrichedRestaurant} restaurants={[enrichedRestaurant]} />);
 
     expect(screen.getByRole("heading", { name: "Booking and budget" })).toBeTruthy();
+    expect(screen.getByText("Reservation strongly recommended")).toBeTruthy();
     expect(screen.getByText((text) => text.includes("3,000") && text.includes("5,000 per person"))).toBeTruthy();
     expect(screen.getByRole("link", { name: "03-1234-5678" }).getAttribute("href")).toBe("tel:03-1234-5678");
     expect(screen.getByText("Phone, Online")).toBeTruthy();
     expect(screen.getByRole("link", { name: "Book online ↗" }).getAttribute("href")).toBe("https://reserve.example/detail-place");
     expect(screen.getByText("Same-day bookings may be limited.")).toBeTruthy();
+  });
+
+  it("hides unknown reservation status and clears the fixed mobile navigation", () => {
+    const unknownReservation = publicRestaurantDetailSchema.parse({
+      ...restaurant,
+      reservation_status: "unknown",
+    });
+
+    const { container } = render(
+      <RestaurantDetailShell restaurant={unknownReservation} restaurants={[unknownReservation]} />,
+    );
+
+    expect(screen.queryByText(/Reservation (required|recommended)/)).toBeNull();
+    const article = container.querySelector("article");
+    expect(article?.className).toContain("pb-[calc(var(--spacing-mobile-nav)+1.25rem)]");
+    expect(article?.className).toContain("lg:pb-12");
   });
 
   it("keeps Koda-style sparse enrichment clean without filler sections", () => {
