@@ -251,6 +251,33 @@ describe("public landing experience", () => {
     });
   });
 
+  it("portals the vote modal to the viewport and restores page scrolling", () => {
+    render(<LandingPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Vote on the next city" }));
+    const dialog = screen.getByRole("dialog", { name: "Where should Fiyu go next?" });
+    const backdrop = screen.getByTestId("next-city-vote-backdrop");
+    expect(backdrop.parentElement).toBe(document.body);
+    expect(backdrop.className).toContain("fixed");
+    expect(backdrop.className).toContain("inset-0");
+    expect(dialog.className).toContain("overflow-y-auto");
+    expect(document.body.style.overflow).toBe("hidden");
+
+    fireEvent.pointerDown(dialog);
+    expect(screen.getByRole("dialog", { name: "Where should Fiyu go next?" })).toBeTruthy();
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.queryByRole("dialog", { name: "Where should Fiyu go next?" })).toBeNull();
+    expect(document.body.style.overflow).toBe("");
+
+    fireEvent.click(screen.getByRole("button", { name: "Vote on the next city" }));
+    fireEvent.click(screen.getByRole("button", { name: "Close city vote" }));
+    expect(screen.queryByRole("dialog", { name: "Where should Fiyu go next?" })).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Vote on the next city" }));
+    fireEvent.pointerDown(screen.getByTestId("next-city-vote-backdrop"));
+    expect(screen.queryByRole("dialog", { name: "Where should Fiyu go next?" })).toBeNull();
+  });
+
   it("uses the existing sharing artwork as the accessible Tokyo edition poster", () => {
     render(<LandingPage />);
 

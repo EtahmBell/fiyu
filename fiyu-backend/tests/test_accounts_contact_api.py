@@ -184,6 +184,58 @@ def test_city_poll_vote_uses_shared_storage_without_authentication(account_db, m
     }
 
 
+def test_city_poll_vote_returns_generic_error_and_logs_provider_failure(
+    account_db, monkeypatch, caplog
+):
+    def fail(**_payload):
+        raise api.shared_user_data.SharedUserDataError("provider detail")
+
+    monkeypatch.setattr(api.shared_user_data, "upsert_city_poll_vote", fail)
+    with caplog.at_level("ERROR"):
+        response = TestClient(api.app).post(
+            "/city-poll/votes",
+            json={
+                "voter_id": "anonymous-browser-03",
+                "choice": "paris",
+                "other_city": None,
+            },
+        )
+
+    assert response.status_code == 503
+    assert response.json() == {"detail": "Vote could not be recorded"}
+    assert "City poll vote persistence failed" in caplog.text
+    assert "anonymous-browser-03" not in caplog.text
+
+
+def test_city_poll_vote_stays_public_in_production_while_profile_is_private(
+    account_db, monkeypatch
+):
+    monkeypatch.setenv("FIYU_ENVIRONMENT", "production")
+    monkeypatch.setattr(
+        api.shared_user_data,
+        "upsert_city_poll_vote",
+        lambda **_: {
+            "id": "vote-production",
+            "created_at": "2026-08-28T00:00:00+00:00",
+            "updated_at": "2026-08-28T00:00:00+00:00",
+        },
+    )
+    client = TestClient(api.app)
+
+    vote = client.post(
+        "/city-poll/votes",
+        json={
+            "voter_id": "anonymous-browser-04",
+            "choice": "sydney",
+            "other_city": None,
+        },
+    )
+    private_profile = client.get("/profiles/me")
+
+    assert vote.status_code == 201
+    assert private_profile.status_code == 401
+
+
 def test_signup_uses_supabase_id_and_enforces_case_insensitive_username(
     account_db, monkeypatch, shared_profile_store
 ):

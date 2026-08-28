@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useState } from "react";
+import { createPortal } from "react-dom";
 
 import { getApiBaseUrl } from "@/lib/config/env";
 
@@ -48,11 +49,16 @@ export function NextCityPoll({ modalOnly = false }: { modalOnly?: boolean }) {
 
   useEffect(() => {
     if (!open) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") setOpen(false);
     };
     window.addEventListener("keydown", closeOnEscape);
-    return () => window.removeEventListener("keydown", closeOnEscape);
+    return () => {
+      window.removeEventListener("keydown", closeOnEscape);
+      document.body.style.overflow = previousOverflow;
+    };
   }, [open]);
 
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -97,10 +103,11 @@ export function NextCityPoll({ modalOnly = false }: { modalOnly?: boolean }) {
         </button>
       )}
 
-      {open && (
+      {open && createPortal(
         <div
-          className="fixed inset-0 z-[80] flex items-center justify-center bg-ink/20 p-4"
-          onMouseDown={(event) => {
+          data-testid="next-city-vote-backdrop"
+          className="fixed inset-0 z-[80] grid h-[100dvh] w-screen place-items-center overflow-hidden bg-ink/20 px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))]"
+          onPointerDown={(event) => {
             if (event.currentTarget === event.target) setOpen(false);
           }}
         >
@@ -108,7 +115,7 @@ export function NextCityPoll({ modalOnly = false }: { modalOnly?: boolean }) {
             role="dialog"
             aria-modal="true"
             aria-labelledby={titleId}
-            className="relative max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-card border border-line bg-surface px-6 py-7 shadow-xl sm:px-8 sm:py-8"
+            className="relative max-h-[calc(100dvh-2rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] w-full max-w-md overflow-y-auto overscroll-contain rounded-card border border-line bg-surface px-6 py-7 shadow-xl sm:px-8 sm:py-8"
           >
             <button
               type="button"
@@ -183,7 +190,8 @@ export function NextCityPoll({ modalOnly = false }: { modalOnly?: boolean }) {
               </form>
             )}
           </section>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );

@@ -1822,25 +1822,35 @@ def submit_city_poll_vote(payload: CityPollVoteRequest) -> CityPollVoteResponse:
         other_city = payload.validated_other_city()
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from None
-    if shared_user_data.configured():
-        row = shared_user_data.upsert_city_poll_vote(
+    try:
+        if shared_user_data.configured():
+            row = shared_user_data.upsert_city_poll_vote(
+                voter_id=payload.voter_id,
+                choice=payload.choice,
+                other_city=other_city,
+            )
+            return CityPollVoteResponse(
+                id=str(row["id"]),
+                status="recorded",
+                created_at=str(row["created_at"]),
+                updated_at=str(row["updated_at"]),
+            )
+        if _production_mode():
+            logger.error("City poll vote persistence is not configured")
+            raise HTTPException(status_code=503, detail="Vote could not be recorded")
+        row = create_city_poll_vote(
+            DB_PATH,
             voter_id=payload.voter_id,
             choice=payload.choice,
             other_city=other_city,
         )
-        return CityPollVoteResponse(
-            id=str(row["id"]),
-            status="recorded",
-            created_at=str(row["created_at"]),
-            updated_at=str(row["updated_at"]),
-        )
-    row = create_city_poll_vote(
-        DB_PATH,
-        voter_id=payload.voter_id,
-        choice=payload.choice,
-        other_city=other_city,
-    )
-    return CityPollVoteResponse(**row)
+        return CityPollVoteResponse(**row)
+    except shared_user_data.SharedUserDataError:
+        logger.exception("City poll vote persistence failed (storage=supabase)")
+        raise HTTPException(status_code=503, detail="Vote could not be recorded") from None
+    except sqlite3.Error:
+        logger.exception("City poll vote persistence failed (storage=sqlite)")
+        raise HTTPException(status_code=503, detail="Vote could not be recorded") from None
 
 
 @app.post("/auth/signup", response_model=SignupResponse, status_code=201)
