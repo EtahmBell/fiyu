@@ -585,21 +585,33 @@ def repair_active_daily_picks(
     return result
 
 
-def reveal_active_daily_picks(*, user_id: str, round_id: str, revealed_at: str) -> str | None:
+def reveal_daily_pick(
+    *, user_id: str, round_id: str, place_id: str, revealed_at: str
+) -> tuple[str, tuple[str, ...], str | None] | None:
     result = _request(
-        "rpc/reveal_fiyu_daily_picks",
+        "rpc/reveal_fiyu_daily_pick",
         method="POST",
         body={
             "p_user_id": user_id,
             "p_round_id": round_id,
+            "p_place_id": place_id,
             "p_revealed_at": revealed_at,
         },
     )
     if isinstance(result, list) and result:
         result = result[0]
-    if not isinstance(result, dict) or not result.get("revealed_at"):
+    revealed_ids = result.get("revealed_place_ids") if isinstance(result, dict) else None
+    if (
+        not isinstance(result, dict)
+        or not result.get("pick_revealed_at")
+        or not isinstance(revealed_ids, list)
+    ):
         return None
-    return str(result["revealed_at"])
+    return (
+        str(result["pick_revealed_at"]),
+        tuple(str(value) for value in revealed_ids),
+        str(result["revealed_at"]) if result.get("revealed_at") else None,
+    )
 
 
 def record_seen(*, user_id: str, place_ids: list[str]) -> None:

@@ -45,7 +45,7 @@ afterEach(() => {
 });
 
 describe("Today’s Fiyu Picks panel", () => {
-  it("persists exactly three picks and the exact reveal time across a reload", () => {
+  it("persists card-by-card reveal progress and restores it across a reload", () => {
     const revealedAt = Date.UTC(2026, 6, 29, 12, 34, 56);
     vi.useFakeTimers();
     vi.setSystemTime(revealedAt);
@@ -69,28 +69,41 @@ describe("Today’s Fiyu Picks panel", () => {
     expect(new Set(selectedIds).size).toBe(3);
 
     fireEvent.click(screen.getByRole("button", { name: "Tap to reveal restaurant 1" }));
-    expect(screen.getAllByTestId("revealed-restaurant-card")).toHaveLength(3);
-    const revealedIds = firstStorage.getSnapshot()?.selection?.revealedIds ?? [];
-    expect(revealedIds).toEqual(selectedIds);
-    for (const revealedId of revealedIds) {
-      expect(firstStorage.getSnapshot()?.discoveries).toContainEqual({
-        restaurantId: revealedId,
-        revealedAt: new Date(revealedAt + 3_000).toISOString(),
-      });
-    }
+    expect(screen.getAllByTestId("revealed-restaurant-card")).toHaveLength(1);
+    expect(screen.getAllByTestId("concealed-restaurant-card")).toHaveLength(2);
+    const firstId = selectedIds?.[0] ?? "";
+    expect(firstStorage.getSnapshot()?.selection?.revealedIds).toEqual([firstId]);
+    expect(firstStorage.getSnapshot()?.discoveries).toContainEqual({
+      restaurantId: firstId,
+      revealedAt: new Date(revealedAt + 3_000).toISOString(),
+    });
 
     firstRender.unmount();
+    const restoredRender = render(
+      <DailyPicksPanel
+        restaurants={catalog}
+        storage={createDailyPicksStorage(window.localStorage)}
+      />,
+    );
+    expect(screen.getAllByTestId("concealed-restaurant-card")).toHaveLength(2);
+    expect(screen.getAllByTestId("revealed-restaurant-card")).toHaveLength(1);
+    expect(screen.getByText(`店 ${firstId}`)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Tap to reveal restaurant 2" }));
+    expect(screen.getAllByTestId("revealed-restaurant-card")).toHaveLength(2);
+    expect(screen.getAllByTestId("concealed-restaurant-card")).toHaveLength(1);
+    fireEvent.click(screen.getByRole("button", { name: "Tap to reveal restaurant 3" }));
+    expect(screen.getAllByTestId("revealed-restaurant-card")).toHaveLength(3);
+    expect(screen.queryByTestId("concealed-restaurant-card")).toBeNull();
+
+    restoredRender.unmount();
     render(
       <DailyPicksPanel
         restaurants={catalog}
         storage={createDailyPicksStorage(window.localStorage)}
       />,
     );
-    expect(screen.queryByTestId("concealed-restaurant-card")).toBeNull();
     expect(screen.getAllByTestId("revealed-restaurant-card")).toHaveLength(3);
-    for (const revealedId of revealedIds) {
-      expect(screen.getByText(`店 ${revealedId}`)).toBeTruthy();
-    }
   });
 
   it("shows the fresh-search treatment for the 1.5 second minimum", () => {
@@ -311,14 +324,11 @@ describe("Today’s Fiyu Picks panel", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Tap to reveal restaurant 1" }));
-    expect(revealEvents).toEqual([{
-      newIds: ["one", "two"],
-      revealedIds: ["one", "two", "three"],
-    }]);
+    expect(revealEvents).toEqual([{ newIds: ["one"], revealedIds: ["one"] }]);
     expect(screen.getByRole("status").textContent).toBe(
-      "2 new places added to your map",
+      "1 new place added to your map",
     );
-    expect(screen.queryByRole("button", { name: /Tap to reveal restaurant/ })).toBeNull();
+    expect(screen.getAllByRole("button", { name: /Tap to reveal restaurant/ })).toHaveLength(2);
 
     act(() => vi.advanceTimersByTime(3_200));
     expect(screen.queryByTestId("new-map-place-notification")).toBeNull();

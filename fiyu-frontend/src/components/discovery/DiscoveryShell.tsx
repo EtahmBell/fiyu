@@ -231,6 +231,9 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
       : visibleRestaurants;
     return mappableRestaurants(mapRestaurants);
   }, [identity.profile, mapQuery.data, mapQuery.status, visibleRestaurants]);
+  const selectedMapRestaurant = selection?.source === "map"
+    ? mappable.find((restaurant) => restaurant.place_id === selection.placeId) ?? null
+    : null;
   const updateVisibleRestaurants = useCallback(
     (nextRestaurants: PublicRestaurant[]) =>
       setVisibleRestaurantState({ ownerKey: restaurantOwnerKey, restaurants: nextRestaurants }),
@@ -442,6 +445,8 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
             restaurants={mappable}
             selectedPlaceId={selection?.placeId ?? null}
             onSelect={selectFromMap}
+            onMapBackgroundClick={() => setSelection(null)}
+            showSelectedRestaurantPopup={selectedMapRestaurant?.is_visited === true}
             surfaceMode="bounded"
             interactive
             clusterNearbyRestaurants={false}

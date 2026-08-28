@@ -202,7 +202,10 @@ beforeEach(() => {
   dailyApi.fetchRecentDailyPicks.mockResolvedValue([]);
   dailyApi.revealDailyPicks.mockResolvedValue({
     round_id: "round-one",
-    revealed_at: new Date().toISOString(),
+    place_id: "one",
+    pick_revealed_at: new Date().toISOString(),
+    revealed_place_ids: ["one"],
+    revealed_at: null,
   });
   Object.defineProperty(window, "matchMedia", {
     configurable: true,
@@ -264,7 +267,7 @@ describe("daily-only discovery shell", () => {
     expect(document.querySelector('[data-city-picks-watermark="tokyo"]')).toBeNull();
   });
 
-  it("keeps a round concealed until its one-time reveal, then exposes all three pins", async () => {
+  it("keeps a round concealed and reveals one card and pin at a time", async () => {
     vi.useFakeTimers();
     const { container } = render(<DiscoveryShell restaurants={catalog} areaAnchors={[]} />);
 
@@ -289,14 +292,14 @@ describe("daily-only discovery shell", () => {
     fireEvent.click(screen.getByRole("button", { name: "Tap to reveal restaurant 1" }));
 
     const state = parseDailyPicksState(window.localStorage.getItem(DAILY_PICKS_STORAGE_KEY));
-    expect(state.selection?.revealedIds).toEqual(state.selection?.restaurantIds);
-    expect(container.querySelectorAll("[data-place-id]")).toHaveLength(3);
+    expect(state.selection?.revealedIds).toEqual([state.selection?.restaurantIds[0]]);
+    expect(container.querySelectorAll("[data-place-id]")).toHaveLength(1);
     expect(screen.queryByTestId("mobile-map-region")).toBeNull();
-    expect(container.querySelector('[data-place-id="two"]')).toBeTruthy();
-    expect(container.querySelector('[data-place-id="three"]')).toBeTruthy();
+    expect(container.querySelector('[data-place-id="two"]')).toBeNull();
+    expect(container.querySelector('[data-place-id="three"]')).toBeNull();
   });
 
-  it("restores historical pins and reveals the full current round together", () => {
+  it("restores historical pins and adds only the newly revealed current Pick", () => {
     const now = Date.now();
     window.localStorage.setItem(
       DAILY_PICKS_STORAGE_KEY,
@@ -331,7 +334,7 @@ describe("daily-only discovery shell", () => {
     fireEvent.click(screen.getByRole("button", { name: "Tap to reveal restaurant 2" }));
     const concealedPin = container.querySelector('[data-place-id="two"]') as HTMLElement;
     expect(concealedPin).toBeTruthy();
-    expect(container.querySelector('[data-place-id="three"]')).toBeTruthy();
+    expect(container.querySelector('[data-place-id="three"]')).toBeNull();
     fireEvent.click(concealedPin);
     const concealedCard = container.querySelector(
       '[data-daily-card-place-id="two"]',
@@ -633,13 +636,14 @@ describe("daily-only discovery shell", () => {
         map_display_eligible: true,
         is_visited: true,
       }),
-      publicRestaurantSchema.parse({
+      mapRestaurantSchema.parse({
         place_id: "ChIJF0XdG2CJGGARXPEmJ6ULqUA",
         name_ja: "幸田",
         name_en: "Koda",
         latitude: 35.66981542005488,
         longitude: 139.77259448466774,
         map_display_eligible: true,
+        is_visited: true,
       }),
     ];
     const placeIds = assignmentRestaurants.map((restaurant) => restaurant.place_id);
@@ -664,6 +668,8 @@ describe("daily-only discovery shell", () => {
       restaurants: assignmentRestaurants,
       assigned_at: new Date(now - 1_000).toISOString(),
       expires_at: new Date(now + 60_000).toISOString(),
+      revealed_place_ids: placeIds,
+      revealed_at: new Date(now - 500).toISOString(),
     });
     locationApi.fetchDiscoveryLocation.mockResolvedValueOnce(configuredLocation("Shinjuku"));
     mapApi.fetchAuthenticatedMapRestaurants.mockResolvedValue(assignmentRestaurants);
@@ -686,6 +692,29 @@ describe("daily-only discovery shell", () => {
     expect(visitedMarker?.querySelectorAll("circle")[2]?.getAttribute("stroke")).toBe(
       "var(--map-marker-visited)",
     );
+
+    fireEvent.click(visitedMarker as Element);
+    const visitedPopup = mapRegion.querySelector('[data-layer="restaurant-popup"]') as HTMLElement;
+    expect(visitedPopup).toBeTruthy();
+    expect(visitedPopup.getAttribute("data-place-id")).toBe(assignmentRestaurants[1].place_id);
+    expect(within(visitedPopup).getByText("ワインと春巻き ROLLS")).toBeTruthy();
+    expect(within(visitedPopup).getByText("Visited")).toBeTruthy();
+    expect(within(visitedPopup).getByRole("link", { name: "View restaurant →" })
+      .getAttribute("href")).toBe(`/restaurants/${assignmentRestaurants[1].place_id}`);
+
+    const otherVisitedMarker = mapRegion.querySelector(
+      `[data-marker-kind="restaurant"][data-place-id="${assignmentRestaurants[2].place_id}"]`,
+    );
+    fireEvent.click(otherVisitedMarker as Element);
+    const updatedPopup = mapRegion.querySelector('[data-layer="restaurant-popup"]') as HTMLElement;
+    expect(updatedPopup.getAttribute("data-place-id")).toBe(assignmentRestaurants[2].place_id);
+    expect(within(updatedPopup).getByText("幸田")).toBeTruthy();
+
+    const activeMarker = mapRegion.querySelector(
+      `[data-marker-kind="restaurant"][data-place-id="${assignmentRestaurants[0].place_id}"]`,
+    );
+    fireEvent.click(activeMarker as Element);
+    expect(mapRegion.querySelector('[data-layer="restaurant-popup"]')).toBeNull();
 
     const markerPoints = [...mapRegion.querySelectorAll<SVGGElement>('[data-marker-kind="restaurant"]')]
       .map((marker) => {
@@ -863,6 +892,7 @@ describe("daily-only discovery shell", () => {
       assigned_at: new Date(now - 1_000).toISOString(),
       expires_at: new Date(now + 60_000).toISOString(),
       revealed_at: new Date(now - 500).toISOString(),
+      revealed_place_ids: ["one", "two", "three"],
       discovery_mode: "current",
       discovery_label: "Ginza",
     });
@@ -880,7 +910,7 @@ describe("daily-only discovery shell", () => {
     expect(dailyApi.revealDailyPicks).not.toHaveBeenCalled();
   });
 
-  it("persists the first account reveal once for the whole active round", async () => {
+  it("persists an account reveal for only the selected Pick", async () => {
     const now = Date.now();
     dailyApi.fetchActiveDailyPicks.mockResolvedValueOnce({
       round_id: "concealed-round",
@@ -890,6 +920,7 @@ describe("daily-only discovery shell", () => {
       assigned_at: new Date(now - 1_000).toISOString(),
       expires_at: new Date(now + 60_000).toISOString(),
       revealed_at: null,
+      revealed_place_ids: [],
       discovery_mode: "current",
       discovery_label: "Ginza",
     });
@@ -905,10 +936,11 @@ describe("daily-only discovery shell", () => {
     });
     expect(dailyApi.revealDailyPicks).toHaveBeenCalledWith(
       "concealed-round",
+      "one",
       expect.anything(),
     );
-    expect(screen.getAllByTestId("revealed-restaurant-card")).toHaveLength(3);
-    expect(screen.queryByTestId("concealed-restaurant-card")).toBeNull();
+    expect(screen.getAllByTestId("revealed-restaurant-card")).toHaveLength(1);
+    expect(screen.getAllByTestId("concealed-restaurant-card")).toHaveLength(2);
   });
 
   it("falls back to the preview when automatic geolocation permission is denied", async () => {

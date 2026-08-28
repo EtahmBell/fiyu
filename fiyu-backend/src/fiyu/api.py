@@ -33,6 +33,7 @@ from .daily_picks import (
     plan_repaired_daily_picks,
     repair_active_daily_picks,
     reveal_active_daily_picks,
+    revealed_place_ids,
     seed_served_history,
     select_daily_pick_plan,
     served_place_ids,
@@ -630,6 +631,7 @@ class DailyPickAssignmentResponse(BaseModel):
     assigned_at: str
     expires_at: str
     revealed_at: str | None = None
+    revealed_place_ids: list[str] = Field(default_factory=list)
     discovery_mode: Literal["current", "preview", "manual"] | None = None
     discovery_label: str | None = None
     restaurants: list[PublicRestaurantSummary] = Field(default_factory=list)
@@ -644,9 +646,16 @@ class RecentDailyPickRoundResponse(BaseModel):
     restaurants: list[PublicRestaurantSummary] = Field(default_factory=list)
 
 
+class DailyPickRevealRequest(BaseModel):
+    place_id: str = Field(min_length=1, max_length=255)
+
+
 class DailyPickRevealResponse(BaseModel):
     round_id: str
-    revealed_at: str
+    place_id: str
+    pick_revealed_at: str
+    revealed_place_ids: list[str]
+    revealed_at: str | None = None
 
 
 class SeenRestaurantsResponse(BaseModel):
@@ -1152,13 +1161,19 @@ def _parse_pick_datetime(value: object) -> datetime | None:
 
 def _shared_assignment(row: dict[str, object]) -> DailyPickAssignment:
     metadata = row.get("selection_metadata")
+    normalized_metadata = metadata if isinstance(metadata, dict) else {}
+    place_ids = tuple(str(value) for value in row.get("place_ids", []))
+    revealed_at = str(row["revealed_at"]) if row.get("revealed_at") else None
     return DailyPickAssignment(
         round_id=str(row.get("round_id") or row.get("id")),
-        place_ids=tuple(str(value) for value in row.get("place_ids", [])),
+        place_ids=place_ids,
         assigned_at=str(row["assigned_at"]),
         expires_at=str(row["expires_at"]),
-        selection_metadata=metadata if isinstance(metadata, dict) else {},
-        revealed_at=str(row["revealed_at"]) if row.get("revealed_at") else None,
+        selection_metadata=normalized_metadata,
+        revealed_at=revealed_at,
+        revealed_place_ids=revealed_place_ids(
+            normalized_metadata, place_ids, revealed_at
+        ),
     )
 
 
@@ -1174,6 +1189,7 @@ def _daily_pick_response(
         assigned_at=assignment.assigned_at,
         expires_at=assignment.expires_at,
         revealed_at=assignment.revealed_at,
+        revealed_place_ids=list(assignment.revealed_place_ids),
         discovery_mode=assignment.selection_metadata.get("discovery_mode"),
         discovery_label=assignment.selection_metadata.get("discovery_label"),
         restaurants=restaurants,
@@ -1448,13 +1464,15 @@ def get_active_daily_pick_assignment(
 )
 def reveal_daily_pick_assignment(
     round_id: str,
+    request: DailyPickRevealRequest,
     owner_id: Annotated[str, Depends(_owner_id_from_header)],
 ) -> DailyPickRevealResponse:
     revealed_at = datetime.now(UTC).isoformat()
     if _shared_owner(owner_id):
-        persisted = shared_user_data.reveal_active_daily_picks(
+        persisted = shared_user_data.reveal_daily_pick(
             user_id=str(owner_id),
             round_id=round_id,
+            place_id=request.place_id,
             revealed_at=revealed_at,
         )
     else:
@@ -1462,11 +1480,19 @@ def reveal_daily_pick_assignment(
             DB_PATH,
             owner_id=owner_id,
             round_id=round_id,
+            place_id=request.place_id,
             revealed_at=revealed_at,
         )
     if persisted is None:
         raise HTTPException(status_code=404, detail="Active Daily Picks round not found")
-    return DailyPickRevealResponse(round_id=round_id, revealed_at=persisted)
+    pick_revealed_at, revealed_ids, fully_revealed_at = persisted
+    return DailyPickRevealResponse(
+        round_id=round_id,
+        place_id=request.place_id,
+        pick_revealed_at=pick_revealed_at,
+        revealed_place_ids=list(revealed_ids),
+        revealed_at=fully_revealed_at,
+    )
 
 
 @app.get("/daily-picks/recent", response_model=list[RecentDailyPickRoundResponse])

@@ -225,7 +225,7 @@ def shared_account_api(tmp_path, monkeypatch):
 
     monkeypatch.setattr(api.shared_user_data, "repair_active_daily_picks", repair_snapshot)
 
-    def reveal_snapshot(*, user_id, round_id, revealed_at):
+    def reveal_snapshot(*, user_id, round_id, place_id, revealed_at):
         key = next(
             (
                 key
@@ -237,10 +237,20 @@ def shared_account_api(tmp_path, monkeypatch):
         if key is None:
             return None
         snapshot = snapshots[key]
-        snapshot["revealed_at"] = snapshot.get("revealed_at") or revealed_at
-        return snapshot["revealed_at"]
+        if place_id not in snapshot["place_ids"]:
+            return None
+        metadata = snapshot.setdefault("selection_metadata", {})
+        revealed_ids = metadata.setdefault("revealed_place_ids", [])
+        if place_id not in revealed_ids:
+            revealed_ids.append(place_id)
+        snapshot["revealed_at"] = (
+            snapshot.get("revealed_at") or revealed_at
+            if len(revealed_ids) == len(snapshot["place_ids"])
+            else None
+        )
+        return revealed_at, tuple(revealed_ids), snapshot["revealed_at"]
 
-    monkeypatch.setattr(api.shared_user_data, "reveal_active_daily_picks", reveal_snapshot)
+    monkeypatch.setattr(api.shared_user_data, "reveal_daily_pick", reveal_snapshot)
     monkeypatch.setattr(
         api.shared_user_data, "get_discovery_location", lambda *, user_id: None
     )
@@ -1021,26 +1031,50 @@ def test_authenticated_daily_pick_reveal_persists_across_restore_and_is_account_
     )
     round_id = created.json()["round_id"]
 
-    revealed = client.post(
-        f"/daily-picks/{round_id}/reveal", headers=_auth("token-a")
+    place_ids = created.json()["place_ids"]
+    assert created.json()["revealed_place_ids"] == []
+    first = client.post(
+        f"/daily-picks/{round_id}/reveal",
+        headers=_auth("token-a"),
+        json={"place_id": place_ids[0]},
     )
-    repeated = client.post(
-        f"/daily-picks/{round_id}/reveal", headers=_auth("token-a")
+    second = client.post(
+        f"/daily-picks/{round_id}/reveal",
+        headers=_auth("token-a"),
+        json={"place_id": place_ids[1]},
     )
-    restored = client.get(
+    restored_after_two = client.get(
         "/daily-picks/active",
         params={"city_id": "tokyo"},
         headers=_auth("token-a"),
     )
     other_account = client.post(
-        f"/daily-picks/{round_id}/reveal", headers=_auth("token-b")
+        f"/daily-picks/{round_id}/reveal",
+        headers=_auth("token-b"),
+        json={"place_id": place_ids[0]},
     )
 
-    assert revealed.status_code == repeated.status_code == restored.status_code == 200
-    assert repeated.json()["revealed_at"] == revealed.json()["revealed_at"]
-    assert restored.json()["revealed_at"] == revealed.json()["revealed_at"]
-    assert restored.json()["place_ids"] == created.json()["place_ids"]
+    assert first.status_code == second.status_code == restored_after_two.status_code == 200
+    assert first.json()["revealed_place_ids"] == [place_ids[0]]
+    assert second.json()["revealed_place_ids"] == place_ids[:2]
+    assert restored_after_two.json()["revealed_place_ids"] == place_ids[:2]
+    assert restored_after_two.json()["revealed_at"] is None
+    assert restored_after_two.json()["place_ids"] == place_ids
     assert other_account.status_code == 404
+
+    third = client.post(
+        f"/daily-picks/{round_id}/reveal",
+        headers=_auth("token-a"),
+        json={"place_id": place_ids[2]},
+    )
+    fully_restored = client.get(
+        "/daily-picks/active", params={"city_id": "tokyo"}, headers=_auth("token-a")
+    )
+    assert third.status_code == fully_restored.status_code == 200
+    assert third.json()["revealed_place_ids"] == place_ids
+    assert third.json()["revealed_at"] is not None
+    assert fully_restored.json()["revealed_place_ids"] == place_ids
+    assert fully_restored.json()["revealed_at"] == third.json()["revealed_at"]
 
 
 def test_recent_discoveries_restore_every_persisted_round_item_with_account_isolation(

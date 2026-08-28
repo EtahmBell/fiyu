@@ -48,6 +48,16 @@ function touchTap(element: Element, x = 40, y = 40) {
   });
 }
 
+function setDescriptionLayout(scrollHeight: number, clientHeight: number) {
+  const description = document.querySelector<HTMLParagraphElement>("p[id]");
+  if (!description) throw new Error("Description element was not rendered");
+  Object.defineProperties(description, {
+    scrollHeight: { configurable: true, value: scrollHeight },
+    clientHeight: { configurable: true, value: clientHeight },
+  });
+  fireEvent(window, new Event("resize"));
+}
+
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
@@ -140,6 +150,7 @@ describe("compact restaurant card content", () => {
     const description = screen.getByText(/A long discovery-card description/);
     expect(description.className).toContain("line-clamp-2");
     expect(description.className).toContain("lg:line-clamp-3");
+    setDescriptionLayout(80, 40);
     const readMore = screen.getByRole("button", { name: "Read more" });
     expect(readMore.getAttribute("aria-expanded")).toBe("false");
     fireEvent.click(readMore);
@@ -167,6 +178,24 @@ describe("compact restaurant card content", () => {
       />,
     );
     expect(screen.getByText(researched).className).toContain("line-clamp-2");
+  });
+
+  it("shows Read more only for actual rendered clamp overflow and remeasures width changes", () => {
+    render(
+      <CompactRestaurantCard restaurant={restaurant()} saved={false} onToggleSaved={() => {}} />,
+    );
+
+    setDescriptionLayout(36, 36);
+    expect(screen.queryByRole("button", { name: "Read more" })).toBeNull();
+
+    setDescriptionLayout(37, 36);
+    expect(screen.queryByRole("button", { name: "Read more" })).toBeNull();
+
+    setDescriptionLayout(72, 36);
+    expect(screen.getByRole("button", { name: "Read more" })).toBeTruthy();
+
+    setDescriptionLayout(36, 36);
+    expect(screen.queryByRole("button", { name: "Read more" })).toBeNull();
   });
 
   it("prefers the canonical enriched card description", () => {
@@ -397,6 +426,8 @@ describe("compact card interaction", () => {
         onToggleSaved={vi.fn()}
       />,
     );
+
+    setDescriptionLayout(72, 36);
 
     for (const element of [
       screen.getByTestId("restaurant-photo-region"),

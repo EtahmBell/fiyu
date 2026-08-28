@@ -391,6 +391,7 @@ export const dailyPickAssignmentResponseSchema = z.object({
   // server-owned snapshot response. Current servers always return both.
   expires_at: z.string().min(1).optional(),
   revealed_at: z.string().min(1).nullable().optional(),
+  revealed_place_ids: z.array(z.string().min(1)).max(3).default([]),
   discovery_mode: z.enum(["current", "preview", "manual"]).nullable().optional(),
   discovery_label: z.string().nullable().optional(),
   restaurants: z.array(publicRestaurantSchema).max(3).optional(),
@@ -400,7 +401,10 @@ export const activeDailyPickAssignmentResponseSchema = dailyPickAssignmentRespon
 
 export const dailyPickRevealResponseSchema = z.object({
   round_id: z.string().min(1),
-  revealed_at: z.string().min(1),
+  place_id: z.string().min(1),
+  pick_revealed_at: z.string().min(1),
+  revealed_place_ids: z.array(z.string().min(1)).max(3),
+  revealed_at: z.string().min(1).nullable(),
 });
 
 export const recentDailyPickRoundSchema = z.object({

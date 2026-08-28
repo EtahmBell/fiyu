@@ -70,24 +70,29 @@ def test_reveal_pick_round_uses_atomic_service_role_rpc(monkeypatch):
         captured.update({"path": path, "method": method, "body": body})
         return {
             "round_id": "round-a",
-            "revealed_at": "2026-08-21T12:05:00+00:00",
+            "place_id": "tokyo-a",
+            "pick_revealed_at": "2026-08-21T12:05:00+00:00",
+            "revealed_place_ids": ["tokyo-a"],
+            "revealed_at": None,
         }
 
     monkeypatch.setattr(supabase_user_data, "_request", request)
 
-    revealed_at = supabase_user_data.reveal_active_daily_picks(
+    result = supabase_user_data.reveal_daily_pick(
         user_id="user-a",
         round_id="round-a",
+        place_id="tokyo-a",
         revealed_at="2026-08-21T12:05:00+00:00",
     )
 
-    assert revealed_at == "2026-08-21T12:05:00+00:00"
+    assert result == ("2026-08-21T12:05:00+00:00", ("tokyo-a",), None)
     assert captured == {
-        "path": "rpc/reveal_fiyu_daily_picks",
+        "path": "rpc/reveal_fiyu_daily_pick",
         "method": "POST",
         "body": {
             "p_user_id": "user-a",
             "p_round_id": "round-a",
+            "p_place_id": "tokyo-a",
             "p_revealed_at": "2026-08-21T12:05:00+00:00",
         },
     }

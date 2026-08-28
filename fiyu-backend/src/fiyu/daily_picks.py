@@ -65,6 +65,7 @@ class DailyPickAssignment:
     expires_at: str
     selection_metadata: dict[str, object]
     revealed_at: str | None = None
+    revealed_place_ids: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -89,6 +90,20 @@ def _parse_datetime(value: object) -> datetime | None:
 
 def _unique_ids(place_ids: Iterable[str]) -> list[str]:
     return list(dict.fromkeys(value.strip() for value in place_ids if value.strip()))
+
+
+def revealed_place_ids(
+    selection_metadata: Mapping[str, object],
+    place_ids: Iterable[str],
+    revealed_at: str | None,
+) -> tuple[str, ...]:
+    """Return valid per-Pick reveal progress, including old all-revealed rounds."""
+    ordered = tuple(place_ids)
+    raw = selection_metadata.get("revealed_place_ids")
+    stored = set(_unique_ids(raw if isinstance(raw, list) else []))
+    if revealed_at and not stored:
+        return ordered
+    return tuple(place_id for place_id in ordered if place_id in stored)
 
 
 def _ensure_column(connection: Any, table: str, name: str, declaration: str) -> None:
@@ -407,9 +422,18 @@ def plan_repaired_daily_picks(
             allow_partial=True,
         )
     repaired_ids = (*preserved, *replacements)
+    preserved_revealed = tuple(
+        place_id for place_id in repaired_ids if place_id in assignment.revealed_place_ids
+    )
+    repaired_revealed_at = (
+        assignment.revealed_at
+        if repaired_ids and len(preserved_revealed) == len(repaired_ids)
+        else None
+    )
     metadata = {
         **assignment.selection_metadata,
         **repair_metadata,
+        "revealed_place_ids": list(preserved_revealed),
         "discovery_label": active_area,
         "discovery_latitude": discovery_latitude,
         "discovery_longitude": discovery_longitude,
@@ -426,7 +450,8 @@ def plan_repaired_daily_picks(
             assignment.assigned_at,
             assignment.expires_at,
             metadata,
-            assignment.revealed_at,
+            repaired_revealed_at,
+            preserved_revealed,
         ),
         replacements,
     )
@@ -458,13 +483,17 @@ def _active_assignment(connection: Any, owner_id: str, city_id: str, now: dateti
         metadata = json.loads(row["selection_metadata_json"] or "{}")
     except json.JSONDecodeError:
         metadata = {}
+    place_ids = tuple(str(item["restaurant_place_id"]) for item in items)
+    revealed_at = str(row["revealed_at"]) if row["revealed_at"] is not None else None
+    normalized_metadata = metadata if isinstance(metadata, dict) else {}
     return DailyPickAssignment(
         str(row["id"]),
-        tuple(str(item["restaurant_place_id"]) for item in items),
+        place_ids,
         str(row["assigned_at"]),
         str(row["expires_at"]),
-        metadata if isinstance(metadata, dict) else {},
-        str(row["revealed_at"]) if row["revealed_at"] is not None else None,
+        normalized_metadata,
+        revealed_at,
+        revealed_place_ids(normalized_metadata, place_ids, revealed_at),
     )
 
 
@@ -481,17 +510,19 @@ def reveal_active_daily_picks(
     *,
     owner_id: str,
     round_id: str,
+    place_id: str,
     revealed_at: str | None = None,
     now: datetime | None = None,
-) -> str | None:
-    """Idempotently mark the owner's active round revealed and return its timestamp."""
+) -> tuple[str, tuple[str, ...], str | None] | None:
+    """Idempotently reveal one Pick and return its timestamp, progress, and round state."""
     ensure_daily_picks_schema(db_path)
     current = now or _now()
     timestamp = revealed_at or current.isoformat()
     with connect(db_path) as connection:
+        connection.execute("BEGIN IMMEDIATE")
         row = connection.execute(
             """
-            SELECT revealed_at
+            SELECT revealed_at, selection_metadata_json
             FROM daily_pick_rounds
             WHERE id = ? AND owner_id = ? AND expires_at > ?
             """,
@@ -499,15 +530,60 @@ def reveal_active_daily_picks(
         ).fetchone()
         if row is None:
             return None
-        existing = str(row["revealed_at"]) if row["revealed_at"] is not None else None
-        if existing:
-            return existing
-        connection.execute(
-            "UPDATE daily_pick_rounds SET revealed_at = ? WHERE id = ? AND owner_id = ?",
-            (timestamp, round_id, owner_id),
-        )
+        item = connection.execute(
+            """
+            SELECT 1 FROM daily_pick_round_items
+            WHERE round_id = ? AND restaurant_place_id = ?
+            """,
+            (round_id, place_id),
+        ).fetchone()
+        if item is None:
+            return None
+        try:
+            metadata = json.loads(row["selection_metadata_json"] or "{}")
+        except json.JSONDecodeError:
+            metadata = {}
+        if not isinstance(metadata, dict):
+            metadata = {}
+        stored_ids = metadata.get("revealed_place_ids")
+        revealed_ids = _unique_ids(stored_ids if isinstance(stored_ids, list) else [])
+        # Rolling compatibility: the old aggregate flag meant every card was revealed.
+        if row["revealed_at"] is not None and not revealed_ids:
+            revealed_ids = [
+                str(item["restaurant_place_id"])
+                for item in connection.execute(
+                    """
+                    SELECT restaurant_place_id FROM daily_pick_round_items
+                    WHERE round_id = ? ORDER BY position
+                    """,
+                    (round_id,),
+                ).fetchall()
+            ]
+        pick_revealed_at = timestamp
+        if place_id not in revealed_ids:
+            revealed_ids.append(place_id)
+            metadata["revealed_place_ids"] = revealed_ids
+            connection.execute(
+                """
+                UPDATE daily_pick_rounds SET selection_metadata_json = ?
+                WHERE id = ? AND owner_id = ?
+                """,
+                (json.dumps(metadata, ensure_ascii=False, sort_keys=True), round_id, owner_id),
+            )
+        else:
+            pick_revealed_at = str(row["revealed_at"] or timestamp)
+        item_count = int(connection.execute(
+            "SELECT COUNT(*) FROM daily_pick_round_items WHERE round_id = ?", (round_id,)
+        ).fetchone()[0])
+        aggregate = str(row["revealed_at"]) if row["revealed_at"] is not None else None
+        if aggregate is None and item_count > 0 and len(revealed_ids) == item_count:
+            aggregate = timestamp
+            connection.execute(
+                "UPDATE daily_pick_rounds SET revealed_at = ? WHERE id = ? AND owner_id = ?",
+                (aggregate, round_id, owner_id),
+            )
         connection.commit()
-    return timestamp
+    return pick_revealed_at, tuple(revealed_ids), aggregate
 
 
 def _persist_repaired_assignment(
@@ -532,9 +608,14 @@ def _persist_repaired_assignment(
         ),
     )
     connection.execute(
-        "UPDATE daily_pick_rounds SET selection_metadata_json = ? WHERE id = ?",
+        """
+        UPDATE daily_pick_rounds
+        SET selection_metadata_json = ?, revealed_at = ?
+        WHERE id = ?
+        """,
         (
             json.dumps(assignment.selection_metadata, ensure_ascii=False, sort_keys=True),
+            assignment.revealed_at,
             assignment.round_id,
         ),
     )
@@ -658,15 +739,19 @@ def get_recent_daily_pick_rounds(
                 metadata = json.loads(row["selection_metadata_json"] or "{}")
             except json.JSONDecodeError:
                 metadata = {}
+            place_ids = tuple(str(item["restaurant_place_id"]) for item in items)
+            revealed_at = str(row["revealed_at"]) if row["revealed_at"] is not None else None
+            normalized_metadata = metadata if isinstance(metadata, dict) else {}
             rounds.append(
                 DailyPickAssignment(
                     round_id=str(row["id"]),
-                    place_ids=tuple(str(item["restaurant_place_id"]) for item in items),
+                    place_ids=place_ids,
                     assigned_at=str(row["assigned_at"]),
                     expires_at=str(expires_at_value or expires_at.isoformat()),
-                    selection_metadata=metadata if isinstance(metadata, dict) else {},
-                    revealed_at=(
-                        str(row["revealed_at"]) if row["revealed_at"] is not None else None
+                    selection_metadata=normalized_metadata,
+                    revealed_at=revealed_at,
+                    revealed_place_ids=revealed_place_ids(
+                        normalized_metadata, place_ids, revealed_at
                     ),
                 )
             )

@@ -377,6 +377,7 @@ export function fetchRecentDailyPicks(
 
 export function revealDailyPicks(
   roundId: string,
+  placeId: string,
   identity: ListIdentity,
   options: RequestOptions = {},
 ) {
@@ -387,6 +388,7 @@ export function revealDailyPicks(
     {
       ...options,
       method: "POST",
+      body: { place_id: placeId },
       headers: { ...listHeaders(identity), ...(options.headers ?? {}) },
     },
   );

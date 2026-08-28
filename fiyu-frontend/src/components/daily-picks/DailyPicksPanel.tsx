@@ -400,13 +400,18 @@ export function DailyPicksPanel({
         });
         const assignedAt = Date.parse(assignment.assigned_at);
         const expiresAt = Date.parse(assignment.expires_at ?? "");
-        const previousRevealed = new Set(restoredSnapshot?.selection?.revealedIds ?? []);
+        const persistedRevealedIds = assignment.revealed_place_ids ?? [];
+        const serverRevealedIds = persistedRevealedIds.length > 0
+          ? persistedRevealedIds
+          : assignment.revealed_at
+            ? assignment.place_ids
+            : [];
         let activeDiscoveries = (restoredSnapshot?.discoveries ?? []).filter((discovery) =>
           assignment.place_ids.includes(discovery.restaurantId),
         );
-        if (assignment.revealed_at) {
-          const revealedAt = Date.parse(assignment.revealed_at);
-          activeDiscoveries = assignment.place_ids.reduce(
+        if (serverRevealedIds.length > 0) {
+          const revealedAt = Date.parse(assignment.revealed_at ?? assignment.assigned_at);
+          activeDiscoveries = serverRevealedIds.reduce(
             (discoveries, placeId) => recordRevealedDiscovery(
               discoveries,
               placeId,
@@ -421,9 +426,7 @@ export function DailyPicksPanel({
           discoveries: [...latestHistorical.values(), ...activeDiscoveries],
           selection: {
             restaurantIds: assignment.place_ids,
-            revealedIds: assignment.revealed_at
-              ? [...assignment.place_ids]
-              : assignment.place_ids.filter((id) => previousRevealed.has(id)),
+            revealedIds: assignment.place_ids.filter((id) => serverRevealedIds.includes(id)),
             generatedAt: new Date(assignedAt).toISOString(),
             expiresAt: Number.isFinite(expiresAt)
               ? new Date(expiresAt).toISOString()
@@ -591,11 +594,8 @@ export function DailyPicksPanel({
   const reveal = (placeId: string, revealedAt: number) => {
     if (!currentSelection || currentSelection.revealedIds.includes(placeId)) return;
     const previousState = state;
-    const revealedPlaceIds = [...currentSelection.restaurantIds];
-    const discoveries = revealedPlaceIds.reduce(
-      (current, restaurantId) => recordRevealedDiscovery(current, restaurantId, revealedAt),
-      state.discoveries,
-    );
+    const revealedPlaceIds = [...currentSelection.revealedIds, placeId];
+    const discoveries = recordRevealedDiscovery(state.discoveries, placeId, revealedAt);
     persist({
       ...state,
       discoveries,
@@ -604,10 +604,10 @@ export function DailyPicksPanel({
         revealedIds: revealedPlaceIds,
       },
     });
-    const revealedRestaurants = revealedPlaceIds
-      .map((restaurantId) => restaurantById.get(restaurantId))
-      .filter((restaurant): restaurant is PublicRestaurant => Boolean(restaurant));
-    const mappableRevealed = revealedRestaurants.filter(isMappable);
+    const revealedRestaurant = restaurantById.get(placeId);
+    const mappableRevealed = revealedRestaurant && isMappable(revealedRestaurant)
+      ? [revealedRestaurant]
+      : [];
     const publishMapReveal = () => {
       if (mappableRevealed.length === 0) return;
       if (accountId) {
@@ -635,7 +635,7 @@ export function DailyPicksPanel({
       ? assignmentLocation.roundId
       : null;
     if (injectedStorage === undefined && roundId) {
-      void revealDailyPicks(roundId, { clientId: getOrCreateAnonymousOwnerKey() })
+      void revealDailyPicks(roundId, placeId, { clientId: getOrCreateAnonymousOwnerKey() })
         .then((result) => {
           publishMapReveal();
           if (hydrationKey) {
@@ -643,7 +643,11 @@ export function DailyPicksPanel({
             if (hydration?.assignment?.round_id === roundId) {
               writeAccountQuery(hydrationKey, {
                 ...hydration,
-                assignment: { ...hydration.assignment, revealed_at: result.revealed_at },
+                assignment: {
+                  ...hydration.assignment,
+                  revealed_at: result.revealed_at,
+                  revealed_place_ids: result.revealed_place_ids,
+                },
               });
             }
           }

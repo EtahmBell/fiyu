@@ -1,7 +1,9 @@
 "use client";
 
 import {
+  useCallback,
   useId,
+  useLayoutEffect,
   useRef,
   useState,
   type KeyboardEvent,
@@ -109,9 +111,32 @@ export function CompactRestaurantCard({
   const description = compactDescription(restaurant);
   const tags = englishCardTags(restaurant);
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
+  const [descriptionTruncated, setDescriptionTruncated] = useState(false);
+  const descriptionRef = useRef<HTMLParagraphElement>(null);
   const descriptionId = useId();
   const pointerStart = useRef<{ pointerId: number; x: number; y: number } | null>(null);
   const lastTap = useRef<TapPoint | null>(null);
+
+  const measureDescription = useCallback(() => {
+    const element = descriptionRef.current;
+    if (!element || descriptionExpanded) return;
+    setDescriptionTruncated(element.scrollHeight > element.clientHeight + 1);
+  }, [descriptionExpanded]);
+
+  useLayoutEffect(() => {
+    if (!description || descriptionExpanded) return;
+    measureDescription();
+    const observer = typeof ResizeObserver === "undefined"
+      ? null
+      : new ResizeObserver(measureDescription);
+    if (descriptionRef.current) observer?.observe(descriptionRef.current);
+    window.addEventListener("resize", measureDescription);
+    void document.fonts?.ready.then(measureDescription);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", measureDescription);
+    };
+  }, [description, descriptionExpanded, measureDescription]);
 
   const open = () => onOpen?.(restaurant);
   const handleClick = (event: MouseEvent<HTMLElement>) => {
@@ -244,6 +269,7 @@ export function CompactRestaurantCard({
           <div className="min-w-0">
             {description && (
               <p
+                ref={descriptionRef}
                 id={descriptionId}
                 className={cn(
                   "text-xs leading-[1.125rem] text-ink/75 lg:text-[0.8125rem] lg:leading-5",
@@ -253,7 +279,7 @@ export function CompactRestaurantCard({
                 {description}
               </p>
             )}
-            {description && (
+            {description && (descriptionExpanded || descriptionTruncated) && (
               <button
                 type="button"
                 data-no-card-navigation="true"

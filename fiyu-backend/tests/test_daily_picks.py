@@ -293,7 +293,7 @@ def test_active_snapshot_is_reused_and_history_is_atomic(daily_picks_db):
     assert served_place_ids(daily_picks_db, owner_id=owner) == set(first.place_ids)
 
 
-def test_reveal_state_is_idempotent_and_persists_with_the_active_round(daily_picks_db):
+def test_per_pick_reveal_progress_is_idempotent_and_persists(daily_picks_db):
     owner = str(uuid4())
     assignment = assign_daily_picks(
         daily_picks_db,
@@ -305,21 +305,35 @@ def test_reveal_state_is_idempotent_and_persists_with_the_active_round(daily_pic
         now=NOW,
         seed=1,
     )
-    revealed_at = (NOW + timedelta(minutes=2)).isoformat()
+    first_id, second_id, third_id = assignment.place_ids
 
     first = reveal_active_daily_picks(
         daily_picks_db,
         owner_id=owner,
         round_id=assignment.round_id,
-        revealed_at=revealed_at,
+        place_id=first_id,
         now=NOW + timedelta(minutes=2),
     )
     repeated = reveal_active_daily_picks(
         daily_picks_db,
         owner_id=owner,
         round_id=assignment.round_id,
-        revealed_at=(NOW + timedelta(minutes=5)).isoformat(),
+        place_id=first_id,
         now=NOW + timedelta(minutes=5),
+    )
+    second = reveal_active_daily_picks(
+        daily_picks_db,
+        owner_id=owner,
+        round_id=assignment.round_id,
+        place_id=second_id,
+        now=NOW + timedelta(minutes=6),
+    )
+    third = reveal_active_daily_picks(
+        daily_picks_db,
+        owner_id=owner,
+        round_id=assignment.round_id,
+        place_id=third_id,
+        now=NOW + timedelta(minutes=7),
     )
     restored = get_active_daily_picks(
         daily_picks_db,
@@ -328,10 +342,17 @@ def test_reveal_state_is_idempotent_and_persists_with_the_active_round(daily_pic
         now=NOW + timedelta(hours=1),
     )
 
-    assert first == repeated == revealed_at
+    assert first is not None and repeated is not None
+    assert first[1] == repeated[1] == (first_id,)
+    assert first[2] is repeated[2] is None
+    assert second is not None and second[1] == (first_id, second_id)
+    assert second[2] is None
+    assert third is not None and third[1] == assignment.place_ids
+    assert third[2] == (NOW + timedelta(minutes=7)).isoformat()
     assert restored is not None
     assert restored.place_ids == assignment.place_ids
-    assert restored.revealed_at == revealed_at
+    assert restored.revealed_place_ids == assignment.place_ids
+    assert restored.revealed_at == third[2]
 
 
 def test_reveal_cannot_cross_accounts_or_mark_an_expired_round(daily_picks_db):
@@ -351,6 +372,7 @@ def test_reveal_cannot_cross_accounts_or_mark_an_expired_round(daily_picks_db):
         daily_picks_db,
         owner_id=str(uuid4()),
         round_id=assignment.round_id,
+        place_id=assignment.place_ids[0],
         revealed_at=NOW.isoformat(),
         now=NOW,
     ) is None
