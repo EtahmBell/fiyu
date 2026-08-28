@@ -210,13 +210,14 @@ describe("public landing experience", () => {
 });
 
 describe("landing choreography", () => {
-  it("scrubs exactly two sections, and pins both of them", () => {
+  it("scrubs exactly one section, and pins it", () => {
     const { container } = render(<LandingPage />);
 
-    // Scrubbing is expensive to get right and cheap to overuse. Two, both
-    // pinned, is the budget; everything else triggers once on entry.
+    // Down from two. A pinned stage is only honest when the thing being shown
+    // genuinely needs a viewport-tall box; "How Fiyu works" did not, and its
+    // leftover vertical space was what a recording showed as a dead screen.
     const scenes = [...container.querySelectorAll(".fiyu-lp-scene")];
-    expect(scenes).toHaveLength(2);
+    expect(scenes).toHaveLength(1);
     for (const scene of scenes) {
       const className = scene.getAttribute("class") ?? "";
       // A scrubbed section must be a runway, and must declare how long it is.
@@ -337,7 +338,7 @@ describe("landing hero", () => {
     expect(composition.getAllByTestId("example-pick-card-brief")).toHaveLength(1);
     // The concealed layer never hides content from the document: the middle
     // card's restaurant is rendered underneath its veil, not swapped in later.
-    expect(composition.getByText("維摩（ユイマ）")).toBeTruthy();
+    expect(composition.getByText("すし善")).toBeTruthy();
     expect(composition.getByText("沖縄そば屋 ちょこっと")).toBeTruthy();
     expect(compositions[0].querySelector(".fiyu-lp-veil")?.getAttribute("aria-hidden")).toBe("true");
   });
@@ -380,6 +381,11 @@ describe("landing narrative sections", () => {
     const workflow = screen.getByRole("heading", { name: "How Fiyu works" }).closest("section");
     if (!workflow) throw new Error("Expected the workflow section");
 
+    // Not pinned and not scrubbed: the demonstration fits one screen, so it is
+    // an ordinary section that cannot strand a reader in a sticky box.
+    expect(workflow.querySelector(".fiyu-lp-scene")).toBeNull();
+    expect(workflow.querySelector(".fiyu-lp-stage")).toBeNull();
+
     // All three steps are on screen at once, so the column can never be a
     // single paragraph floating beside an empty half of the viewport.
     const steps = [...workflow.querySelectorAll("li[data-active]")];
@@ -395,7 +401,6 @@ describe("landing narrative sections", () => {
     expect(surface.getAttribute("data-step")).toBe("0");
     expect(surface.getAttribute("aria-hidden")).toBe("true");
     expect(surface.getAttribute("class")).toContain("h-[21.5rem]");
-    expect(surface.getAttribute("class")).not.toContain("min-h-");
     expect(surface.children).toHaveLength(2);
     expect(within(surface).getByText("Your tastes")).toBeTruthy();
     expect(within(surface).getAllByTestId("example-pick-card-brief")).toHaveLength(3);
@@ -461,9 +466,10 @@ describe("landing narrative sections", () => {
 
     const section = screen.getByText("Someone near Yanaka").closest("section");
     if (!section) throw new Error("Expected the selections section");
-    // One image per column, so three selections read as three evenings before a
-    // single name has to be compared.
-    expect(countWithClass(section, "aspect-[16/10]")).toBe(3);
+    // A 56px thumbnail beside each label, not a 4:5 panel above it. An empty
+    // panel at that size read as a page still loading.
+    expect(countWithClass(section, "size-14")).toBe(3);
+    expect(countWithClass(section, "aspect-[16/10]")).toBe(0);
     expect(screen.getAllByText("Also another selection")).toHaveLength(2);
     expect(
       screen.getByText("One place appears in two of these three selections. The other seven appear once."),
@@ -562,8 +568,11 @@ describe("landing rollout, edition and close", () => {
 
     // The plate is bounded rather than full bleed at its natural ratio, which is
     // what let this section grow past a viewport and a quarter.
+    // A bounded height rather than an aspect box: an aspect box takes its height
+    // from the column, which is how this section stayed the tallest on the page.
     const figure = screen.getByTestId("city-edition-plate");
-    expect(countWithClass(figure, "aspect-[3/2]")).toBe(1);
+    expect(figure.getAttribute("class")).toContain("h-[13rem]");
+    expect(countWithClass(figure, "aspect-[3/2]")).toBe(0);
     const plate = within(figure).getByRole("img", {
       name: "A line illustration looking out from a restaurant table onto a quiet Tokyo street",
     });

@@ -32,10 +32,15 @@ export type SlotFallback =
       alt: string;
     }
   /**
-   * A typographic tile: the area name in the display face, bled off the edge, on
-   * one of three warm or cool grounds. Deliberately not another line drawing --
-   * six repeats of the same illustration set was the thing that made the page
-   * look like it had two pictures in it.
+   * A typographic tile: the area name in the display face on one of three warm
+   * or cool grounds. Deliberately not another line drawing -- six repeats of the
+   * same illustration set was what made the page look like it had two pictures
+   * in it.
+   *
+   * Only ever used at thumbnail scale now. At 4:5 hero size it read as an empty
+   * coloured panel, which a browser recording showed as three blank tiles
+   * apparently waiting to load. A 56px tinted square with a hairline is a mark;
+   * a 300px one is a void.
    */
   | { kind: "nameplate"; label: string; tone: "lavender" | "champagne" | "cool" };
 
@@ -85,27 +90,27 @@ export const IMAGE_SLOTS: Record<ImageSlotId, ImageSlot> = {
     id: "selection_01",
     src: null,
     alt: "A bowl of Okinawa soba on a counter",
-    aspect: "4:5",
+    aspect: "1:1",
     brief:
-      "Portrait 4:5, at least 1200px wide. A single plated dish or a two-seat counter. Close, warm, unstyled -- the opposite of a menu photograph.",
+      "Square, at least 800px. A single plated dish, cropped close. Read at 56px beside a label, so it needs one clear subject and no fine detail.",
     fallback: { kind: "nameplate", label: "Sendagi", tone: "lavender" },
   },
   selection_02: {
     id: "selection_02",
     src: null,
     alt: "Skewers over coals at a small yakitori counter",
-    aspect: "4:5",
+    aspect: "1:1",
     brief:
-      "Portrait 4:5, at least 1200px wide. A cooking surface or a hand at work. Must sit beside the other two selection images without matching them in colour or subject.",
+      "Square, at least 800px. A cooking surface or a hand at work. Must not match the other two selection thumbnails in colour or subject.",
     fallback: { kind: "nameplate", label: "Setagaya", tone: "champagne" },
   },
   selection_03: {
     id: "selection_03",
     src: null,
     alt: "The lit doorway of a small restaurant at night",
-    aspect: "4:5",
+    aspect: "1:1",
     brief:
-      "Portrait 4:5, at least 1200px wide. A storefront, doorway or curtain from the street. The exterior of the set, so the three together read as street, counter and plate.",
+      "Square, at least 800px. A storefront, doorway or curtain from the street, so the three thumbnails together read as street, counter and plate.",
     fallback: { kind: "nameplate", label: "Tsukiji", tone: "cool" },
   },
 };

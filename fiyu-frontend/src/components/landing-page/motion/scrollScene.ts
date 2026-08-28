@@ -280,3 +280,42 @@ export function useEntered<T extends Element>(
 
   return { ref, entered: entered || reduced };
 }
+
+export interface TimedStepsOptions {
+  /** Usually `entered` from `useEntered`. Nothing advances until this is true. */
+  start: boolean;
+  count: number;
+  intervalMs?: number;
+}
+
+/**
+ * Advance through a fixed number of states on a timer, once, and stop.
+ *
+ * For a demonstration that has to stay on one screen. A pinned runway is the
+ * wrong tool when the thing being demonstrated already fits the viewport: it
+ * buys reader-paced control at the cost of a viewport-tall sticky box whose
+ * unused vertical space becomes a visible empty band every time the stage
+ * arrives or leaves. That band is what a browser recording shows as a dead
+ * screen, however correct the progress arithmetic is.
+ *
+ * So this is deliberately not scroll-linked. It runs forward only, holds on the
+ * last state, and never loops -- a loop would make the section a marquee. Each
+ * tick is a `setTimeout`, chained off the current step, so the timer cancels
+ * itself on unmount and cannot overrun the end.
+ *
+ * Under reduced motion it reports the last state immediately, which is the
+ * finished demonstration.
+ */
+export function useTimedSteps({ start, count, intervalMs = 2000 }: TimedStepsOptions): number {
+  const reduced = usePrefersReducedMotion();
+  const [step, setStep] = useState(0);
+  const last = Math.max(0, count - 1);
+
+  useEffect(() => {
+    if (reduced || !start || step >= last) return;
+    const timer = window.setTimeout(() => setStep((current) => current + 1), intervalMs);
+    return () => window.clearTimeout(timer);
+  }, [reduced, start, step, last, intervalMs]);
+
+  return reduced ? last : step;
+}

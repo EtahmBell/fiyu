@@ -346,43 +346,6 @@
   }
 }
 
-/*
- * A step's copy, condensed where the stage is pinned and the column is narrow.
- *
- * Visually hidden, not removed: the titles stay on screen, the copy stays in the
- * accessibility tree and in the document, and both come back as soon as there is
- * either the width to show them or no pin to fit them inside.
- */
-@media (min-height: 640px) and (max-width: 1023px) {
-  .fiyu-lp-step-copy[data-active="false"] {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    margin: 0;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
-  }
-}
-
-/*
- * Ornament, shown only where there is height to spare.
- *
- * The noren hem is the last eighty pixels of a pinned stage and the first thing
- * that should go: a 1366 by 768 window has roughly 540 usable pixels once the
- * header and the stage's own padding are out, and flex-centring content taller
- * than that clips it at the top as well as the bottom. So the hem is gated on
- * height rather than trusted to fit.
- */
-.fiyu-lp-hem {
-  display: none;
-}
-
-@media (min-width: 640px) and (min-height: 820px) {
-  .fiyu-lp-hem {
-    display: flex;
-  }
-}
 
 /*
  * Map labels, hidden at phone scale.

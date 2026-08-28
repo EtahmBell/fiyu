@@ -20,19 +20,18 @@ import { cn } from "@/lib/utils/cn";
  * Three selections, side by side, and a reader can check the claim by eye: one
  * place appears twice across nine slots and the other seven appear once.
  *
- * The idea was already right; the execution was dry. Three columns of pure type
- * asked a reader to compare nine names in order to feel something that ought to
- * be immediate. Each column now opens on an image, so the three read as three
- * different evenings before a single name is compared -- and the overlap, when it
- * is noticed, lands as a surprise rather than as a table lookup.
+ * The animation here was never broken -- it was one entrance stagger, and it
+ * behaved. What was broken was the imagery it revealed. Each column led with a
+ * 4:5 image box, and with no photography yet that box was a large flat tinted
+ * panel, so a browser recording showed three empty coloured rectangles arriving
+ * first and the restaurant names arriving as the reader scrolled further. That
+ * reads as a page still loading, which is worse than no image at all.
  *
- * The columns are labelled by area rather than by person, so nothing here invents
- * a user and the labels travel to any city. Area names are the ones a person
- * would say out loud; the catalog's chome-level strings stay in the application,
- * where a reader standing on the street actually needs them.
- *
- * Entrance motion only, on a stagger. Nothing in this section is about a
- * continuous change, so nothing here is scrubbed.
+ * So this is now the static editorial version. Every selection is present
+ * immediately, the imagery is a 56px thumbnail beside each label rather than a
+ * panel above it -- small enough that an empty one is a mark and not a void, and
+ * still the right slot for a real photograph -- and the only motion is one short
+ * stagger as the section arrives. Clarity over choreography.
  */
 export function DifferentDiscoveries() {
   const { ref, entered } = useEntered<HTMLDivElement>();
@@ -53,7 +52,7 @@ export function DifferentDiscoveries() {
           </p>
         </div>
 
-        <div className="mt-14 grid gap-x-10 gap-y-14 sm:mt-20 sm:grid-cols-3 sm:gap-y-0">
+        <div className="mt-12 grid gap-x-10 gap-y-10 sm:mt-16 sm:grid-cols-3 sm:gap-y-0">
           {SELECTION_COLUMNS.map((column, index) => (
             <div
               key={column.label}
@@ -61,25 +60,25 @@ export function DifferentDiscoveries() {
               data-in={flag}
               style={
                 {
-                  "--rise-delay": index * 150 + "ms",
-                  "--rise-from": "18px",
+                  "--rise-delay": index * 90 + "ms",
+                  "--rise-duration": "520ms",
+                  "--rise-from": "12px",
                 } as React.CSSProperties
               }
             >
-              {/*
-               * A fixed aspect box, so the layout is identical whether the slot
-               * holds a photograph or the type plate that stands in for one.
-               */}
-              <div className="relative aspect-[16/10] overflow-hidden rounded-card border border-line sm:aspect-[4/5]">
-                <SlotImage
-                  slot={column.slot}
-                  sizes="(max-width: 639px) calc(100vw - 2.5rem), 30vw"
-                />
+              <div className="flex items-center gap-3.5 border-b border-line-strong pb-4">
+                {/*
+                 * A fixed square, so a real photograph drops in without moving
+                 * anything. Decorative: the column is already labelled.
+                 */}
+                <div className="relative size-14 shrink-0 overflow-hidden rounded-lg border border-line">
+                  <SlotImage slot={column.slot} sizes="56px" />
+                </div>
+                <p className="min-w-0 text-[0.625rem] font-semibold tracking-[0.18em] text-ink-faint uppercase">
+                  {column.label}
+                </p>
               </div>
-              <p className="mt-5 text-[0.625rem] font-semibold tracking-[0.18em] text-ink-faint uppercase">
-                {column.label}
-              </p>
-              <div className="mt-3">
+              <div>
                 {column.picks.map((example) => (
                   <ExampleSelectionRow
                     key={example.id}
@@ -92,7 +91,7 @@ export function DifferentDiscoveries() {
           ))}
         </div>
 
-        <p className="mt-14 max-w-[32rem] border-t border-line pt-6 text-sm leading-7 text-ink-muted sm:mt-16">
+        <p className="mt-12 max-w-[32rem] border-t border-line pt-6 text-sm leading-7 text-ink-muted sm:mt-14">
           One place appears in two of these three selections. The other seven appear once.
         </p>
       </div>

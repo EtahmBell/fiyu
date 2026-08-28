@@ -91,15 +91,15 @@ const EXAMPLES = {
     photo: null,
     plate: "hearth",
   },
-  yuima: {
-    id: "ChIJ6d8N8dntGGARoNUj9Kt2QcI",
-    nameJa: "維摩（ユイマ）",
-    nameEn: "Yuima",
-    category: "Chinese restaurant",
-    area: "Igusa",
-    score: 83.29,
-    tags: ["dumplings", "small independent restaurant", "fried rice"],
-    signature: "一口焼き餃子",
+  sushizen: {
+    id: "ChIJIxdui16LGGAR6dA-SGEjgjs",
+    nameJa: "すし善",
+    nameEn: "Sushizen",
+    category: "Sushi restaurant",
+    area: "Shibuya",
+    score: 83.21,
+    tags: ["江戸前寿司", "おまかせ", "刺身"],
+    signature: "おまかせ握り",
     photo: null,
     plate: "counter",
   },
@@ -156,7 +156,7 @@ const EXAMPLES = {
 /** The hero composition, and the closing one that answers it. */
 export const HERO_EXAMPLES: readonly LandingExample[] = [
   EXAMPLES.chokotto,
-  EXAMPLES.yuima,
+  EXAMPLES.sushizen,
   EXAMPLES.nishi,
 ];
 
@@ -180,8 +180,15 @@ export const WORKFLOW_EXAMPLES: readonly LandingExample[] = [
  * Shown as one ruled line rather than as a card. The card version had to be
  * floated across two grid columns to avoid looking marooned, which is how it
  * ended up colliding with the paragraph beside it.
+ *
+ * A sushi counter in Shibuya rather than the Chinese restaurant that was here
+ * before. Not a judgement about the restaurant -- it is a real published
+ * discovery and still in the catalog -- but this is the most prominently
+ * captioned example on the page, and the first concrete thing a visitor reads
+ * about Fiyu in Tokyo should not imply Fiyu mainly finds foreign kitchens there.
+ * Short name, a neighbourhood anyone recognises, one clean category.
  */
-export const LOOK_BEYOND_EXAMPLE: LandingExample = EXAMPLES.yuima;
+export const LOOK_BEYOND_EXAMPLE: LandingExample = EXAMPLES.sushizen;
 
 /**
  * The restaurant-first moment.
@@ -213,7 +220,7 @@ export const SELECTION_COLUMNS: readonly {
   {
     label: "Someone near Setagaya",
     slot: "selection_02",
-    picks: [EXAMPLES.nishi, EXAMPLES.yuima, EXAMPLES.taguchi],
+    picks: [EXAMPLES.nishi, EXAMPLES.sushizen, EXAMPLES.taguchi],
   },
   {
     label: "Someone near Tsukiji",
@@ -237,7 +244,7 @@ export const ALL_EXAMPLES: readonly LandingExample[] = [
   EXAMPLES.umi,
   EXAMPLES.chokotto,
   EXAMPLES.taguchi,
-  EXAMPLES.yuima,
+  EXAMPLES.sushizen,
   EXAMPLES.zururi,
   EXAMPLES.nishi,
   EXAMPLES.sitara,

@@ -16,19 +16,20 @@ const NAMEPLATE_TONES: Record<
   Extract<SlotFallback, { kind: "nameplate" }>["tone"],
   { ground: string; rule: string; type: string }
 > = {
-  lavender: { ground: "bg-lavender-50", rule: "bg-lavender-500/40", type: "text-lavender-700/45" },
-  champagne: { ground: "bg-gold-soft", rule: "bg-gold/45", type: "text-gold-700/40" },
-  cool: { ground: "bg-subtle", rule: "bg-line-strong", type: "text-ink-faint/55" },
+  lavender: { ground: "bg-lavender-50", rule: "bg-lavender-500/50", type: "text-lavender-700" },
+  champagne: { ground: "bg-gold-soft", rule: "bg-gold/55", type: "text-gold-700" },
+  cool: { ground: "bg-subtle", rule: "bg-line-strong", type: "text-ink-muted" },
 };
 
 /**
- * The stand-in for a portrait slot: the area name in the display face, set large
- * and bled off the left edge, over a warm or cool ground.
+ * The stand-in for a thumbnail slot: the area's initial in the display face over
+ * a warm or cool ground, with a hairline under it.
  *
- * Typographic rather than illustrated, on purpose. The two line drawings Fiyu
- * owns are strong, and repeating them six times across one page was what made
- * the imagery look thin. A type plate reads as an editorial device instead of as
- * a fourth copy of the same picture, and it varies by itself.
+ * Typographic rather than illustrated, on purpose -- repeating the two line
+ * drawings Fiyu owns six times across one page was what made the imagery look
+ * thin. Small, on purpose too: the earlier version filled a 4:5 box with an area
+ * name at 45% opacity, and in a browser recording three of those read as blank
+ * panels waiting on a network request rather than as a composition.
  */
 function NamePlate({
   label,
@@ -39,16 +40,14 @@ function NamePlate({
 }) {
   const { ground, rule, type } = NAMEPLATE_TONES[tone];
   return (
-    <div aria-hidden="true" className={cn("relative size-full overflow-hidden", ground)}>
-      <span
-        className={cn(
-          "absolute bottom-3 -left-2 font-display text-[clamp(2.5rem,5vw,3.5rem)] leading-none tracking-[-0.03em] whitespace-nowrap",
-          type,
-        )}
-      >
-        {label}
-      </span>
-      <span className={cn("absolute top-4 left-4 h-px w-8", rule)} />
+    <div
+      aria-hidden="true"
+      className={cn("relative flex size-full items-center justify-center overflow-hidden", ground)}
+    >
+      {/* The initial, not the word: at thumbnail scale a whole area name is a
+          smudge, and one letter reads as a mark. */}
+      <span className={cn("font-display text-xl leading-none", type)}>{label.charAt(0)}</span>
+      <span className={cn("absolute bottom-0 left-0 h-px w-full", rule)} />
     </div>
   );
 }

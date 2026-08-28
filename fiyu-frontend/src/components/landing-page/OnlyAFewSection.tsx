@@ -9,53 +9,51 @@ import { cn } from "@/lib/utils/cn";
 /**
  * Only a few.
  *
- * The section that argues by behaving: one discovery arrives, then a second, then
- * a third, and then the page stops giving them out. No counter and no fourth
- * card -- a reader should feel the end of the list rather than be told about it,
- * because that is the whole claim.
+ * One discovery arrives, then a second, then a third, and then the page stops
+ * giving them out. This is the one section on the page that still earns a pinned
+ * stage, because the argument *is* the passage of time.
  *
- * Two things were wrong before. The heading and a five-line paragraph sat above
- * the runway in normal flow, so the pinned stage held nothing but three cards
- * that all began at zero opacity: for the first stretch of the pin the viewport
- * was genuinely blank, which is the dead screen that got reported. And the last
- * arrival landed at 0.7 of an unheld runway, so the composition a reader had
- * waited for was scrolled away almost as soon as it existed.
+ * Two things were still wrong in the browser, and both were about the shape of
+ * the box rather than the timing inside it.
  *
- * Now the heading is inside the stage, three shelves are ruled from the first
- * frame, and the last card lands at 0.82 of the transition window -- so the
- * finished trio is held, at rest, for roughly a quarter of the runway before
- * anything hands off.
+ * The stage centred its content. A 490px composition centred in an 800px sticky
+ * box leaves 155px of nothing above and below it, and those two bands are
+ * precisely what fills the screen as the stage arrives and as it leaves -- so a
+ * recording shows a near-empty viewport at the handoff even though the
+ * composition itself is fine. `justify-between` fixes it structurally: the
+ * masthead sits at the top of the box, the closing rule sits at the bottom, the
+ * cards sit between them, and there is content within a few dozen pixels of both
+ * edges at every scroll position. The whitespace is still there; it is now
+ * *between* two pieces of content, where it reads as intended.
  *
- * The shelves do the work the copy used to. Three hairlines with card-height
- * space above them say "room for exactly three, chosen" before a single card
- * exists, and they stay after the cards land, so the composition is grounded at
- * both ends and never reads as an empty frame. That is why the paragraph could
- * lose two thirds of its length.
+ * And the hold was too short. The finished trio held for 20svh, which is two or
+ * three notches of a wheel -- long enough to satisfy a test, not long enough to
+ * look at. The three arrivals now finish at 0.80 of the transition window and the
+ * hold-out is 38% of the runway, so the completed composition sits still for
+ * roughly 370px of scrolling before anything hands off.
  *
- * A ruled row, not the hero's overlapping stack: this section is about how few
- * there are, which needs them countable and side by side.
+ * The closing rule is static, not staged. It is the structure of the empty stage,
+ * present before the first card and after the last, which is also what stops the
+ * section ending on an animation.
  */
 
 /**
- * Where each card starts and finishes, in transition space. Deliberately ordered
- * with gaps between them -- the pauses are what make three arrivals read as three
- * decisions rather than as one staggered animation.
+ * Where each card starts and finishes, in transition space. Ordered with gaps:
+ * the pauses are what make three arrivals read as three decisions rather than as
+ * one staggered animation, and finishing at 0.80 leaves the rest of the window
+ * plus the whole hold-out with nothing moving.
  */
 const ARRIVALS = [
-  { from: 0.04, span: 0.2 },
-  { from: 0.32, span: 0.2 },
-  { from: 0.62, span: 0.2 },
+  { from: 0.02, span: 0.22 },
+  { from: 0.3, span: 0.22 },
+  { from: 0.58, span: 0.22 },
 ] as const;
 
 /** A whisper of rake from `sm`, where the cards sit side by side. */
-const RAKE = [
-  "sm:rotate-[-0.9deg]",
-  "sm:rotate-[0.6deg]",
-  "sm:rotate-[1.8deg]",
-] as const;
+const RAKE = ["sm:rotate-[-0.9deg]", "sm:rotate-[0.6deg]", "sm:rotate-[1.8deg]"] as const;
 
 export function OnlyAFewSection() {
-  const { ref } = usePinScene<HTMLDivElement>({ holdIn: 0.12, holdOut: 0.24 });
+  const { ref } = usePinScene<HTMLDivElement>({ holdIn: 0.1, holdOut: 0.38 });
 
   return (
     <section id="only-a-few" className="scroll-mt-24 border-b border-line bg-lavender-50/50">
@@ -63,7 +61,11 @@ export function OnlyAFewSection() {
         ref={ref}
         className="fiyu-lp-scene fiyu-lp-runway relative [--runway:168svh] sm:[--runway:185svh]"
       >
-        <div className="fiyu-lp-stage flex flex-col justify-center overflow-hidden pt-16 pb-8 lg:pt-20 lg:pb-10">
+        {/*
+         * Top, middle, bottom -- never centred. See the note above: centring is
+         * what put empty bands at both handoffs.
+         */}
+        <div className="fiyu-lp-stage flex flex-col justify-between overflow-hidden pt-16 pb-10 lg:pt-20 lg:pb-12">
           <div className={cn(LANDING_MEASURE, "w-full")}>
             <div className="mx-auto max-w-[34rem] text-center">
               <SectionEyebrow className="justify-center">A slower reveal</SectionEyebrow>
@@ -75,17 +77,18 @@ export function OnlyAFewSection() {
                 attention spreads instead of landing on the same few places.
               </p>
             </div>
+          </div>
 
-            {/*
-             * Three shelves. The rule is on the cell, not on the card, so it is
-             * there from the first frame and stays after the card lands.
-             */}
-            <div className="mx-auto mt-6 grid max-w-[62rem] gap-2 sm:mt-12 sm:grid-cols-3 sm:gap-5 lg:gap-7">
+          {/*
+           * Three shelves. The rule is on the cell, so it is drawn from the first
+           * frame and stays after the card lands: an empty frame with room for
+           * exactly three things says "a small number, chosen" before a single
+           * card exists.
+           */}
+          <div className={cn(LANDING_MEASURE, "w-full")}>
+            <div className="mx-auto grid max-w-[62rem] gap-2 sm:grid-cols-3 sm:gap-5 lg:gap-7">
               {ONLY_A_FEW_EXAMPLES.map((example, index) => (
-                <div
-                  key={example.id}
-                  className="min-w-0 border-b border-line-strong pb-2.5 sm:pb-4"
-                >
+                <div key={example.id} className="min-w-0 border-b border-line-strong pb-2.5 sm:pb-4">
                   <div
                     data-arrival={index + 1}
                     className={cn(
@@ -104,17 +107,18 @@ export function OnlyAFewSection() {
                 </div>
               ))}
             </div>
+          </div>
 
-            {/*
-             * A noren hem closing the sequence, kept from the section this
-             * replaces. Three panels for three discoveries, and then the rail
-             * runs out. Desktop only -- on a phone the three shelves already
-             * carry the idea and this is the first thing worth the height.
-             */}
-            <div
-              aria-hidden="true"
-              className="fiyu-lp-hem fiyu-lp-stage-item mx-auto mt-10 max-w-[30rem] items-start [--from:0.82] [--span:0.14] [--stage-y:10px]"
-            >
+          {/*
+           * A noren hem closing the stage: one continuous rail with three panels
+           * of uneven drop, three panels for three discoveries, and then the rail
+           * runs out. Static, and anchored to the bottom of the box, which is
+           * what guarantees the last thing a reader sees on the way out is
+           * content rather than padding. Hidden on a phone, where the three
+           * shelves already reach the lower edge.
+           */}
+          <div className={cn(LANDING_MEASURE, "hidden w-full sm:block")}>
+            <div aria-hidden="true" className="mx-auto flex max-w-[30rem] items-start">
               <span className="h-px flex-1 bg-line-strong" />
               <span className="h-6 w-10 border border-line-strong" />
               <span className="h-9 w-10 border-t border-r border-b border-line-strong" />
