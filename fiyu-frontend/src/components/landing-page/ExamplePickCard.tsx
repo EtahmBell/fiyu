@@ -43,14 +43,26 @@ function BookmarkGlyph({ filled }: { filled: boolean }) {
 const SURFACE =
   "relative min-w-0 overflow-hidden rounded-card border border-line bg-surface";
 
+/**
+ * How much of the card to draw.
+ *
+ * `sm-up` folds the image and the tags away below the `sm` breakpoint, leaving
+ * the names, the score and the area. Three full cards side by side do not fit a
+ * phone; three compact ones do, and the compact form is still recognisably the
+ * same card rather than a second design.
+ */
+export type PickDetail = "always" | "sm-up";
+
 /** The full pick: plate, both names, score, a signature dish and tags. */
 export function ExamplePickCard({
   example,
   tone = "current",
+  detail = "always",
   className,
 }: {
   example: LandingExample;
   tone?: PickTone;
+  detail?: PickDetail;
   className?: string;
 }) {
   const saved = tone === "saved";
@@ -84,9 +96,29 @@ export function ExamplePickCard({
         />
       </div>
 
-      <div className="mt-2 grid min-w-0 grid-cols-[5.5rem_minmax(0,1fr)] gap-2.5 sm:grid-cols-[6.5rem_minmax(0,1fr)]">
-        <div className="h-[3.75rem] overflow-hidden rounded-lg sm:h-[4.5rem]">
-          <EditorialPlate plate={example.plate} />
+      <div
+        className={cn(
+          "mt-2 min-w-0 gap-2.5",
+          detail === "always"
+            ? "grid grid-cols-[5.5rem_minmax(0,1fr)] sm:grid-cols-[6.5rem_minmax(0,1fr)]"
+            : "hidden sm:grid sm:grid-cols-[6.5rem_minmax(0,1fr)]",
+        )}
+      >
+        <div className="relative h-[3.75rem] overflow-hidden rounded-lg sm:h-[4.5rem]">
+          {example.photo ? (
+            // A plain <img>: these are static marketing assets, and the card is
+            // small enough that Next's optimizer buys nothing at this size.
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={example.photo}
+              alt=""
+              loading="lazy"
+              decoding="async"
+              className="absolute inset-0 size-full object-cover object-center"
+            />
+          ) : (
+            <EditorialPlate plate={example.plate} />
+          )}
         </div>
         <div className="min-w-0">
           <p className="line-clamp-1 text-[0.6875rem] text-ink-muted sm:text-xs">
@@ -125,7 +157,7 @@ function CardFooter({ example, saved }: { example: LandingExample; saved: boolea
           saved ? "font-medium text-gold-700" : "text-ink-faint",
         )}
       >
-        {saved ? "Discovered" : example.neighborhood}
+        {saved ? "Discovered" : example.area}
       </p>
       <span
         aria-hidden="true"
@@ -245,7 +277,7 @@ export function ExampleSelectionRow({
           {shared ? (
             <span className="text-lavender-700">Also another selection</span>
           ) : (
-            <span className="text-ink-faint">{example.neighborhood}</span>
+            <span className="text-ink-faint">{example.area}</span>
           )}
         </p>
       </div>

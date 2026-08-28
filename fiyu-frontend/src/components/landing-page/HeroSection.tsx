@@ -125,7 +125,7 @@ export function HeroSection() {
           className="min-w-0 border-t border-line pt-10 lg:border-t-0 lg:pt-0"
         >
           <div className="mx-auto w-full max-w-[25rem] lg:mr-0 lg:ml-auto lg:max-w-[28rem]">
-            <PickComposition examples={HERO_EXAMPLES} immediate />
+            <PickComposition examples={HERO_EXAMPLES} />
             <figcaption className="mt-6 lg:mt-4">
               <p className="font-display text-[1.5rem] leading-tight text-ink">
                 Selected around you.

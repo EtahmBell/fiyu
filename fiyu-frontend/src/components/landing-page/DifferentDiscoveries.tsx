@@ -11,22 +11,28 @@ import {
   SectionEyebrow,
 } from "@/components/landing-page/landingSystem";
 import { useEntered } from "@/components/landing-page/motion/scrollScene";
+import { SlotImage } from "@/components/landing-page/SlotImage";
 import { cn } from "@/lib/utils/cn";
 
 /**
  * Different discoveries for different people.
  *
- * Three selections, side by side, and the reader can check the claim by eye:
- * one place appears twice across nine slots and the other seven appear once.
- * The composition is the argument, so the copy stays to two lines and gets out
- * of the way.
+ * Three selections, side by side, and a reader can check the claim by eye: one
+ * place appears twice across nine slots and the other seven appear once.
  *
- * A different rhythm again -- no cards, no images, no map. Three ruled indexes
- * of type, which is what a broader pool actually looks like when you lay three
- * samples of it next to each other.
+ * The idea was already right; the execution was dry. Three columns of pure type
+ * asked a reader to compare nine names in order to feel something that ought to
+ * be immediate. Each column now opens on an image, so the three read as three
+ * different evenings before a single name is compared -- and the overlap, when it
+ * is noticed, lands as a surprise rather than as a table lookup.
  *
- * The columns are labelled by area rather than by person, so nothing here has to
- * invent a user, and the labels travel to any city.
+ * The columns are labelled by area rather than by person, so nothing here invents
+ * a user and the labels travel to any city. Area names are the ones a person
+ * would say out loud; the catalog's chome-level strings stay in the application,
+ * where a reader standing on the street actually needs them.
+ *
+ * Entrance motion only, on a stagger. Nothing in this section is about a
+ * continuous change, so nothing here is scrubbed.
  */
 export function DifferentDiscoveries() {
   const { ref, entered } = useEntered<HTMLDivElement>();
@@ -41,13 +47,13 @@ export function DifferentDiscoveries() {
             <span className="block text-ink">A few for you.</span>
             <span className="block text-ink-faint">Different for someone else.</span>
           </h2>
-          <p className="mt-7 max-w-[36rem] text-base leading-8 text-ink-muted">
+          <p className="mt-7 max-w-[34rem] text-base leading-8 text-ink-muted">
             Fiyu spreads attention across a broader pool of excellent restaurants instead of
             sending everyone to the same small set of places.
           </p>
         </div>
 
-        <div className="mt-14 grid gap-x-10 gap-y-12 sm:mt-20 sm:grid-cols-3">
+        <div className="mt-14 grid gap-x-10 gap-y-14 sm:mt-20 sm:grid-cols-3 sm:gap-y-0">
           {SELECTION_COLUMNS.map((column, index) => (
             <div
               key={column.label}
@@ -55,15 +61,25 @@ export function DifferentDiscoveries() {
               data-in={flag}
               style={
                 {
-                  "--rise-delay": index * 130 + "ms",
+                  "--rise-delay": index * 150 + "ms",
                   "--rise-from": "18px",
                 } as React.CSSProperties
               }
             >
-              <p className="text-[0.625rem] font-semibold tracking-[0.18em] text-ink-faint uppercase">
+              {/*
+               * A fixed aspect box, so the layout is identical whether the slot
+               * holds a photograph or the type plate that stands in for one.
+               */}
+              <div className="relative aspect-[16/10] overflow-hidden rounded-card border border-line sm:aspect-[4/5]">
+                <SlotImage
+                  slot={column.slot}
+                  sizes="(max-width: 639px) calc(100vw - 2.5rem), 30vw"
+                />
+              </div>
+              <p className="mt-5 text-[0.625rem] font-semibold tracking-[0.18em] text-ink-faint uppercase">
                 {column.label}
               </p>
-              <div className="mt-4">
+              <div className="mt-3">
                 {column.picks.map((example) => (
                   <ExampleSelectionRow
                     key={example.id}
@@ -76,7 +92,7 @@ export function DifferentDiscoveries() {
           ))}
         </div>
 
-        <p className="mt-12 max-w-[32rem] border-t border-line pt-6 text-sm leading-7 text-ink-muted">
+        <p className="mt-14 max-w-[32rem] border-t border-line pt-6 text-sm leading-7 text-ink-muted sm:mt-16">
           One place appears in two of these three selections. The other seven appear once.
         </p>
       </div>

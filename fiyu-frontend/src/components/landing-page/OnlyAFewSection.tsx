@@ -1,121 +1,124 @@
 "use client";
 
-import { ExamplePickCard, ExamplePickCardBrief } from "@/components/landing-page/ExamplePickCard";
+import { ExamplePickCard } from "@/components/landing-page/ExamplePickCard";
 import { ONLY_A_FEW_EXAMPLES } from "@/components/landing-page/landingExamples";
-import {
-  LANDING_HEADING,
-  LANDING_MEASURE,
-  LANDING_RHYTHM,
-  SectionEyebrow,
-} from "@/components/landing-page/landingSystem";
-import { useScrollScene } from "@/components/landing-page/motion/scrollScene";
+import { LANDING_MEASURE, SectionEyebrow } from "@/components/landing-page/landingSystem";
+import { usePinScene } from "@/components/landing-page/motion/scrollScene";
 import { cn } from "@/lib/utils/cn";
 
 /**
  * Only a few.
  *
- * The second scroll-led sequence, and the one that argues by behaving. One
- * discovery arrives, then a second, then a third, and then the page stops
- * giving them out. There is no counter and no fourth card: the reader feels the
- * end of the list rather than being told about it, which is the whole claim.
+ * The section that argues by behaving: one discovery arrives, then a second, then
+ * a third, and then the page stops giving them out. No counter and no fourth
+ * card -- a reader should feel the end of the list rather than be told about it,
+ * because that is the whole claim.
  *
- * The heading and the reasoning sit above the stage in normal flow, in the
- * ruled two-column measure the page has used since the beginning. Only the
- * cards are pinned. That split is deliberate on two counts -- the argument is
- * readable before any motion happens, and the stage is left holding nothing but
- * three cards on an otherwise empty field, which is far quieter than the same
- * cards crowded beside a paragraph.
+ * Two things were wrong before. The heading and a five-line paragraph sat above
+ * the runway in normal flow, so the pinned stage held nothing but three cards
+ * that all began at zero opacity: for the first stretch of the pin the viewport
+ * was genuinely blank, which is the dead screen that got reported. And the last
+ * arrival landed at 0.7 of an unheld runway, so the composition a reader had
+ * waited for was scrolled away almost as soon as it existed.
  *
- * The first arrival is a full card; the two that follow are brief. Three
- * identical cards read as a list, and a list is what Fiyu is not.
+ * Now the heading is inside the stage, three shelves are ruled from the first
+ * frame, and the last card lands at 0.82 of the transition window -- so the
+ * finished trio is held, at rest, for roughly a quarter of the runway before
+ * anything hands off.
+ *
+ * The shelves do the work the copy used to. Three hairlines with card-height
+ * space above them say "room for exactly three, chosen" before a single card
+ * exists, and they stay after the cards land, so the composition is grounded at
+ * both ends and never reads as an empty frame. That is why the paragraph could
+ * lose two thirds of its length.
+ *
+ * A ruled row, not the hero's overlapping stack: this section is about how few
+ * there are, which needs them countable and side by side.
  */
 
-/** Where each card starts and finishes, as a share of the pinned runway. */
+/**
+ * Where each card starts and finishes, in transition space. Deliberately ordered
+ * with gaps between them -- the pauses are what make three arrivals read as three
+ * decisions rather than as one staggered animation.
+ */
 const ARRIVALS = [
-  { from: 0.06, span: 0.16 },
-  { from: 0.3, span: 0.16 },
-  { from: 0.54, span: 0.16 },
+  { from: 0.04, span: 0.2 },
+  { from: 0.32, span: 0.2 },
+  { from: 0.62, span: 0.2 },
 ] as const;
 
-/** Vertical stack on a phone; a shallow fan from `sm`. */
+/** A whisper of rake from `sm`, where the cards sit side by side. */
 const RAKE = [
-  "sm:w-[19rem] rotate-[-1.4deg] sm:translate-y-4",
-  "-mt-7 sm:mt-0 sm:-ml-8 sm:w-[17rem] rotate-[1.2deg] sm:translate-y-24",
-  "-mt-7 sm:mt-0 sm:-ml-8 sm:w-[17rem] rotate-[2.8deg] sm:-translate-y-6",
+  "sm:rotate-[-0.9deg]",
+  "sm:rotate-[0.6deg]",
+  "sm:rotate-[1.8deg]",
 ] as const;
 
 export function OnlyAFewSection() {
-  const { ref } = useScrollScene<HTMLDivElement>({ mode: "sticky" });
-  const [first, second, third] = ONLY_A_FEW_EXAMPLES;
+  const { ref } = usePinScene<HTMLDivElement>({ holdIn: 0.12, holdOut: 0.24 });
 
   return (
     <section id="only-a-few" className="scroll-mt-24 border-b border-line bg-lavender-50/50">
       <div
-        className={cn(
-          LANDING_MEASURE,
-          LANDING_RHYTHM,
-          "grid gap-10 md:grid-cols-[minmax(0,0.42fr)_minmax(0,0.58fr)] md:gap-16",
-        )}
+        ref={ref}
+        className="fiyu-lp-scene fiyu-lp-runway relative [--runway:168svh] sm:[--runway:185svh]"
       >
-        <div className="min-w-0">
-          <SectionEyebrow>A slower reveal</SectionEyebrow>
-          <h2 className={cn(LANDING_HEADING, "mt-6 text-ink")}>Only a few.</h2>
-        </div>
-
-        <div className="min-w-0">
-          <p className="max-w-[38rem] text-base leading-8 text-ink-muted sm:text-[1.0625rem] sm:leading-9">
-            Great small restaurants can struggle with sudden attention. Fiyu reveals discoveries
-            gradually through small, personalized selections drawn from a broader pool of similarly
-            strong places. By varying recommendations across users instead of directing everyone to
-            the same restaurants, Fiyu helps keep discovery thoughtful while reducing pressure on
-            the places and communities that make them special.
-          </p>
-        </div>
-      </div>
-
-      <div ref={ref} className="fiyu-lp-scene relative h-[150svh] sm:h-[210svh]">
-        {/* Padded rather than offset: the stage still pins at the very top, but
-            its contents are centred in the space the sticky header leaves. */}
-        <div className="sticky top-0 flex h-svh items-center overflow-hidden pt-16 lg:pt-20">
+        <div className="fiyu-lp-stage flex flex-col justify-center overflow-hidden pt-16 pb-8 lg:pt-20 lg:pb-10">
           <div className={cn(LANDING_MEASURE, "w-full")}>
-            <div className="mx-auto flex w-full max-w-[24rem] flex-col sm:max-w-none sm:flex-row sm:items-start sm:justify-center">
-              {[first, second, third].map((example, index) => (
+            <div className="mx-auto max-w-[34rem] text-center">
+              <SectionEyebrow className="justify-center">A slower reveal</SectionEyebrow>
+              <h2 className="mt-4 font-display text-[clamp(2.5rem,7vw,5.5rem)] leading-[0.9] tracking-[-0.03em] text-ink sm:mt-5">
+                Only a few.
+              </h2>
+              <p className="mx-auto mt-4 max-w-[34rem] text-sm leading-6 text-ink-muted sm:mt-6 sm:text-base sm:leading-8">
+                A small, personal selection from a much broader pool of strong restaurants—so
+                attention spreads instead of landing on the same few places.
+              </p>
+            </div>
+
+            {/*
+             * Three shelves. The rule is on the cell, not on the card, so it is
+             * there from the first frame and stays after the card lands.
+             */}
+            <div className="mx-auto mt-6 grid max-w-[62rem] gap-2 sm:mt-12 sm:grid-cols-3 sm:gap-5 lg:gap-7">
+              {ONLY_A_FEW_EXAMPLES.map((example, index) => (
                 <div
                   key={example.id}
-                  data-arrival={index + 1}
-                  className={cn(
-                    "fiyu-lp-stage-item min-w-0 [--stage-y:30px]",
-                    RAKE[index],
-                  )}
-                  style={
-                    {
-                      "--from": String(ARRIVALS[index].from),
-                      "--span": String(ARRIVALS[index].span),
-                    } as React.CSSProperties
-                  }
+                  className="min-w-0 border-b border-line-strong pb-2.5 sm:pb-4"
                 >
-                  {index === 0 ? (
-                    <ExamplePickCard example={example} />
-                  ) : (
-                    <ExamplePickCardBrief example={example} />
-                  )}
+                  <div
+                    data-arrival={index + 1}
+                    className={cn(
+                      "fiyu-lp-stage-item min-w-0 [--stage-scale:0.04] [--stage-y:20px]",
+                      RAKE[index],
+                    )}
+                    style={
+                      {
+                        "--from": String(ARRIVALS[index].from),
+                        "--span": String(ARRIVALS[index].span),
+                      } as React.CSSProperties
+                    }
+                  >
+                    <ExamplePickCard example={example} detail="sm-up" />
+                  </div>
                 </div>
               ))}
             </div>
 
             {/*
-             * A noren hem closing the sequence: one continuous rail with three
-             * panels of uneven drop, kept from the section this replaces. Three
-             * panels for three discoveries, and then the rail runs out.
+             * A noren hem closing the sequence, kept from the section this
+             * replaces. Three panels for three discoveries, and then the rail
+             * runs out. Desktop only -- on a phone the three shelves already
+             * carry the idea and this is the first thing worth the height.
              */}
             <div
               aria-hidden="true"
-              className="fiyu-lp-stage-item mx-auto mt-14 flex max-w-[32rem] items-start [--from:0.74] [--span:0.18] [--stage-y:12px]"
+              className="fiyu-lp-hem fiyu-lp-stage-item mx-auto mt-10 max-w-[30rem] items-start [--from:0.82] [--span:0.14] [--stage-y:10px]"
             >
               <span className="h-px flex-1 bg-line-strong" />
-              <span className="h-7 w-11 border border-line-strong" />
-              <span className="h-10 w-11 border-t border-r border-b border-line-strong" />
-              <span className="h-7 w-11 border-t border-r border-b border-line-strong" />
+              <span className="h-6 w-10 border border-line-strong" />
+              <span className="h-9 w-10 border-t border-r border-b border-line-strong" />
+              <span className="h-6 w-10 border-t border-r border-b border-line-strong" />
               <span className="h-px flex-1 bg-line-strong" />
             </div>
           </div>

@@ -8,17 +8,20 @@
  *
  * 1. The settled state is the default state. `--scene-progress` defaults to 1
  *    and entrance classes are transparent only inside
- *    `@media (prefers-reduced-motion: no-preference) and (scripting: enabled)`.
- *    A reader with reduced motion, with JavaScript off, or on a browser that
- *    does not know the `scripting` feature, gets the finished composition on
- *    the first paint -- fully legible, no layout shift, nothing to wait for.
+ *    `@media (prefers-reduced-motion: no-preference)` and
+ *    `@media (scripting: enabled)`. A reader with reduced motion, with
+ *    JavaScript off, or on a browser that does not know the `scripting` feature
+ *    gets the finished composition on the first paint -- fully legible, no
+ *    layout shift, nothing to wait for.
  *
  * 2. Only `opacity`, `transform` and `clip-path` are animated. No width, no
  *    top, no margin: nothing here can reflow the page while it scrolls.
  *
- * 3. Scroll-linked sections are driven by one custom property written by
- *    `scrollScene.ts`. React never re-renders per frame; the browser
- *    interpolates from `--scene-progress` in `calc()`.
+ * 3. `--scene-progress` arrives already remapped past the pinned stage's holds,
+ *    so every `--from` / `--span` pair below is in transition space. 0 means the
+ *    stage has finished holding its start state; 1 means it has reached its end
+ *    state and is about to hold that. No effect is ever mid-flight while its
+ *    section is arriving or leaving.
  */
 
 /* --------------------------------------------------------------------------
@@ -40,11 +43,11 @@
   from {
     opacity: 0;
     transform: translate3d(var(--settle-x, 0), var(--settle-y, 22px), 0)
-      scale(var(--settle-scale, 0.965)) rotate(var(--settle-rotate, 0deg));
+      scale(var(--settle-scale, 0.965));
   }
   to {
     opacity: 1;
-    transform: translate3d(0, 0, 0) scale(1) rotate(0deg);
+    transform: translate3d(0, 0, 0) scale(1);
   }
 }
 
@@ -54,6 +57,34 @@
   }
   to {
     transform: scaleX(1);
+  }
+}
+
+/*
+ * A photograph arriving.
+ *
+ * An eighteen percent unveil from the lower edge, not a full wipe: at full
+ * height the sweep is the loudest thing on the page, and at a fifth it reads as
+ * the image settling into its frame. The scale lives on the inner element so the
+ * two never fight over `transform`.
+ */
+@keyframes fiyu-lp-plate-in {
+  from {
+    opacity: 0;
+    clip-path: inset(0 0 18% 0);
+  }
+  to {
+    opacity: 1;
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+@keyframes fiyu-lp-plate-settle {
+  from {
+    transform: scale(1.045);
+  }
+  to {
+    transform: scale(1);
   }
 }
 
@@ -68,13 +99,56 @@
 }
 
 /*
- * The pre-state and the ambient loops live behind both queries together. If a
+ * A very slow scale on a large image, and an even slower positional drift on the
+ * world plate. Three and a half percent over twenty-six seconds, and under one
+ * percent over forty-six, are both below the threshold at which a reader can
+ * tell anything is moving. That is the intent: alive, not animated.
+ */
+@keyframes fiyu-lp-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.035);
+  }
+}
+
+@keyframes fiyu-lp-map-drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  33% {
+    transform: translate3d(-0.55%, 0.4%, 0);
+  }
+  66% {
+    transform: translate3d(0.5%, -0.45%, 0);
+  }
+}
+
+/* A live city marker breathing. Opacity and scale on a halo ring, never a glow. */
+@keyframes fiyu-lp-halo {
+  0%,
+  100% {
+    opacity: 0.3;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.62;
+    transform: scale(1.22);
+  }
+}
+
+/*
+ * The pre-state and every ambient loop live behind both queries together. If a
  * browser cannot answer `scripting`, it never hides anything.
  */
 @media (prefers-reduced-motion: no-preference) {
   @media (scripting: enabled) {
     .fiyu-lp-rise,
-    .fiyu-lp-settle {
+    .fiyu-lp-settle,
+    .fiyu-lp-plate {
       opacity: 0;
     }
 
@@ -88,7 +162,16 @@
         var(--settle-delay, 0ms) both;
     }
 
-    /* A hairline growing from its leading edge: a signal resolving, not a bar
+    .fiyu-lp-plate[data-in="true"] {
+      animation: fiyu-lp-plate-in var(--plate-duration, 900ms) var(--ease-fiyu)
+        var(--plate-delay, 0ms) both;
+    }
+
+    .fiyu-lp-plate-image[data-in="true"] {
+      animation: fiyu-lp-plate-settle 1600ms var(--ease-fiyu) var(--plate-delay, 0ms) both;
+    }
+
+    /* A hairline growing from its leading edge: a signal arriving, not a bar
        filling. transform-origin is set per side by the caller. */
     .fiyu-lp-rule {
       transform: scaleX(0);
@@ -99,25 +182,35 @@
         var(--rule-delay, 0ms) both;
     }
 
-    /*
-     * Ambient drift. Deliberately 4-6px over 9-13 seconds: at this amplitude
-     * the composition reads as breathing rather than moving, and nothing ever
-     * travels far enough to look like an animation playing.
-     */
     .fiyu-lp-drift {
       animation: fiyu-lp-drift var(--drift-duration, 11s) ease-in-out
         var(--drift-delay, 0s) infinite;
       will-change: transform;
     }
+
+    .fiyu-lp-breathe {
+      animation: fiyu-lp-breathe var(--breathe-duration, 26s) ease-in-out infinite;
+    }
+
+    .fiyu-lp-map-drift {
+      animation: fiyu-lp-map-drift 46s ease-in-out infinite;
+    }
+
+    .fiyu-lp-halo[data-in="true"] {
+      transform-box: fill-box;
+      transform-origin: center;
+      animation: fiyu-lp-halo 5.5s ease-in-out var(--halo-delay, 0ms) infinite;
+    }
   }
 }
 
 /* --------------------------------------------------------------------------
- * Scroll-linked scenes
+ * Pinned stages
  *
- * `--scene-progress` runs 0 -> 1 across a scene's runway. Each element derives
- * its own normalised `--enter` from a window inside that runway, so one
- * property drives a whole staged sequence.
+ * `--scene-progress` runs 0 -> 1 across a stage's transition window, holds
+ * excluded. Each element derives its own normalised `--enter` from a slice of
+ * that window, so one property drives a whole staged sequence and the browser
+ * interpolates it on the compositor without a keyframe or a class change.
  * ----------------------------------------------------------------------- */
 
 .fiyu-lp-scene {
@@ -126,8 +219,11 @@
 
 /*
  * A staged element: invisible before `--from`, settled after `--from + --span`.
- * `--enter` is plain arithmetic, so it interpolates on the compositor without
- * a keyframe or a class change.
+ *
+ * Every call site keeps `--from + --span` at or below 1, so the last thing in a
+ * sequence finishes inside the transition window and is then held, at rest, for
+ * the whole of the stage's hold-out. That is what makes the end of a stage read
+ * as a composed screen rather than as the last frame of an animation.
  */
 .fiyu-lp-stage-item {
   --enter: clamp(0, calc((var(--p) - var(--from, 0)) / var(--span, 0.25)), 1);
@@ -140,7 +236,7 @@
     scale(calc(1 - (1 - var(--enter)) * var(--stage-scale, 0.03)));
 }
 
-/* Held content that gives way as the scene resolves into something else. */
+/* Held content that gives way as the stage resolves into something else. */
 .fiyu-lp-stage-exit {
   --exit: clamp(0, calc((var(--p) - var(--from, 0.4)) / var(--span, 0.2)), 1);
   opacity: calc(1 - var(--exit));
@@ -148,67 +244,20 @@
 }
 
 /*
- * The restaurant-first moment: a full-bleed image cropping down into a Fiyu
- * card. `clip-path` rather than width, so the frame closes in without the
- * surrounding column ever reflowing.
+ * The SVG variant. Inside an SVG a `transform` in pixels is read in user units
+ * unless `transform-box` is set, so map marks stage on opacity alone.
  */
-.fiyu-lp-crop {
-  /* Its own window inside the runway, so the plate can hold full bleed for a
-     while before it starts closing rather than narrowing from the first pixel. */
-  --cp: clamp(0, calc((var(--p) - var(--crop-from, 0)) / var(--crop-span, 1)), 1);
-  clip-path: inset(
-    calc(var(--cp) * var(--crop-top, 0%)) calc(var(--cp) * var(--crop-right, 0%))
-      calc(var(--cp) * var(--crop-bottom, 0%)) calc(var(--cp) * var(--crop-left, 0%))
-      round calc(var(--cp) * 0.875rem)
-  );
-}
-
-.fiyu-lp-crop-image {
-  transform: scale(calc(1 + var(--cp) * 0.07));
-}
-
-/*
- * The world plate answering the city rollout: a slow pan, never a fly-to.
- *
- * Windowed like the crop, and for a sharper reason -- a section that is shorter
- * than the viewport reaches full progress only once it has left the screen, so
- * without a window the plate would finish opening where nobody could see it.
- */
-.fiyu-lp-atlas {
-  --ap: clamp(0, calc((var(--p) - var(--atlas-from, 0)) / var(--atlas-span, 1)), 1);
-  transform: translate3d(
-      calc(var(--atlas-x, 0px) + var(--ap) * var(--atlas-travel-x, 0px)),
-      calc(var(--atlas-y, 0px) + var(--ap) * var(--atlas-travel-y, 0px)),
-      0
-    )
-    scale(calc(var(--atlas-scale, 1.6) + var(--ap) * var(--atlas-travel-scale, -0.6)));
-  transform-origin: center;
-}
-
-/*
- * A stale `--scene-progress` left on an element when the motion preference flips
- * at runtime would strand a crop mid-close. The hook removes the property, and
- * this states the settled crop outright either way.
- */
-@media (prefers-reduced-motion: reduce) {
-  .fiyu-lp-crop {
-    clip-path: inset(
-      var(--crop-top, 0%) var(--crop-right, 0%) var(--crop-bottom, 0%)
-        var(--crop-left, 0%) round 0.875rem
-    );
-  }
-
-  .fiyu-lp-crop-image {
-    transform: none;
-  }
+.fiyu-lp-stage-fade {
+  --enter: clamp(0, calc((var(--p) - var(--from, 0)) / var(--span, 0.2)), 1);
+  opacity: calc(var(--enter) * var(--enter-opacity, 1));
 }
 
 /* --------------------------------------------------------------------------
  * The reveal
  *
  * A concealed face laid over the card it hides. The settled state is lifted, so
- * the restaurant beneath is in the server-rendered HTML either way and no
- * reader ever waits on a timer to find out what a card says.
+ * the restaurant beneath is in the server-rendered HTML either way and no reader
+ * ever waits on a timer to find out what a card says.
  * ----------------------------------------------------------------------- */
 
 .fiyu-lp-veil {
@@ -229,35 +278,126 @@
   }
 }
 
-/*
- * The SVG variant of a staged element. Inside an SVG a `transform` in pixels is
- * read in user units unless `transform-box` is set, so map marks stage on
- * opacity alone and let the atlas transform carry the movement.
- */
-.fiyu-lp-stage-fade {
-  --enter: clamp(0, calc((var(--p) - var(--from, 0)) / var(--span, 0.2)), 1);
-  opacity: calc(var(--enter) * var(--enter-opacity, 1));
-}
+/* --------------------------------------------------------------------------
+ * The city link
+ *
+ * A hairline drawing itself from Tokyo toward New York: the expansion cue on the
+ * world plate. Dashed only while it is being drawn -- with motion off or
+ * scripting unavailable it is simply a solid line, already there.
+ * ----------------------------------------------------------------------- */
 
-/*
- * A very slow scale on a large image: a photograph breathing rather than a
- * photograph panning. Three and a half percent over twenty-six seconds is below
- * the threshold at which a reader can tell it is moving, which is the point.
- */
-@keyframes fiyu-lp-breathe {
-  0%,
-  100% {
-    transform: scale(1);
+@keyframes fiyu-lp-path-draw {
+  from {
+    stroke-dashoffset: var(--path-length, 900);
   }
-  50% {
-    transform: scale(1.035);
+  to {
+    stroke-dashoffset: 0;
   }
 }
 
 @media (prefers-reduced-motion: no-preference) {
   @media (scripting: enabled) {
-    .fiyu-lp-breathe {
-      animation: fiyu-lp-breathe var(--breathe-duration, 26s) ease-in-out infinite;
+    .fiyu-lp-path {
+      stroke-dasharray: var(--path-length, 900);
+      stroke-dashoffset: var(--path-length, 900);
     }
+
+    .fiyu-lp-path[data-in="true"] {
+      animation: fiyu-lp-path-draw var(--path-duration, 1500ms) var(--ease-fiyu)
+        var(--path-delay, 0ms) both;
+    }
+  }
+}
+
+/* --------------------------------------------------------------------------
+ * Pinning, and when not to
+ *
+ * A pinned stage assumes its composition fits one viewport. Below roughly 640
+ * CSS pixels of height -- a phone in landscape, a small laptop with a deep
+ * toolbar, an iPhone SE -- it does not, and flex-centring content taller than
+ * its container clips it at both ends, which takes the top off the very
+ * composition the pin exists to show.
+ *
+ * So pinning is a capability, declared here in one place rather than assumed at
+ * nine call sites. Under the threshold the runway collapses to its content and
+ * the stage is an ordinary static section showing its finished state, which is
+ * the same thing a reduced-motion visitor gets and is already a first-class
+ * state. `usePinScene` reads the same threshold and reports progress 1, so the
+ * two can never disagree.
+ * ----------------------------------------------------------------------- */
+
+.fiyu-lp-runway {
+  height: auto;
+}
+
+.fiyu-lp-stage {
+  position: static;
+}
+
+@media (min-height: 640px) {
+  .fiyu-lp-runway {
+    height: var(--runway, 190svh);
+  }
+
+  .fiyu-lp-stage {
+    position: sticky;
+    top: 0;
+    height: 100svh;
+  }
+}
+
+/*
+ * A step's copy, condensed where the stage is pinned and the column is narrow.
+ *
+ * Visually hidden, not removed: the titles stay on screen, the copy stays in the
+ * accessibility tree and in the document, and both come back as soon as there is
+ * either the width to show them or no pin to fit them inside.
+ */
+@media (min-height: 640px) and (max-width: 1023px) {
+  .fiyu-lp-step-copy[data-active="false"] {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+/*
+ * Ornament, shown only where there is height to spare.
+ *
+ * The noren hem is the last eighty pixels of a pinned stage and the first thing
+ * that should go: a 1366 by 768 window has roughly 540 usable pixels once the
+ * header and the stage's own padding are out, and flex-centring content taller
+ * than that clips it at the top as well as the bottom. So the hem is gated on
+ * height rather than trusted to fit.
+ */
+.fiyu-lp-hem {
+  display: none;
+}
+
+@media (min-width: 640px) and (min-height: 820px) {
+  .fiyu-lp-hem {
+    display: flex;
+  }
+}
+
+/*
+ * Map labels, hidden at phone scale.
+ *
+ * SVG text scales with the viewBox, so a 130-unit label box inside a 900-unit
+ * map renders about six pixels tall on a 390px screen. The rollout rows beside
+ * the plate already name both cities and both states, so below `sm` the plate
+ * keeps its pins and drops its labels rather than showing type nobody can read.
+ */
+.fiyu-lp-map-label {
+  display: none;
+}
+
+@media (min-width: 640px) {
+  .fiyu-lp-map-label {
+    display: inline;
   }
 }

@@ -1,6 +1,5 @@
 "use client";
 
-import { ExamplePickCard } from "@/components/landing-page/ExamplePickCard";
 import { LOOK_BEYOND_EXAMPLE } from "@/components/landing-page/landingExamples";
 import {
   LANDING_HEADING,
@@ -9,117 +8,131 @@ import {
   SectionEyebrow,
 } from "@/components/landing-page/landingSystem";
 import { useEntered } from "@/components/landing-page/motion/scrollScene";
+import { ScoreMark } from "@/components/ui/ScoreMark";
 import { cn } from "@/lib/utils/cn";
 
 /**
  * Look beyond what rises to the top.
  *
- * The section that has to explain why Fiyu can see places other platforms
- * cannot, without drawing a single node, edge or glow. Four things Fiyu reads,
- * set as an editorial index, each opened by a hairline that draws itself in --
- * a signal arriving, which is the honest visual for this and also the quietest.
+ * Why Fiyu can see places other platforms cannot, without a node, an edge or a
+ * glow anywhere. Four things Fiyu reads, set as an editorial index, each opened
+ * by a hairline that draws itself in.
  *
- * Then one card, placed to cross from the index column back under the heading.
- * That overlap is the argument: four signals, one place worth going.
+ * The previous version had a real bug and a real excess. The pick card was placed
+ * at `col-start-4 span-5` with a negative top margin to pull it back up into the
+ * first grid row, which put it straight through the paragraph in the left column
+ * at some widths -- it read as a rendering fault, because it was one. And the
+ * section carried a five-line paragraph plus four two-line explanations, which is
+ * more prose than any single claim on this page has earned.
  *
- * Entrance motion only. This is a claim about judgement, and scrubbing it
- * against a scrollbar would make it feel like a machine demonstrating itself.
+ * Rebuilt with no overlap at all: heading and three lines of standfirst, then the
+ * four signals on their own row, then one ruled line naming the place they
+ * resolve into. Nothing is positioned against anything else, so there is no
+ * width at which two things can collide, and nothing is clipped because nothing
+ * leaves its own box.
+ *
+ * The card became a line. A full card here was the fourth appearance of the same
+ * object within three screens, and it only needed to say "and here is one".
+ *
+ * Entrance motion only. This is a claim about judgement; scrubbing it against a
+ * scrollbar would make it feel like a machine demonstrating itself.
  */
 
 const SIGNALS = [
   {
     label: "Local-language context",
-    copy: "What people write about a place in the language they live in.",
+    copy: "What people say about a place in the language they live in.",
   },
   {
-    label: "Independent and owner-run",
-    copy: "Small operations, rather than groups and chains with reach to spend.",
+    label: "Independent",
+    copy: "Small, owner-run kitchens rather than groups with reach to spend.",
   },
   {
-    label: "Strong local reception",
-    copy: "Well regarded by the people who actually eat there.",
+    label: "Strong local signals",
+    copy: "Consistent quality without needing mass visibility.",
   },
   {
-    label: "Less visible than it deserves",
-    copy: "Little carry beyond its own few streets.",
+    label: "Underexposed",
+    copy: "Better than its digital footprint suggests.",
   },
 ] as const;
 
 export function LookBeyondSection() {
   const { ref, entered } = useEntered<HTMLDivElement>();
   const flag = entered ? "true" : "false";
+  const example = LOOK_BEYOND_EXAMPLE;
 
   return (
     <section id="look-beyond" className="scroll-mt-24 border-b border-line bg-subtle">
       <div ref={ref} className={cn(LANDING_MEASURE, LANDING_RHYTHM)}>
-        <div className="lg:grid lg:grid-cols-12 lg:gap-x-12">
-          <div className="min-w-0 lg:col-span-6 lg:col-start-1">
-            <SectionEyebrow>Underexposure</SectionEyebrow>
-            <h2 className={cn(LANDING_HEADING, "mt-6 max-w-[18ch] text-ink")}>
-              Look beyond what rises to the top.
-            </h2>
-            <p className="mt-7 max-w-[34rem] text-base leading-8 text-ink-muted sm:text-[1.0625rem] sm:leading-9">
-              Discovery platforms tend to reinforce the restaurants that are already easiest to
-              find. Excellent independent places can be far less visible—especially when their
-              strongest context was never written in English. Fiyu reads that context, weighs
-              quality against how widely a place is already known, and learns from what you save.
-            </p>
-          </div>
+        <SectionEyebrow>Underexposure</SectionEyebrow>
+        <div className="mt-6 grid gap-x-16 gap-y-8 lg:grid-cols-[minmax(0,0.52fr)_minmax(0,0.48fr)] lg:items-end">
+          <h2 className={cn(LANDING_HEADING, "max-w-[18ch] text-ink")}>
+            Look beyond what rises to the top.
+          </h2>
+          <p className="max-w-[30rem] text-base leading-8 text-ink-muted lg:pb-2">
+            Discovery platforms reinforce whatever is already easiest to find. Fiyu reads the
+            context those platforms never index, and weighs quality against how widely a place
+            is already known.
+          </p>
+        </div>
 
-          <ol className="mt-14 min-w-0 lg:col-span-5 lg:col-start-8 lg:mt-2">
-            {SIGNALS.map((signal, index) => (
-              <li key={signal.label} className="min-w-0 pb-7 last:pb-0">
-                <span
-                  aria-hidden="true"
-                  className="fiyu-lp-rule block h-px w-full origin-left bg-line-strong"
-                  data-in={flag}
-                  style={{ "--rule-delay": index * 150 + 120 + "ms" } as React.CSSProperties}
-                />
-                <div
-                  className="fiyu-lp-rise pt-4"
-                  data-in={flag}
-                  style={
-                    {
-                      "--rise-delay": index * 150 + 260 + "ms",
-                      "--rise-from": "10px",
-                    } as React.CSSProperties
-                  }
-                >
-                  <p className="text-[0.8125rem] font-semibold tracking-[0.02em] text-ink">
-                    {signal.label}
-                  </p>
-                  <p className="mt-1.5 max-w-[24rem] text-[0.8125rem] leading-6 text-ink-muted">
-                    {signal.copy}
-                  </p>
-                </div>
-              </li>
-            ))}
-          </ol>
-
-          {/*
-           * The card crosses the column boundary rather than sitting inside
-           * either one. Nothing else on the page does this, which is what makes
-           * the overlap read as a conclusion.
-           */}
-          <div className="relative z-10 mt-12 min-w-0 lg:col-span-5 lg:col-start-4 lg:-mt-24">
-            <div
-              className="fiyu-lp-settle mx-auto w-full max-w-[22rem] lg:mx-0"
-              data-in={flag}
-              style={
-                {
-                  "--settle-delay": "760ms",
-                  "--settle-x": "-12px",
-                  "--settle-y": "20px",
-                } as React.CSSProperties
-              }
-            >
-              <p className="mb-4 font-display text-[1.375rem] leading-tight text-ink">
-                Then one place worth going.
-              </p>
-              <div className="-rotate-[0.8deg]">
-                <ExamplePickCard example={LOOK_BEYOND_EXAMPLE} />
+        {/* The four signals, on one row. Nothing overlaps anything. */}
+        <ol className="mt-14 grid gap-x-10 gap-y-9 sm:grid-cols-2 sm:mt-16 lg:grid-cols-4 lg:gap-x-12">
+          {SIGNALS.map((signal, index) => (
+            <li key={signal.label} className="min-w-0">
+              <span
+                aria-hidden="true"
+                className="fiyu-lp-rule block h-px w-full origin-left bg-line-strong"
+                data-in={flag}
+                style={{ "--rule-delay": index * 140 + 100 + "ms" } as React.CSSProperties}
+              />
+              <div
+                className="fiyu-lp-rise pt-4"
+                data-in={flag}
+                style={
+                  {
+                    "--rise-delay": index * 140 + 240 + "ms",
+                    "--rise-from": "10px",
+                  } as React.CSSProperties
+                }
+              >
+                <p className="text-[0.6875rem] font-semibold tracking-[0.14em] text-lavender-700 uppercase">
+                  {signal.label}
+                </p>
+                <p className="mt-2.5 max-w-[22rem] text-[0.9375rem] leading-6 text-ink-muted">
+                  {signal.copy}
+                </p>
               </div>
+            </li>
+          ))}
+        </ol>
+
+        {/*
+         * And one place. A single ruled line rather than a card: the last word of
+         * the section, in the same measure as everything above it.
+         */}
+        <div
+          className="fiyu-lp-rise mt-14 border-t border-line-strong pt-6 sm:mt-16"
+          data-in={flag}
+          style={{ "--rise-delay": "760ms", "--rise-from": "12px" } as React.CSSProperties}
+        >
+          <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-4">
+            <div className="min-w-0">
+              <p className="text-[0.625rem] font-semibold tracking-[0.16em] text-ink-faint uppercase">
+                Then one place worth going
+              </p>
+              <p
+                lang="ja"
+                className="mt-3 font-display text-[clamp(1.5rem,3vw,2.5rem)] leading-tight text-ink"
+              >
+                {example.nameJa}
+              </p>
+              <p className="mt-2 text-sm text-ink-muted">
+                {example.nameEn} · {example.area} · {example.category}
+              </p>
             </div>
+            <ScoreMark score={example.score} size="lg" className="shrink-0" />
           </div>
         </div>
       </div>

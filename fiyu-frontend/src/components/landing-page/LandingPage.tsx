@@ -13,20 +13,28 @@ import { RestaurantMoment } from "@/components/landing-page/RestaurantMoment";
 /**
  * The public landing page, as a sequence rather than a stack.
  *
- * Nine movements, and no two of them are composed the same way: a hero with a
- * live product composition, a full-bleed restaurant cropping into a record, a
- * pinned Fiyu surface beside scrolling steps, three cards accumulating on an
- * empty field, three ruled indexes of type, an asymmetric grid a card crosses,
- * a world plate panning out beside a rollout, a dark city edition at full
- * bleed, and the hero composition returning mirrored.
+ * Read top to bottom: what Fiyu is, a restaurant, how it works, how the places
+ * are found, why so few, why not the same few for everyone, where Fiyu is, the
+ * current edition, and a way in.
  *
- * Read top to bottom the order is: what Fiyu is, a restaurant, how it works,
- * why so few, why not the same few for everyone, how the places are found,
- * where Fiyu is, the current edition, and a way in.
+ * Nine movements, no two composed the same way -- a hero with a live product
+ * composition, a photographic band resolving into a record, a pinned Fiyu
+ * surface beside three steps, a typographic index of signals, three cards
+ * arriving on ruled shelves, three photographic selections, a world plate
+ * lighting city by city, a dark edition at one viewport, and a closing colophon.
  *
- * Three of the nine are scroll-linked -- the restaurant crop, the accumulation,
- * the rollout. The rest use entrance motion or none at all, so ordinary
- * scrolling stays ordinary.
+ * Motion is deliberately unevenly distributed. Exactly two sections are
+ * scroll-scrubbed, and both are pinned stages that hold a composed state at each
+ * end -- pinning is the only honest way to scrub, because it guarantees both
+ * endpoints are fully on screen. Everything else triggers once on entry and then
+ * stops. The two pinned stages are separated by a compact typographic section on
+ * purpose: four consecutive viewports of pinned scrolling reads as a slideshow
+ * however good each stage is.
+ *
+ * Pacing is by density, not by giving every section a viewport. Hero spacious,
+ * restaurant photographic, product demonstration long because it is the section
+ * with the most to show, signals compact, the reveal short and dramatic,
+ * selections structured, locations visual, the edition concise, the close simple.
  */
 export function LandingPage() {
   return (
@@ -34,9 +42,9 @@ export function LandingPage() {
       <HeroSection />
       <RestaurantMoment />
       <HowFiyuWorks />
+      <LookBeyondSection />
       <OnlyAFewSection />
       <DifferentDiscoveries />
-      <LookBeyondSection />
       <LocationsSection />
       <CityEditionSection />
       <FinalCta />

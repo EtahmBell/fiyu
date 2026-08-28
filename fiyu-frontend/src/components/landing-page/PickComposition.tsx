@@ -9,16 +9,22 @@ import {
 } from "@/components/landing-page/ExamplePickCard";
 import type { LandingExample } from "@/components/landing-page/landingExamples";
 import { NearbyDiscoveryPlate } from "@/components/landing-page/NearbyDiscoveryPlate";
-import { useEntered, usePrefersReducedMotion } from "@/components/landing-page/motion/scrollScene";
+import { usePrefersReducedMotion } from "@/components/landing-page/motion/scrollScene";
 import { cn } from "@/lib/utils/cn";
 
 /**
  * Three Fiyu picks settling onto a neighbourhood.
  *
- * The hero composition, and the closing one that answers it: a plate of
- * somewhere, a revealed pick in front, a second pick uncovering itself, a third
- * still concealed. Those are the two states the application actually has, in the
- * order a reader meets them.
+ * The hero's composition, and now only the hero's: a plate of somewhere, a
+ * revealed pick in front, a second pick uncovering itself, a third still
+ * concealed. Those are the two states the application actually has, in the order
+ * a reader meets them.
+ *
+ * It used to close the page as well. Ending on the same object the page opened
+ * with meant a reader met it three times inside one visit, which is most of why
+ * the imagery felt thin -- so the final section is type and a colophon now, and
+ * this composition belongs to the hero alone. It runs on load, because the hero
+ * is above the fold, and needs no observer.
  *
  * The stack is laid out in normal flow with negative margins and alternating
  * alignment, not by absolute percentages inside a fixed-height box. That is what
@@ -136,28 +142,24 @@ const PLATE_MASK = "radial-gradient(ellipse 74% 72% at 50% 48%, black 44%, trans
 
 export function PickComposition({
   examples,
-  immediate = false,
   className,
 }: {
   examples: readonly LandingExample[];
-  /** The hero runs on load. Anything below the fold waits to be reached. */
-  immediate?: boolean;
   className?: string;
 }) {
   const reduced = usePrefersReducedMotion();
-  const { ref, entered } = useEntered<HTMLDivElement>("0px 0px -20% 0px");
-  const started = immediate || entered;
+  const started = true;
   const [lifted, setLifted] = useState(false);
   const [front, middle, back] = examples;
 
   useEffect(() => {
-    if (reduced || !started) return;
+    if (reduced) return;
     const timer = window.setTimeout(() => setLifted(true), REVEAL_DELAY_MS);
     return () => window.clearTimeout(timer);
-  }, [reduced, started]);
+  }, [reduced]);
 
   return (
-    <div ref={ref} data-testid="pick-composition" className={cn("relative min-w-0", className)}>
+    <div data-testid="pick-composition" className={cn("relative min-w-0", className)}>
       {/*
        * The plate is masked at its edges rather than framed. A border here made
        * the whole composition read as one screenshot laid on the page. It is
