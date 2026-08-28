@@ -3,6 +3,11 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
+import {
+  NEXT_CITY_CAMPAIGN_ACTIVE,
+  NextCityPoll,
+  openNextCityVote,
+} from "@/components/landing-page/NextCityPoll";
 import { fetchNotifications, markAllNotificationsRead, markNotificationRead } from "@/lib/api/client";
 import type { UserNotification } from "@/lib/api/schemas";
 import { safeInternalPath } from "@/lib/navigation/safeRedirect";
@@ -37,17 +42,27 @@ export function NotificationsMenu() {
   const identity = useProfileIdentity();
   const userId = identity.profile?.user_id ?? null;
   const [state, setState] = useState<NotificationState | null>(null);
+  const [campaignState, setCampaignState] = useState<{ userId: string; read: boolean } | null>(null);
   const detailsRef = useRef<HTMLDetailsElement>(null);
   const current = userId && state?.userId === userId ? state : null;
+  const campaignRead = campaignState?.userId === userId && campaignState.read;
   const items = current?.status === "ready" ? current.items : [];
   const unreadCount = items.reduce(
     (count, item) => count + (item.read_at === null ? 1 : 0),
     0,
-  );
+  ) + (NEXT_CITY_CAMPAIGN_ACTIVE && !campaignRead ? 1 : 0);
 
   useEffect(() => {
     if (!userId) return;
     const controller = new AbortController();
+    queueMicrotask(() => {
+      if (!controller.signal.aborted) {
+        setCampaignState({
+          userId,
+          read: window.localStorage.getItem(`fiyu:next-city-campaign:read:${userId}`) === "1",
+        });
+      }
+    });
     void fetchNotifications({ signal: controller.signal })
       .then((notifications) => {
         if (!controller.signal.aborted) setState({ status: "ready", userId, items: notifications });
@@ -57,6 +72,15 @@ export function NotificationsMenu() {
       });
     return () => controller.abort();
   }, [userId]);
+
+  function openCampaign() {
+    if (userId) {
+      window.localStorage.setItem(`fiyu:next-city-campaign:read:${userId}`, "1");
+      setCampaignState({ userId, read: true });
+    }
+    if (detailsRef.current) detailsRef.current.open = false;
+    openNextCityVote();
+  }
 
   if (identity.status !== "ready" || !userId) return null;
 
@@ -82,6 +106,10 @@ export function NotificationsMenu() {
   }
 
   async function markEverythingRead() {
+    if (userId && NEXT_CITY_CAMPAIGN_ACTIVE) {
+      window.localStorage.setItem(`fiyu:next-city-campaign:read:${userId}`, "1");
+      setCampaignState({ userId, read: true });
+    }
     try {
       await markAllNotificationsRead();
       const readAt = new Date().toISOString();
@@ -96,6 +124,7 @@ export function NotificationsMenu() {
   }
 
   return (
+    <>
     <details ref={detailsRef} className="group relative">
       <summary aria-label="Notifications" className="relative flex size-11 cursor-pointer list-none items-center justify-center rounded-full text-ink-muted transition-colors hover:bg-subtle hover:text-ink [&::-webkit-details-marker]:hidden">
         <BellIcon />
@@ -108,12 +137,24 @@ export function NotificationsMenu() {
         </div>
         {!current ? (
           <p role="status" className="px-4 py-6 text-sm text-ink-muted">Loading…</p>
-        ) : current.status === "error" ? (
+        ) : current.status === "error" && !NEXT_CITY_CAMPAIGN_ACTIVE ? (
           <p className="px-4 py-6 text-sm text-ink-muted">Notifications are unavailable right now.</p>
-        ) : items.length === 0 ? (
+        ) : items.length === 0 && !NEXT_CITY_CAMPAIGN_ACTIVE ? (
           <p className="px-4 py-6 text-sm text-ink-muted">You&apos;re all caught up.</p>
         ) : (
           <ul className="max-h-96 divide-y divide-line overflow-y-auto">
+            {NEXT_CITY_CAMPAIGN_ACTIVE && (
+              <li>
+                <button type="button" onClick={openCampaign} className="flex min-h-20 w-full gap-3 px-4 py-3 text-left transition-colors hover:bg-subtle">
+                  <span aria-hidden="true" className={`mt-1.5 size-1.5 shrink-0 rounded-full ${campaignRead ? "bg-transparent" : "bg-rose-dust"}`} />
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-semibold text-ink">Where should Fiyu go next?</span>
+                    <span className="mt-0.5 block text-xs leading-5 text-ink-muted">Help choose the next city.</span>
+                  </span>
+                  <span className="shrink-0 text-[0.6875rem] text-ink-faint">Fiyu</span>
+                </button>
+              </li>
+            )}
             {items.map((notification) => (
               <li key={notification.id}>
                 <button type="button" onClick={() => void openNotification(notification)} className="flex min-h-20 w-full gap-3 px-4 py-3 text-left transition-colors hover:bg-subtle">
@@ -126,9 +167,16 @@ export function NotificationsMenu() {
                 </button>
               </li>
             ))}
+            {current.status === "error" && (
+              <li className="px-4 py-4 text-xs text-ink-muted">
+                Account notifications are unavailable right now.
+              </li>
+            )}
           </ul>
         )}
       </div>
     </details>
+    <NextCityPoll modalOnly />
+    </>
   );
 }

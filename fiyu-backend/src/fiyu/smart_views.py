@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -134,6 +135,30 @@ OUT_OF_THE_WAY_MIN_DISTANCE_KM = 6.0
 OUT_OF_THE_WAY_MIN_SCORE = 82.0
 WORTH_THE_DETOUR_MIN_SCORE = 88.0
 
+_ENGLISH_CHOME_PREFIX = re.compile(r"^\s*\d+\s*(?:chome|chōme)\s+", re.IGNORECASE)
+_ENGLISH_CHOME_SUFFIX = re.compile(r"\s+\d+\s*(?:chome|chōme)\s*$", re.IGNORECASE)
+_JAPANESE_CHOME_SUFFIX = re.compile(r"(?:[一二三四五六七八九十〇零]+|\d+)丁目\s*$")
+
+
+def human_area_label(row: dict[str, object]) -> str:
+    """Return the most specific human locality without exposing chome granularity."""
+
+    raw_neighborhood = str(row.get("neighborhood") or "").strip()
+    neighborhood = _ENGLISH_CHOME_PREFIX.sub("", raw_neighborhood)
+    neighborhood = _ENGLISH_CHOME_SUFFIX.sub("", neighborhood)
+    neighborhood = _JAPANESE_CHOME_SUFFIX.sub("", neighborhood).strip()
+    if neighborhood and neighborhood != raw_neighborhood:
+        return neighborhood
+    if neighborhood and not re.fullmatch(r"\d+(?:[-–]\d+)*", neighborhood):
+        return neighborhood
+
+    broader_area = str(row.get("discovery_area") or "").strip()
+    if broader_area:
+        return broader_area
+    ward = str(row.get("city") or "").strip()
+    ward = re.sub(r"\s+City$", "", ward, flags=re.IGNORECASE)
+    return ward or "Unknown neighborhood"
+
 
 def smart_view_definition(view_key: SmartViewKey) -> SmartViewDefinition:
     return SMART_VIEW_DEFINITIONS[view_key]
@@ -199,6 +224,8 @@ def _fetch_saved_rows(
                 p.name_en,
                 p.primary_category,
                 r.neighborhood,
+                p.discovery_area,
+                r.city,
                 p.fiyu_score,
                 p.score_band,
                 p.latitude,
@@ -276,7 +303,7 @@ def list_smart_view_entries(
     if view_key == "by_neighborhood":
         grouped: dict[str, list[dict[str, object]]] = {}
         for row in rows:
-            label = str(row.get("neighborhood") or "Unknown neighborhood").strip() or "Unknown neighborhood"
+            label = human_area_label(row)
             grouped.setdefault(label, []).append(_smart_item(row))
         groups = [
             {
@@ -367,7 +394,7 @@ def list_smart_view_counts(
     nine_plus = [row for row in rows if (_as_float(row.get("fiyu_score")) or 0.0) >= 90.0]
     by_neighborhood_count = len(
         {
-            (str(row.get("neighborhood") or "Unknown neighborhood").strip() or "Unknown neighborhood").lower()
+            human_area_label(row).lower()
             for row in rows
         }
     )

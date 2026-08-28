@@ -14,7 +14,7 @@ export function PageIntro() {
     <div className="px-1 pt-8 pb-6 sm:pt-10">
       <h1 className="font-display text-5xl leading-[0.95] text-ink sm:text-[3.5rem]">Tokyo</h1>
       <p className="mt-4 max-w-md text-[0.9375rem] leading-relaxed text-ink-muted">
-        Authentic, independent, underexposed restaurants — scored, explained, and mapped.
+        Authentic, independent, underexposed restaurants — a few at a time.
       </p>
     </div>
   );

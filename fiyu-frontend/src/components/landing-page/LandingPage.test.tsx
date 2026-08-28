@@ -35,7 +35,7 @@ vi.mock("next/image", () => ({
 
 beforeEach(() => {
   clearProfileIdentity();
-  window.localStorage.removeItem("fiyu:next-city-voted");
+  window.localStorage.removeItem("fiyu:next-city-voter:v1");
 });
 
 afterEach(() => {
@@ -235,15 +235,19 @@ describe("public landing experience", () => {
     expect(screen.queryByText("More cities coming")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Vote on the next city" }));
     expect(screen.getByText("Where should Fiyu go next?")).toBeTruthy();
-    fireEvent.click(screen.getByLabelText("Other"));
+    const other = screen.getByRole("button", { name: "Other" });
+    fireEvent.click(other);
+    expect(other.getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(other);
+    expect(other.getAttribute("aria-pressed")).toBe("false");
+    fireEvent.click(other);
     fireEvent.change(screen.getByLabelText("City name"), { target: { value: "Seoul" } });
     fireEvent.click(screen.getByRole("button", { name: "Submit vote" }));
 
     expect(await screen.findByText("Thanks for helping choose where Fiyu goes next.")).toBeTruthy();
     expect(request).toHaveBeenCalledTimes(1);
-    expect(JSON.parse(String(request.mock.calls[0][1]?.body))).toEqual({
-      choice: "other",
-      other_city: "Seoul",
+    expect(JSON.parse(String(request.mock.calls[0][1]?.body))).toMatchObject({
+      voter_id: expect.any(String), choice: "other", other_city: "Seoul",
     });
   });
 

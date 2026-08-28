@@ -48,6 +48,8 @@ beforeEach(() => {
   api.markAll.mockReset();
   navigation.push.mockReset();
   clearProfileIdentity();
+  window.localStorage.setItem("fiyu:next-city-campaign:read:user-a", "1");
+  window.localStorage.setItem("fiyu:next-city-campaign:read:user-b", "1");
 });
 
 afterEach(() => {
@@ -57,14 +59,20 @@ afterEach(() => {
 });
 
 describe("in-app notifications menu", () => {
-  it("shows the authenticated empty state without fake notifications", async () => {
+  it("shows the active global city campaign without generating an account notification", async () => {
+    window.localStorage.removeItem("fiyu:next-city-campaign:read:user-a");
     api.fetch.mockResolvedValue([]);
     publishProfileIdentity(profile("user-a"));
     render(<NotificationsMenu />);
     fireEvent.click(screen.getByLabelText("Notifications"));
 
-    expect(await screen.findByText("You're all caught up.")).toBeTruthy();
+    expect(await screen.findByText("Where should Fiyu go next?")).toBeTruthy();
+    expect(screen.getByText("Help choose the next city.")).toBeTruthy();
     expect(screen.queryByText(/Your Picks are ready|New Tokyo Drop/)).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: /Where should Fiyu go next/ }));
+    expect(screen.getByRole("dialog", { name: "Where should Fiyu go next?" })).toBeTruthy();
+    expect(api.markOne).not.toHaveBeenCalled();
   });
 
   it("shows unread state, marks one read, and follows its safe target", async () => {
@@ -115,6 +123,6 @@ describe("in-app notifications menu", () => {
     expect(screen.queryByText("User A only")).toBeNull();
     expect(screen.getByText("Loading…")).toBeTruthy();
     await act(async () => resolveUserB?.([]));
-    expect(await screen.findByText("You're all caught up.")).toBeTruthy();
+    expect(await screen.findByText("Where should Fiyu go next?")).toBeTruthy();
   });
 });

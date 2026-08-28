@@ -42,7 +42,7 @@ describe("marketing header identity", () => {
     render(<LandingHeader />);
 
     const ethan = screen.getByRole("link", { name: "Profile: Ethan Bell" });
-    expect(ethan.getAttribute("href")).toBe("/profile");
+    expect(ethan.getAttribute("href")).toBe("/picks");
     expect(ethan.textContent).toContain("Ethan Bell");
     expect(ethan.textContent).toContain("E");
     expect(screen.queryByRole("link", { name: "Sign in" })).toBeNull();
@@ -74,7 +74,7 @@ describe("marketing header identity", () => {
     fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
     const mobile = screen.getByRole("navigation", { name: "Landing page mobile" });
     expect(within(mobile).getByRole("link", { name: "Profile: mika" }).getAttribute("href")).toBe(
-      "/profile",
+      "/picks",
     );
 
     act(() => clearProfileIdentity());

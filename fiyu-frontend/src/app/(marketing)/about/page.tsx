@@ -16,15 +16,15 @@ export const metadata: Metadata = {
 const SECTIONS = [
   {
     title: "Why Fiyu",
-    copy: "Traditional discovery platforms often reinforce the restaurants that are already easiest to find. Excellent independent places can be less visible, especially when their strongest local context is not available in English.",
+    copy: "Traditional discovery platforms often reinforce the restaurants that are already easiest to find. Excellent independent places can be less visible, especially when their strongest local context is not available in English. Fiyu looks deeper, using local-language sources and multiple signals around quality, independence, visibility, and local relevance to find restaurants that are genuinely worth discovering but easy to miss.",
   },
   {
     title: "Why only a few",
-    copy: "Endless results make every choice feel interchangeable. Fiyu offers a small set of considered discoveries so each place has room to be understood before the next one appears.",
+    copy: "Fiyu deliberately reveals only a few places at a time. It makes each person’s discovery feel more individual, while spreading attention across a broader pool of strong restaurants instead of directing everyone toward the same small places at once.",
   },
   {
-    title: "How Fiyu gets better",
-    copy: "Signals from the restaurants people see, save, visit, and react to can help future selections become more useful. They inform discovery without turning private activity into a public review feed.",
+    title: "Discovery without the popularity contest",
+    copy: "Fiyu is not a leaderboard or an endless review feed. What you save, visit, and react to can quietly make future selections more useful, while discovery stays focused on the restaurant itself rather than likes, rankings, or what happens to be going viral.",
   },
 ];
 

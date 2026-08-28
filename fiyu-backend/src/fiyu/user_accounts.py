@@ -42,9 +42,11 @@ CREATE INDEX IF NOT EXISTS idx_contact_submissions_status_created
 
 CREATE TABLE IF NOT EXISTS city_poll_votes (
     id TEXT PRIMARY KEY,
+    voter_id TEXT,
     choice TEXT NOT NULL,
     other_city TEXT,
     created_at TEXT NOT NULL,
+    updated_at TEXT,
     CHECK (choice IN ('rome', 'hong_kong', 'paris', 'sydney', 'los_angeles', 'other')),
     CHECK (other_city IS NULL OR LENGTH(other_city) BETWEEN 1 AND 80),
     CHECK (choice = 'other' OR other_city IS NULL)
@@ -72,6 +74,28 @@ def ensure_account_schema(db_path: str | Path) -> None:
             CREATE UNIQUE INDEX IF NOT EXISTS idx_user_profiles_auth_email_nocase
             ON user_profiles(auth_email COLLATE NOCASE)
             WHERE auth_email IS NOT NULL
+            """
+        )
+        poll_columns = {
+            str(row["name"])
+            for row in connection.execute("PRAGMA table_info(city_poll_votes)").fetchall()
+        }
+        if "voter_id" not in poll_columns:
+            connection.execute("ALTER TABLE city_poll_votes ADD COLUMN voter_id TEXT")
+        if "updated_at" not in poll_columns:
+            connection.execute("ALTER TABLE city_poll_votes ADD COLUMN updated_at TEXT")
+        # Preserve legacy votes while giving every row a stable deduplication key.
+        connection.execute(
+            "UPDATE city_poll_votes SET voter_id = id WHERE voter_id IS NULL"
+        )
+        connection.execute(
+            "UPDATE city_poll_votes SET updated_at = created_at WHERE updated_at IS NULL"
+        )
+        connection.execute(
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_city_poll_votes_voter
+            ON city_poll_votes(voter_id)
+            WHERE voter_id IS NOT NULL
             """
         )
         connection.execute("PRAGMA optimize")
@@ -230,19 +254,34 @@ def create_contact_submission(
 def create_city_poll_vote(
     db_path: str | Path,
     *,
+    voter_id: str,
     choice: str,
     other_city: str | None,
 ) -> dict[str, object]:
     ensure_account_schema(db_path)
     vote_id = str(uuid4())
-    created_at = _utc_now()
+    now = _utc_now()
     with connect(db_path) as connection:
         connection.execute(
             """
-            INSERT INTO city_poll_votes (id, choice, other_city, created_at)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO city_poll_votes
+                (id, voter_id, choice, other_city, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT DO UPDATE SET
+                choice = excluded.choice,
+                other_city = excluded.other_city,
+                updated_at = excluded.updated_at
             """,
-            (vote_id, choice, other_city, created_at),
+            (vote_id, voter_id, choice, other_city, now, now),
         )
+        row = connection.execute(
+            "SELECT id, created_at, updated_at FROM city_poll_votes WHERE voter_id = ?",
+            (voter_id,),
+        ).fetchone()
         connection.commit()
-    return {"id": vote_id, "status": "recorded", "created_at": created_at}
+    return {
+        "id": str(row["id"]),
+        "status": "recorded",
+        "created_at": str(row["created_at"]),
+        "updated_at": str(row["updated_at"]),
+    }

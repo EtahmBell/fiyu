@@ -109,17 +109,20 @@ def test_contact_submission_is_validated_normalized_and_private(account_db):
     assert row["message"] == "A restaurant suggestion."
 
 
-def test_city_poll_vote_is_validated_recorded_and_totals_are_not_public(account_db):
+def test_city_poll_vote_is_validated_recorded_and_totals_are_not_public(
+    account_db, monkeypatch
+):
+    monkeypatch.setattr(api.shared_user_data, "configured", lambda: False)
     client = TestClient(api.app)
 
     missing_other = client.post(
-        "/city-poll/votes", json={"choice": "other", "other_city": " "}
+        "/city-poll/votes", json={"voter_id": "browser-voter-0001", "choice": "other", "other_city": " "}
     )
     invalid_choice = client.post(
-        "/city-poll/votes", json={"choice": "tokyo", "other_city": None}
+        "/city-poll/votes", json={"voter_id": "browser-voter-0001", "choice": "tokyo", "other_city": None}
     )
     created = client.post(
-        "/city-poll/votes", json={"choice": "other", "other_city": "  Seoul  "}
+        "/city-poll/votes", json={"voter_id": "browser-voter-0001", "choice": "other", "other_city": "  Seoul  "}
     )
 
     assert missing_other.status_code == invalid_choice.status_code == 422
@@ -130,6 +133,55 @@ def test_city_poll_vote_is_validated_recorded_and_totals_are_not_public(account_
         row = connection.execute("SELECT * FROM city_poll_votes").fetchone()
     assert row["choice"] == "other"
     assert row["other_city"] == "Seoul"
+
+
+def test_city_poll_vote_is_anonymous_and_updates_one_browser_vote(account_db, monkeypatch):
+    monkeypatch.setattr(api.shared_user_data, "configured", lambda: False)
+    client = TestClient(api.app)
+    payload = {"voter_id": "anonymous-browser-01", "choice": "rome", "other_city": None}
+
+    first = client.post("/city-poll/votes", json=payload)
+    second = client.post(
+        "/city-poll/votes",
+        json={**payload, "choice": "paris"},
+    )
+
+    assert first.status_code == second.status_code == 201
+    assert first.json()["id"] == second.json()["id"]
+    with connect(account_db) as connection:
+        rows = connection.execute("SELECT * FROM city_poll_votes").fetchall()
+    assert len(rows) == 1
+    assert rows[0]["choice"] == "paris"
+    assert rows[0]["voter_id"] == "anonymous-browser-01"
+
+
+def test_city_poll_vote_uses_shared_storage_without_authentication(account_db, monkeypatch):
+    captured: dict[str, object] = {}
+
+    def upsert(**payload):
+        captured.update(payload)
+        return {
+            "id": "vote-1",
+            "created_at": "2026-08-28T00:00:00+00:00",
+            "updated_at": "2026-08-28T00:00:00+00:00",
+        }
+
+    monkeypatch.setattr(api.shared_user_data, "upsert_city_poll_vote", upsert)
+    response = TestClient(api.app).post(
+        "/city-poll/votes",
+        json={
+            "voter_id": "anonymous-browser-02",
+            "choice": "hong_kong",
+            "other_city": None,
+        },
+    )
+
+    assert response.status_code == 201
+    assert captured == {
+        "voter_id": "anonymous-browser-02",
+        "choice": "hong_kong",
+        "other_city": None,
+    }
 
 
 def test_signup_uses_supabase_id_and_enforces_case_insensitive_username(

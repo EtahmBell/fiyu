@@ -91,7 +91,7 @@ export function LandingHeader() {
             <>
               <span aria-hidden="true" className="ml-1 h-4 w-px bg-line-strong" />
               <Link
-                href="/profile"
+                href="/picks"
                 aria-label={profileLabel === "Profile" ? "Profile" : `Profile: ${profileLabel}`}
                 className="flex min-h-11 min-w-0 max-w-56 items-center gap-2 rounded-lg px-2 text-sm font-medium text-ink-muted transition-colors duration-200 ease-(--ease-fiyu) hover:bg-subtle hover:text-ink focus-visible:bg-subtle"
               >
@@ -175,7 +175,7 @@ export function LandingHeader() {
             </div>
           ) : signedIn ? (
             <Link
-              href="/profile"
+              href="/picks"
               aria-label={profileLabel === "Profile" ? "Profile" : `Profile: ${profileLabel}`}
               onClick={closeMenu}
               className="flex min-h-12 min-w-0 items-center gap-3 border-t border-line text-base font-medium text-ink"

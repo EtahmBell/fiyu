@@ -423,6 +423,7 @@ CityPollChoice = Literal[
 
 
 class CityPollVoteRequest(BaseModel):
+    voter_id: str = Field(min_length=16, max_length=128, pattern=r"^[A-Za-z0-9_-]+$")
     choice: CityPollChoice
     other_city: str | None = Field(default=None, max_length=80)
 
@@ -444,6 +445,7 @@ class CityPollVoteResponse(BaseModel):
     id: str
     status: Literal["recorded"]
     created_at: str
+    updated_at: str
 
 
 class SignupRequest(BaseModel):
@@ -900,7 +902,8 @@ def _catalog_enriched(rows: list[dict[str, object]]) -> list[dict[str, object]]:
         catalog_rows = connection.execute(
             f"""
             SELECT p.place_id, p.name_ja, p.name_en, p.primary_category,
-                   r.neighborhood, p.fiyu_score, p.score_band
+                   r.neighborhood, p.discovery_area, r.city,
+                   p.fiyu_score, p.score_band
             FROM public_restaurants p
             LEFT JOIN restaurants r ON r.place_id = p.place_id
             WHERE p.place_id IN ({placeholders})
@@ -1819,8 +1822,21 @@ def submit_city_poll_vote(payload: CityPollVoteRequest) -> CityPollVoteResponse:
         other_city = payload.validated_other_city()
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from None
+    if shared_user_data.configured():
+        row = shared_user_data.upsert_city_poll_vote(
+            voter_id=payload.voter_id,
+            choice=payload.choice,
+            other_city=other_city,
+        )
+        return CityPollVoteResponse(
+            id=str(row["id"]),
+            status="recorded",
+            created_at=str(row["created_at"]),
+            updated_at=str(row["updated_at"]),
+        )
     row = create_city_poll_vote(
         DB_PATH,
+        voter_id=payload.voter_id,
         choice=payload.choice,
         other_city=other_city,
     )

@@ -48,7 +48,9 @@ describe("public account milestone", () => {
     expect(screen.getByRole("heading", { name: "Finding the places worth knowing." })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Why Fiyu" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Why only a few" })).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "How Fiyu gets better" })).toBeTruthy();
+    expect(
+      screen.getByRole("heading", { name: "Discovery without the popularity contest" }),
+    ).toBeTruthy();
     expect(screen.getByText(/local-language research, machine learning/i)).toBeTruthy();
     expect(screen.getByTestId("about-tabletop")).toBeTruthy();
   });

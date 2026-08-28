@@ -15,10 +15,17 @@ from fiyu.restaurant_lists import (
     ensure_restaurant_list_schema,
     get_or_create_default_list,
 )
+from fiyu.smart_views import human_area_label
 
 
 def _owner_id() -> str:
     return str(uuid4())
+
+
+def test_human_area_label_uses_neighborhood_then_area_then_ward():
+    assert human_area_label({"neighborhood": "千駄木三丁目"}) == "千駄木"
+    assert human_area_label({"discovery_area": "Asakusa", "city": "Taito City"}) == "Asakusa"
+    assert human_area_label({"city": "Taito City"}) == "Taito"
 
 
 def _enable_premium_for_owner(monkeypatch: pytest.MonkeyPatch, owner: str) -> None:
@@ -608,6 +615,30 @@ def test_by_neighborhood_view_groups_saved_items(lists_db):
     body = response.json()
     assert [group["title"] for group in body["groups"]] == ["Asakusa", "Ueno"]
     assert [group["item_count"] for group in body["groups"]] == [1, 1]
+
+
+def test_by_neighborhood_view_removes_chome_granularity(lists_db):
+    with connect(lists_db) as connection:
+        connection.execute(
+            "UPDATE restaurants SET neighborhood = '3 Chome Sendagi' WHERE place_id = 'tokyo-a'"
+        )
+        connection.commit()
+    client = TestClient(api.app)
+    owner = _owner_id()
+    client.post(
+        "/lists/default/items",
+        headers={"X-Fiyu-Client-Id": owner},
+        json={"city_id": "tokyo", "place_id": "tokyo-a"},
+    )
+
+    response = client.get(
+        "/lists/default/smart-views/by_neighborhood",
+        params={"city_id": "tokyo"},
+        headers={"X-Fiyu-Client-Id": owner},
+    )
+
+    assert response.status_code == 200
+    assert [group["title"] for group in response.json()["groups"]] == ["Sendagi"]
 
 
 def test_nearby_view_requires_origin(lists_db):

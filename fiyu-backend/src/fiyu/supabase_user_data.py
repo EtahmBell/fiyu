@@ -680,3 +680,25 @@ def mark_all_notifications_read(*, user_id: str) -> int:
         prefer="return=representation",
     )
     return len(result) if isinstance(result, list) else 0
+
+
+def upsert_city_poll_vote(
+    *, voter_id: str, choice: str, other_city: str | None
+) -> dict[str, Any]:
+    """Persist one anonymous browser's campaign vote in hosted shared storage."""
+    now = _now()
+    result = _request(
+        "fiyu_city_poll_votes",
+        method="POST",
+        query={"on_conflict": "voter_id"},
+        body={
+            "voter_id": voter_id,
+            "choice": choice,
+            "other_city": other_city,
+            "updated_at": now,
+        },
+        prefer="resolution=merge-duplicates,return=representation",
+    )
+    if not isinstance(result, list) or not result:
+        raise SharedUserDataError("City vote could not be recorded")
+    return result[0]
