@@ -13,6 +13,12 @@ import { FreeOriginOnboarding } from "@/components/location/FreeOriginOnboarding
 import { FiyuLoadingScreen } from "@/components/states/FiyuLoadingScreen";
 import { Button } from "@/components/ui/Button";
 import { assignDailyPicks, fetchActiveDailyPicks, fetchRecentDailyPicks } from "@/lib/api/client";
+import {
+  accountQueryKey,
+  loadAccountQuery,
+  readAccountQuery,
+  writeAccountQuery,
+} from "@/lib/accountQueryCache";
 import { FiyuApiError } from "@/lib/api/errors";
 import type { PublicRestaurant } from "@/lib/api/schemas";
 import { ACTIVE_FIYU_CITY } from "@/lib/city/editions";
@@ -86,6 +92,11 @@ type AssignmentDiscoveryLocation = {
   roundId: string;
   mode: ActivePicksDiscoveryLocation["mode"];
   label: string | null;
+};
+
+type DailyPicksHydration = {
+  assignment: Awaited<ReturnType<typeof fetchActiveDailyPicks>>;
+  recentRounds: Awaited<ReturnType<typeof fetchRecentDailyPicks>>;
 };
 
 function freshSearchLabel(location: ActivePicksDiscoveryLocation | null): string {
@@ -207,16 +218,38 @@ export function DailyPicksPanel({
     enabled: injectedStorage === undefined,
     accountId,
   });
+  const hydrationKey = accountId ? accountQueryKey("daily-picks", accountId) : null;
+  const cachedHydration = hydrationKey
+    ? readAccountQuery<DailyPicksHydration>(hydrationKey)
+    : undefined;
   const [inventoryMessage, setInventoryMessage] = useState<string | null>(null);
   const [phase, setPhase] = useState<DiscoveryPhase>("idle");
   const [searchLocation, setSearchLocation] = useState<ActivePicksDiscoveryLocation | null>(null);
   const [newMapPlaceCount, setNewMapPlaceCount] = useState(0);
-  const [assignmentRestaurants, setAssignmentRestaurants] = useState<PublicRestaurant[]>([]);
-  const [assignmentAccountId, setAssignmentAccountId] = useState<string | null>(null);
-  const [assignmentLocation, setAssignmentLocation] = useState<AssignmentDiscoveryLocation | null>(null);
+  const [assignmentRestaurants, setAssignmentRestaurants] = useState<PublicRestaurant[]>(() => {
+    if (!cachedHydration) return [];
+    const restaurants = [
+      ...(cachedHydration.assignment?.restaurants ?? []),
+      ...cachedHydration.recentRounds.flatMap((round) => round.restaurants),
+    ];
+    return [...new Map(restaurants.map((restaurant) => [restaurant.place_id, restaurant])).values()];
+  });
+  const [assignmentAccountId, setAssignmentAccountId] = useState<string | null>(
+    cachedHydration ? accountId : null,
+  );
+  const [assignmentLocation, setAssignmentLocation] = useState<AssignmentDiscoveryLocation | null>(
+    cachedHydration?.assignment
+      ? {
+          accountId,
+          roundId: cachedHydration.assignment.round_id,
+          mode: cachedHydration.assignment.discovery_mode ?? null,
+          label: cachedHydration.assignment.discovery_label?.trim() || null,
+        }
+      : null,
+  );
   const [activeAssignmentState, setActiveAssignmentState] = useState<ActiveAssignmentState>({
-    accountId: null,
-    status: "idle",
+    accountId: cachedHydration ? accountId : null,
+    status: cachedHydration ? "ready" : "idle",
   });
   const findingTimerRef = useRef<number | null>(null);
   const mapNoticeTimerRef = useRef<number | null>(null);
@@ -323,10 +356,14 @@ export function DailyPicksPanel({
     if (injectedStorage !== undefined || !accountId) return;
     let cancelled = false;
     const identity = { clientId: getOrCreateAnonymousOwnerKey() };
-    void Promise.all([
-      fetchActiveDailyPicks(ACTIVE_FIYU_CITY.id, identity),
-      fetchRecentDailyPicks(ACTIVE_FIYU_CITY.id, identity),
-    ]).then(([assignment, recentRounds]) => {
+    const key = accountQueryKey("daily-picks", accountId);
+    void loadAccountQuery<DailyPicksHydration>(key, async () => {
+      const [assignment, recentRounds] = await Promise.all([
+        fetchActiveDailyPicks(ACTIVE_FIYU_CITY.id, identity),
+        fetchRecentDailyPicks(ACTIVE_FIYU_CITY.id, identity),
+      ]);
+      return { assignment, recentRounds };
+    }).then(({ assignment, recentRounds }) => {
       if (cancelled) return;
       const recentRestaurants = recentRounds.flatMap((round) => round.restaurants);
       const activeRestaurants = assignment?.restaurants ?? [];
@@ -455,6 +492,13 @@ export function DailyPicksPanel({
         const assignedAt = Date.parse(result.value.assigned_at);
         setAssignmentRestaurants(result.value.restaurants ?? []);
         setAssignmentAccountId(accountId);
+        if (hydrationKey) {
+          const previous = readAccountQuery<DailyPicksHydration>(hydrationKey);
+          writeAccountQuery(hydrationKey, {
+            assignment: result.value,
+            recentRounds: previous?.recentRounds ?? [],
+          });
+        }
         setAssignmentLocation({
           accountId,
           roundId: result.value.round_id,
@@ -536,6 +580,13 @@ export function DailyPicksPanel({
     });
     const restaurant = restaurants.find((candidate) => candidate.place_id === placeId);
     if (restaurant && isMappable(restaurant)) {
+      if (accountId) {
+        const mapKey = accountQueryKey("map-restaurants", accountId);
+        const cachedMap = readAccountQuery<PublicRestaurant[]>(mapKey);
+        if (cachedMap && !cachedMap.some((candidate) => candidate.place_id === placeId)) {
+          writeAccountQuery(mapKey, [...cachedMap, restaurant]);
+        }
+      }
       publishNewlyRevealedMapPlaces(
         [placeId],
         revealedAt,

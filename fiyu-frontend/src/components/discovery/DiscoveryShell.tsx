@@ -18,6 +18,7 @@ import {
   fetchAuthenticatedMapRestaurants,
   fetchDiscoveryLocation,
 } from "@/lib/api/client";
+import { useAccountQuery } from "@/lib/accountQueryCache";
 import type { DiscoveryLocation, PublicRestaurant } from "@/lib/api/schemas";
 import { mappableRestaurants } from "@/lib/geo/mappable";
 import { useGeolocation } from "@/lib/hooks/useGeolocation";
@@ -54,17 +55,6 @@ interface VisibleRestaurantState {
   restaurants: PublicRestaurant[];
 }
 
-type AccountMapState =
-  | { status: "loading"; ownerKey: string }
-  | { status: "ready"; ownerKey: string; restaurants: PublicRestaurant[] }
-  | { status: "error"; ownerKey: string };
-
-type AccountLocationState =
-  | { status: "loading"; userId: string }
-  | { status: "configured"; userId: string; location: DiscoveryLocation }
-  | { status: "not-configured"; userId: string; location: DiscoveryLocation }
-  | { status: "error"; userId: string };
-
 /**
  * Owns the client-side daily-feed selection and map-card synchronization.
  *
@@ -77,18 +67,20 @@ type AccountLocationState =
 export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps) {
   const router = useRouter();
   const identity = useProfileIdentity();
-  const [accountLocationState, setAccountLocationState] =
-    useState<AccountLocationState | null>(null);
-  const [locationRequestKey, setLocationRequestKey] = useState(0);
-  const currentAccountLocationState = identity.profile
-    ? accountLocationState?.userId === identity.profile.user_id
-      ? accountLocationState
-      : ({ status: "loading", userId: identity.profile.user_id } as const)
+  const authenticatedUserId = identity.profile?.user_id ?? null;
+  const loadDiscoveryLocation = useCallback(() => fetchDiscoveryLocation(), []);
+  const locationQuery = useAccountQuery<DiscoveryLocation>({
+    resource: "discovery-location",
+    accountId: identity.status === "loading" || !authenticatedUserId
+      ? undefined
+      : authenticatedUserId,
+    loader: loadDiscoveryLocation,
+    enabled: Boolean(authenticatedUserId),
+  });
+  const setDiscoveryLocation = locationQuery.setData;
+  const accountLocation = locationQuery.status === "ready" && locationQuery.data.configured
+    ? locationQuery.data
     : null;
-  const accountLocation =
-    currentAccountLocationState?.status === "configured"
-      ? currentAccountLocationState.location
-      : null;
   const [selection, setSelection] = useState<Selection | null>(null);
   const restaurantOwnerKey = identity.profile?.user_id ?? "anonymous";
   const [visibleRestaurantState, setVisibleRestaurantState] =
@@ -100,19 +92,15 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
         : [],
     [restaurantOwnerKey, visibleRestaurantState],
   );
-  const visibleRestaurantKey = visibleRestaurants
-    .map((restaurant) => restaurant.place_id)
-    .join("|");
-  const [accountMapState, setAccountMapState] = useState<AccountMapState | null>(null);
-  const currentAccountMapState = useMemo(
-    () =>
-      identity.profile
-        ? accountMapState?.ownerKey === identity.profile.user_id
-          ? accountMapState
-          : ({ status: "loading", ownerKey: identity.profile.user_id } as const)
-        : null,
-    [accountMapState, identity.profile],
-  );
+  const loadMapRestaurants = useCallback(() => fetchAuthenticatedMapRestaurants(), []);
+  const mapQuery = useAccountQuery<PublicRestaurant[]>({
+    resource: "map-restaurants",
+    accountId: identity.status === "loading" || !authenticatedUserId
+      ? undefined
+      : authenticatedUserId,
+    loader: loadMapRestaurants,
+    enabled: Boolean(authenticatedUserId),
+  });
   const [homeArea, setHomeArea] = useState<LocationAnchor | null>(null);
   const [continuedWithoutLocation, setContinuedWithoutLocation] = useState(false);
   const [previewGpsResolution, setPreviewGpsResolution] = useState<{
@@ -174,11 +162,7 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
     )
       .then((result) => {
         if (result.inside_service_area) {
-          setAccountLocationState((current) =>
-            current?.userId === userId
-              ? { status: "configured", userId, location: result.location }
-              : current,
-          );
+          setDiscoveryLocation(result.location);
         }
       })
       .catch(() => undefined)
@@ -191,50 +175,8 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
     geolocationPointKey,
     geolocationStatus,
     identity.profile?.user_id,
+    setDiscoveryLocation,
   ]);
-
-  useEffect(() => {
-    if (identity.status !== "ready") return;
-    if (!identity.profile) return;
-    const userId = identity.profile.user_id;
-    const controller = new AbortController();
-    void fetchDiscoveryLocation({ signal: controller.signal })
-      .then((location) => {
-        if (controller.signal.aborted) return;
-        setAccountLocationState({
-          status: location.configured ? "configured" : "not-configured",
-          userId,
-          location,
-        });
-      })
-      .catch(() => {
-        if (controller.signal.aborted) return;
-        setAccountLocationState((current) =>
-          current?.userId === userId && current.status !== "loading"
-            ? current
-            : { status: "error", userId },
-        );
-      });
-    return () => controller.abort();
-  }, [identity.profile, identity.status, locationRequestKey]);
-
-  useEffect(() => {
-    if (identity.status !== "ready" || !identity.profile) return;
-    const ownerKey = identity.profile.user_id;
-    const controller = new AbortController();
-    void fetchAuthenticatedMapRestaurants({ signal: controller.signal })
-      .then((restaurants) => {
-        if (!controller.signal.aborted) {
-          setAccountMapState({ status: "ready", ownerKey, restaurants });
-        }
-      })
-      .catch(() => {
-        if (!controller.signal.aborted) {
-          setAccountMapState({ status: "error", ownerKey });
-        }
-      });
-    return () => controller.abort();
-  }, [identity.profile, identity.status, visibleRestaurantKey]);
 
   const origin = useMemo<FreeDiscoveryOrigin | null>(() => {
     const current = originFromGeolocation(geolocation.state);
@@ -278,19 +220,28 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
 
   const mappable = useMemo(() => {
     const mapRestaurants = identity.profile
-      ? currentAccountMapState?.status === "ready"
-        ? currentAccountMapState.restaurants
-        : currentAccountMapState?.status === "error"
+      ? mapQuery.status === "ready"
+        ? [...new Map([...mapQuery.data, ...visibleRestaurants].map((restaurant) => [
+            restaurant.place_id,
+            restaurant,
+          ])).values()]
+        : mapQuery.status === "error"
           ? visibleRestaurants
           : []
       : visibleRestaurants;
     return mappableRestaurants(mapRestaurants);
-  }, [currentAccountMapState, identity.profile, visibleRestaurants]);
+  }, [identity.profile, mapQuery.data, mapQuery.status, visibleRestaurants]);
   const updateVisibleRestaurants = useCallback(
     (nextRestaurants: PublicRestaurant[]) =>
       setVisibleRestaurantState({ ownerKey: restaurantOwnerKey, restaurants: nextRestaurants }),
     [restaurantOwnerKey],
   );
+
+  useEffect(() => {
+    for (const restaurant of visibleRestaurants.slice(0, 8)) {
+      router.prefetch?.(restaurantDetailHref(restaurant.place_id));
+    }
+  }, [router, visibleRestaurants]);
 
   const selectFromFeed = useCallback(
     (restaurant: PublicRestaurant) => {
@@ -371,13 +322,13 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
 
   if (
     identity.status === "loading" ||
-    currentAccountLocationState?.status === "loading" ||
+    (authenticatedUserId && locationQuery.status === "loading") ||
     previewGpsPending
   ) {
     return <FiyuLoadingScreen />;
   }
 
-  if (identity.profile && currentAccountLocationState?.status === "error") {
+  if (identity.profile && locationQuery.status === "error") {
     return (
       <div className="flex min-h-[calc(100dvh-var(--spacing-header))] items-center justify-center bg-canvas px-5">
         <div className="max-w-sm text-center">
@@ -386,8 +337,7 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
             variant="secondary"
             className="mt-5"
             onClick={() => {
-              setAccountLocationState({ status: "loading", userId: identity.profile!.user_id });
-              setLocationRequestKey((key) => key + 1);
+              void locationQuery.refresh(true).catch(() => undefined);
             }}
           >
             Try again
@@ -397,18 +347,16 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
     );
   }
 
-  if (identity.profile && currentAccountLocationState?.status === "not-configured") {
+  if (
+    identity.profile &&
+    locationQuery.status === "ready" &&
+    !locationQuery.data.configured
+  ) {
     return (
       <AuthenticatedLocationSetup
         anchors={areaAnchors}
         geolocation={geolocation}
-        onConfigured={(location) =>
-          setAccountLocationState({
-            status: "configured",
-            userId: identity.profile!.user_id,
-            location,
-          })
-        }
+        onConfigured={setDiscoveryLocation}
       />
     );
   }
@@ -483,8 +431,10 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
         data-testid="desktop-map-region"
         className="hidden min-h-0 min-w-0 overflow-hidden border-l border-line-strong bg-subtle lg:sticky lg:top-header lg:block lg:h-[calc(100dvh-var(--spacing-header))]"
       >
-        {identity.profile && currentAccountMapState?.status === "loading" ? (
-          <FiyuLoadingScreen />
+        {identity.profile && mapQuery.status === "loading" ? (
+          <div className="flex h-full items-center justify-center" role="status">
+            <p className="text-sm text-ink-muted">Loading your map…</p>
+          </div>
         ) : mappable.length === 0 ? (
           <MapUnavailable reason="no-mapped-restaurants" className="h-full" />
         ) : (

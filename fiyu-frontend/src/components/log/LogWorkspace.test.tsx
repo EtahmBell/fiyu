@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-li
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { LogWorkspace } from "@/components/log/LogWorkspace";
+import { clearAccountQueries } from "@/lib/accountQueryCache";
 import type { RestaurantVisit } from "@/lib/api/schemas";
 import {
   createRestaurantVisit,
@@ -116,6 +117,7 @@ function visit(overrides: Partial<RestaurantVisit> = {}): RestaurantVisit {
 }
 
 beforeEach(() => {
+  clearAccountQueries();
   desktopViewport = true;
   Object.defineProperty(window, "matchMedia", {
     configurable: true,
@@ -164,7 +166,7 @@ describe("LogWorkspace", () => {
 
     render(<LogWorkspace />);
 
-    expect(screen.getByRole("status", { name: "Loading Fiyu" })).toBeTruthy();
+    expect(screen.getByRole("status").textContent).toContain("Loading your Log");
     expect(screen.queryByText("Tokyo Sushi")).toBeNull();
     resolveLog?.([]);
 

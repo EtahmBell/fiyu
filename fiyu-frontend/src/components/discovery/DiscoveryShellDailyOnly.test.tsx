@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DiscoveryShell } from "@/components/discovery/DiscoveryShell";
 import { mapRestaurantSchema, publicRestaurantSchema } from "@/lib/api/schemas";
 import type { DiscoveryLocation } from "@/lib/api/schemas";
+import { clearAccountQueries } from "@/lib/accountQueryCache";
 import {
   DAILY_PICKS_STORAGE_KEY,
   createDailySelection,
@@ -19,7 +20,7 @@ import {
   publishProfileIdentity,
 } from "@/lib/profile/profileIdentity";
 
-const router = vi.hoisted(() => ({ push: vi.fn() }));
+const router = vi.hoisted(() => ({ push: vi.fn(), prefetch: vi.fn() }));
 const dailyApi = vi.hoisted(() => ({
   assignDailyPicks: vi.fn(),
   fetchActiveDailyPicks: vi.fn(),
@@ -170,10 +171,12 @@ function installControlledGeolocation() {
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 beforeEach(() => {
+  clearAccountQueries();
   clearProfileIdentity();
   window.localStorage.clear();
   window.sessionStorage.clear();
   router.push.mockReset();
+  router.prefetch.mockReset();
   dailyApi.assignDailyPicks.mockReset();
   dailyApi.fetchActiveDailyPicks.mockReset();
   dailyApi.fetchRecentDailyPicks.mockReset();
@@ -455,7 +458,7 @@ describe("daily-only discovery shell", () => {
     container.remove();
   });
 
-  it("shows neutral Fiyu loading on hard load and route return until a saved location resolves", async () => {
+  it("shows neutral loading on hard load and restores cached location without a route-return loader", async () => {
     let resolveInitial: ((location: DiscoveryLocation) => void) | undefined;
     locationApi.fetchDiscoveryLocation.mockImplementationOnce(
       () => new Promise((resolve) => { resolveInitial = resolve; }),
@@ -473,16 +476,12 @@ describe("daily-only discovery shell", () => {
     expect(screen.queryByRole("heading", { name: "Find places around you" })).toBeNull();
 
     first.unmount();
-    let resolveReturn: ((location: DiscoveryLocation) => void) | undefined;
-    locationApi.fetchDiscoveryLocation.mockImplementationOnce(
-      () => new Promise((resolve) => { resolveReturn = resolve; }),
-    );
     render(<DiscoveryShell restaurants={catalog} areaAnchors={[]} />);
 
-    expect(screen.getByTestId("fiyu-loading-screen")).toBeTruthy();
+    expect(screen.queryByTestId("fiyu-loading-screen")).toBeNull();
     expect(screen.queryByRole("heading", { name: "Find places around you" })).toBeNull();
-    await act(async () => resolveReturn?.(configuredLocation("Shinjuku")));
     expect(await screen.findByTestId("discovery-layout")).toBeTruthy();
+    expect(locationApi.fetchDiscoveryLocation).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole("heading", { name: "Find places around you" })).toBeNull();
     expect(screen.queryByText(/Searching near/i)).toBeNull();
   });
@@ -545,7 +544,7 @@ describe("daily-only discovery shell", () => {
     first.unmount();
     render(<DiscoveryShell restaurants={[]} areaAnchors={[]} />);
     expect(await screen.findByRole("heading", { name: "Recent Discoveries" })).toBeTruthy();
-    expect(dailyApi.fetchRecentDailyPicks).toHaveBeenCalledTimes(2);
+    expect(dailyApi.fetchRecentDailyPicks).toHaveBeenCalledTimes(1);
   });
 
   it("omits the mobile mini-map and its reserved space for a fresh account", async () => {

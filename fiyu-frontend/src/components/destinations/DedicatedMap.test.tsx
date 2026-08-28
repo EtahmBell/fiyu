@@ -4,6 +4,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DedicatedMap } from "@/components/destinations/DedicatedMap";
+import { clearAccountQueries } from "@/lib/accountQueryCache";
 import type { PublicRestaurant } from "@/lib/api/schemas";
 import { mapRestaurantSchema, publicRestaurantSchema } from "@/lib/api/schemas";
 import { clearProfileIdentity, publishProfileIdentity } from "@/lib/profile/profileIdentity";
@@ -50,6 +51,7 @@ const profile = (userId: string) => ({
 });
 
 beforeEach(() => {
+  clearAccountQueries();
   window.localStorage.clear();
   api.fetchAuthenticatedMapRestaurants.mockReset();
   api.fetchMapRestaurants.mockReset();
@@ -89,7 +91,7 @@ describe("dedicated user map", () => {
     publishProfileIdentity(profile("user-new"));
     const { container } = render(<DedicatedMap />);
 
-    expect(screen.getByTestId("fiyu-loading-screen")).toBeTruthy();
+    expect(screen.getByText("Loading your map…")).toBeTruthy();
     expect(await screen.findByRole("heading", { name: "No places yet" })).toBeTruthy();
     expect(
       container.querySelectorAll('[data-layer="restaurants"] [data-marker-kind="restaurant"]'),
@@ -251,7 +253,7 @@ describe("dedicated user map", () => {
     expect(api.fetchMapRestaurants).not.toHaveBeenCalled();
   });
 
-  it("restores the same unlocked map from the canonical endpoint after remount", async () => {
+  it("restores the same unlocked map from cache after remount", async () => {
     api.fetchAuthenticatedMapRestaurants.mockResolvedValue(verifiedLocationCatalog.slice(0, 2));
     publishProfileIdentity(profile("user-a"));
     const first = render(<DedicatedMap />);
@@ -268,7 +270,7 @@ describe("dedicated user map", () => {
         second.container.querySelectorAll('[data-layer="restaurants"] [data-marker-kind="restaurant"]'),
       ).toHaveLength(2),
     );
-    expect(api.fetchAuthenticatedMapRestaurants).toHaveBeenCalledTimes(2);
+    expect(api.fetchAuthenticatedMapRestaurants).toHaveBeenCalledTimes(1);
     expect(api.fetchMapRestaurants).not.toHaveBeenCalled();
   });
 
@@ -336,7 +338,7 @@ describe("dedicated user map", () => {
     );
     act(() => publishProfileIdentity(profile("user-b")));
 
-    expect(screen.getByTestId("fiyu-loading-screen")).toBeTruthy();
+    expect(screen.getByText("Loading your map…")).toBeTruthy();
     expect(
       container.querySelectorAll('[data-layer="restaurants"] [data-marker-kind="restaurant"]'),
     ).toHaveLength(0);

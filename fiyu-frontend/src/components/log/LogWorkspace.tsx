@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { RestaurantPhoto } from "@/components/restaurant/RestaurantPhoto";
-import { FiyuLoadingScreen } from "@/components/states/FiyuLoadingScreen";
 import { Button } from "@/components/ui/Button";
 import { Sheet } from "@/components/ui/Sheet";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -17,10 +16,12 @@ import {
   fetchSeenRestaurantIds,
   updateRestaurantVisit,
 } from "@/lib/api/client";
+import { useAccountQuery } from "@/lib/accountQueryCache";
 import { FiyuApiError } from "@/lib/api/errors";
 import type { PublicRestaurant, RestaurantVisit, VisitReaction } from "@/lib/api/schemas";
 import { useIsDesktop } from "@/lib/hooks/useMediaQuery";
 import { getOrCreateAnonymousOwnerKey } from "@/lib/lists/identity";
+import { useProfileIdentity } from "@/lib/profile/profileIdentity";
 
 type LoadState = "loading" | "ready" | "error";
 
@@ -138,8 +139,21 @@ export function LogWorkspace({
   mobileMode?: "form" | "history";
 }) {
   const isDesktop = useIsDesktop();
-  const [loadState, setLoadState] = useState<LoadState>("loading");
-  const [visits, setVisits] = useState<RestaurantVisit[]>([]);
+  const identity = useProfileIdentity();
+  const accountId = identity.status === "loading" ? undefined : identity.profile?.user_id ?? null;
+  const requestVisits = useCallback(
+    () => fetchRestaurantLog({ clientId: getOrCreateAnonymousOwnerKey() }).then(newestFirst),
+    [],
+  );
+  const visitsQuery = useAccountQuery<RestaurantVisit[]>({
+    resource: "restaurant-log",
+    accountId,
+    loader: requestVisits,
+  });
+  const loadState: LoadState = visitsQuery.status ?? "loading";
+  const visits = visitsQuery.data ?? [];
+  const refreshVisits = visitsQuery.refresh;
+  const setVisits = visitsQuery.setData;
   const [loadError, setLoadError] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editingVisit, setEditingVisit] = useState<RestaurantVisit | null>(null);
@@ -169,43 +183,15 @@ export function LogWorkspace({
     [catalog, restaurantQuery],
   );
 
-  const requestVisits = useCallback(
-    () => fetchRestaurantLog({ clientId: getOrCreateAnonymousOwnerKey() }),
-    [],
-  );
-
   const loadVisits = useCallback(async () => {
-    setLoadState("loading");
     setLoadError(null);
     try {
-      const response = await requestVisits();
-      setVisits(newestFirst(response));
-      setLoadState("ready");
+      await refreshVisits(true);
     } catch (cause) {
       const message = cause instanceof FiyuApiError ? cause.detail : null;
       setLoadError(message ?? "We couldn’t load your Log.");
-      setLoadState("error");
     }
-  }, [requestVisits]);
-
-  useEffect(() => {
-    let cancelled = false;
-    requestVisits()
-      .then((response) => {
-        if (cancelled) return;
-        setVisits(newestFirst(response));
-        setLoadState("ready");
-      })
-      .catch((cause: unknown) => {
-        if (cancelled) return;
-        const message = cause instanceof FiyuApiError ? cause.detail : null;
-        setLoadError(message ?? "We couldn’t load your Log.");
-        setLoadState("error");
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [requestVisits]);
+  }, [refreshVisits]);
 
   useEffect(() => {
     if ((isDesktop && !sheetOpen) || editingVisit || catalog.length > 0 || catalogRequested.current) {
@@ -300,7 +286,7 @@ export function LogWorkspace({
           { visited_at: visitTimestamp(visitDate), reaction, private_note: note },
           { clientId: getOrCreateAnonymousOwnerKey() },
         );
-        setVisits((current) =>
+        setVisits((current = []) =>
           newestFirst(current.map((visit) => (visit.id === updated.id ? updated : visit))),
         );
       } else {
@@ -308,7 +294,7 @@ export function LogWorkspace({
           { place_id: placeId, visited_at: visitTimestamp(visitDate), reaction, private_note: note },
           { clientId: getOrCreateAnonymousOwnerKey() },
         );
-        setVisits((current) => newestFirst([created, ...current]));
+        setVisits((current = []) => newestFirst([created, ...current]));
       }
       if (isDesktop) {
         setSheetOpen(false);
@@ -341,7 +327,9 @@ export function LogWorkspace({
     setLoadError(null);
     try {
       await deleteRestaurantVisit(visit.id, { clientId: getOrCreateAnonymousOwnerKey() });
-      setVisits((current) => current.filter((candidate) => candidate.id !== visit.id));
+      setVisits((current = []) =>
+        current.filter((candidate) => candidate.id !== visit.id),
+      );
     } catch (cause) {
       const message = cause instanceof FiyuApiError ? cause.detail : null;
       setLoadError(message ?? "We couldn’t delete this visit.");
@@ -353,7 +341,9 @@ export function LogWorkspace({
   return (
     <>
       {isDesktop && (loadState === "loading" ? (
-        <FiyuLoadingScreen contained />
+        <div className="py-12 text-center" role="status">
+          <p className="text-sm text-ink-muted">Loading your Log…</p>
+        </div>
       ) : loadState === "error" ? (
         <section
           role="alert"
@@ -362,7 +352,9 @@ export function LogWorkspace({
           <h2 className="font-display text-2xl leading-tight text-ink">
             We couldn’t load your Log.
           </h2>
-          <p className="mt-2 text-sm leading-6 text-ink-muted">{loadError}</p>
+          <p className="mt-2 text-sm leading-6 text-ink-muted">
+            {loadError ?? "We couldn’t load your Log."}
+          </p>
           <Button className="mt-4" onClick={() => void loadVisits()}>
             Retry
           </Button>
@@ -788,11 +780,15 @@ function MobileVisitHistory({
       </header>
       <div className="flex-1 px-5 py-6">
         {loadState === "loading" ? (
-          <FiyuLoadingScreen contained />
+          <div className="py-10 text-center" role="status">
+            <p className="text-sm text-ink-muted">Loading your history…</p>
+          </div>
         ) : loadState === "error" ? (
           <section role="alert">
             <h3 className="font-display text-xl text-ink">We couldn’t load your history.</h3>
-            <p className="mt-2 text-sm leading-6 text-ink-muted">{loadError}</p>
+            <p className="mt-2 text-sm leading-6 text-ink-muted">
+              {loadError ?? "We couldn’t load your history."}
+            </p>
             <Button className="mt-4" onClick={onRetry}>
               Retry
             </Button>

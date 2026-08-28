@@ -2,53 +2,34 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { FiyuMap } from "@/components/map/FiyuMap";
 import { FiyuLoadingScreen } from "@/components/states/FiyuLoadingScreen";
 import { fetchAuthenticatedMapRestaurants } from "@/lib/api/client";
+import { useAccountQuery } from "@/lib/accountQueryCache";
 import type { PublicRestaurant } from "@/lib/api/schemas";
 import { mappableRestaurants } from "@/lib/geo/mappable";
 import { useIsDesktop } from "@/lib/hooks/useMediaQuery";
 import { useProfileIdentity } from "@/lib/profile/profileIdentity";
-
-type MapState =
-  | { status: "loading"; ownerKey: string }
-  | { status: "ready"; ownerKey: string; restaurants: PublicRestaurant[] }
-  | { status: "error"; ownerKey: string };
 
 export function DedicatedMap() {
   const router = useRouter();
   const isDesktop = useIsDesktop();
   const identity = useProfileIdentity();
   const ownerKey = identity.profile?.user_id ?? null;
-  const [mapState, setMapState] = useState<MapState | null>(null);
-  const currentMapState =
-    ownerKey && mapState?.ownerKey === ownerKey
-      ? mapState
-      : ownerKey
-        ? ({ status: "loading", ownerKey } as const)
-        : null;
+  const loadMap = useCallback(() => fetchAuthenticatedMapRestaurants(), []);
+  const map = useAccountQuery<PublicRestaurant[]>({
+    resource: "map-restaurants",
+    accountId: identity.status === "loading" ? undefined : ownerKey,
+    loader: loadMap,
+    enabled: !isDesktop && Boolean(ownerKey),
+  });
   const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
 
   useEffect(() => {
     if (isDesktop) router.replace("/picks");
   }, [isDesktop, router]);
-
-  useEffect(() => {
-    if (isDesktop || !ownerKey) return;
-    const controller = new AbortController();
-    void fetchAuthenticatedMapRestaurants({ signal: controller.signal })
-      .then((restaurants) => {
-        if (controller.signal.aborted) return;
-        setSelectedPlaceId(null);
-        setMapState({ status: "ready", ownerKey, restaurants });
-      })
-      .catch(() => {
-        if (!controller.signal.aborted) setMapState({ status: "error", ownerKey });
-      });
-    return () => controller.abort();
-  }, [isDesktop, ownerKey]);
 
   useEffect(() => {
     if (!selectedPlaceId) return;
@@ -60,11 +41,11 @@ export function DedicatedMap() {
   }, [selectedPlaceId]);
 
   const mappable =
-    ownerKey && currentMapState?.status === "ready"
-      ? mappableRestaurants(currentMapState.restaurants)
+    ownerKey && map.status === "ready"
+      ? mappableRestaurants(map.data)
       : [];
 
-  if (isDesktop || identity.status === "loading" || (ownerKey && currentMapState?.status === "loading")) {
+  if (isDesktop || identity.status === "loading") {
     return <FiyuLoadingScreen />;
   }
 
@@ -77,9 +58,13 @@ export function DedicatedMap() {
         <h1 className="mt-1 font-display text-2xl leading-none text-ink">Your map</h1>
       </div>
 
-      {ownerKey && currentMapState?.status === "error" ? (
+      {ownerKey && map.status === "error" ? (
         <div className="flex h-full items-center justify-center px-5 text-center">
           <p className="text-sm text-ink-muted">We couldn&apos;t load your discoveries.</p>
+        </div>
+      ) : ownerKey && map.status === "loading" ? (
+        <div className="flex h-full items-center justify-center px-5" role="status">
+          <p className="text-sm text-ink-muted">Loading your map…</p>
         </div>
       ) : (
         <>
