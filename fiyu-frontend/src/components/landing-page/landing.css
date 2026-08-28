@@ -1,0 +1,263 @@
+/*
+ * Landing-page motion layer.
+ *
+ * Imported by LandingPage, so it ships only on `/`. Every class is prefixed
+ * `fiyu-lp-` and nothing here restyles a shared component.
+ *
+ * Three rules govern the whole file.
+ *
+ * 1. The settled state is the default state. `--scene-progress` defaults to 1
+ *    and entrance classes are transparent only inside
+ *    `@media (prefers-reduced-motion: no-preference) and (scripting: enabled)`.
+ *    A reader with reduced motion, with JavaScript off, or on a browser that
+ *    does not know the `scripting` feature, gets the finished composition on
+ *    the first paint -- fully legible, no layout shift, nothing to wait for.
+ *
+ * 2. Only `opacity`, `transform` and `clip-path` are animated. No width, no
+ *    top, no margin: nothing here can reflow the page while it scrolls.
+ *
+ * 3. Scroll-linked sections are driven by one custom property written by
+ *    `scrollScene.ts`. React never re-renders per frame; the browser
+ *    interpolates from `--scene-progress` in `calc()`.
+ */
+
+/* --------------------------------------------------------------------------
+ * Entrance motion
+ * ----------------------------------------------------------------------- */
+
+@keyframes fiyu-lp-rise {
+  from {
+    opacity: 0;
+    transform: translate3d(0, var(--rise-from, 16px), 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes fiyu-lp-settle {
+  from {
+    opacity: 0;
+    transform: translate3d(var(--settle-x, 0), var(--settle-y, 22px), 0)
+      scale(var(--settle-scale, 0.965)) rotate(var(--settle-rotate, 0deg));
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1) rotate(0deg);
+  }
+}
+
+@keyframes fiyu-lp-rule-draw {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes fiyu-lp-drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(var(--drift-x, 0px), var(--drift-y, -5px), 0);
+  }
+}
+
+/*
+ * The pre-state and the ambient loops live behind both queries together. If a
+ * browser cannot answer `scripting`, it never hides anything.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  @media (scripting: enabled) {
+    .fiyu-lp-rise,
+    .fiyu-lp-settle {
+      opacity: 0;
+    }
+
+    .fiyu-lp-rise[data-in="true"] {
+      animation: fiyu-lp-rise var(--rise-duration, 720ms) var(--ease-fiyu)
+        var(--rise-delay, 0ms) both;
+    }
+
+    .fiyu-lp-settle[data-in="true"] {
+      animation: fiyu-lp-settle var(--settle-duration, 820ms) var(--ease-fiyu)
+        var(--settle-delay, 0ms) both;
+    }
+
+    /* A hairline growing from its leading edge: a signal resolving, not a bar
+       filling. transform-origin is set per side by the caller. */
+    .fiyu-lp-rule {
+      transform: scaleX(0);
+    }
+
+    .fiyu-lp-rule[data-in="true"] {
+      animation: fiyu-lp-rule-draw var(--rule-duration, 900ms) var(--ease-fiyu)
+        var(--rule-delay, 0ms) both;
+    }
+
+    /*
+     * Ambient drift. Deliberately 4-6px over 9-13 seconds: at this amplitude
+     * the composition reads as breathing rather than moving, and nothing ever
+     * travels far enough to look like an animation playing.
+     */
+    .fiyu-lp-drift {
+      animation: fiyu-lp-drift var(--drift-duration, 11s) ease-in-out
+        var(--drift-delay, 0s) infinite;
+      will-change: transform;
+    }
+  }
+}
+
+/* --------------------------------------------------------------------------
+ * Scroll-linked scenes
+ *
+ * `--scene-progress` runs 0 -> 1 across a scene's runway. Each element derives
+ * its own normalised `--enter` from a window inside that runway, so one
+ * property drives a whole staged sequence.
+ * ----------------------------------------------------------------------- */
+
+.fiyu-lp-scene {
+  --p: var(--scene-progress, 1);
+}
+
+/*
+ * A staged element: invisible before `--from`, settled after `--from + --span`.
+ * `--enter` is plain arithmetic, so it interpolates on the compositor without
+ * a keyframe or a class change.
+ */
+.fiyu-lp-stage-item {
+  --enter: clamp(0, calc((var(--p) - var(--from, 0)) / var(--span, 0.25)), 1);
+  opacity: var(--enter);
+  transform: translate3d(
+      calc((1 - var(--enter)) * var(--stage-x, 0px)),
+      calc((1 - var(--enter)) * var(--stage-y, 26px)),
+      0
+    )
+    scale(calc(1 - (1 - var(--enter)) * var(--stage-scale, 0.03)));
+}
+
+/* Held content that gives way as the scene resolves into something else. */
+.fiyu-lp-stage-exit {
+  --exit: clamp(0, calc((var(--p) - var(--from, 0.4)) / var(--span, 0.2)), 1);
+  opacity: calc(1 - var(--exit));
+  transform: translate3d(0, calc(var(--exit) * var(--exit-y, -14px)), 0);
+}
+
+/*
+ * The restaurant-first moment: a full-bleed image cropping down into a Fiyu
+ * card. `clip-path` rather than width, so the frame closes in without the
+ * surrounding column ever reflowing.
+ */
+.fiyu-lp-crop {
+  /* Its own window inside the runway, so the plate can hold full bleed for a
+     while before it starts closing rather than narrowing from the first pixel. */
+  --cp: clamp(0, calc((var(--p) - var(--crop-from, 0)) / var(--crop-span, 1)), 1);
+  clip-path: inset(
+    calc(var(--cp) * var(--crop-top, 0%)) calc(var(--cp) * var(--crop-right, 0%))
+      calc(var(--cp) * var(--crop-bottom, 0%)) calc(var(--cp) * var(--crop-left, 0%))
+      round calc(var(--cp) * 0.875rem)
+  );
+}
+
+.fiyu-lp-crop-image {
+  transform: scale(calc(1 + var(--cp) * 0.07));
+}
+
+/*
+ * The world plate answering the city rollout: a slow pan, never a fly-to.
+ *
+ * Windowed like the crop, and for a sharper reason -- a section that is shorter
+ * than the viewport reaches full progress only once it has left the screen, so
+ * without a window the plate would finish opening where nobody could see it.
+ */
+.fiyu-lp-atlas {
+  --ap: clamp(0, calc((var(--p) - var(--atlas-from, 0)) / var(--atlas-span, 1)), 1);
+  transform: translate3d(
+      calc(var(--atlas-x, 0px) + var(--ap) * var(--atlas-travel-x, 0px)),
+      calc(var(--atlas-y, 0px) + var(--ap) * var(--atlas-travel-y, 0px)),
+      0
+    )
+    scale(calc(var(--atlas-scale, 1.6) + var(--ap) * var(--atlas-travel-scale, -0.6)));
+  transform-origin: center;
+}
+
+/*
+ * A stale `--scene-progress` left on an element when the motion preference flips
+ * at runtime would strand a crop mid-close. The hook removes the property, and
+ * this states the settled crop outright either way.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .fiyu-lp-crop {
+    clip-path: inset(
+      var(--crop-top, 0%) var(--crop-right, 0%) var(--crop-bottom, 0%)
+        var(--crop-left, 0%) round 0.875rem
+    );
+  }
+
+  .fiyu-lp-crop-image {
+    transform: none;
+  }
+}
+
+/* --------------------------------------------------------------------------
+ * The reveal
+ *
+ * A concealed face laid over the card it hides. The settled state is lifted, so
+ * the restaurant beneath is in the server-rendered HTML either way and no
+ * reader ever waits on a timer to find out what a card says.
+ * ----------------------------------------------------------------------- */
+
+.fiyu-lp-veil {
+  opacity: 0;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  @media (scripting: enabled) {
+    .fiyu-lp-veil {
+      opacity: 1;
+      transition: opacity 260ms var(--ease-fiyu);
+    }
+
+    .fiyu-lp-veil[data-lifted="true"] {
+      opacity: 0;
+    }
+  }
+}
+
+/*
+ * The SVG variant of a staged element. Inside an SVG a `transform` in pixels is
+ * read in user units unless `transform-box` is set, so map marks stage on
+ * opacity alone and let the atlas transform carry the movement.
+ */
+.fiyu-lp-stage-fade {
+  --enter: clamp(0, calc((var(--p) - var(--from, 0)) / var(--span, 0.2)), 1);
+  opacity: calc(var(--enter) * var(--enter-opacity, 1));
+}
+
+/*
+ * A very slow scale on a large image: a photograph breathing rather than a
+ * photograph panning. Three and a half percent over twenty-six seconds is below
+ * the threshold at which a reader can tell it is moving, which is the point.
+ */
+@keyframes fiyu-lp-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.035);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  @media (scripting: enabled) {
+    .fiyu-lp-breathe {
+      animation: fiyu-lp-breathe var(--breathe-duration, 26s) ease-in-out infinite;
+    }
+  }
+}

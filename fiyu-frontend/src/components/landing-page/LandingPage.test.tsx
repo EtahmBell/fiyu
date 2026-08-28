@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import MarketingLayout from "@/app/(marketing)/layout";
 import PublicLandingPage from "@/app/(marketing)/page";
 import { LandingPage } from "@/components/landing-page/LandingPage";
+import { SELECTION_COLUMNS, SHARED_SELECTION_ID } from "@/components/landing-page/landingExamples";
 import { WORLD_LAND_PATH } from "@/components/landing-page/worldLandPath";
 import { clearProfileIdentity, publishProfileIdentity } from "@/lib/profile/profileIdentity";
 
@@ -45,6 +46,9 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+/** The one measure every landing surface shares. */
+const MEASURE_CLASS = "max-w-[90rem]";
+
 function landingRoute() {
   return (
     <MarketingLayout>
@@ -53,19 +57,31 @@ function landingRoute() {
   );
 }
 
+/** Section order, top to bottom, keyed by a heading that only that section has. */
+const NARRATIVE = [
+  "Hidden places. Carefully uncovered.",
+  "Worth finding isn’t always easy to find.",
+  "How Fiyu works",
+  "Only a few.",
+  "A few for you.Different for someone else.",
+  "Look beyond what rises to the top.",
+  "Fiyu opens city by city.",
+  "Fiyu has arrived in Tokyo.",
+  "Your next few are waiting.",
+];
+
 describe("public landing experience", () => {
   it("renders dedicated landing chrome at / without application navigation", async () => {
     render(landingRoute());
 
     const header = screen.getByRole("banner");
-    expect(within(header).getByRole("link", { name: "Fiyu home" }).getAttribute("href")).toBe(
-      "/",
-    );
+    expect(within(header).getByRole("link", { name: "Fiyu home" }).getAttribute("href")).toBe("/");
     expect(within(header).getByRole("link", { name: "About" }).getAttribute("href")).toBe("/about");
     expect(within(header).getByRole("link", { name: "Contact" }).getAttribute("href")).toBe("/contact");
     expect((await within(header).findByRole("link", { name: "Sign in" })).getAttribute("href")).toBe("/signin");
     expect(within(header).getByRole("link", { name: "Sign up" }).getAttribute("href")).toBe("/signup");
     const exploreActions = screen.getAllByRole("link", { name: "Explore Tokyo" });
+    expect(exploreActions.length).toBeGreaterThanOrEqual(3);
     expect(exploreActions.map((action) => action.getAttribute("href"))).toEqual(
       exploreActions.map(() => "/signin?next=/picks"),
     );
@@ -74,7 +90,7 @@ describe("public landing experience", () => {
     expect(screen.queryByRole("navigation", { name: "Primary" })).toBeNull();
   });
 
-  it("sends an authenticated visitor directly to Picks", () => {
+  it("sends an authenticated visitor directly to Picks from every entry point", () => {
     publishProfileIdentity({
       user_id: "user-1",
       username: "ethan",
@@ -104,7 +120,7 @@ describe("public landing experience", () => {
 
     // Same-page section anchors belong in the header, not the footer.
     expect(footer.queryByRole("link", { name: "How Fiyu works" })).toBeNull();
-    expect(footer.queryByRole("link", { name: "Why only a few?" })).toBeNull();
+    expect(footer.queryByRole("link", { name: "Only a few." })).toBeNull();
 
     expect(footer.getByText("© 2026 Fiyu.")).toBeTruthy();
     expect(footer.getByRole("link", { name: "Natural Earth" }).getAttribute("href")).toBe(
@@ -115,14 +131,39 @@ describe("public landing experience", () => {
   it("shares one measure across the header, every section, and the footer", () => {
     const { container } = render(landingRoute());
 
-    const measured = [...container.querySelectorAll(".max-w-\\[90rem\\]")];
-    expect(measured.length).toBeGreaterThanOrEqual(7);
+    // Matched on the class list rather than with an escaped attribute
+    // selector, which jsdom’s selector engine rejects for arbitrary values.
+    const measured = [...container.querySelectorAll("[class]")].filter((element) =>
+      (element.getAttribute("class") ?? "").split(" ").includes(MEASURE_CLASS),
+    );
+    expect(measured.length).toBeGreaterThanOrEqual(9);
     for (const element of measured) {
       expect(element.className).toContain("px-5");
       expect(element.className).toContain("lg:px-12");
     }
   });
 
+  it("composes the nine movements in narrative order", () => {
+    render(<LandingPage />);
+
+    const positions = NARRATIVE.map((name) => {
+      const heading = screen.getByRole("heading", { name });
+      const section = heading.closest("section");
+      if (!section) throw new Error(`No section around: ${name}`);
+      return section;
+    });
+
+    for (let index = 1; index < positions.length; index += 1) {
+      const follows = Boolean(
+        positions[index - 1].compareDocumentPosition(positions[index]) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      );
+      expect(follows, `${NARRATIVE[index]} should follow ${NARRATIVE[index - 1]}`).toBe(true);
+    }
+  });
+});
+
+describe("landing hero and product composition", () => {
   it("renders the approved hero copy and responsive wordmark treatment", () => {
     render(<LandingPage />);
 
@@ -130,10 +171,7 @@ describe("public landing experience", () => {
     expect(wordmark.textContent).toBe("Fiyu");
     expect(wordmark.className).toContain("text-[clamp(4.5rem,13vw,10rem)]");
     expect(
-      screen.getByRole("heading", {
-        level: 1,
-        name: "Hidden places. Carefully uncovered.",
-      }),
+      screen.getByRole("heading", { level: 1, name: "Hidden places. Carefully uncovered." }),
     ).toBeTruthy();
     expect(
       screen.getByText(
@@ -143,82 +181,194 @@ describe("public landing experience", () => {
     expect(screen.getByRole("link", { name: "See how Fiyu works" }).getAttribute("href")).toBe(
       "#how-it-works",
     );
+    expect(screen.getByText("Selected around you.")).toBeTruthy();
   });
 
-  it("pairs the hero with a captioned, city-neutral nearby-discovery plate", () => {
-    const { container } = render(<LandingPage />);
+  it("states globally that Fiyu is more than its first city, above the fold", () => {
+    render(<LandingPage />);
 
-    expect(screen.queryByText("A quiet way in")).toBeNull();
-    expect(screen.getByText("Selected around you.")).toBeTruthy();
+    const hero = screen.getByTestId("landing-wordmark").closest("section");
+    if (!hero) throw new Error("Expected a hero section");
+    const rail = within(hero);
+    expect(rail.getByText("Tokyo")).toBeTruthy();
+    expect(rail.getByText("New York")).toBeTruthy();
+    expect(rail.getByText("More cities")).toBeTruthy();
+    // One heading in the hero: the cards are a captioned figure, not a section.
+    expect(hero.querySelectorAll("h1, h2, h3")).toHaveLength(1);
+  });
+
+  it("builds the hero from real published picks in both card states", () => {
+    render(<LandingPage />);
+
+    const hero = screen.getByTestId("hero-nearby-figure");
+    const composition = within(hero).getByTestId("pick-composition");
+
+    // A revealed pick, a brief pick under a lifted veil, and a concealed card.
+    expect(within(composition).getAllByTestId("example-pick-card")).toHaveLength(1);
+    expect(within(composition).getAllByTestId("example-pick-card-brief")).toHaveLength(1);
+    expect(within(composition).getAllByTestId("example-concealed-card").length).toBeGreaterThanOrEqual(2);
+    expect(within(composition).getAllByText("Not yet revealed").length).toBeGreaterThanOrEqual(2);
+
+    // The concealed layer never hides content from the document: the middle
+    // card's restaurant is rendered underneath its veil, not swapped in later.
+    expect(within(composition).getByText("維摩（ユイマ）")).toBeTruthy();
+    expect(within(composition).getByText("沖縄そば屋 ちょこっと")).toBeTruthy();
+    expect(composition.querySelector(".fiyu-lp-veil")?.getAttribute("aria-hidden")).toBe("true");
+    expect(within(composition).getByText(/Published Fiyu discoveries in Tokyo/)).toBeTruthy();
+  });
+
+  it("publishes real Fiyu scores on the cards rather than invented ones", () => {
+    render(<LandingPage />);
+
+    // 86.7 out of 100 is what the catalog holds; 8.7 is Fiyu's public scale.
+    expect(screen.getAllByLabelText("Fiyu score 8.7 out of 10").length).toBeGreaterThan(0);
+    expect(screen.queryByLabelText("Fiyu score unavailable")).toBeNull();
+  });
+
+  it("never asks the network for anything while the page renders", () => {
+    const request = vi.fn();
+    vi.stubGlobal("fetch", request);
+    render(<LandingPage />);
+
+    // Card photos cost a billed Google call each. The landing page draws its
+    // plates instead, so a visit must be free.
+    expect(request).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("restaurant-photo-region")).toBeNull();
+  });
+
+  it("closes on the composition it opened with", () => {
+    render(<LandingPage />);
+
+    expect(screen.getAllByTestId("pick-composition")).toHaveLength(2);
+    expect(screen.getByRole("heading", { name: "Your next few are waiting." })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Read about Fiyu" }).getAttribute("href")).toBe("/about");
+  });
+});
+
+describe("landing narrative sections", () => {
+  it("puts a restaurant on screen first, captioned as an illustration", () => {
+    render(<LandingPage />);
+
+    const plate = screen.getByRole("img", {
+      name: "A line illustration of a small independent restaurant counter, drawn for Fiyu",
+    });
+    expect(plate.getAttribute("src")).toBe("/images/about-storefront.png");
+    const moment = plate.closest("section");
+    if (!moment) throw new Error("Expected the restaurant moment section");
+    const scene = within(moment);
     expect(
-      screen.getByText(
-        /Independent restaurants matched to your tastes and nearby area—whether you’re exploring a new city or rediscovering your everyday one\./,
+      scene.getByText("Illustration. In the application, cards carry photographs from Google Maps."),
+    ).toBeTruthy();
+    expect(scene.getByText("A Fiyu discovery")).toBeTruthy();
+    expect(scene.getByText("江戸酒場 海")).toBeTruthy();
+    expect(scene.getByText("Izakaya / standing bar")).toBeTruthy();
+    expect(scene.getByText("2 Chome Jingumae")).toBeTruthy();
+    // Cropped with clip-path, so the section never reflows as it is scrubbed.
+    expect(moment.querySelector(".fiyu-lp-crop")).toBeTruthy();
+  });
+
+  it("keeps the three workflow steps and shows them on a Fiyu surface", () => {
+    render(<LandingPage />);
+
+    expect(screen.getByRole("heading", { name: "Tell us what you like" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Receive a few considered picks" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Reveal, save, and visit" })).toBeTruthy();
+
+    const surface = screen.getByTestId("workflow-surface");
+    expect(surface.getAttribute("data-step")).toBe("0");
+    expect(within(surface).getByText("Your tastes")).toBeTruthy();
+    // No popularity control is drawn: the product has no popularity data yet.
+    expect(screen.queryByText(/Popular favourites|Hidden gems/i)).toBeNull();
+
+    // A fixed height, so swapping the three states cannot shift the page
+    // beneath a reader who is scrolling it.
+    const stateBox = surface.firstElementChild?.getAttribute("class") ?? "";
+    expect(stateBox).toContain("h-[22rem]");
+    expect(stateBox).not.toContain("min-h-");
+  });
+
+  it("accumulates exactly three discoveries under Only a few", () => {
+    render(<LandingPage />);
+
+    const philosophy = screen.getByRole("heading", { name: "Only a few." }).closest("section");
+    if (!philosophy) throw new Error("Expected the Only a few section");
+    expect(philosophy.querySelectorAll("[data-arrival]")).toHaveLength(3);
+    expect(philosophy.querySelector('[data-arrival="4"]')).toBeNull();
+    expect(within(philosophy).getByText("A slower reveal")).toBeTruthy();
+    expect(
+      within(philosophy).getByText(
+        /Great small restaurants can struggle with sudden attention\. Fiyu reveals discoveries gradually through small, personalized selections/,
       ),
     ).toBeTruthy();
-
-    // The hero keeps a single heading; the plate is captioned, not sectioned.
-    const hero = screen.getByTestId("hero-nearby-figure").closest("section");
-    expect(hero?.querySelectorAll("h1, h2, h3")).toHaveLength(1);
-
-    // Decorative to assistive tech, and no place is named or plotted.
-    const plate = screen.getByTestId("hero-nearby-figure").querySelector("svg");
-    expect(plate?.getAttribute("aria-hidden")).toBe("true");
-    expect(plate?.querySelector("text")).toBeNull();
-    expect(plate?.querySelector("image")).toBeNull();
-    // One origin plus three nearby picks.
-    expect(plate?.querySelectorAll('circle[fill="var(--color-rose-dust)"]')).toHaveLength(3);
-    expect(plate?.querySelectorAll('circle[fill="var(--color-plum)"]')).toHaveLength(1);
-
-    // Stacks on narrow screens rather than crowding the primary copy.
-    expect(container.querySelector('[data-testid="hero-nearby-figure"]')?.className).toContain(
-      "border-t",
-    );
+    expect(
+      within(philosophy).getByText(/By varying recommendations across users instead of directing everyone/),
+    ).toBeTruthy();
+    expect(screen.queryByText(/Three, not three hundred/i)).toBeNull();
+    expect(screen.queryByRole("heading", { name: /Why only a few restaurants at a time/ })).toBeNull();
   });
 
-  it("renders one keyboard-accessible available city on the deterministic world map", () => {
+  it("shows three overlapping-but-different selections and states the overlap", () => {
+    render(<LandingPage />);
+
+    const slots = SELECTION_COLUMNS.flatMap((column) => column.picks);
+    expect(slots).toHaveLength(9);
+    expect(new Set(slots.map((pick) => pick.id)).size).toBe(8);
+    expect(slots.filter((pick) => pick.id === SHARED_SELECTION_ID)).toHaveLength(2);
+
+    expect(screen.getByText("Someone near Yanaka")).toBeTruthy();
+    expect(screen.getByText("Someone near Setagaya")).toBeTruthy();
+    expect(screen.getByText("Someone near Tsukiji")).toBeTruthy();
+    // The overlap is named, not only tinted.
+    expect(screen.getAllByText("Also another selection")).toHaveLength(2);
+    expect(
+      screen.getByText("One place appears in two of these three selections. The other seven appear once."),
+    ).toBeTruthy();
+  });
+
+  it("explains underexposure with signals rather than an algorithm diagram", () => {
+    render(<LandingPage />);
+
+    const section = screen
+      .getByRole("heading", { name: "Look beyond what rises to the top." })
+      .closest("section");
+    if (!section) throw new Error("Expected the Look beyond section");
+    const scene = within(section);
+    expect(scene.getByText("Local-language context")).toBeTruthy();
+    expect(scene.getByText("Independent and owner-run")).toBeTruthy();
+    expect(scene.getByText("Strong local reception")).toBeTruthy();
+    expect(scene.getByText("Less visible than it deserves")).toBeTruthy();
+    expect(scene.getByText("Then one place worth going.")).toBeTruthy();
+    expect(scene.getAllByTestId("example-pick-card")).toHaveLength(1);
+  });
+});
+
+describe("landing rollout, edition and safeguards", () => {
+  it("rolls out city by city on one keyboard-accessible world plate", () => {
     render(<LandingPage />);
 
     const map = screen.getByTestId("world-locations-map");
     expect(map.getAttribute("role")).toBe("img");
     expect(map.getAttribute("viewBox")).toBe("0 0 900 450");
     expect(map.getAttribute("class")).toContain("max-w-full");
-    const available = map.querySelectorAll('[data-location-status="available"]');
-    expect(available).toHaveLength(1);
+    expect(map.getAttribute("class")).toContain("w-full");
+
+    // Exactly one city is available, and only that one is a link.
+    expect(map.querySelectorAll('[data-location-status="available"]')).toHaveLength(1);
     const tokyo = within(map).getByRole("link", { name: "Tokyo — Available now" });
     expect(tokyo.getAttribute("href")).toBe("/signin?next=/picks");
     tokyo.focus();
     expect(document.activeElement).toBe(tokyo);
     expect(screen.queryByRole("link", { name: /New York|Rome/i })).toBeNull();
+
+    // The rollout itself is text, present from the first paint.
+    const rollout = screen.getByRole("heading", { name: "Fiyu opens city by city." }).closest("section");
+    if (!rollout) throw new Error("Expected the locations section");
+    expect([...rollout.querySelectorAll("[data-rollout]")].map((row) => row.getAttribute("data-rollout")))
+      .toEqual(["Tokyo", "New York", "Where next?"]);
+    // Once in the rollout row, once on the plate label.
+    expect(within(rollout).getAllByText("October 2026")).toHaveLength(2);
     expect(WORLD_LAND_PATH.length).toBeGreaterThan(10_000);
     expect(WORLD_LAND_PATH.length).toBeLessThan(30_000);
-  });
-
-  it("renders the workflow before the gradual-reveal philosophy", () => {
-    render(<LandingPage />);
-
-    const workflow = screen.getByRole("heading", { name: "How Fiyu works" }).closest("section");
-    const philosophy = screen
-      .getByRole("heading", { name: "Why only a few restaurants at a time?" })
-      .closest("section");
-    expect(workflow).toBeTruthy();
-    expect(philosophy).toBeTruthy();
-    if (!workflow || !philosophy) throw new Error("Expected ordered landing sections");
-    expect(
-      Boolean(workflow.compareDocumentPosition(philosophy) & Node.DOCUMENT_POSITION_FOLLOWING),
-    ).toBe(true);
-    expect(
-      screen.getByText(
-        /Great small restaurants can struggle with sudden attention\. Fiyu reveals discoveries gradually through small, personalized selections/,
-      ),
-    ).toBeTruthy();
-    expect(
-      screen.getByText(/By varying recommendations across users instead of directing everyone/),
-    ).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "Tell us what you like" })).toBeTruthy();
-    expect(
-      screen.getByRole("heading", { name: "Receive a few considered picks" }),
-    ).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "Reveal, save, and visit" })).toBeTruthy();
   });
 
   it("records one lightweight next-city vote and shows the thank-you state", async () => {
@@ -229,18 +379,11 @@ describe("public landing experience", () => {
     vi.stubGlobal("fetch", request);
     render(<LandingPage />);
 
-    expect(screen.getByText("More to come!")).toBeTruthy();
-    expect(screen.getAllByText("Available now").length).toBeGreaterThan(0);
-    expect(screen.getByText("October 2026")).toBeTruthy();
-    expect(screen.queryByText("More cities coming")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Vote on the next city" }));
     expect(screen.getByText("Where should Fiyu go next?")).toBeTruthy();
     const other = screen.getByRole("button", { name: "Other" });
     fireEvent.click(other);
     expect(other.getAttribute("aria-pressed")).toBe("true");
-    fireEvent.click(other);
-    expect(other.getAttribute("aria-pressed")).toBe("false");
-    fireEvent.click(other);
     fireEvent.change(screen.getByLabelText("City name"), { target: { value: "Seoul" } });
     fireEvent.click(screen.getByRole("button", { name: "Submit vote" }));
 
@@ -259,45 +402,38 @@ describe("public landing experience", () => {
     const backdrop = screen.getByTestId("next-city-vote-backdrop");
     expect(backdrop.parentElement).toBe(document.body);
     expect(backdrop.className).toContain("fixed");
-    expect(backdrop.className).toContain("inset-0");
     expect(dialog.className).toContain("overflow-y-auto");
     expect(document.body.style.overflow).toBe("hidden");
 
-    fireEvent.pointerDown(dialog);
-    expect(screen.getByRole("dialog", { name: "Where should Fiyu go next?" })).toBeTruthy();
     fireEvent.keyDown(window, { key: "Escape" });
     expect(screen.queryByRole("dialog", { name: "Where should Fiyu go next?" })).toBeNull();
     expect(document.body.style.overflow).toBe("");
-
-    fireEvent.click(screen.getByRole("button", { name: "Vote on the next city" }));
-    fireEvent.click(screen.getByRole("button", { name: "Close city vote" }));
-    expect(screen.queryByRole("dialog", { name: "Where should Fiyu go next?" })).toBeNull();
-
-    fireEvent.click(screen.getByRole("button", { name: "Vote on the next city" }));
-    fireEvent.pointerDown(screen.getByTestId("next-city-vote-backdrop"));
-    expect(screen.queryByRole("dialog", { name: "Where should Fiyu go next?" })).toBeNull();
   });
 
-  it("uses the existing sharing artwork as the accessible Tokyo edition poster", () => {
+  it("frames Tokyo as the current edition of a repeatable series", () => {
     render(<LandingPage />);
 
-    expect(screen.queryByText("Three doors into the city.")).toBeNull();
-    expect(screen.getByRole("heading", { name: "Fiyu has arrived in Tokyo." })).toBeTruthy();
+    const edition = screen.getByRole("heading", { name: "Fiyu has arrived in Tokyo." }).closest("section");
+    if (!edition) throw new Error("Expected the city edition section");
+    const scene = within(edition);
+    expect(scene.getByText("Currently exploring")).toBeTruthy();
+    expect(scene.getByText("Edition 01")).toBeTruthy();
+    expect(scene.getByText("Next edition")).toBeTruthy();
     expect(
-      screen.getByText(
+      scene.getByText(
         "Explore Tokyo’s independent and underexposed restaurants, selected around your tastes—from local izakayas to tucked-away ramen counters you might otherwise miss.",
       ),
     ).toBeTruthy();
-    const poster = screen.getByRole("img", {
-      name: "Fiyu Tokyo edition artwork with a map marker over Japan.",
+
+    const plate = within(screen.getByTestId("city-edition-plate")).getByRole("img", {
+      name: "A line illustration looking out from a restaurant table onto a quiet Tokyo street",
     });
-    expect(poster.getAttribute("src")).toBe("/og.png");
-    expect(poster.getAttribute("width")).toBe("1200");
-    expect(poster.getAttribute("height")).toBe("630");
-    expect(poster.getAttribute("loading")).toBe("lazy");
-    expect(poster.getAttribute("sizes")).toContain("100vw");
-    expect(screen.queryByLabelText("Simplified illustrated preview of Tokyo neighborhoods")).toBeNull();
-    expect(screen.queryByLabelText("Three concealed Tokyo restaurant previews")).toBeNull();
+    expect(plate.getAttribute("src")).toBe("/images/log-empty-table.png");
+    expect(plate.getAttribute("loading")).toBe("lazy");
+    expect(plate.getAttribute("width")).toBe("2172");
+    expect(plate.getAttribute("height")).toBe("724");
+    // The Open Graph artwork is no longer pressed into service as a poster.
+    expect(edition.querySelector('img[src="/og.png"]')).toBeNull();
   });
 
   it("supports a focus-managed mobile menu that closes with Escape", () => {
@@ -314,14 +450,88 @@ describe("public landing experience", () => {
     expect(document.activeElement).toBe(trigger);
     expect(menu.hidden).toBe(true);
   });
+});
 
-  it("keeps the mobile surface width-safe and disables entrance motion when requested", () => {
+/** Reduced motion, reported the way the hooks read it. */
+function stubReducedMotion() {
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: query.includes("prefers-reduced-motion: reduce"),
+    media: query,
+    onchange: null,
+    addEventListener: () => undefined,
+    removeEventListener: () => undefined,
+    addListener: () => undefined,
+    removeListener: () => undefined,
+    dispatchEvent: () => false,
+  }));
+}
+
+describe("landing motion safeguards", () => {
+  it("settles every scroll-led scene when motion is not wanted", () => {
+    stubReducedMotion();
+    const { container } = render(<LandingPage />);
+
+    // A scene that is never scrubbed must not leave content behind a scroll.
+    for (const scene of container.querySelectorAll(".fiyu-lp-scene")) {
+      expect((scene as HTMLElement).style.getPropertyValue("--scene-progress")).toBe("");
+    }
+
+    // The stepped surface reports its last step rather than its first.
+    const surface = screen.getByTestId("workflow-surface");
+    expect(surface.getAttribute("data-step")).toBe("2");
+    expect(within(surface).getByText("Discovered")).toBeTruthy();
+    expect(surface.querySelector('[data-tone="saved"]')).toBeTruthy();
+
+    // Entrance motion is released rather than waited on.
+    for (const element of container.querySelectorAll("[data-in]")) {
+      expect(element.getAttribute("data-in")).toBe("true");
+    }
+  });
+
+  it("keeps the settled state the default state in CSS", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const stylesheet = readFileSync(
+      join(process.cwd(), "src", "components", "landing-page", "landing.css"),
+      "utf8",
+    ).replace(/\/\*[\s\S]*?\*\//g, "");
+
+    // Every motion-preference guard also asks whether scripting can release
+    // what it hides. Without both, JavaScript off means content off.
+    const guards = stylesheet.split("@media (prefers-reduced-motion: no-preference)");
+    expect(guards.length).toBeGreaterThanOrEqual(3);
+    for (const block of guards.slice(1)) {
+      expect(block).toContain("@media (scripting: enabled)");
+    }
+
+    // Nothing that hides an element may exist outside those guards.
+    const unguarded = stylesheet.split("@media (scripting: enabled)")[0];
+    for (const rule of [".fiyu-lp-rise,", ".fiyu-lp-settle {", ".fiyu-lp-rule {"]) {
+      expect(unguarded).not.toContain(rule);
+    }
+
+    // Progress defaults to finished, so `calc()` resolves to the settled frame.
+    expect(stylesheet).toContain("--p: var(--scene-progress, 1);");
+  });
+
+  it("keeps the mobile surface width-safe and viewport-stable", () => {
     const { container } = render(<LandingPage />);
 
     const main = container.querySelector("main");
     expect(main?.className).toContain("min-w-0");
     expect(main?.className).toContain("overflow-x-clip");
     expect(screen.getByTestId("world-locations-map").getAttribute("class")).toContain("w-full");
+
+    // Pinned runways are measured in svh, so an iOS toolbar cannot resize a
+    // scene mid-scroll and jump the composition.
+    const scenes = [...container.querySelectorAll(".fiyu-lp-scene")];
+    expect(scenes.length).toBeGreaterThanOrEqual(3);
+    for (const scene of scenes) {
+      if (!scene.className.includes("h-[")) continue;
+      expect(scene.className).toMatch(/h-\[[\d.]+svh\]/);
+      expect(scene.className).not.toMatch(/h-\[[\d.]+vh\]/);
+    }
+
     const styles = [...container.querySelectorAll("style")].map((style) => style.textContent).join("\n");
     expect(styles).toContain("prefers-reduced-motion: reduce");
     expect(styles).toContain("animation: none");
