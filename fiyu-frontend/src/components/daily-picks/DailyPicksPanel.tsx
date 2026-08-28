@@ -12,7 +12,12 @@ import { RecentDiscoveries } from "@/components/daily-picks/RecentDiscoveries";
 import { FreeOriginOnboarding } from "@/components/location/FreeOriginOnboarding";
 import { FiyuLoadingScreen } from "@/components/states/FiyuLoadingScreen";
 import { Button } from "@/components/ui/Button";
-import { assignDailyPicks, fetchActiveDailyPicks, fetchRecentDailyPicks } from "@/lib/api/client";
+import {
+  assignDailyPicks,
+  fetchActiveDailyPicks,
+  fetchRecentDailyPicks,
+  revealDailyPicks,
+} from "@/lib/api/client";
 import {
   accountQueryKey,
   loadAccountQuery,
@@ -396,16 +401,29 @@ export function DailyPicksPanel({
         const assignedAt = Date.parse(assignment.assigned_at);
         const expiresAt = Date.parse(assignment.expires_at ?? "");
         const previousRevealed = new Set(restoredSnapshot?.selection?.revealedIds ?? []);
-        const activeDiscoveries = (restoredSnapshot?.discoveries ?? []).filter((discovery) =>
+        let activeDiscoveries = (restoredSnapshot?.discoveries ?? []).filter((discovery) =>
           assignment.place_ids.includes(discovery.restaurantId),
         );
+        if (assignment.revealed_at) {
+          const revealedAt = Date.parse(assignment.revealed_at);
+          activeDiscoveries = assignment.place_ids.reduce(
+            (discoveries, placeId) => recordRevealedDiscovery(
+              discoveries,
+              placeId,
+              Number.isFinite(revealedAt) ? revealedAt : assignedAt,
+            ),
+            activeDiscoveries,
+          );
+        }
         persist({
           ...(restoredSnapshot ?? EMPTY_DAILY_PICKS_STATE),
           version: 3,
           discoveries: [...latestHistorical.values(), ...activeDiscoveries],
           selection: {
             restaurantIds: assignment.place_ids,
-            revealedIds: assignment.place_ids.filter((id) => previousRevealed.has(id)),
+            revealedIds: assignment.revealed_at
+              ? [...assignment.place_ids]
+              : assignment.place_ids.filter((id) => previousRevealed.has(id)),
             generatedAt: new Date(assignedAt).toISOString(),
             expiresAt: Number.isFinite(expiresAt)
               ? new Date(expiresAt).toISOString()
@@ -438,6 +456,8 @@ export function DailyPicksPanel({
   };
 
   const generate = (developmentRefresh = false) => {
+    // This timestamp is intentionally captured on the user action, not during render.
+    // eslint-disable-next-line react-hooks/purity
     const generatedAt = Date.now();
     const useDevelopmentRefresh = UNLIMITED_PICKS_DEV_MODE && developmentRefresh;
     const generation = assignmentGenerationRef.current + 1;
@@ -570,32 +590,70 @@ export function DailyPicksPanel({
 
   const reveal = (placeId: string, revealedAt: number) => {
     if (!currentSelection || currentSelection.revealedIds.includes(placeId)) return;
+    const previousState = state;
+    const revealedPlaceIds = [...currentSelection.restaurantIds];
+    const discoveries = revealedPlaceIds.reduce(
+      (current, restaurantId) => recordRevealedDiscovery(current, restaurantId, revealedAt),
+      state.discoveries,
+    );
     persist({
       ...state,
-      discoveries: recordRevealedDiscovery(state.discoveries, placeId, revealedAt),
+      discoveries,
       selection: {
         ...currentSelection,
-        revealedIds: [...currentSelection.revealedIds, placeId],
+        revealedIds: revealedPlaceIds,
       },
     });
-    const restaurant = restaurants.find((candidate) => candidate.place_id === placeId);
-    if (restaurant && isMappable(restaurant)) {
+    const revealedRestaurants = revealedPlaceIds
+      .map((restaurantId) => restaurantById.get(restaurantId))
+      .filter((restaurant): restaurant is PublicRestaurant => Boolean(restaurant));
+    const mappableRevealed = revealedRestaurants.filter(isMappable);
+    const publishMapReveal = () => {
+      if (mappableRevealed.length === 0) return;
       if (accountId) {
         const mapKey = accountQueryKey("map-restaurants", accountId);
         const cachedMap = readAccountQuery<PublicRestaurant[]>(mapKey);
-        if (cachedMap && !cachedMap.some((candidate) => candidate.place_id === placeId)) {
-          writeAccountQuery(mapKey, [...cachedMap, restaurant]);
+        if (cachedMap) {
+          writeAccountQuery(mapKey, [
+            ...new Map([...cachedMap, ...mappableRevealed].map((restaurant) => [
+              restaurant.place_id,
+              restaurant,
+            ])).values(),
+          ]);
         }
       }
       publishNewlyRevealedMapPlaces(
-        [placeId],
+        mappableRevealed.map((restaurant) => restaurant.place_id),
         revealedAt,
         [
-          ...currentSelection.revealedIds,
-          placeId,
+          ...revealedPlaceIds,
           ...recent.map((discovery) => discovery.restaurantId),
         ],
       );
+    };
+    const roundId = assignmentLocation?.accountId === accountId
+      ? assignmentLocation.roundId
+      : null;
+    if (injectedStorage === undefined && roundId) {
+      void revealDailyPicks(roundId, { clientId: getOrCreateAnonymousOwnerKey() })
+        .then((result) => {
+          publishMapReveal();
+          if (hydrationKey) {
+            const hydration = readAccountQuery<DailyPicksHydration>(hydrationKey);
+            if (hydration?.assignment?.round_id === roundId) {
+              writeAccountQuery(hydrationKey, {
+                ...hydration,
+                assignment: { ...hydration.assignment, revealed_at: result.revealed_at },
+              });
+            }
+          }
+        })
+        .catch(() => {
+          persist(previousState);
+          setInventoryMessage("We couldn’t save the reveal. Try again.");
+        });
+    } else {
+      publishMapReveal();
     }
   };
 

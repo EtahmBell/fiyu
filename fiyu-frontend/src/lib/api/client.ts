@@ -12,6 +12,7 @@ import {
   dailyPicksAssignUrl,
   dailyPicksActiveUrl,
   dailyPicksRecentUrl,
+  dailyPicksRevealUrl,
   discoveryLocationCheckUrl,
   discoveryLocationUrl,
   defaultListItemsUrl,
@@ -56,6 +57,7 @@ import {
   type UserNotification,
   defaultListMembershipResponseSchema,
   dailyPickAssignmentResponseSchema,
+  dailyPickRevealResponseSchema,
   activeDailyPickAssignmentResponseSchema,
   recentDailyPickRoundListSchema,
   discoveryLocationSchema,
@@ -368,6 +370,23 @@ export function fetchRecentDailyPicks(
     {
       ...options,
       cache: "no-store",
+      headers: { ...listHeaders(identity), ...(options.headers ?? {}) },
+    },
+  );
+}
+
+export function revealDailyPicks(
+  roundId: string,
+  identity: ListIdentity,
+  options: RequestOptions = {},
+) {
+  return requestJson(
+    dailyPicksRevealUrl(roundId),
+    paths.dailyPicksReveal(roundId),
+    dailyPickRevealResponseSchema,
+    {
+      ...options,
+      method: "POST",
       headers: { ...listHeaders(identity), ...(options.headers ?? {}) },
     },
   );

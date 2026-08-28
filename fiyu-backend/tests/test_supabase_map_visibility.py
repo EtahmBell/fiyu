@@ -41,6 +41,7 @@ def test_active_pick_lookup_uses_strict_expiration_boundary(monkeypatch):
                     "id": "round-a",
                     "assigned_at": "2026-08-21T12:00:00+00:00",
                     "expires_at": "2026-08-22T12:00:00+00:00",
+                    "revealed_at": "2026-08-21T12:05:00+00:00",
                     "selection_metadata": {},
                 }
             ]
@@ -57,7 +58,39 @@ def test_active_pick_lookup_uses_strict_expiration_boundary(monkeypatch):
 
     assert active is not None
     assert active["place_ids"] == ["a", "b", "c"]
+    assert active["revealed_at"] == "2026-08-21T12:05:00+00:00"
+    assert "revealed_at" in requests[0][1]["select"]
     assert requests[0][1]["expires_at"] == "gt.2026-08-22T12:00:00+00:00"
+
+
+def test_reveal_pick_round_uses_atomic_service_role_rpc(monkeypatch):
+    captured: dict[str, object] = {}
+
+    def request(path, *, method, body):
+        captured.update({"path": path, "method": method, "body": body})
+        return {
+            "round_id": "round-a",
+            "revealed_at": "2026-08-21T12:05:00+00:00",
+        }
+
+    monkeypatch.setattr(supabase_user_data, "_request", request)
+
+    revealed_at = supabase_user_data.reveal_active_daily_picks(
+        user_id="user-a",
+        round_id="round-a",
+        revealed_at="2026-08-21T12:05:00+00:00",
+    )
+
+    assert revealed_at == "2026-08-21T12:05:00+00:00"
+    assert captured == {
+        "path": "rpc/reveal_fiyu_daily_picks",
+        "method": "POST",
+        "body": {
+            "p_user_id": "user-a",
+            "p_round_id": "round-a",
+            "p_revealed_at": "2026-08-21T12:05:00+00:00",
+        },
+    }
 
 
 def test_active_pick_repair_accepts_partial_snapshot_and_uses_atomic_rpc(monkeypatch):

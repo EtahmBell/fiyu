@@ -390,12 +390,18 @@ export const dailyPickAssignmentResponseSchema = z.object({
   // Optional only for rolling compatibility with a backend that predates the
   // server-owned snapshot response. Current servers always return both.
   expires_at: z.string().min(1).optional(),
+  revealed_at: z.string().min(1).nullable().optional(),
   discovery_mode: z.enum(["current", "preview", "manual"]).nullable().optional(),
   discovery_label: z.string().nullable().optional(),
   restaurants: z.array(publicRestaurantSchema).max(3).optional(),
 });
 
 export const activeDailyPickAssignmentResponseSchema = dailyPickAssignmentResponseSchema.nullable();
+
+export const dailyPickRevealResponseSchema = z.object({
+  round_id: z.string().min(1),
+  revealed_at: z.string().min(1),
+});
 
 export const recentDailyPickRoundSchema = z.object({
   round_id: z.string().min(1),
@@ -531,6 +537,7 @@ export type DefaultListResponse = z.infer<typeof defaultListResponseSchema>;
 export type DefaultListMutationResponse = z.infer<typeof defaultListMutationResponseSchema>;
 export type DefaultListMembershipResponse = z.infer<typeof defaultListMembershipResponseSchema>;
 export type DailyPickAssignmentResponse = z.infer<typeof dailyPickAssignmentResponseSchema>;
+export type DailyPickRevealResponse = z.infer<typeof dailyPickRevealResponseSchema>;
 export type RecentDailyPickRound = z.infer<typeof recentDailyPickRoundSchema>;
 export type RestaurantVisit = z.infer<typeof restaurantVisitSchema>;
 export type VisitReaction = z.infer<typeof visitReactionSchema>;

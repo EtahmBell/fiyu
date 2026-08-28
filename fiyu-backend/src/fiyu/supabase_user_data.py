@@ -449,7 +449,7 @@ def get_active_daily_picks(*, user_id: str, city_id: str) -> dict[str, Any] | No
     rounds = _request(
         "fiyu_daily_pick_rounds",
         query={
-            "select": "id,assigned_at,expires_at,selection_metadata",
+            "select": "id,assigned_at,expires_at,revealed_at,selection_metadata",
             "user_id": f"eq.{user_id}",
             "city_id": f"eq.{city_id}",
             "expires_at": f"gt.{_now()}",
@@ -481,7 +481,7 @@ def get_recent_daily_pick_rounds(
     rounds = _request(
         "fiyu_daily_pick_rounds",
         query={
-            "select": "id,assigned_at,expires_at,selection_metadata",
+            "select": "id,assigned_at,expires_at,revealed_at,selection_metadata",
             "user_id": f"eq.{user_id}",
             "city_id": f"eq.{city_id}",
             "assigned_at": f"gt.{assigned_after}",
@@ -583,6 +583,23 @@ def repair_active_daily_picks(
     ):
         raise SharedUserDataError("Daily Picks snapshot could not be repaired")
     return result
+
+
+def reveal_active_daily_picks(*, user_id: str, round_id: str, revealed_at: str) -> str | None:
+    result = _request(
+        "rpc/reveal_fiyu_daily_picks",
+        method="POST",
+        body={
+            "p_user_id": user_id,
+            "p_round_id": round_id,
+            "p_revealed_at": revealed_at,
+        },
+    )
+    if isinstance(result, list) and result:
+        result = result[0]
+    if not isinstance(result, dict) or not result.get("revealed_at"):
+        return None
+    return str(result["revealed_at"])
 
 
 def record_seen(*, user_id: str, place_ids: list[str]) -> None:

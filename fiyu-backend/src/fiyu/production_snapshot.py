@@ -29,6 +29,7 @@ SCRUBBED_TABLES: tuple[str, ...] = (
     "daily_pick_rounds",
     "daily_pick_served_history",
     "contact_submissions",
+    "city_poll_votes",
     "user_profiles",
     "address_decision_audits",
     "address_review_decisions",

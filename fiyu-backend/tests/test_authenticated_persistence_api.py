@@ -224,6 +224,23 @@ def shared_account_api(tmp_path, monkeypatch):
         return snapshot
 
     monkeypatch.setattr(api.shared_user_data, "repair_active_daily_picks", repair_snapshot)
+
+    def reveal_snapshot(*, user_id, round_id, revealed_at):
+        key = next(
+            (
+                key
+                for key, value in snapshots.items()
+                if key[0] == user_id and str(value["round_id"]) == round_id
+            ),
+            None,
+        )
+        if key is None:
+            return None
+        snapshot = snapshots[key]
+        snapshot["revealed_at"] = snapshot.get("revealed_at") or revealed_at
+        return snapshot["revealed_at"]
+
+    monkeypatch.setattr(api.shared_user_data, "reveal_active_daily_picks", reveal_snapshot)
     monkeypatch.setattr(
         api.shared_user_data, "get_discovery_location", lambda *, user_id: None
     )
@@ -991,6 +1008,39 @@ def test_authenticated_daily_pick_snapshot_is_reused_and_account_specific(
     assert first.json()["discovery_label"] == "Asakusa"
     assert other_account.status_code == 200
     assert other_account.json() is None
+
+
+def test_authenticated_daily_pick_reveal_persists_across_restore_and_is_account_owned(
+    shared_account_api,
+):
+    client, _, _ = shared_account_api
+    created = client.post(
+        "/daily-picks/assign",
+        headers=_auth("token-a"),
+        json={"city_id": "tokyo", "seed": 3, "requested_count": 3},
+    )
+    round_id = created.json()["round_id"]
+
+    revealed = client.post(
+        f"/daily-picks/{round_id}/reveal", headers=_auth("token-a")
+    )
+    repeated = client.post(
+        f"/daily-picks/{round_id}/reveal", headers=_auth("token-a")
+    )
+    restored = client.get(
+        "/daily-picks/active",
+        params={"city_id": "tokyo"},
+        headers=_auth("token-a"),
+    )
+    other_account = client.post(
+        f"/daily-picks/{round_id}/reveal", headers=_auth("token-b")
+    )
+
+    assert revealed.status_code == repeated.status_code == restored.status_code == 200
+    assert repeated.json()["revealed_at"] == revealed.json()["revealed_at"]
+    assert restored.json()["revealed_at"] == revealed.json()["revealed_at"]
+    assert restored.json()["place_ids"] == created.json()["place_ids"]
+    assert other_account.status_code == 404
 
 
 def test_recent_discoveries_restore_every_persisted_round_item_with_account_isolation(

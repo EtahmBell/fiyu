@@ -10,7 +10,7 @@ import { currentSafeNextPath } from "@/lib/navigation/safeRedirect";
 import { cn } from "@/lib/utils/cn";
 
 const FIELD_CLASS =
-  "mt-2 min-h-12 w-full rounded-lg border border-line bg-surface px-3 text-sm text-ink focus:border-lavender-500";
+  "mt-2 min-h-12 w-full rounded-lg border border-line bg-surface px-3 text-base text-ink focus:border-lavender-500 sm:text-sm";
 
 export function AuthPage({ mode }: { mode: "signin" | "signup" }) {
   const signup = mode === "signup";
@@ -214,7 +214,7 @@ export function AuthPage({ mode }: { mode: "signin" | "signup" }) {
                     autoCorrect="off"
                     value={username}
                     onChange={(event) => setUsername(event.target.value.replace(/^@+/, ""))}
-                    className="min-h-12 w-full rounded-lg border border-line bg-surface pr-3 pl-7 text-sm text-ink focus:border-lavender-500"
+                    className="min-h-12 w-full rounded-lg border border-line bg-surface pr-3 pl-7 text-base text-ink focus:border-lavender-500 sm:text-sm"
                   />
                 </div>
                 <p className="mt-2 text-xs leading-5 text-ink-faint">Letters, numbers, and underscores.</p>

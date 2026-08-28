@@ -35,12 +35,14 @@ vi.mock("next/image", () => ({
 
 beforeEach(() => {
   clearProfileIdentity();
+  window.localStorage.removeItem("fiyu:next-city-voted");
 });
 
 afterEach(() => {
   cleanup();
   clearProfileIdentity();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 function landingRoute() {
@@ -87,7 +89,7 @@ describe("public landing experience", () => {
     for (const action of screen.getAllByRole("link", { name: "Explore Tokyo" })) {
       expect(action.getAttribute("href")).toBe("/picks");
     }
-    expect(screen.getByRole("link", { name: "Tokyo — Available" }).getAttribute("href")).toBe("/picks");
+    expect(screen.getByRole("link", { name: "Tokyo — Available now" }).getAttribute("href")).toBe("/picks");
   });
 
   it("keeps the footer to real destinations, with attribution split from navigation", () => {
@@ -182,7 +184,7 @@ describe("public landing experience", () => {
     expect(map.getAttribute("class")).toContain("max-w-full");
     const available = map.querySelectorAll('[data-location-status="available"]');
     expect(available).toHaveLength(1);
-    const tokyo = within(map).getByRole("link", { name: "Tokyo — Available" });
+    const tokyo = within(map).getByRole("link", { name: "Tokyo — Available now" });
     expect(tokyo.getAttribute("href")).toBe("/signin?next=/picks");
     tokyo.focus();
     expect(document.activeElement).toBe(tokyo);
@@ -206,7 +208,7 @@ describe("public landing experience", () => {
     ).toBe(true);
     expect(
       screen.getByText(
-        /Great small restaurants can be overwhelmed by sudden attention\. Fiyu reveals discoveries gradually through small, personalized selections/,
+        /Great small restaurants can struggle with sudden attention\. Fiyu reveals discoveries gradually through small, personalized selections/,
       ),
     ).toBeTruthy();
     expect(
@@ -217,6 +219,32 @@ describe("public landing experience", () => {
       screen.getByRole("heading", { name: "Receive a few considered picks" }),
     ).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Reveal, save, and visit" })).toBeTruthy();
+  });
+
+  it("records one lightweight next-city vote and shows the thank-you state", async () => {
+    const request = vi.fn().mockResolvedValue(new Response(
+      JSON.stringify({ id: "vote-1", status: "recorded", created_at: "2026-08-28T00:00:00Z" }),
+      { status: 201, headers: { "Content-Type": "application/json" } },
+    ));
+    vi.stubGlobal("fetch", request);
+    render(<LandingPage />);
+
+    expect(screen.getByText("More to come!")).toBeTruthy();
+    expect(screen.getAllByText("Available now").length).toBeGreaterThan(0);
+    expect(screen.getByText("October 2026")).toBeTruthy();
+    expect(screen.queryByText("More cities coming")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Vote on the next city" }));
+    expect(screen.getByText("Where should Fiyu go next?")).toBeTruthy();
+    fireEvent.click(screen.getByLabelText("Other"));
+    fireEvent.change(screen.getByLabelText("City name"), { target: { value: "Seoul" } });
+    fireEvent.click(screen.getByRole("button", { name: "Submit vote" }));
+
+    expect(await screen.findByText("Thanks for helping choose where Fiyu goes next.")).toBeTruthy();
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(String(request.mock.calls[0][1]?.body))).toEqual({
+      choice: "other",
+      other_city: "Seoul",
+    });
   });
 
   it("uses the existing sharing artwork as the accessible Tokyo edition poster", () => {

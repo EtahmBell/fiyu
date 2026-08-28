@@ -129,6 +129,8 @@ describe("public account milestone", () => {
     expect(screen.getByRole("button", { name: "Forgot password?" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "Sign up" }).getAttribute("href")).toBe("/signup");
     expect(screen.getByPlaceholderText("Email or username")).toBeTruthy();
+    expect(screen.getByPlaceholderText("Email or username").className).toContain("text-base");
+    expect(screen.getByLabelText("Password").className).toContain("text-base");
     fireEvent.change(screen.getByLabelText("Email or username"), { target: { value: "@person" } });
     fireEvent.change(screen.getByLabelText("Password"), { target: { value: "provider-password" } });
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));

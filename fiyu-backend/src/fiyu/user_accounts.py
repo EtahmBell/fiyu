@@ -39,6 +39,18 @@ CREATE TABLE IF NOT EXISTS contact_submissions (
 );
 CREATE INDEX IF NOT EXISTS idx_contact_submissions_status_created
     ON contact_submissions(status, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS city_poll_votes (
+    id TEXT PRIMARY KEY,
+    choice TEXT NOT NULL,
+    other_city TEXT,
+    created_at TEXT NOT NULL,
+    CHECK (choice IN ('rome', 'hong_kong', 'paris', 'sydney', 'los_angeles', 'other')),
+    CHECK (other_city IS NULL OR LENGTH(other_city) BETWEEN 1 AND 80),
+    CHECK (choice = 'other' OR other_city IS NULL)
+);
+CREATE INDEX IF NOT EXISTS idx_city_poll_votes_created
+    ON city_poll_votes(created_at DESC);
 """
 
 
@@ -213,3 +225,24 @@ def create_contact_submission(
         )
         connection.commit()
     return {"id": submission_id, "status": "new", "created_at": created_at}
+
+
+def create_city_poll_vote(
+    db_path: str | Path,
+    *,
+    choice: str,
+    other_city: str | None,
+) -> dict[str, object]:
+    ensure_account_schema(db_path)
+    vote_id = str(uuid4())
+    created_at = _utc_now()
+    with connect(db_path) as connection:
+        connection.execute(
+            """
+            INSERT INTO city_poll_votes (id, choice, other_city, created_at)
+            VALUES (?, ?, ?, ?)
+            """,
+            (vote_id, choice, other_city, created_at),
+        )
+        connection.commit()
+    return {"id": vote_id, "status": "recorded", "created_at": created_at}

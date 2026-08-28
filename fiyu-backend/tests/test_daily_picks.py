@@ -14,6 +14,7 @@ from fiyu.daily_picks import (
     get_active_daily_picks,
     get_recent_daily_pick_rounds,
     repair_active_daily_picks,
+    reveal_active_daily_picks,
     seed_served_history,
     select_daily_pick_plan,
     served_place_ids,
@@ -290,6 +291,69 @@ def test_active_snapshot_is_reused_and_history_is_atomic(daily_picks_db):
     assert second == first
     assert get_active_daily_picks(daily_picks_db, owner_id=owner, city_id="tokyo", now=NOW) == first
     assert served_place_ids(daily_picks_db, owner_id=owner) == set(first.place_ids)
+
+
+def test_reveal_state_is_idempotent_and_persists_with_the_active_round(daily_picks_db):
+    owner = str(uuid4())
+    assignment = assign_daily_picks(
+        daily_picks_db,
+        owner_id=owner,
+        city_id="tokyo",
+        discovery_latitude=LATITUDE,
+        discovery_longitude=LONGITUDE,
+        active_area="Shibuya",
+        now=NOW,
+        seed=1,
+    )
+    revealed_at = (NOW + timedelta(minutes=2)).isoformat()
+
+    first = reveal_active_daily_picks(
+        daily_picks_db,
+        owner_id=owner,
+        round_id=assignment.round_id,
+        revealed_at=revealed_at,
+        now=NOW + timedelta(minutes=2),
+    )
+    repeated = reveal_active_daily_picks(
+        daily_picks_db,
+        owner_id=owner,
+        round_id=assignment.round_id,
+        revealed_at=(NOW + timedelta(minutes=5)).isoformat(),
+        now=NOW + timedelta(minutes=5),
+    )
+    restored = get_active_daily_picks(
+        daily_picks_db,
+        owner_id=owner,
+        city_id="tokyo",
+        now=NOW + timedelta(hours=1),
+    )
+
+    assert first == repeated == revealed_at
+    assert restored is not None
+    assert restored.place_ids == assignment.place_ids
+    assert restored.revealed_at == revealed_at
+
+
+def test_reveal_cannot_cross_accounts_or_mark_an_expired_round(daily_picks_db):
+    owner = str(uuid4())
+    assignment = assign_daily_picks(
+        daily_picks_db,
+        owner_id=owner,
+        city_id="tokyo",
+        discovery_latitude=LATITUDE,
+        discovery_longitude=LONGITUDE,
+        active_area="Shibuya",
+        now=NOW,
+        seed=1,
+    )
+
+    assert reveal_active_daily_picks(
+        daily_picks_db,
+        owner_id=str(uuid4()),
+        round_id=assignment.round_id,
+        revealed_at=NOW.isoformat(),
+        now=NOW,
+    ) is None
 
 
 def test_complete_expired_round_remains_recent_for_72_hours_without_interactions(

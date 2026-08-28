@@ -109,6 +109,29 @@ def test_contact_submission_is_validated_normalized_and_private(account_db):
     assert row["message"] == "A restaurant suggestion."
 
 
+def test_city_poll_vote_is_validated_recorded_and_totals_are_not_public(account_db):
+    client = TestClient(api.app)
+
+    missing_other = client.post(
+        "/city-poll/votes", json={"choice": "other", "other_city": " "}
+    )
+    invalid_choice = client.post(
+        "/city-poll/votes", json={"choice": "tokyo", "other_city": None}
+    )
+    created = client.post(
+        "/city-poll/votes", json={"choice": "other", "other_city": "  Seoul  "}
+    )
+
+    assert missing_other.status_code == invalid_choice.status_code == 422
+    assert created.status_code == 201
+    assert created.json()["status"] == "recorded"
+    assert client.get("/city-poll/votes").status_code == 405
+    with connect(account_db) as connection:
+        row = connection.execute("SELECT * FROM city_poll_votes").fetchone()
+    assert row["choice"] == "other"
+    assert row["other_city"] == "Seoul"
+
+
 def test_signup_uses_supabase_id_and_enforces_case_insensitive_username(
     account_db, monkeypatch, shared_profile_store
 ):

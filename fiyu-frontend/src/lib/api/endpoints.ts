@@ -39,6 +39,8 @@ export const paths = {
   dailyPicksAssign: "/daily-picks/assign",
   dailyPicksActive: "/daily-picks/active",
   dailyPicksRecent: "/daily-picks/recent",
+  dailyPicksReveal: (roundId: string) =>
+    `/daily-picks/${encodeURIComponent(roundId)}/reveal`,
   seenRestaurants: "/seen/restaurants",
   mapRestaurants: "/map/restaurants",
   authenticatedMapRestaurants: "/profiles/me/map-restaurants",
@@ -64,6 +66,10 @@ export function dailyPicksActiveUrl(cityId: string): string {
 
 export function dailyPicksRecentUrl(cityId: string): string {
   return `${getApiBaseUrl()}${paths.dailyPicksRecent}?city_id=${encodeURIComponent(cityId)}`;
+}
+
+export function dailyPicksRevealUrl(roundId: string): string {
+  return `${getApiBaseUrl()}${paths.dailyPicksReveal(roundId)}`;
 }
 
 export function seenRestaurantsUrl(): string {

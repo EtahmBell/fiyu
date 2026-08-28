@@ -2,7 +2,6 @@ import {
   LANDING_HEADING,
   LANDING_MEASURE,
   LANDING_RHYTHM,
-  SectionEyebrow,
 } from "@/components/landing-page/landingSystem";
 import { cn } from "@/lib/utils/cn";
 
@@ -28,8 +27,7 @@ export function HowFiyuWorks() {
   return (
     <section id="how-it-works" className="scroll-mt-24 bg-canvas">
       <div className={cn(LANDING_MEASURE, LANDING_RHYTHM)}>
-        <div className="grid gap-6 md:grid-cols-[minmax(0,0.36fr)_minmax(0,0.64fr)] md:items-end md:gap-16">
-          <SectionEyebrow className="md:pb-3">The rhythm</SectionEyebrow>
+        <div>
           <h2 className={cn(LANDING_HEADING, "text-ink")}>How Fiyu works</h2>
         </div>
 

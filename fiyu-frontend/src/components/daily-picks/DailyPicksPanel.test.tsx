@@ -69,13 +69,15 @@ describe("Today’s Fiyu Picks panel", () => {
     expect(new Set(selectedIds).size).toBe(3);
 
     fireEvent.click(screen.getByRole("button", { name: "Tap to reveal restaurant 1" }));
-    expect(screen.getAllByTestId("revealed-restaurant-card")).toHaveLength(1);
-    const revealedId = firstStorage.getSnapshot()?.selection?.revealedIds[0];
-    expect(revealedId).toBeTruthy();
-    expect(firstStorage.getSnapshot()?.discoveries).toContainEqual({
-      restaurantId: revealedId,
-      revealedAt: new Date(revealedAt + 3_000).toISOString(),
-    });
+    expect(screen.getAllByTestId("revealed-restaurant-card")).toHaveLength(3);
+    const revealedIds = firstStorage.getSnapshot()?.selection?.revealedIds ?? [];
+    expect(revealedIds).toEqual(selectedIds);
+    for (const revealedId of revealedIds) {
+      expect(firstStorage.getSnapshot()?.discoveries).toContainEqual({
+        restaurantId: revealedId,
+        revealedAt: new Date(revealedAt + 3_000).toISOString(),
+      });
+    }
 
     firstRender.unmount();
     render(
@@ -84,9 +86,11 @@ describe("Today’s Fiyu Picks panel", () => {
         storage={createDailyPicksStorage(window.localStorage)}
       />,
     );
-    expect(screen.getAllByTestId("concealed-restaurant-card")).toHaveLength(2);
-    expect(screen.getAllByTestId("revealed-restaurant-card")).toHaveLength(1);
-    expect(screen.getByText(`店 ${revealedId}`)).toBeTruthy();
+    expect(screen.queryByTestId("concealed-restaurant-card")).toBeNull();
+    expect(screen.getAllByTestId("revealed-restaurant-card")).toHaveLength(3);
+    for (const revealedId of revealedIds) {
+      expect(screen.getByText(`店 ${revealedId}`)).toBeTruthy();
+    }
   });
 
   it("shows the fresh-search treatment for the 1.5 second minimum", () => {
@@ -307,22 +311,14 @@ describe("Today’s Fiyu Picks panel", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Tap to reveal restaurant 1" }));
-    expect(revealEvents).toEqual([{ newIds: ["one"], revealedIds: ["one"] }]);
+    expect(revealEvents).toEqual([{
+      newIds: ["one", "two"],
+      revealedIds: ["one", "two", "three"],
+    }]);
     expect(screen.getByRole("status").textContent).toBe(
-      "1 new place added to your map",
+      "2 new places added to your map",
     );
-
-    fireEvent.click(screen.getByRole("button", { name: "Tap to reveal restaurant 3" }));
-    expect(revealEvents).toHaveLength(1);
-
-    fireEvent.click(screen.getByRole("button", { name: "Tap to reveal restaurant 2" }));
-    expect(revealEvents).toEqual([
-      { newIds: ["one"], revealedIds: ["one"] },
-      { newIds: ["two"], revealedIds: ["one", "three", "two"] },
-    ]);
-    expect(screen.getByRole("status").textContent).toBe(
-      "1 new place added to your map",
-    );
+    expect(screen.queryByRole("button", { name: /Tap to reveal restaurant/ })).toBeNull();
 
     act(() => vi.advanceTimersByTime(3_200));
     expect(screen.queryByTestId("new-map-place-notification")).toBeNull();

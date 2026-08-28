@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS daily_pick_rounds (
     city_id TEXT NOT NULL,
     assigned_at TEXT NOT NULL,
     expires_at TEXT,
+    revealed_at TEXT,
     selection_metadata_json TEXT NOT NULL DEFAULT '{}'
 );
 CREATE INDEX IF NOT EXISTS idx_daily_pick_rounds_owner
@@ -63,6 +64,7 @@ class DailyPickAssignment:
     assigned_at: str
     expires_at: str
     selection_metadata: dict[str, object]
+    revealed_at: str | None = None
 
 
 @dataclass(frozen=True)
@@ -99,6 +101,7 @@ def ensure_daily_picks_schema(db_path: str | Path) -> None:
     with connect(db_path) as connection:
         connection.executescript(DAILY_PICKS_SCHEMA)
         _ensure_column(connection, "daily_pick_rounds", "expires_at", "TEXT")
+        _ensure_column(connection, "daily_pick_rounds", "revealed_at", "TEXT")
         _ensure_column(
             connection,
             "daily_pick_rounds",
@@ -423,6 +426,7 @@ def plan_repaired_daily_picks(
             assignment.assigned_at,
             assignment.expires_at,
             metadata,
+            assignment.revealed_at,
         ),
         replacements,
     )
@@ -431,7 +435,7 @@ def plan_repaired_daily_picks(
 def _active_assignment(connection: Any, owner_id: str, city_id: str, now: datetime) -> DailyPickAssignment | None:
     row = connection.execute(
         """
-        SELECT id, assigned_at, expires_at, selection_metadata_json
+        SELECT id, assigned_at, expires_at, revealed_at, selection_metadata_json
         FROM daily_pick_rounds
         WHERE owner_id = ? AND city_id = ? AND expires_at > ?
         ORDER BY assigned_at DESC, id DESC
@@ -460,6 +464,7 @@ def _active_assignment(connection: Any, owner_id: str, city_id: str, now: dateti
         str(row["assigned_at"]),
         str(row["expires_at"]),
         metadata if isinstance(metadata, dict) else {},
+        str(row["revealed_at"]) if row["revealed_at"] is not None else None,
     )
 
 
@@ -469,6 +474,40 @@ def get_active_daily_picks(
     ensure_daily_picks_schema(db_path)
     with connect(db_path) as connection:
         return _active_assignment(connection, owner_id, city_id, now or _now())
+
+
+def reveal_active_daily_picks(
+    db_path: str | Path,
+    *,
+    owner_id: str,
+    round_id: str,
+    revealed_at: str | None = None,
+    now: datetime | None = None,
+) -> str | None:
+    """Idempotently mark the owner's active round revealed and return its timestamp."""
+    ensure_daily_picks_schema(db_path)
+    current = now or _now()
+    timestamp = revealed_at or current.isoformat()
+    with connect(db_path) as connection:
+        row = connection.execute(
+            """
+            SELECT revealed_at
+            FROM daily_pick_rounds
+            WHERE id = ? AND owner_id = ? AND expires_at > ?
+            """,
+            (round_id, owner_id, current.isoformat()),
+        ).fetchone()
+        if row is None:
+            return None
+        existing = str(row["revealed_at"]) if row["revealed_at"] is not None else None
+        if existing:
+            return existing
+        connection.execute(
+            "UPDATE daily_pick_rounds SET revealed_at = ? WHERE id = ? AND owner_id = ?",
+            (timestamp, round_id, owner_id),
+        )
+        connection.commit()
+    return timestamp
 
 
 def _persist_repaired_assignment(
@@ -584,7 +623,7 @@ def get_recent_daily_pick_rounds(
     with connect(db_path) as connection:
         rows = connection.execute(
             """
-            SELECT id, assigned_at, expires_at, selection_metadata_json
+            SELECT id, assigned_at, expires_at, revealed_at, selection_metadata_json
             FROM daily_pick_rounds
             WHERE owner_id = ? AND city_id = ? AND assigned_at > ?
             ORDER BY assigned_at DESC, id DESC
@@ -626,6 +665,9 @@ def get_recent_daily_pick_rounds(
                     assigned_at=str(row["assigned_at"]),
                     expires_at=str(expires_at_value or expires_at.isoformat()),
                     selection_metadata=metadata if isinstance(metadata, dict) else {},
+                    revealed_at=(
+                        str(row["revealed_at"]) if row["revealed_at"] is not None else None
+                    ),
                 )
             )
     return rounds

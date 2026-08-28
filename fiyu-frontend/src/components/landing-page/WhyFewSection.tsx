@@ -25,11 +25,11 @@ export function WhyFewSection() {
 
         <div className="min-w-0">
           <p className="max-w-[38rem] text-base leading-8 text-ink-muted sm:text-[1.0625rem] sm:leading-9">
-            Great small restaurants can be overwhelmed by sudden attention. Fiyu reveals
+            Great small restaurants can struggle with sudden attention. Fiyu reveals
             discoveries gradually through small, personalized selections drawn from a broader
             pool of similarly strong places. By varying recommendations across users instead of
             directing everyone to the same restaurants, Fiyu helps keep discovery thoughtful while
-            reducing the risk of overwhelming the places and communities that make them special.
+            reducing pressure on the places and communities that make them special.
           </p>
           {/*
            * A noren hem closing the manifesto: one continuous rail with three

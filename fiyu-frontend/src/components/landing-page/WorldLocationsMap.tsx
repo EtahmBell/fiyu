@@ -1,6 +1,7 @@
 "use client";
 
 import { usePicksEntryHref } from "@/components/landing-page/AuthAwarePicksLink";
+import { NextCityPoll } from "@/components/landing-page/NextCityPoll";
 import {
   LANDING_HEADING,
   LANDING_MEASURE,
@@ -25,14 +26,19 @@ export function WorldLocationsMap() {
             <SectionEyebrow>Locations</SectionEyebrow>
             <h2 className={cn(LANDING_HEADING, "mt-6 text-ink")}>Explore Fiyu</h2>
             <p className="mt-6 max-w-sm text-base leading-8 text-ink-muted">
-              Begin in Tokyo. More cities will follow.
+              More to come!
             </p>
-            {/* The legend carries the marker colour, and stays legible where the
-                in-map label cannot at narrow widths. */}
-            <p className="mt-8 flex items-center gap-2.5 text-sm text-ink-muted">
-              <span aria-hidden="true" className="size-2 shrink-0 rounded-full bg-rose-dust" />
-              Tokyo — Available · More cities coming
-            </p>
+            <dl className="mt-8 space-y-3 text-sm">
+              <div className="flex items-center justify-between gap-6 border-b border-line pb-3">
+                <dt className="font-medium text-ink">Tokyo</dt>
+                <dd className="text-ink-muted">Available now</dd>
+              </div>
+              <div className="flex items-center justify-between gap-6 border-b border-line pb-3">
+                <dt className="font-medium text-ink">New York</dt>
+                <dd className="text-ink-muted">October 2026</dd>
+              </div>
+            </dl>
+            <NextCityPoll />
           </div>
 
           <div className="min-w-0 overflow-hidden rounded-card border border-line">
@@ -67,7 +73,7 @@ export function WorldLocationsMap() {
               <a
                 href={picksHref}
                 tabIndex={0}
-                aria-label="Tokyo — Available"
+                aria-label="Tokyo — Available now"
                 className="group"
                 data-location-status="available"
               >
@@ -105,7 +111,7 @@ export function WorldLocationsMap() {
                     Tokyo
                   </text>
                   <text x="652" y="107" fill="var(--color-ink-muted)" fontSize="11.5">
-                    Available
+                    Available now
                   </text>
                 </g>
               </a>

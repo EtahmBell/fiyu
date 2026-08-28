@@ -32,6 +32,7 @@ from .daily_picks import (
     get_recent_daily_pick_rounds,
     plan_repaired_daily_picks,
     repair_active_daily_picks,
+    reveal_active_daily_picks,
     seed_served_history,
     select_daily_pick_plan,
     served_place_ids,
@@ -103,6 +104,7 @@ from .supabase_auth import (
     sign_up_with_supabase,
 )
 from .user_accounts import (
+    create_city_poll_vote,
     create_contact_submission,
     ensure_account_schema,
 )
@@ -415,6 +417,35 @@ class ContactResponse(BaseModel):
     created_at: str
 
 
+CityPollChoice = Literal[
+    "rome", "hong_kong", "paris", "sydney", "los_angeles", "other"
+]
+
+
+class CityPollVoteRequest(BaseModel):
+    choice: CityPollChoice
+    other_city: str | None = Field(default=None, max_length=80)
+
+    @field_validator("other_city")
+    @classmethod
+    def normalize_other_city(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        return normalized or None
+
+    def validated_other_city(self) -> str | None:
+        if self.choice == "other" and not self.other_city:
+            raise ValueError("Enter a city name")
+        return self.other_city if self.choice == "other" else None
+
+
+class CityPollVoteResponse(BaseModel):
+    id: str
+    status: Literal["recorded"]
+    created_at: str
+
+
 class SignupRequest(BaseModel):
     email: str = Field(min_length=3, max_length=320)
     password: str = Field(min_length=1, max_length=256)
@@ -596,6 +627,7 @@ class DailyPickAssignmentResponse(BaseModel):
     place_ids: list[str]
     assigned_at: str
     expires_at: str
+    revealed_at: str | None = None
     discovery_mode: Literal["current", "preview", "manual"] | None = None
     discovery_label: str | None = None
     restaurants: list[PublicRestaurantSummary] = Field(default_factory=list)
@@ -608,6 +640,11 @@ class RecentDailyPickRoundResponse(BaseModel):
     assigned_at: str
     retention_expires_at: str
     restaurants: list[PublicRestaurantSummary] = Field(default_factory=list)
+
+
+class DailyPickRevealResponse(BaseModel):
+    round_id: str
+    revealed_at: str
 
 
 class SeenRestaurantsResponse(BaseModel):
@@ -1118,6 +1155,7 @@ def _shared_assignment(row: dict[str, object]) -> DailyPickAssignment:
         assigned_at=str(row["assigned_at"]),
         expires_at=str(row["expires_at"]),
         selection_metadata=metadata if isinstance(metadata, dict) else {},
+        revealed_at=str(row["revealed_at"]) if row.get("revealed_at") else None,
     )
 
 
@@ -1132,6 +1170,7 @@ def _daily_pick_response(
         place_ids=visible_place_ids,
         assigned_at=assignment.assigned_at,
         expires_at=assignment.expires_at,
+        revealed_at=assignment.revealed_at,
         discovery_mode=assignment.selection_metadata.get("discovery_mode"),
         discovery_label=assignment.selection_metadata.get("discovery_label"),
         restaurants=restaurants,
@@ -1202,16 +1241,17 @@ def _repair_shared_active_assignment(
         )
     if repaired.place_ids == assignment.place_ids:
         return assignment
-    return _shared_assignment(
-        shared_user_data.repair_active_daily_picks(
-            user_id=owner_id,
-            round_id=assignment.round_id,
-            expected_place_ids=list(assignment.place_ids),
-            place_ids=list(repaired.place_ids),
-            selection_metadata=repaired.selection_metadata,
-            repaired_at=repaired_at.isoformat(),
-        )
+    repaired_row = shared_user_data.repair_active_daily_picks(
+        user_id=owner_id,
+        round_id=assignment.round_id,
+        expected_place_ids=list(assignment.place_ids),
+        place_ids=list(repaired.place_ids),
+        selection_metadata=repaired.selection_metadata,
+        repaired_at=repaired_at.isoformat(),
     )
+    if assignment.revealed_at and not repaired_row.get("revealed_at"):
+        repaired_row = {**repaired_row, "revealed_at": assignment.revealed_at}
+    return _shared_assignment(repaired_row)
 
 
 def _recent_daily_pick_response(
@@ -1397,6 +1437,33 @@ def get_active_daily_pick_assignment(
                 ),
             )
     return _daily_pick_response(assignment, normalized_city) if assignment else None
+
+
+@app.post(
+    "/daily-picks/{round_id}/reveal",
+    response_model=DailyPickRevealResponse,
+)
+def reveal_daily_pick_assignment(
+    round_id: str,
+    owner_id: Annotated[str, Depends(_owner_id_from_header)],
+) -> DailyPickRevealResponse:
+    revealed_at = datetime.now(UTC).isoformat()
+    if _shared_owner(owner_id):
+        persisted = shared_user_data.reveal_active_daily_picks(
+            user_id=str(owner_id),
+            round_id=round_id,
+            revealed_at=revealed_at,
+        )
+    else:
+        persisted = reveal_active_daily_picks(
+            DB_PATH,
+            owner_id=owner_id,
+            round_id=round_id,
+            revealed_at=revealed_at,
+        )
+    if persisted is None:
+        raise HTTPException(status_code=404, detail="Active Daily Picks round not found")
+    return DailyPickRevealResponse(round_id=round_id, revealed_at=persisted)
 
 
 @app.get("/daily-picks/recent", response_model=list[RecentDailyPickRoundResponse])
@@ -1743,6 +1810,21 @@ def submit_contact(payload: ContactRequest) -> ContactResponse:
         message=payload.message,
     )
     return ContactResponse(**row)
+
+
+@app.post("/city-poll/votes", response_model=CityPollVoteResponse, status_code=201)
+def submit_city_poll_vote(payload: CityPollVoteRequest) -> CityPollVoteResponse:
+    _ensure_database()
+    try:
+        other_city = payload.validated_other_city()
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+    row = create_city_poll_vote(
+        DB_PATH,
+        choice=payload.choice,
+        other_city=other_city,
+    )
+    return CityPollVoteResponse(**row)
 
 
 @app.post("/auth/signup", response_model=SignupResponse, status_code=201)
