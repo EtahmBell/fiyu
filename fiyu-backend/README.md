@@ -190,6 +190,40 @@ python -m fiyu.cli demo
 uvicorn fiyu.api:app --reload --port 8000
 ```
 
+## Hosted runtime snapshot
+
+The hosted API uses a read-only catalog snapshot on a persistent Railway volume.
+Create it from the current local catalog without modifying the source database:
+
+```bash
+python -m fiyu.cli production-snapshot --source data/fiyu.db --output data/production/fiyu.db --force
+```
+
+The generated database is intentionally ignored by Git. Copy it to `/data/fiyu.db`
+on the Railway volume, mount that volume at `/data`, and run one backend replica.
+The production container starts with:
+
+```bash
+uvicorn fiyu.api:app --host 0.0.0.0 --port ${PORT:-8000}
+```
+
+Set these hosted backend variables:
+
+```text
+FIYU_ENVIRONMENT=production
+FIYU_DB_PATH=/data/fiyu.db
+FIYU_CORS_ORIGINS=https://fiyu.app
+FIYU_ALLOW_LEGACY_CLIENT_ID=false
+SUPABASE_URL=...
+SUPABASE_ANON_KEY=...
+SUPABASE_SERVICE_ROLE_KEY=...
+```
+
+`FIYU_ADMIN_API_KEY` is optional and should be omitted to disable admin endpoints.
+`GOOGLE_PLACES_SERVER_KEY` is optional unless hosted photo proxy endpoints are used.
+OpenAI credentials are not required for normal public/account runtime traffic.
+Use `/health` for liveness and `/ready` for the catalog readiness check.
+
 Open:
 
 ```text

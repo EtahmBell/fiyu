@@ -183,7 +183,10 @@ def _fetch_saved_rows(
     *,
     owner_id: str,
     city_id: str,
+    saved_rows: list[dict[str, object]] | None = None,
 ) -> list[dict[str, object]]:
+    if saved_rows is not None:
+        return [dict(row) for row in saved_rows]
     row = get_or_create_default_list(db_path, owner_id=owner_id, city_id=city_id)
     list_id = int(row["id"])
     with connect(db_path) as connection:
@@ -239,9 +242,17 @@ def list_smart_view_entries(
     view_key: SmartViewKey,
     origin_latitude: float | None = None,
     origin_longitude: float | None = None,
+    saved_rows: list[dict[str, object]] | None = None,
+    visited_ids: set[str] | None = None,
 ) -> dict[str, object]:
-    rows = _fetch_saved_rows(db_path, owner_id=owner_id, city_id=city_id)
-    visited = visited_place_ids(db_path, owner_id=owner_id)
+    rows = _fetch_saved_rows(
+        db_path, owner_id=owner_id, city_id=city_id, saved_rows=saved_rows
+    )
+    visited = (
+        set(visited_ids)
+        if visited_ids is not None
+        else visited_place_ids(db_path, owner_id=owner_id)
+    )
     for row in rows:
         row["is_visited"] = str(row["place_id"]) in visited
 
@@ -342,9 +353,17 @@ def list_smart_view_counts(
     *,
     owner_id: str,
     city_id: str,
+    saved_rows: list[dict[str, object]] | None = None,
+    visited_ids: set[str] | None = None,
 ) -> dict[SmartViewKey, int]:
-    rows = _fetch_saved_rows(db_path, owner_id=owner_id, city_id=city_id)
-    visited = visited_place_ids(db_path, owner_id=owner_id)
+    rows = _fetch_saved_rows(
+        db_path, owner_id=owner_id, city_id=city_id, saved_rows=saved_rows
+    )
+    visited = (
+        set(visited_ids)
+        if visited_ids is not None
+        else visited_place_ids(db_path, owner_id=owner_id)
+    )
     nine_plus = [row for row in rows if (_as_float(row.get("fiyu_score")) or 0.0) >= 90.0]
     by_neighborhood_count = len(
         {

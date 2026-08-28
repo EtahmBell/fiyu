@@ -10,6 +10,8 @@ from fastapi.testclient import TestClient
 from fiyu import api
 from fiyu.database import SCHEMA, connect
 from fiyu.public_catalog import ensure_public_schema
+from fiyu.restaurant_lists import add_item, get_or_create_default_list
+from fiyu.restaurant_visits import create_visit
 
 
 @pytest.fixture
@@ -271,6 +273,66 @@ def _add_catalog_restaurants(*place_ids: str) -> None:
                 (place_id, place_id, 35.65 + index * 0.001, 139.70 + index * 0.001),
             )
         connection.commit()
+
+
+def test_authenticated_smart_views_use_supabase_relationships_and_sqlite_catalog(
+    shared_account_api,
+):
+    client, user_ids, _ = shared_account_api
+    user_id = user_ids["token-a"]
+    saved = client.post(
+        "/lists/default/items",
+        headers=_auth("token-a"),
+        json={"city_id": "tokyo", "place_id": "tokyo-0"},
+    )
+    assert saved.status_code == 200
+
+    local_list = get_or_create_default_list(
+        api.DB_PATH, owner_id=user_id, city_id="tokyo"
+    )
+    assert add_item(api.DB_PATH, list_id=int(local_list["id"]), place_id="tokyo-1")
+    assert create_visit(
+        api.DB_PATH,
+        owner_id=user_id,
+        place_id="tokyo-0",
+        visited_at="2026-08-27T00:00:00+00:00",
+        reaction="like_it",
+        private_note="legacy local visit must be ignored",
+    )
+
+    recent = client.get(
+        "/lists/default/smart-views/recently_saved",
+        params={"city_id": "tokyo"},
+        headers=_auth("token-a"),
+    )
+    not_visited = client.get(
+        "/lists/default/smart-views/not_visited",
+        params={"city_id": "tokyo"},
+        headers=_auth("token-a"),
+    )
+
+    assert recent.status_code == not_visited.status_code == 200
+    assert [item["place_id"] for item in recent.json()["items"]] == ["tokyo-0"]
+    assert [item["place_id"] for item in not_visited.json()["items"]] == ["tokyo-0"]
+    assert recent.json()["items"][0]["restaurant"]["name_en"] == "Tokyo 0"
+
+    logged = client.post(
+        "/log",
+        headers=_auth("token-a"),
+        json={
+            "place_id": "tokyo-0",
+            "visited_at": "2026-08-27T01:00:00+00:00",
+            "reaction": "love_it",
+        },
+    )
+    assert logged.status_code == 201
+    after_log = client.get(
+        "/lists/default/smart-views/not_visited",
+        params={"city_id": "tokyo"},
+        headers=_auth("token-a"),
+    )
+    assert after_log.status_code == 200
+    assert after_log.json()["items"] == []
 
 
 def test_authenticated_map_does_not_accept_anonymous_owner_fallback(shared_account_api):

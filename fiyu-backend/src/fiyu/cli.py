@@ -75,6 +75,14 @@ def build_parser() -> argparse.ArgumentParser:
         default="C:/data/osm/kanto-latest.osm.pbf",
         help="Path to the Kanto .osm.pbf extract",
     )
+
+    production_snapshot = subparsers.add_parser(
+        "production-snapshot",
+        help="Create a scrubbed SQLite catalog snapshot for the hosted API",
+    )
+    production_snapshot.add_argument("--source", default="data/fiyu.db")
+    production_snapshot.add_argument("--output", default="data/production/fiyu.db")
+    production_snapshot.add_argument("--force", action="store_true")
     export_map.add_argument(
         "--out",
         default="../fiyu-frontend/src/lib/map/generated",
@@ -99,6 +107,13 @@ def main() -> None:
         from .map_assets import export_map_assets
 
         export_map_assets(Path(args.pbf), Path(args.out))
+        return
+
+    if args.command == "production-snapshot":
+        from .production_snapshot import create_production_snapshot
+
+        result = create_production_snapshot(args.source, args.output, force=args.force)
+        print(json.dumps(result, indent=2, ensure_ascii=False, sort_keys=True))
         return
 
     config = _config_from_args(args)

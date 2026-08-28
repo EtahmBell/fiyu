@@ -4,6 +4,7 @@ import logging
 import os
 import re
 import secrets
+import sqlite3
 from collections.abc import Iterable
 from datetime import UTC, date, datetime
 from hashlib import sha256
@@ -111,13 +112,32 @@ BACKEND_ROOT = Path(__file__).resolve().parents[2]
 load_dotenv(BACKEND_ROOT / ".env")
 DB_PATH = Path(os.getenv("FIYU_DB_PATH", "data/fiyu.db"))
 logger = logging.getLogger(__name__)
-origins = [
-    value.strip()
-    for value in os.getenv(
-        "FIYU_CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000"
-    ).split(",")
-    if value.strip()
-]
+
+
+def _production_mode() -> bool:
+    return os.getenv("FIYU_ENVIRONMENT", "development").strip().casefold() == "production"
+
+
+def _configured_cors_origins() -> list[str]:
+    default = "" if _production_mode() else "http://localhost:3000,http://127.0.0.1:3000"
+    return [
+        value.strip()
+        for value in os.getenv("FIYU_CORS_ORIGINS", default).split(",")
+        if value.strip()
+    ]
+
+
+def _legacy_client_identity_allowed() -> bool:
+    if _production_mode():
+        return False
+    configured = os.getenv("FIYU_ALLOW_LEGACY_CLIENT_ID")
+    if configured is None:
+        return True
+    return configured.strip().casefold() in {"1", "true", "yes", "on"}
+
+
+origins = _configured_cors_origins()
+production_mode = _production_mode()
 
 app = FastAPI(
     title="Fiyu Candidate API",
@@ -126,6 +146,9 @@ app = FastAPI(
         "Nearby Tokyo restaurant recommendations using an internal/provisional candidate score. "
         "The score is not a verified localness or public quality rating."
     ),
+    docs_url=None if production_mode else "/docs",
+    redoc_url=None if production_mode else "/redoc",
+    openapi_url=None if production_mode else "/openapi.json",
 )
 app.add_middleware(
     CORSMiddleware,
@@ -701,6 +724,8 @@ def _owner_id_from_header(
 ) -> str:
     if authorization:
         return OwnerIdentity(_authenticated_user_id(authorization), authenticated=True)
+    if not _legacy_client_identity_allowed():
+        raise HTTPException(status_code=401, detail="Bearer authentication required")
     if x_fiyu_client_id is None:
         raise HTTPException(status_code=400, detail="Missing X-Fiyu-Client-Id header")
     value = x_fiyu_client_id.strip()
@@ -970,6 +995,23 @@ def _owned_list_or_404(owner_id: str, list_id: int) -> dict[str, object]:
     if row is None:
         raise HTTPException(status_code=404, detail="List not found")
     return row
+
+
+def _smart_view_relationship_state(
+    owner_id: str, city_id: str
+) -> tuple[list[dict[str, object]] | None, set[str] | None]:
+    if not _shared_owner(owner_id):
+        return None, None
+    default_list = shared_user_data.get_or_create_default_list(
+        user_id=str(owner_id), city_id=city_id
+    )
+    saved_rows = _catalog_enriched(
+        shared_user_data.list_items(
+            user_id=str(owner_id), list_id=int(default_list["id"])
+        )
+    )
+    visited_ids = set(shared_user_data.visited_place_ids(user_id=str(owner_id)))
+    return saved_rows, visited_ids
 
 
 def _smart_view_response(
@@ -1306,7 +1348,12 @@ def create_daily_pick_assignment(
             },
         ) from None
 
-    logger.info("Daily Picks selection: %s", assignment.selection_metadata)
+    logger.info(
+        "Daily Picks selection completed: city=%s picks=%d radius_km=%s",
+        city_id,
+        len(assignment.place_ids),
+        assignment.selection_metadata.get("final_radius_km"),
+    )
     return _daily_pick_response(assignment, city_id)
 
 
@@ -2369,7 +2416,14 @@ def get_default_list_smart_view_catalog(
     resolved_city_id = _normalize_list_city(city_id)
     capabilities = resolve_owner_capabilities(owner_id)
     available_keys = list_available_smart_view_keys(capabilities)
-    counts = list_smart_view_counts(DB_PATH, owner_id=owner_id, city_id=resolved_city_id)
+    saved_rows, visited_ids = _smart_view_relationship_state(owner_id, resolved_city_id)
+    counts = list_smart_view_counts(
+        DB_PATH,
+        owner_id=owner_id,
+        city_id=resolved_city_id,
+        saved_rows=saved_rows,
+        visited_ids=visited_ids,
+    )
     return SmartViewCatalogResponse(
         city_id=resolved_city_id,
         views=[
@@ -2405,6 +2459,7 @@ def get_default_list_smart_view(
     if definition.required_capability == CAPABILITY_PREMIUM_SMART_VIEWS:
         _require_owner_capability(owner_id, CAPABILITY_PREMIUM_SMART_VIEWS)
 
+    saved_rows, visited_ids = _smart_view_relationship_state(owner_id, resolved_city_id)
     try:
         payload = list_smart_view_entries(
             DB_PATH,
@@ -2413,6 +2468,8 @@ def get_default_list_smart_view(
             view_key=view_key,
             origin_latitude=origin_latitude,
             origin_longitude=origin_longitude,
+            saved_rows=saved_rows,
+            visited_ids=visited_ids,
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from None
@@ -2478,6 +2535,30 @@ def public_map_config() -> dict[str, str]:
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/ready")
+def readiness() -> dict[str, object]:
+    if not DB_PATH.is_file():
+        raise HTTPException(status_code=503, detail="Catalog database is unavailable")
+    try:
+        uri = f"{DB_PATH.resolve().as_uri()}?mode=ro"
+        with sqlite3.connect(uri, uri=True) as connection:
+            tables = {
+                str(row[0])
+                for row in connection.execute(
+                    "SELECT name FROM sqlite_master "
+                    "WHERE type = 'table' AND name IN ('restaurants', 'public_restaurants')"
+                )
+            }
+            if tables != {"restaurants", "public_restaurants"}:
+                raise HTTPException(status_code=503, detail="Catalog schema is unavailable")
+            connection.execute("SELECT 1 FROM public_restaurants LIMIT 1").fetchone()
+    except HTTPException:
+        raise
+    except sqlite3.Error:
+        raise HTTPException(status_code=503, detail="Catalog database is unreadable") from None
+    return {"status": "ready", "database": "readable", "catalog_schema": "available"}
 
 
 @app.get("/stats")
