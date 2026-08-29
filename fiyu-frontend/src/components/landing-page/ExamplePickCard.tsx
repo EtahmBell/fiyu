@@ -240,45 +240,22 @@ export function ExampleConcealedCard({ className }: { className?: string }) {
 }
 
 /**
- * One selection row: the shape a place takes when several selections are shown
- * side by side and only the identity of each matters.
+ * One row: the shape a place takes when only its identity matters.
+ *
+ * Used by the location surface, where three of these change as the starting point
+ * changes. It previously carried a `shared` flag that tinted and labelled a
+ * restaurant appearing in two of three hypothetical selections; that section is
+ * gone, and so is the flag.
  */
-export function ExampleSelectionRow({
-  example,
-  shared = false,
-}: {
-  example: LandingExample;
-  shared?: boolean;
-}) {
+export function ExampleSelectionRow({ example }: { example: LandingExample }) {
   return (
-    <div
-      data-shared={shared ? "true" : "false"}
-      className={cn(
-        "flex min-w-0 items-baseline justify-between gap-3 border-t py-3.5",
-        shared ? "border-lavender-500/45" : "border-line",
-      )}
-    >
+    <div className="flex min-w-0 items-baseline justify-between gap-3 border-b border-line py-3.5 last:border-b-0">
       <div className="min-w-0">
-        <p
-          lang="ja"
-          className={cn(
-            "truncate font-display text-[0.9375rem] leading-tight",
-            shared ? "text-lavender-700" : "text-ink",
-          )}
-        >
+        <p lang="ja" className="truncate font-display text-[0.9375rem] leading-tight text-ink">
           {example.nameJa}
         </p>
-        {/*
-          The overlap is named, not just tinted. Colour is never the only signal
-          in this product, and a reader scanning three columns for what repeats
-          should not have to compare hues to find it.
-        */}
-        <p className="mt-1 truncate text-[0.625rem] tracking-[0.12em] uppercase">
-          {shared ? (
-            <span className="text-lavender-700">Also another selection</span>
-          ) : (
-            <span className="text-ink-faint">{example.area}</span>
-          )}
+        <p className="mt-1 truncate text-[0.625rem] tracking-[0.12em] text-ink-faint uppercase">
+          {example.area}
         </p>
       </div>
       <p

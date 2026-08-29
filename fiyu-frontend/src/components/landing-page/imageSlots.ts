@@ -15,34 +15,16 @@
  * `brief` is for whoever sources the asset. It is never rendered.
  */
 
-export type ImageSlotId =
-  | "restaurant_story_01"
-  | "current_city_01"
-  | "selection_01"
-  | "selection_02"
-  | "selection_03";
+export type ImageSlotId = "restaurant_story_01" | "current_city_01";
 
 /** What renders while `src` is null. */
-export type SlotFallback =
-  | {
-      kind: "illustration";
-      src: string;
-      width: number;
-      height: number;
-      alt: string;
-    }
-  /**
-   * A typographic tile: the area name in the display face on one of three warm
-   * or cool grounds. Deliberately not another line drawing -- six repeats of the
-   * same illustration set was what made the page look like it had two pictures
-   * in it.
-   *
-   * Only ever used at thumbnail scale now. At 4:5 hero size it read as an empty
-   * coloured panel, which a browser recording showed as three blank tiles
-   * apparently waiting to load. A 56px tinted square with a hairline is a mark;
-   * a 300px one is a void.
-   */
-  | { kind: "nameplate"; label: string; tone: "lavender" | "champagne" | "cool" };
+export interface SlotFallback {
+  kind: "illustration";
+  src: string;
+  width: number;
+  height: number;
+  alt: string;
+}
 
 export interface ImageSlot {
   id: ImageSlotId;
@@ -60,9 +42,9 @@ export const IMAGE_SLOTS: Record<ImageSlotId, ImageSlot> = {
     id: "restaurant_story_01",
     src: null,
     alt: "The counter of a small independent restaurant",
-    aspect: "16:9",
+    aspect: "4:3",
     brief:
-      "Landscape 16:9, at least 2400px wide. An intimate independent restaurant interior or counter, warm and low-lit, no identifiable faces. Should read as somewhere you would only find by being told about it. City-neutral: this slot travels to New York unchanged.",
+      "Landscape 4:3, at least 2000px wide. An intimate independent restaurant interior or counter, warm and low-lit, no identifiable faces. This is the emotional focus of the page, so it should read as somewhere you would only find by being told about it. City-neutral: the slot travels to New York unchanged.",
     fallback: {
       kind: "illustration",
       src: "/images/about-storefront.png",
@@ -75,9 +57,9 @@ export const IMAGE_SLOTS: Record<ImageSlotId, ImageSlot> = {
     id: "current_city_01",
     src: null,
     alt: "A quiet Tokyo street of small restaurants",
-    aspect: "3:2",
+    aspect: "3:1",
     brief:
-      "Landscape 3:2, at least 2400px wide. A real Tokyo neighbourhood at dusk -- a lane of small restaurants, signage lit, no identifiable faces. Replaced per city edition, so New York gets its own file rather than a re-crop of this one.",
+      "A wide band, 3:1, at least 2400px across. A real Tokyo neighbourhood at dusk -- a lane of small restaurants, signage lit, no identifiable faces. The edition section is a short band, so the subject must survive a letterbox crop and should not rely on sky or foreground. Replaced per city edition: New York gets its own file rather than a re-crop of this one.",
     fallback: {
       kind: "illustration",
       src: "/images/log-empty-table.png",
@@ -85,32 +67,5 @@ export const IMAGE_SLOTS: Record<ImageSlotId, ImageSlot> = {
       height: 724,
       alt: "A line illustration looking out from a restaurant table onto a quiet Tokyo street",
     },
-  },
-  selection_01: {
-    id: "selection_01",
-    src: null,
-    alt: "A bowl of Okinawa soba on a counter",
-    aspect: "1:1",
-    brief:
-      "Square, at least 800px. A single plated dish, cropped close. Read at 56px beside a label, so it needs one clear subject and no fine detail.",
-    fallback: { kind: "nameplate", label: "Sendagi", tone: "lavender" },
-  },
-  selection_02: {
-    id: "selection_02",
-    src: null,
-    alt: "Skewers over coals at a small yakitori counter",
-    aspect: "1:1",
-    brief:
-      "Square, at least 800px. A cooking surface or a hand at work. Must not match the other two selection thumbnails in colour or subject.",
-    fallback: { kind: "nameplate", label: "Setagaya", tone: "champagne" },
-  },
-  selection_03: {
-    id: "selection_03",
-    src: null,
-    alt: "The lit doorway of a small restaurant at night",
-    aspect: "1:1",
-    brief:
-      "Square, at least 800px. A storefront, doorway or curtain from the street, so the three thumbnails together read as street, counter and plate.",
-    fallback: { kind: "nameplate", label: "Tsukiji", tone: "cool" },
   },
 };

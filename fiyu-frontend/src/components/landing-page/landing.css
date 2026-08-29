@@ -6,8 +6,8 @@
  *
  * Three rules govern the whole file.
  *
- * 1. The settled state is the default state. `--scene-progress` defaults to 1
- *    and entrance classes are transparent only inside
+ * 1. The settled state is the default state. Entrance classes are transparent
+ *    only inside
  *    `@media (prefers-reduced-motion: no-preference)` and
  *    `@media (scripting: enabled)`. A reader with reduced motion, with
  *    JavaScript off, or on a browser that does not know the `scripting` feature
@@ -17,11 +17,13 @@
  * 2. Only `opacity`, `transform` and `clip-path` are animated. No width, no
  *    top, no margin: nothing here can reflow the page while it scrolls.
  *
- * 3. `--scene-progress` arrives already remapped past the pinned stage's holds,
- *    so every `--from` / `--span` pair below is in transition space. 0 means the
- *    stage has finished holding its start state; 1 means it has reached its end
- *    state and is about to hold that. No effect is ever mid-flight while its
- *    section is arriving or leaving.
+ * 3. Nothing here is driven by scroll position. Three iterations of
+ *    scroll-linked transforms produced dead viewports and half-played
+ *    compositions in a real browser while passing every geometry test written
+ *    against them, so the approach is gone rather than tuned again. What is left
+ *    is one-shot entrances released by an attribute, a couple of ambient loops,
+ *    and one cross-fade. Every animation here has exactly one destination and
+ *    stays at it.
  */
 
 /* --------------------------------------------------------------------------
@@ -205,54 +207,6 @@
 }
 
 /* --------------------------------------------------------------------------
- * Pinned stages
- *
- * `--scene-progress` runs 0 -> 1 across a stage's transition window, holds
- * excluded. Each element derives its own normalised `--enter` from a slice of
- * that window, so one property drives a whole staged sequence and the browser
- * interpolates it on the compositor without a keyframe or a class change.
- * ----------------------------------------------------------------------- */
-
-.fiyu-lp-scene {
-  --p: var(--scene-progress, 1);
-}
-
-/*
- * A staged element: invisible before `--from`, settled after `--from + --span`.
- *
- * Every call site keeps `--from + --span` at or below 1, so the last thing in a
- * sequence finishes inside the transition window and is then held, at rest, for
- * the whole of the stage's hold-out. That is what makes the end of a stage read
- * as a composed screen rather than as the last frame of an animation.
- */
-.fiyu-lp-stage-item {
-  --enter: clamp(0, calc((var(--p) - var(--from, 0)) / var(--span, 0.25)), 1);
-  opacity: var(--enter);
-  transform: translate3d(
-      calc((1 - var(--enter)) * var(--stage-x, 0px)),
-      calc((1 - var(--enter)) * var(--stage-y, 26px)),
-      0
-    )
-    scale(calc(1 - (1 - var(--enter)) * var(--stage-scale, 0.03)));
-}
-
-/* Held content that gives way as the stage resolves into something else. */
-.fiyu-lp-stage-exit {
-  --exit: clamp(0, calc((var(--p) - var(--from, 0.4)) / var(--span, 0.2)), 1);
-  opacity: calc(1 - var(--exit));
-  transform: translate3d(0, calc(var(--exit) * var(--exit-y, -14px)), 0);
-}
-
-/*
- * The SVG variant. Inside an SVG a `transform` in pixels is read in user units
- * unless `transform-box` is set, so map marks stage on opacity alone.
- */
-.fiyu-lp-stage-fade {
-  --enter: clamp(0, calc((var(--p) - var(--from, 0)) / var(--span, 0.2)), 1);
-  opacity: calc(var(--enter) * var(--enter-opacity, 1));
-}
-
-/* --------------------------------------------------------------------------
  * The reveal
  *
  * A concealed face laid over the card it hides. The settled state is lifted, so
@@ -308,44 +262,6 @@
     }
   }
 }
-
-/* --------------------------------------------------------------------------
- * Pinning, and when not to
- *
- * A pinned stage assumes its composition fits one viewport. Below roughly 640
- * CSS pixels of height -- a phone in landscape, a small laptop with a deep
- * toolbar, an iPhone SE -- it does not, and flex-centring content taller than
- * its container clips it at both ends, which takes the top off the very
- * composition the pin exists to show.
- *
- * So pinning is a capability, declared here in one place rather than assumed at
- * nine call sites. Under the threshold the runway collapses to its content and
- * the stage is an ordinary static section showing its finished state, which is
- * the same thing a reduced-motion visitor gets and is already a first-class
- * state. `usePinScene` reads the same threshold and reports progress 1, so the
- * two can never disagree.
- * ----------------------------------------------------------------------- */
-
-.fiyu-lp-runway {
-  height: auto;
-}
-
-.fiyu-lp-stage {
-  position: static;
-}
-
-@media (min-height: 640px) {
-  .fiyu-lp-runway {
-    height: var(--runway, 190svh);
-  }
-
-  .fiyu-lp-stage {
-    position: sticky;
-    top: 0;
-    height: 100svh;
-  }
-}
-
 
 /*
  * Map labels, hidden at phone scale.

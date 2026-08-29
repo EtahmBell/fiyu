@@ -1,36 +1,30 @@
 "use client";
 
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 /**
- * Scroll and entrance primitives for the landing page.
+ * Motion primitives for the landing page.
  *
- * There is exactly one way to scrub a section here, and it is a pinned stage
- * with a hold at each end. That is a correction, not a preference.
+ * There is no scroll-position arithmetic left in this file, and that is the
+ * headline. Earlier versions computed a 0-to-1 progress value across a tall
+ * sticky runway and drove transforms from it. The maths was correct and tested,
+ * and the result was still wrong in a browser twice over -- because a
+ * viewport-tall sticky box holding shorter content has leftover space at its top
+ * and bottom, and that space is exactly what fills the screen while the box
+ * arrives and leaves. Tuning the timing inside the box could never fix the shape
+ * of the box.
  *
- * The previous version also offered a "through" mode, which mapped 0 to 1 across
- * an element's whole transit of the viewport -- from just below the fold to
- * fully above it. The arithmetic was right and the result was wrong: for a
- * section about as tall as the viewport, progress is already near 0.25 by the
- * time the section is properly on screen, and past 0.7 by the time it has left.
- * Every effect tuned in that space was mid-animation the moment it became
- * readable and finished animating where nobody could see it. That one mistake
- * produced most of what looked like broken choreography.
+ * So every section is now driven by position or by intent, never by progress:
  *
- * A pinned stage cannot have that problem. Progress is zero while the stage is
- * arriving and one while it is leaving, so both ends of every transition are
- * fully on screen. The holds then give the page the shape it needs:
+ *   `useEntered`     one-shot reveal. Settles and stays. Never reverses, because
+ *                    content should not vanish when a reader scrolls back up.
+ *   `useActiveStep`  which of several blocks is crossing the middle of the
+ *                    viewport. Naturally symmetric -- scrolling down advances,
+ *                    scrolling up retreats -- because it reports a position, not
+ *                    a history. `select` scrolls a block to the middle, so a
+ *                    click and a scroll cannot disagree: they are the same fact.
  *
- *   arrive -> composed start state, held -> transition -> composed end state,
- *   held -> hand off
- *
- * Fast scrolling can skip the transition, which is fine: the two states it skips
- * between are both finished compositions. Reverse scrolling is symmetric because
- * progress is a pure function of position, not of history.
- *
- * Everything else is entrance-triggered instead -- one latching
- * IntersectionObserver flipping a `data-in` attribute that CSS animates from.
- * Only two sections are scrubbed, because only two are about a continuous change.
+ * Both are IntersectionObserver. Nothing listens to `scroll`.
  */
 
 const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
@@ -63,185 +57,14 @@ export function usePrefersReducedMotion(): boolean {
   );
 }
 
-/** `<= 0` rather than `< 0`, so a negative zero never reaches a custom property. */
-const clamp01 = (value: number) => (value <= 0 ? 0 : value > 1 ? 1 : value);
-
-/**
- * Raw position of a pinned runway: 0 as its top meets the viewport top, which is
- * the frame the stage pins on, and 1 as its bottom meets the viewport bottom,
- * which is the frame it releases on.
- *
- * `innerHeight` rather than the `svh` the runway is sized in: on a phone with
- * hidden toolbars the visual viewport is taller than `svh`, which compresses the
- * scrub slightly. That is the harmless direction to be wrong in -- the stage
- * still pins, and both holds still land.
- */
-export function pinRawProgress(
-  rect: { top: number; height: number },
-  viewport: number,
-): number {
-  const runway = rect.height - viewport;
-  // A runway shorter than the stage cannot be scrubbed; show it finished.
-  return runway <= 0 ? 1 : clamp01(-rect.top / runway);
-}
-
-/**
- * Raw position mapped into the transition window.
- *
- * Everything below `holdIn` reports 0 and everything above `1 - holdOut` reports
- * 1, which is what guarantees a composed state at each end of a stage. Exported
- * so the guarantee is testable rather than merely intended.
- */
-export function transitionProgress(raw: number, holdIn: number, holdOut: number): number {
-  const span = Math.max(0.05, 1 - holdIn - holdOut);
-  return clamp01((raw - holdIn) / span);
-}
-
-function rawProgress(element: HTMLElement): number {
-  return pinRawProgress(element.getBoundingClientRect(), window.innerHeight || 1);
-}
-
-interface Scene {
-  element: HTMLElement;
-  report: (raw: number) => void;
-}
-
-const scenes = new Set<Scene>();
-let frame = 0;
-let listening = false;
-
-function flush() {
-  frame = 0;
-  // Read every scene, then write every scene: one layout flush for the page,
-  // however many stages are registered.
-  const readings: [Scene, number][] = [];
-  for (const scene of scenes) readings.push([scene, rawProgress(scene.element)]);
-  for (const [scene, raw] of readings) scene.report(raw);
-}
-
-function schedule() {
-  if (frame === 0) frame = requestAnimationFrame(flush);
-}
-
-function registerScene(scene: Scene) {
-  scenes.add(scene);
-  if (!listening) {
-    listening = true;
-    window.addEventListener("scroll", schedule, { passive: true });
-    window.addEventListener("resize", schedule, { passive: true });
-  }
-  schedule();
-  return () => {
-    scenes.delete(scene);
-    if (scenes.size > 0 || !listening) return;
-    listening = false;
-    window.removeEventListener("scroll", schedule);
-    window.removeEventListener("resize", schedule);
-    if (frame !== 0) {
-      cancelAnimationFrame(frame);
-      frame = 0;
-    }
-  };
-}
-
-export interface PinSceneOptions {
-  /**
-   * Share of the runway spent holding the composed start state before anything
-   * moves, and holding the composed end state after everything has.
-   *
-   * These are the point of the hook. Without them a stage begins changing on the
-   * frame it pins and stops on the frame it releases, so a reader never sees
-   * either endpoint at rest -- which reads as being caught mid-animation even
-   * though nothing is actually broken.
-   */
-  holdIn?: number;
-  holdOut?: number;
-  /**
-   * Viewport height, in CSS pixels, below which this stage does not pin at all.
-   *
-   * Matched to the `min-height: 640px` query in `landing.css`, which collapses
-   * the runway and un-sticks the stage. Both have to agree: if the CSS stops
-   * pinning while this keeps scrubbing, a whole sequence gets compressed into
-   * whatever few pixels the runway has left over, which is worse than not
-   * animating at all.
-   */
-  minHeight?: number;
-  /**
-   * Thresholds in *transition* space, measured against the value written to
-   * `--scene-progress` rather than against raw scroll. Crossing one advances
-   * `step`, which is the only part of a scene that reaches React.
-   */
-  steps?: readonly number[];
-}
-
-/**
- * Scrub a pinned stage.
- *
- * Put `ref` on the tall runway and make its only child `sticky top-0 h-svh`.
- * `--scene-progress` is written on the runway already remapped to 0 to 1 across
- * the transition window, so `landing.css` and every `--from`/`--span` pair work
- * in one space and the holds cannot drift out of step with them.
- *
- * Under reduced motion nothing is registered and nothing is written: the CSS
- * default of `--scene-progress: 1` leaves the stage in its finished state and
- * `step` reports the last one, so every composition and all of the copy is
- * present at rest.
- */
-export function usePinScene<T extends HTMLElement>({
-  holdIn = 0.16,
-  holdOut = 0.22,
-  minHeight = 640,
-  steps = [],
-}: PinSceneOptions = {}): { ref: React.RefObject<T | null>; step: number } {
-  const ref = useRef<T>(null);
-  const reduced = usePrefersReducedMotion();
-  const [step, setStep] = useState(0);
-
-  useEffect(() => {
-    const element = ref.current;
-    if (!element) return;
-
-    // Nothing is registered and nothing is written under reduced motion; the
-    // returned step is derived below instead, so no state is set here.
-    if (reduced) {
-      element.style.removeProperty("--scene-progress");
-      return;
-    }
-
-    let lastStep = -1;
-    const unregister = registerScene({
-      element,
-      report: (raw) => {
-        // Not pinned means not scrubbed: show the finished composition rather
-        // than racing the whole sequence through a short runway.
-        const progress =
-          window.innerHeight < minHeight ? 1 : transitionProgress(raw, holdIn, holdOut);
-        element.style.setProperty("--scene-progress", progress.toFixed(4));
-        let next = 0;
-        while (next < steps.length && progress >= steps[next]) next += 1;
-        if (next !== lastStep) {
-          lastStep = next;
-          setStep(next);
-        }
-      },
-    });
-
-    return () => {
-      unregister();
-      element.style.removeProperty("--scene-progress");
-    };
-    // `steps` is a module-level literal at every call site, so its identity is
-    // stable; joining it keeps the dependency honest without a memo.
-  }, [holdIn, holdOut, minHeight, reduced, steps.length, steps.join(",")]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  return { ref, step: reduced ? steps.length : step };
-}
-
 /**
  * Latch true once an element has approached the viewport.
  *
  * Entrance motion only: the element is already fully rendered and readable, so
- * this flips the `data-in` attribute that CSS uses to play the animation.
+ * this flips the `data-in` attribute that CSS animates from. It latches on
+ * purpose -- a reveal that undoes itself on the way back up makes a page feel
+ * like it is assembling and disassembling around the reader.
+ *
  * Reduced motion reports true immediately, because the pre-state it would
  * release is not applied under that preference in the first place. Without
  * IntersectionObserver it enters on the next frame rather than never.
@@ -281,41 +104,88 @@ export function useEntered<T extends Element>(
   return { ref, entered: entered || reduced };
 }
 
-export interface TimedStepsOptions {
-  /** Usually `entered` from `useEntered`. Nothing advances until this is true. */
-  start: boolean;
-  count: number;
-  intervalMs?: number;
-}
-
 /**
- * Advance through a fixed number of states on a timer, once, and stop.
+ * Which of several blocks is crossing the middle of the viewport.
  *
- * For a demonstration that has to stay on one screen. A pinned runway is the
- * wrong tool when the thing being demonstrated already fits the viewport: it
- * buys reader-paced control at the cost of a viewport-tall sticky box whose
- * unused vertical space becomes a visible empty band every time the stage
- * arrives or leaves. That band is what a browser recording shows as a dead
- * screen, however correct the progress arithmetic is.
+ * A zero-height root band across the viewport: the block intersecting that line
+ * is the active one. Three consequences, all of them the point.
  *
- * So this is deliberately not scroll-linked. It runs forward only, holds on the
- * last state, and never loops -- a loop would make the section a marquee. Each
- * tick is a `setTimeout`, chained off the current step, so the timer cancels
- * itself on unmount and cannot overrun the end.
+ * It is reversible for free. The answer depends only on where the page is, so
+ * scrolling down gives 0, 1, 2 and scrolling back up gives 2, 1, 0 with the same
+ * thresholds in the same places. There is no direction to detect and no state
+ * machine to run backwards.
  *
- * Under reduced motion it reports the last state immediately, which is the
- * finished demonstration.
+ * It is discrete. These are conceptual states, not a continuum, so nothing is
+ * ever half-way between two of them.
+ *
+ * And `select` moves the page rather than overriding the observer: it scrolls the
+ * requested block to the middle of the viewport, which is the same condition the
+ * observer reads. A clicked state and a scrolled state therefore cannot drift
+ * apart, because they are the same measurement. `setActive` runs immediately too,
+ * so the surface responds on the click rather than at the end of a smooth scroll.
+ *
+ * When nothing is crossing the line -- the section is above or below the fold --
+ * the last answer stands. That is deliberate: a reader who scrolls past should
+ * find the section as they left it.
  */
-export function useTimedSteps({ start, count, intervalMs = 2000 }: TimedStepsOptions): number {
+export function useActiveStep(
+  count: number,
+  /**
+   * A zero-height line, placed low on purpose.
+   *
+   * At the viewport centre this would work on a desktop, where the surface and
+   * the step blocks are separate columns, and fail on a phone, where the surface
+   * is sticky above the blocks and covers the middle of the screen: the "active"
+   * block would be the one hidden behind it. At 78% the line always sits below
+   * the panel, and the block that owns it has just arrived from the bottom --
+   * which is the one a reader is about to read.
+   *
+   * Zero height matters too: exactly one block can cross a line, so there is no
+   * boundary case where two report at once and the answer depends on entry order.
+   */
+  rootMargin = "-78% 0px -22% 0px",
+): {
+  register: (index: number) => (node: HTMLElement | null) => void;
+  active: number;
+  select: (index: number) => void;
+} {
+  const nodes = useRef<(HTMLElement | null)[]>([]);
   const reduced = usePrefersReducedMotion();
-  const [step, setStep] = useState(0);
-  const last = Math.max(0, count - 1);
+  const [active, setActive] = useState(0);
+
+  const register = useCallback(
+    (index: number) => (node: HTMLElement | null) => {
+      nodes.current[index] = node;
+    },
+    [],
+  );
 
   useEffect(() => {
-    if (reduced || !start || step >= last) return;
-    const timer = window.setTimeout(() => setStep((current) => current + 1), intervalMs);
-    return () => window.clearTimeout(timer);
-  }, [reduced, start, step, last, intervalMs]);
+    if (typeof IntersectionObserver === "undefined") return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          const index = nodes.current.indexOf(entry.target as HTMLElement);
+          if (index >= 0) setActive(index);
+        }
+      },
+      { rootMargin, threshold: 0 },
+    );
+    for (const node of nodes.current) if (node) observer.observe(node);
+    return () => observer.disconnect();
+  }, [count, rootMargin]);
 
-  return reduced ? last : step;
+  const select = useCallback(
+    (index: number) => {
+      setActive(index);
+      nodes.current[index]?.scrollIntoView({
+        block: "center",
+        behavior: reduced ? "auto" : "smooth",
+      });
+    },
+    [reduced],
+  );
+
+  return { register, active, select };
 }

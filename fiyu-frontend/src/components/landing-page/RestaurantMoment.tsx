@@ -1,132 +1,116 @@
 "use client";
 
 import { RESTAURANT_MOMENT_EXAMPLE } from "@/components/landing-page/landingExamples";
-import { LANDING_MEASURE, SectionEyebrow } from "@/components/landing-page/landingSystem";
+import {
+  LANDING_MEASURE,
+  LANDING_RHYTHM,
+  SectionEyebrow,
+} from "@/components/landing-page/landingSystem";
 import { useEntered } from "@/components/landing-page/motion/scrollScene";
-import { SlotImage, slotIsIllustrated } from "@/components/landing-page/SlotImage";
+import { SlotImage } from "@/components/landing-page/SlotImage";
 import { TagList } from "@/components/restaurant/TagList";
-import { ScoreMark } from "@/components/ui/ScoreMark";
+import { formatFiyuScore, scoreAccessibleLabel, scoreBandLabel } from "@/lib/format/score";
 import { cn } from "@/lib/utils/cn";
 
 /**
  * The restaurant, then the discovery.
  *
- * This was a scroll-scrubbed crop: the plate opened edge to edge and closed into
- * a centred poster as the section passed. Two things were wrong with it. The
- * scrub was in "through" space, so the plate was always already half closed by
- * the time it was on screen and finished closing after it had left -- and the
- * effect was expensive, over a viewport and a half of scrolling, for a change no
- * reader could actually follow.
+ * Restructured for the photograph that is coming rather than around the drawing
+ * standing in for it. The image is now the dominant left column at a fixed 4:3,
+ * and the right column is a short editorial annotation instead of a
+ * metadata table: what the place is, where it is, and Fiyu's own reading of it.
  *
- * It is now a single entrance: the plate unveils from its lower edge and settles
- * out of a four percent scale, once, when the section arrives. Under a second,
- * over before a reader has finished reading the headline, and there is no
- * intermediate state to be caught in. The record follows on a stagger.
+ * The visible line "Illustration. In the application, cards carry photographs
+ * from Google Maps." is gone. It was an implementation note that had escaped onto
+ * a marketing page -- true, and none of a visitor's business.
  *
- * The image is a declared slot. Until a photograph exists it shows the line
- * drawing Fiyu owns, and says so in visible copy -- and that caption disappears
- * by itself the moment the slot has a real photograph in it.
+ * Every value in the annotation is published catalog data. The band travels with
+ * the example as its stored `score_band` and is rendered through the
+ * application's own `scoreBandLabel`, so "Exceptional" here is Fiyu's recorded
+ * judgement rather than a word chosen for this page. The three underexposure
+ * signals were considered for this block and left out: they are the criteria Fiyu
+ * screens on, not a per-restaurant finding, and asserting them about one named
+ * place would be fabricating analysis.
+ *
+ * A fixed aspect box means a real photograph drops in with no structural change
+ * and no layout shift.
  */
 
 const example = RESTAURANT_MOMENT_EXAMPLE;
 const SLOT = "restaurant_story_01";
-
-const RECORD = [
-  { label: "Category", value: example.category },
-  { label: "Area", value: example.area },
-] as const;
+const band = scoreBandLabel(example.scoreBand);
 
 export function RestaurantMoment() {
-  const { ref, entered } = useEntered<HTMLElement>("0px 0px -25% 0px");
+  const { ref, entered } = useEntered<HTMLElement>("0px 0px -20% 0px");
   const flag = entered ? "true" : "false";
-  const illustrated = slotIsIllustrated(SLOT);
 
   return (
-    <section
-      id="worth-finding"
-      ref={ref}
-      className="scroll-mt-24 border-b border-line bg-canvas"
-    >
-      {/*
-       * A bounded band rather than a viewport: the plate is generous without
-       * costing a screen of scrolling, and its height is set here rather than by
-       * the image, so nothing shifts when a real photograph replaces the drawing.
-       */}
-      <div
-        className="fiyu-lp-plate relative h-[38svh] overflow-hidden sm:h-[54svh] lg:h-[58svh]"
-        data-in={flag}
-      >
-        <div className="fiyu-lp-plate-image relative size-full" data-in={flag}>
-          <SlotImage slot={SLOT} sizes="100vw" />
-        </div>
-      </div>
+    <section id="worth-finding" ref={ref} className="scroll-mt-24 border-b border-line bg-canvas">
+      <div className={cn(LANDING_MEASURE, LANDING_RHYTHM)}>
+        <h2
+          className="fiyu-lp-rise max-w-[24ch] font-display text-[clamp(1.875rem,5vw,4rem)] leading-[0.98] tracking-[-0.02em] text-ink"
+          data-in={flag}
+        >
+          Worth finding isn’t always easy to find.
+        </h2>
 
-      <div
-        className={cn(
-          LANDING_MEASURE,
-          "grid gap-x-16 gap-y-10 py-14 sm:py-16",
-          "lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] lg:items-start lg:py-20",
-        )}
-      >
-        <div className="min-w-0">
-          <h2
-            className="fiyu-lp-rise max-w-[22ch] font-display text-[clamp(1.875rem,5.4vw,4.25rem)] leading-[0.98] tracking-[-0.02em] text-ink"
-            data-in={flag}
-            style={{ "--rise-delay": "180ms" } as React.CSSProperties}
-          >
-            Worth finding isn’t always easy to find.
-          </h2>
-          {illustrated && (
-            <p className="mt-6 max-w-[24rem] text-[0.6875rem] leading-5 text-ink-faint">
-              Illustration. In the application, cards carry photographs from Google Maps.
-            </p>
-          )}
-        </div>
-
-        <div className="min-w-0">
+        <div className="mt-10 grid gap-x-14 gap-y-8 lg:mt-14 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] lg:items-end">
+          {/*
+           * The emotional focus, and the reason the section exists. Fixed aspect,
+           * so the photograph that replaces the drawing changes nothing else.
+           */}
           <div
-            className="fiyu-lp-rise"
+            className="fiyu-lp-plate relative aspect-[4/3] min-w-0 overflow-hidden rounded-card border border-line"
             data-in={flag}
-            style={{ "--rise-delay": "320ms" } as React.CSSProperties}
+            style={{ "--plate-delay": "120ms" } as React.CSSProperties}
+          >
+            <div className="fiyu-lp-plate-image size-full" data-in={flag}>
+              <SlotImage
+                slot={SLOT}
+                sizes="(max-width: 1023px) calc(100vw - 2.5rem), 58vw"
+              />
+            </div>
+          </div>
+
+          {/* The annotation. Short, ruled, and every value is published data. */}
+          <div
+            className="fiyu-lp-rise min-w-0 lg:pb-2"
+            data-in={flag}
+            style={{ "--rise-delay": "260ms" } as React.CSSProperties}
           >
             <SectionEyebrow>A Fiyu discovery</SectionEyebrow>
             <p
               lang="ja"
-              className="mt-4 font-display text-[clamp(1.5rem,2.6vw,2.25rem)] leading-[1.2] text-ink"
+              className="mt-5 font-display text-[clamp(1.625rem,2.8vw,2.5rem)] leading-[1.15] text-ink"
             >
               {example.nameJa}
             </p>
-            <p className="mt-1.5 text-sm text-ink-muted">{example.nameEn}</p>
-          </div>
+            <p className="mt-2 text-sm text-ink-muted">{example.nameEn}</p>
 
-          <dl className="mt-6 min-w-0">
-            {RECORD.map((row, index) => (
-              <div
-                key={row.label}
-                className="fiyu-lp-rise flex min-w-0 items-baseline justify-between gap-6 border-t border-line py-3"
-                data-in={flag}
-                style={
-                  {
-                    "--rise-delay": 420 + index * 110 + "ms",
-                    "--rise-from": "10px",
-                  } as React.CSSProperties
-                }
+            <dl className="mt-7 border-t border-line pt-4">
+              <dt className="sr-only">Area</dt>
+              <dd className="font-display text-lg leading-tight text-ink">{example.area}</dd>
+              <dt className="sr-only">Category</dt>
+              <dd className="mt-1.5 text-sm text-ink-muted">{example.category}</dd>
+            </dl>
+
+            <div className="mt-6 flex flex-wrap items-baseline gap-x-4 gap-y-2 border-t border-line pt-4">
+              <p className="text-[0.625rem] font-semibold tracking-[0.18em] text-lavender-700 uppercase">
+                Fiyu Score
+              </p>
+              <p
+                role="img"
+                aria-label={scoreAccessibleLabel(example.score)}
+                className="font-display text-[2.25rem] leading-none tabular-nums text-plum"
               >
-                <dt className="shrink-0 text-[0.625rem] tracking-[0.16em] text-ink-faint uppercase">
-                  {row.label}
-                </dt>
-                <dd className="min-w-0 truncate text-sm text-ink">{row.value}</dd>
-              </div>
-            ))}
-          </dl>
+                {formatFiyuScore(example.score)}
+              </p>
+              {band && (
+                <p className="text-[0.6875rem] tracking-[0.14em] text-gold-700 uppercase">{band}</p>
+              )}
+            </div>
 
-          <div
-            className="fiyu-lp-rise mt-6 flex flex-wrap items-end justify-between gap-4 border-t border-line pt-5"
-            data-in={flag}
-            style={{ "--rise-delay": "640ms", "--rise-from": "10px" } as React.CSSProperties}
-          >
-            <TagList tags={[...example.tags]} max={3} className="min-w-0" />
-            <ScoreMark score={example.score} size="md" className="shrink-0" />
+            <TagList tags={[...example.tags]} max={3} className="mt-6" />
           </div>
         </div>
       </div>

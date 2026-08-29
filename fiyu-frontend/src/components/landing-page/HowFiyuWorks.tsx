@@ -1,6 +1,6 @@
 "use client";
 
-import { ExamplePickCardBrief } from "@/components/landing-page/ExamplePickCard";
+import { ExamplePickCard } from "@/components/landing-page/ExamplePickCard";
 import { WORKFLOW_EXAMPLES } from "@/components/landing-page/landingExamples";
 import {
   LANDING_HEADING,
@@ -8,45 +8,40 @@ import {
   LANDING_RHYTHM,
   SectionEyebrow,
 } from "@/components/landing-page/landingSystem";
-import { useEntered, useTimedSteps } from "@/components/landing-page/motion/scrollScene";
+import { useActiveStep, useEntered } from "@/components/landing-page/motion/scrollScene";
 import { TagList } from "@/components/restaurant/TagList";
 import { cn } from "@/lib/utils/cn";
 
 /**
- * How Fiyu works, on one Fiyu surface, on one screen.
+ * How Fiyu works: three product states, on one surface.
  *
- * This section has now failed twice as a pinned stage, and the reason is
- * structural rather than arithmetic. The demonstration is about 500 pixels tall.
- * Pinning it means putting 500 pixels of content inside a viewport-tall sticky
- * box, and the leftover 250 pixels do not disappear -- they sit at the top and
- * bottom of that box, and they are exactly what fills the screen while the stage
- * is arriving and leaving. A browser recording shows that as an empty viewport,
- * and it shows the two columns as sparse, because a 368px panel centred in an
- * 800px box next to a taller column of text genuinely is sparse. No amount of
- * further scroll arithmetic fixes a box that is bigger than what is in it.
+ * Third architecture, and the first one that is neither pinned to the viewport
+ * nor on a timer.
  *
- * So the pin is gone. No runway, no sticky, no scroll coupling at all. The
- * section is one ordinary screen:
+ * A pinned runway put the demonstration in a viewport-tall sticky box, and the
+ * box's leftover space became a dead screen at both handoffs. A timer fixed that
+ * but pointed the wrong way: it ran forward regardless of scroll direction, so
+ * going back up left the copy and the surface disagreeing.
  *
- *  - The surface stretches to the full height of the steps column, so neither
- *    side of the grid has empty space in it.
- *  - All three steps are visible with all of their copy -- there is no height
- *    budget to condense for any more.
- *  - The surface advances 01 -> 02 -> 03 on a timer once the section arrives,
- *    with the active step highlighted by the same value, so text and visual
- *    cannot disagree. It holds on 03 and never loops.
+ * What actually works is to ask the page a question instead of telling it a
+ * story. The three step blocks are ordinary content in the right-hand column.
+ * Whichever one is crossing the middle of the viewport is the active state, and
+ * the surface on the left shows it. That is symmetric by construction -- down
+ * gives 01, 02, 03 and up gives 03, 02, 01 -- because it is a position, not a
+ * sequence being played.
  *
- * A reader no longer paces the demonstration. That is the trade, and it is worth
- * it: a section that is always a composed screen beats one a reader can scrub
- * into an awkward frame. Scroll duration drops from about 1.9 viewports to one.
+ * The step headings are also buttons, and clicking one scrolls its block to the
+ * middle of the viewport, which is the exact condition the observer measures. So
+ * the click state and the scroll state are the same fact and cannot fight.
+ *
+ * The surface is sticky within its own column, not the viewport, so it can never
+ * strand a reader in an empty box: it is a tall panel that stays beside the copy
+ * for the length of the section and then leaves with it.
  *
  * The surface only shows states the application has. Fiyu's ranking control has
  * no popularity data behind it yet, so no popularity slider is drawn; what is
  * drawn is food-tag interests, areas, the daily picks, and the champagne
  * treatment a place takes on once it has been saved.
- *
- * The whole surface is `aria-hidden`: it is a depiction of the product, and the
- * three steps beside it carry the meaning.
  */
 
 const STEPS = [
@@ -67,9 +62,6 @@ const STEPS = [
   },
 ] as const;
 
-/** Long enough to read the step it lands on, short enough not to be a wait. */
-const STEP_HOLD_MS = 2100;
-
 const INTERESTS = ["焼き鳥", "ramen", "Okinawa soba", "sushi", "Turkish cuisine"];
 const AREAS = ["Yanaka", "Sendagi", "Nezu"];
 
@@ -81,13 +73,20 @@ function PanelLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
-/** State 01: what a reader hands Fiyu. Tags and areas, no map -- the plate is the hero's. */
+/**
+ * State 01: what a reader hands Fiyu.
+ *
+ * `justify-between` rather than a stack, so the two groups reach the top and the
+ * bottom of the panel and it does not read as a mostly-empty box.
+ */
 function TasteSurface() {
   return (
-    <div className="flex h-full flex-col">
-      <PanelLabel>Your tastes</PanelLabel>
-      <TagList tags={INTERESTS} className="mt-3.5" />
-      <div className="mt-auto border-t border-line pt-4">
+    <div className="flex h-full flex-col justify-between gap-6">
+      <div>
+        <PanelLabel>Your tastes</PanelLabel>
+        <TagList tags={INTERESTS} className="mt-3.5" />
+      </div>
+      <div className="border-t border-line pt-4">
         <PanelLabel>Around you</PanelLabel>
         <ul className="mt-3 space-y-2">
           {AREAS.map((area) => (
@@ -105,120 +104,130 @@ function TasteSurface() {
 /**
  * States 02 and 03: the picks, and then one of them saved.
  *
+ * Full cards rather than brief ones: they fill the panel, and the panel is the
+ * one place on the page that should look like the application.
+ *
  * The saved card stays where it is and changes tense instead of place. Moving it
  * into a separate history group was the truer picture of the application, but it
- * also changed the surface's height as the state changed.
+ * also changed the panel's height as the state changed.
  */
 function PicksSurface({ saved }: { saved: boolean }) {
   const [first, ...rest] = WORKFLOW_EXAMPLES;
   return (
     <div className="flex h-full flex-col">
       <PanelLabel>Today</PanelLabel>
-      <div className="mt-3.5 space-y-2 sm:space-y-2.5">
-        <ExamplePickCardBrief example={first} tone={saved ? "saved" : "current"} />
+      <div className="mt-3.5 space-y-2.5">
+        <ExamplePickCard
+          example={first}
+          tone={saved ? "saved" : "current"}
+          detail="sm-up"
+        />
         {rest.map((example) => (
-          <ExamplePickCardBrief key={example.id} example={example} />
+          <ExamplePickCard key={example.id} example={example} detail="sm-up" />
         ))}
       </div>
     </div>
   );
 }
 
-const LAYER = "absolute inset-0 transition-opacity duration-[600ms] ease-(--ease-fiyu)";
+const LAYER = "absolute inset-0 transition-opacity duration-[520ms] ease-(--ease-fiyu)";
 
 export function HowFiyuWorks() {
   const { ref, entered } = useEntered<HTMLElement>("0px 0px -25% 0px");
-  const step = useTimedSteps({ start: entered, count: 3, intervalMs: STEP_HOLD_MS });
+  const { register, active, select } = useActiveStep(STEPS.length);
   const flag = entered ? "true" : "false";
 
   return (
-    <section
-      id="how-it-works"
-      ref={ref}
-      className="scroll-mt-24 border-b border-line bg-canvas"
-    >
+    <section id="how-it-works" ref={ref} className="scroll-mt-24 border-b border-line bg-canvas">
       <div className={cn(LANDING_MEASURE, LANDING_RHYTHM)}>
         <SectionEyebrow>The product</SectionEyebrow>
         <h2 className={cn(LANDING_HEADING, "mt-6 text-ink")}>How Fiyu works</h2>
 
-        {/*
-         * `items-stretch` is the whole layout fix. The surface takes the height
-         * of the steps column rather than floating at its own size inside a
-         * taller box, so there is no empty half of the grid at any width.
-         */}
         <div
           className={cn(
-            "mt-10 grid gap-8 lg:mt-14",
-            "lg:grid-cols-[minmax(0,0.42fr)_minmax(0,0.58fr)] lg:items-stretch lg:gap-16",
+            "mt-10 lg:mt-14",
+            "lg:grid lg:grid-cols-[minmax(0,0.44fr)_minmax(0,0.56fr)] lg:items-start lg:gap-16",
           )}
         >
-          <div
-            aria-hidden="true"
-            data-testid="workflow-surface"
-            data-step={step}
-            className={cn(
-              "fiyu-lp-rise relative h-[21.5rem] min-w-0 overflow-hidden rounded-card",
-              "border border-line bg-surface lg:h-auto lg:min-h-[23rem]",
-            )}
-            data-in={flag}
-          >
-            <div className={cn(LAYER, step === 0 ? "opacity-100" : "opacity-0")}>
-              <div className="size-full p-3.5 sm:p-5">
-                <TasteSurface />
+          {/*
+           * Sticky inside its own column, never against the viewport. The column
+           * is exactly as tall as the steps beside it, so the panel accompanies
+           * the copy for the whole section and leaves with it.
+           */}
+          <div className="sticky top-16 z-10 bg-canvas pb-4 lg:top-24 lg:pb-0">
+            <div
+              aria-hidden="true"
+              data-testid="workflow-surface"
+              data-step={active}
+              className={cn(
+                // Sized to its contents rather than to the viewport, and capped
+                // against `svh` so a short phone shortens the panel instead of
+                // pushing it over the line the observer reads.
+                "fiyu-lp-rise relative h-[min(25.5rem,60svh)] min-w-0 overflow-hidden",
+                "rounded-card border border-line bg-surface lg:h-[27rem]",
+              )}
+              data-in={flag}
+            >
+              <div className={cn(LAYER, active === 0 ? "opacity-100" : "opacity-0")}>
+                <div className="size-full p-4 sm:p-5">
+                  <TasteSurface />
+                </div>
               </div>
-            </div>
-            <div className={cn(LAYER, step === 0 ? "opacity-0" : "opacity-100")}>
-              <div className="size-full p-3.5 sm:p-5">
-                <PicksSurface saved={step === 2} />
+              <div className={cn(LAYER, active === 0 ? "opacity-0" : "opacity-100")}>
+                <div className="size-full p-4 sm:p-5">
+                  <PicksSurface saved={active === 2} />
+                </div>
               </div>
             </div>
           </div>
 
           {/*
-           * All three steps, all of their copy, always. The active one carries
-           * ink, a lavender numeral and a drawn rule; the others stay at AA on
-           * canvas rather than fading, so nothing here is ever a lone paragraph
-           * in white space.
+           * Each block is tall enough that only one of them owns the middle of
+           * the viewport at a time, which is what makes the active state
+           * unambiguous in both directions.
            */}
-          <ol className="min-w-0">
+          <ol className="mt-8 lg:mt-0">
             {STEPS.map((entry, index) => {
-              const active = step === index;
+              const isActive = active === index;
               return (
                 <li
                   key={entry.number}
-                  data-active={active}
-                  aria-current={active ? "step" : undefined}
-                  className={cn(
-                    "fiyu-lp-rise border-t border-line py-5 first:border-t-0 first:pt-0 lg:py-7",
-                    "lg:first:pt-0",
-                  )}
-                  data-in={flag}
-                  style={
-                    {
-                      "--rise-delay": index * 110 + 80 + "ms",
-                      "--rise-from": "12px",
-                    } as React.CSSProperties
-                  }
+                  ref={register(index)}
+                  data-active={isActive}
+                  aria-current={isActive ? "step" : undefined}
+                  className="flex min-h-[16rem] flex-col justify-center border-t border-line py-6 first:border-t-0 lg:min-h-[20rem]"
                 >
-                  <div className="flex items-baseline gap-4">
-                    <p
+                  {/*
+                   * The heading is the control. A text button with a hover rule,
+                   * not a chip: this is an editorial index that happens to be
+                   * operable, and the copy below it is visible either way, so
+                   * nothing is gated behind the interaction.
+                   */}
+                  <button
+                    type="button"
+                    onClick={() => select(index)}
+                    className="group flex w-full items-baseline gap-4 text-left focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-lavender-500"
+                  >
+                    <span
                       aria-hidden="true"
                       className={cn(
                         "font-display text-[1.5rem] leading-none transition-colors duration-500 ease-(--ease-fiyu) lg:text-[2.25rem]",
-                        active ? "text-lavender-700" : "text-ink-faint/60",
+                        isActive ? "text-lavender-700" : "text-ink-faint/60 group-hover:text-ink-muted",
                       )}
                     >
                       {entry.number}
-                    </p>
+                    </span>
                     <h3
                       className={cn(
                         "min-w-0 font-display text-[1.25rem] leading-[1.15] transition-colors duration-500 ease-(--ease-fiyu) sm:text-[1.5rem] lg:text-[1.875rem]",
-                        active ? "text-ink" : "text-ink-muted",
+                        isActive
+                          ? "text-ink"
+                          : "text-ink-muted decoration-rose-dust decoration-1 underline-offset-[6px] group-hover:text-ink group-hover:underline",
                       )}
                     >
                       {entry.title}
                     </h3>
-                  </div>
+                  </button>
                   <p className="mt-3 max-w-[26rem] text-[0.9375rem] leading-7 text-ink-muted lg:mt-4">
                     {entry.copy}
                   </p>
@@ -226,7 +235,7 @@ export function HowFiyuWorks() {
                     aria-hidden="true"
                     className={cn(
                       "mt-4 block h-px origin-left bg-lavender-500 transition-transform duration-[600ms] ease-(--ease-fiyu) lg:mt-5",
-                      active ? "scale-x-100" : "scale-x-0",
+                      isActive ? "scale-x-100" : "scale-x-0",
                     )}
                   />
                 </li>

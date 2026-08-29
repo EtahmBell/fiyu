@@ -3,7 +3,7 @@
 import Link from "next/link";
 
 import { AuthAwarePicksLink } from "@/components/landing-page/AuthAwarePicksLink";
-import { ALL_EXAMPLES } from "@/components/landing-page/landingExamples";
+import { TOKYO_AREAS } from "@/components/landing-page/landingAreas";
 import { LANDING_MEASURE } from "@/components/landing-page/landingSystem";
 import { useEntered } from "@/components/landing-page/motion/scrollScene";
 import { cn } from "@/lib/utils/cn";
@@ -16,11 +16,15 @@ import { cn } from "@/lib/utils/cn";
  * repeating its own opening instead of resolving it. By that point a reader has
  * already seen that object twice.
  *
- * So the ending is type and a colophon. The line, the action, and then every
- * place Fiyu has published in Tokyo listed as a single ruled index across the
- * foot of the page. It is the one moment where the whole set is visible at once,
- * which is the right last word for a product whose argument is that it only ever
- * shows you a few of them.
+ * So the ending is type and a colophon: the line, the action, and then the
+ * coverage.
+ *
+ * The colophon used to list eight restaurant names, which was an arbitrary
+ * sample -- eight of the catalog, chosen by me, saying nothing about how much of
+ * the city Fiyu actually knows. It now lists the areas instead, derived from the
+ * product's own map labels and checked against the backend's Tokyo service
+ * boundary. Thirty-nine names is a statement about breadth; eight restaurants was
+ * a statement about nothing.
  *
  * No cards, no map, no photography. Every other section has a visual; this one
  * deliberately does not, because a landing page should end on its offer rather
@@ -76,35 +80,37 @@ export function FinalCta() {
       </div>
 
       {/*
-       * The colophon. A ruled index of every published example, wrapping rather
-       * than scrolling sideways, so no phone has to discover a hidden axis.
+       * The colophon. A ruled grid of areas, sized to fit all of them rather than
+       * truncated: the length is the point. Row-major over a prominence-ordered
+       * list, so it opens on the names a visitor will already know.
        */}
       <div className={cn(LANDING_MEASURE, "border-t border-line py-8 sm:py-10")}>
-        <p className="text-[0.625rem] font-semibold tracking-[0.18em] text-ink-faint uppercase">
-          In Tokyo now
-        </p>
+        <div className="flex flex-wrap items-baseline justify-between gap-x-8 gap-y-2">
+          <p className="text-[0.625rem] font-semibold tracking-[0.18em] text-ink-faint uppercase">
+            In Tokyo now
+          </p>
+          <p className="text-[0.6875rem] leading-5 text-ink-faint">
+            Fiyu&apos;s Tokyo edition spans these areas.
+          </p>
+        </div>
         <ul
-          data-testid="closing-colophon"
-          className="mt-5 flex flex-wrap gap-x-8 gap-y-4 sm:gap-x-12"
+          data-testid="coverage-areas"
+          className="mt-5 grid grid-cols-2 gap-x-6 gap-y-2.5 sm:grid-cols-4 lg:grid-cols-6"
         >
-          {ALL_EXAMPLES.map((example, index) => (
+          {TOKYO_AREAS.map((area, index) => (
             <li
-              key={example.id}
-              className="fiyu-lp-rise min-w-0"
+              key={area}
+              className="fiyu-lp-rise min-w-0 truncate text-[0.8125rem] leading-5 text-ink"
               data-in={flag}
               style={
                 {
-                  "--rise-delay": 320 + index * 60 + "ms",
-                  "--rise-from": "8px",
+                  "--rise-delay": 260 + Math.min(index, 18) * 22 + "ms",
+                  "--rise-duration": "460ms",
+                  "--rise-from": "6px",
                 } as React.CSSProperties
               }
             >
-              <p lang="ja" className="truncate font-display text-base leading-tight text-ink">
-                {example.nameJa}
-              </p>
-              <p className="mt-1 truncate text-[0.625rem] tracking-[0.12em] text-ink-faint uppercase">
-                {example.area}
-              </p>
+              {area}
             </li>
           ))}
         </ul>

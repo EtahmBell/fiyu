@@ -8,11 +8,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import MarketingLayout from "@/app/(marketing)/layout";
 import PublicLandingPage from "@/app/(marketing)/page";
 import { LandingPage } from "@/components/landing-page/LandingPage";
-import {
-  ALL_EXAMPLES,
-  SELECTION_COLUMNS,
-  SHARED_SELECTION_ID,
-} from "@/components/landing-page/landingExamples";
+import { LOCATION_SETS } from "@/components/landing-page/landingExamples";
+import { TOKYO_AREAS } from "@/components/landing-page/landingAreas";
 import { IMAGE_SLOTS } from "@/components/landing-page/imageSlots";
 import { WORLD_LAND_PATH } from "@/components/landing-page/worldLandPath";
 import { clearProfileIdentity, publishProfileIdentity } from "@/lib/profile/profileIdentity";
@@ -74,34 +71,6 @@ function countWithClass(root: Element, className: string): number {
   ).length;
 }
 
-/**
- * Text a reader can actually see in a pinned stage at a given progress.
- *
- * Staged elements are hidden by `--enter` reaching zero, so the visible copy is
- * the stage's text minus the text of every element that has faded out. Used to
- * assert the thing that was actually wrong before: that a stage is a composed
- * screen at both ends of its scrub rather than an empty one.
- */
-function visibleTextAt(stage: Element, progress: number): string {
-  const staged = [
-    ...stage.querySelectorAll(".fiyu-lp-stage-item, .fiyu-lp-stage-fade"),
-  ];
-  let text = stage.textContent ?? "";
-  for (const element of staged) {
-    const className = element.getAttribute("class") ?? "";
-    const inline = element.getAttribute("style") ?? "";
-    const from = Number(
-      /--from:\s*([\d.]+)/.exec(inline)?.[1] ?? /\[--from:([\d.]+)\]/.exec(className)?.[1] ?? "0",
-    );
-    const span = Number(
-      /--span:\s*([\d.]+)/.exec(inline)?.[1] ?? /\[--span:([\d.]+)\]/.exec(className)?.[1] ?? "0.25",
-    );
-    const enter = Math.min(1, Math.max(0, (progress - from) / span));
-    if (enter <= 0) text = text.replace(element.textContent ?? "", "");
-  }
-  return text.trim();
-}
-
 function landingRoute() {
   return (
     <MarketingLayout>
@@ -111,13 +80,19 @@ function landingRoute() {
 }
 
 /** Section order, top to bottom, keyed by a heading only that section has. */
+const STEP_TITLES = [
+  "Tell us what you like",
+  "Receive a few considered picks",
+  "Reveal, save, and visit",
+];
+
 const NARRATIVE = [
   "Hidden places. Carefully uncovered.",
   "Worth finding isn’t always easy to find.",
   "How Fiyu works",
   "Look beyond what rises to the top.",
   "Only a few.",
-  "A few for you.Different for someone else.",
+  "Picked around where you are.",
   "Fiyu opens city by city.",
   "Fiyu has arrived in Tokyo.",
   "Your next few are waiting.",
@@ -210,67 +185,48 @@ describe("public landing experience", () => {
 });
 
 describe("landing choreography", () => {
-  it("scrubs exactly one section, and pins it", () => {
+  it("has no scroll-position machinery left anywhere on the page", () => {
     const { container } = render(<LandingPage />);
 
-    // Down from two. A pinned stage is only honest when the thing being shown
-    // genuinely needs a viewport-tall box; "How Fiyu works" did not, and its
-    // leftover vertical space was what a recording showed as a dead screen.
-    const scenes = [...container.querySelectorAll(".fiyu-lp-scene")];
-    expect(scenes).toHaveLength(1);
-    for (const scene of scenes) {
-      const className = scene.getAttribute("class") ?? "";
-      // A scrubbed section must be a runway, and must declare how long it is.
-      expect(className).toContain("fiyu-lp-runway");
-      expect(className).toMatch(/\[--runway:[\d.]+svh\]/);
-      // Its stage is what pins, and pinning is gated in one place.
-      expect(scene.querySelector(".fiyu-lp-stage")).toBeTruthy();
+    // Three passes of scroll-linked transforms produced dead viewports and
+    // half-played compositions in a real browser while passing every geometry
+    // test written against them. The approach is gone, not tuned again.
+    for (const dead of [
+      ".fiyu-lp-scene",
+      ".fiyu-lp-runway",
+      ".fiyu-lp-stage",
+      ".fiyu-lp-stage-item",
+      ".fiyu-lp-stage-exit",
+      ".fiyu-lp-stage-fade",
+    ]) {
+      expect(container.querySelector(dead), `${dead} should no longer exist`).toBeNull();
     }
-  });
-
-  it("gives every scrubbed element a composed end state inside the transition window", () => {
-    const { container } = render(<LandingPage />);
-
-    // An element whose --from + --span exceeds 1 never finishes: it is still
-    // moving when the stage stops scrubbing, which is precisely the "caught
-    // mid-animation" report. This asserts every one of them lands.
-    const staged = [
-      ...container.querySelectorAll(".fiyu-lp-stage-item, .fiyu-lp-stage-exit, .fiyu-lp-stage-fade"),
-    ];
-    expect(staged.length).toBeGreaterThan(0);
-    for (const element of staged) {
+    for (const element of container.querySelectorAll("[class]")) {
       const className = element.getAttribute("class") ?? "";
+      expect(className, `runway declaration left on ${className}`).not.toContain("--runway");
+    }
+  });
+
+  it("gives every entrance a single destination it settles at", () => {
+    const { container } = render(<LandingPage />);
+
+    // No `--from` / `--span` windows any more: an entrance either has not played
+    // or has finished. There is no third state to be caught in, and nothing
+    // un-plays when a reader scrolls back up.
+    const animated = [...container.querySelectorAll("[data-in]")];
+    expect(animated.length).toBeGreaterThan(20);
+    for (const element of animated) {
       const inline = element.getAttribute("style") ?? "";
-      const from = Number(
-        /--from:\s*([\d.]+)/.exec(inline)?.[1] ?? /\[--from:([\d.]+)\]/.exec(className)?.[1] ?? "0",
-      );
-      const span = Number(
-        /--span:\s*([\d.]+)/.exec(inline)?.[1] ?? /\[--span:([\d.]+)\]/.exec(className)?.[1] ?? "0.25",
-      );
-      expect(span, `span must be positive on ${className}`).toBeGreaterThan(0);
-      expect(from + span, `${className} finishes after the window closes`).toBeLessThanOrEqual(1);
+      expect(inline).not.toContain("--from");
+      expect(inline).not.toContain("--span");
     }
   });
 
-  it("holds a composed screen at both ends of every pinned stage", () => {
+  it("measures nothing in raw vh", () => {
     const { container } = render(<LandingPage />);
 
-    // The reported dead viewport was this: a stage whose every element began at
-    // zero opacity, pinned, with nothing else in it. Both endpoints of a scrub
-    // are fully on screen, so both have to be worth looking at.
-    for (const scene of container.querySelectorAll(".fiyu-lp-scene")) {
-      const stage = scene.querySelector(".fiyu-lp-stage");
-      if (!stage) throw new Error("Every scene must have a stage");
-      expect(visibleTextAt(stage, 0).length, "empty stage at the start of the pin").toBeGreaterThan(40);
-      expect(visibleTextAt(stage, 1).length, "empty stage at the end of the pin").toBeGreaterThan(40);
-    }
-  });
-
-  it("measures every pinned runway in svh, never vh", () => {
-    const { container } = render(<LandingPage />);
-
-    // vh changes as a mobile toolbar hides, which resizes a runway mid-scroll
-    // and jumps the composition. svh does not.
+    // vh changes as a mobile toolbar hides, which would resize a section
+    // mid-scroll. svh does not; nothing on the page needs either any more.
     for (const element of container.querySelectorAll("[class]")) {
       const className = element.getAttribute("class") ?? "";
       expect(className, `raw vh unit on ${className}`).not.toMatch(/[\s[:(][\d.]+vh[\])\s]/);
@@ -286,6 +242,17 @@ describe("landing choreography", () => {
     // its imagery instead, so a visit must be free.
     expect(request).not.toHaveBeenCalled();
     expect(screen.queryByTestId("restaurant-photo-region")).toBeNull();
+  });
+
+  it("shows no implementation notes to visitors", () => {
+    const { container } = render(<LandingPage />);
+
+    // "Illustration. In the application, cards carry photographs from Google
+    // Maps." was true, and none of a visitor's business.
+    const text = container.textContent ?? "";
+    expect(text).not.toMatch(/In the application/i);
+    expect(text).not.toMatch(/Illustration\./);
+    expect(text).not.toMatch(/placeholder|TODO|fallback/i);
   });
 });
 
@@ -353,7 +320,7 @@ describe("landing hero", () => {
 });
 
 describe("landing narrative sections", () => {
-  it("opens on a restaurant, captioned as an illustration while it is one", () => {
+  it("leads on the photograph and annotates it editorially", () => {
     render(<LandingPage />);
 
     const plate = screen.getByRole("img", {
@@ -363,47 +330,67 @@ describe("landing narrative sections", () => {
     const moment = plate.closest("section");
     if (!moment) throw new Error("Expected the restaurant moment section");
     const scene = within(moment);
-    expect(
-      scene.getByText("Illustration. In the application, cards carry photographs from Google Maps."),
-    ).toBeTruthy();
+
+    // A fixed aspect box, so the real photograph drops in with no structural
+    // change and no layout shift.
+    expect(countWithClass(moment, "aspect-[4/3]")).toBe(1);
+
+    // The annotation: name, area, category, score, band. Every value published.
     expect(scene.getByText("A Fiyu discovery")).toBeTruthy();
     expect(scene.getByText("江戸酒場 海")).toBeTruthy();
+    expect(scene.getByText("Edo Sakaba Umi")).toBeTruthy();
+    expect(scene.getByText("Jingumae")).toBeTruthy();
     expect(scene.getByText("Izakaya / standing bar")).toBeTruthy();
+    expect(scene.getByLabelText("Fiyu score 8.7 out of 10")).toBeTruthy();
+    expect(scene.getByText("Exceptional")).toBeTruthy();
 
-    // An entrance, not a scrub: this section is no longer a scene at all.
-    expect(moment.querySelector(".fiyu-lp-scene")).toBeNull();
-    expect(moment.querySelector(".fiyu-lp-plate")).toBeTruthy();
+    // No per-restaurant signal claims: those criteria are what Fiyu screens on,
+    // not a finding about this place.
+    expect(scene.queryByText("Strong local signals")).toBeNull();
   });
 
-  it("keeps one product surface present through all three workflow steps", () => {
+  it("drives three product states from position, reversibly, and by click", async () => {
     const { container } = render(<LandingPage />);
 
     const workflow = screen.getByRole("heading", { name: "How Fiyu works" }).closest("section");
     if (!workflow) throw new Error("Expected the workflow section");
 
-    // Not pinned and not scrubbed: the demonstration fits one screen, so it is
-    // an ordinary section that cannot strand a reader in a sticky box.
+    // Nothing pinned to the viewport and no runway: the surface is sticky inside
+    // its own column, so it can never strand a reader in an empty box.
     expect(workflow.querySelector(".fiyu-lp-scene")).toBeNull();
-    expect(workflow.querySelector(".fiyu-lp-stage")).toBeNull();
+    expect(countWithClass(workflow, "sticky")).toBe(1);
 
-    // All three steps are on screen at once, so the column can never be a
-    // single paragraph floating beside an empty half of the viewport.
     const steps = [...workflow.querySelectorAll("li[data-active]")];
     expect(steps).toHaveLength(3);
     expect(steps.filter((step) => step.getAttribute("data-active") === "true")).toHaveLength(1);
-    expect(screen.getByRole("heading", { name: "Tell us what you like" })).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "Receive a few considered picks" })).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "Reveal, save, and visit" })).toBeTruthy();
 
-    // Both surface layers are mounted at all times and cross-fade, so nothing
-    // mounts or unmounts and the box cannot change height mid-scroll.
     const surface = screen.getByTestId("workflow-surface");
     expect(surface.getAttribute("data-step")).toBe("0");
     expect(surface.getAttribute("aria-hidden")).toBe("true");
-    expect(surface.getAttribute("class")).toContain("h-[21.5rem]");
     expect(surface.children).toHaveLength(2);
     expect(within(surface).getByText("Your tastes")).toBeTruthy();
-    expect(within(surface).getAllByTestId("example-pick-card-brief")).toHaveLength(3);
+    expect(within(surface).getAllByTestId("example-pick-card")).toHaveLength(3);
+
+    // Every step heading is a control, and the copy is visible either way, so
+    // nothing is gated behind the interaction.
+    const controls = STEP_TITLES.map((title) => screen.getByRole("button", { name: new RegExp(title) }));
+    expect(controls).toHaveLength(3);
+    for (const entry of STEP_TITLES) expect(screen.getByRole("heading", { name: entry })).toBeTruthy();
+
+    // Forward, and then back: the state follows the request in both directions.
+    for (const index of [1, 2, 1, 0]) {
+      fireEvent.click(controls[index]);
+      expect(surface.getAttribute("data-step")).toBe(String(index));
+      expect(steps[index].getAttribute("data-active")).toBe("true");
+      expect(steps[index].getAttribute("aria-current")).toBe("step");
+    }
+
+    // Keyboard reaches the same control, since it is a real button.
+    controls[2].focus();
+    expect(document.activeElement).toBe(controls[2]);
+    fireEvent.click(controls[2]);
+    expect(surface.getAttribute("data-step")).toBe("2");
+    expect(surface.querySelector('[data-tone="saved"]')).toBeTruthy();
 
     // No popularity control is drawn: the product has no popularity data yet.
     expect(container.textContent).not.toMatch(/Popular favourites|Hidden gems/i);
@@ -433,51 +420,77 @@ describe("landing narrative sections", () => {
     expect(section.querySelector('[class*="-mt-2"]')).toBeNull();
   });
 
-  it("accumulates exactly three discoveries onto ruled shelves, inside the stage", () => {
+  it("reveals exactly three discoveries in ordinary document flow", () => {
     render(<LandingPage />);
 
     const philosophy = screen.getByRole("heading", { name: "Only a few." }).closest("section");
     if (!philosophy) throw new Error("Expected the Only a few section");
 
-    // The heading lives inside the pinned stage, so the first frame of the pin
-    // is a composed screen rather than an empty one.
-    const stage = philosophy.querySelector(".fiyu-lp-stage");
-    expect(stage).toBeTruthy();
-    expect(stage?.contains(screen.getByRole("heading", { name: "Only a few." }))).toBe(true);
+    // The runway is gone. It survived three timing passes and a browser
+    // recording still showed an empty viewport inside it, so the wrapper itself
+    // was the defect.
+    expect(philosophy.querySelector(".fiyu-lp-scene")).toBeNull();
+    expect(philosophy.querySelector(".fiyu-lp-runway")).toBeNull();
+    expect(countWithClass(philosophy, "sticky")).toBe(0);
 
-    expect(philosophy.querySelectorAll("[data-arrival]")).toHaveLength(3);
+    // Three shelves ruled from the first paint, three cards that only change
+    // opacity: the final layout exists before any card does, so an arrival
+    // cannot move anything.
+    const arrivals = [...philosophy.querySelectorAll("[data-arrival]")];
+    expect(arrivals).toHaveLength(3);
     expect(philosophy.querySelector('[data-arrival="4"]')).toBeNull();
+    for (const arrival of arrivals) {
+      expect(arrival.getAttribute("class")).toContain("fiyu-lp-settle");
+      // A delay, never a scroll window: it plays once and stays.
+      expect(arrival.getAttribute("style")).toContain("--settle-delay");
+    }
     expect(within(philosophy).getByText("A slower reveal")).toBeTruthy();
     expect(
       within(philosophy).getByText(
         /A small, personal selection from a much broader pool of strong restaurants/,
       ),
     ).toBeTruthy();
-    expect(screen.queryByText(/Three, not three hundred/i)).toBeNull();
-  });
-
-  it("leads each selection with an image and states the overlap", () => {
-    render(<LandingPage />);
-
-    const slots = SELECTION_COLUMNS.flatMap((column) => column.picks);
-    expect(slots).toHaveLength(9);
-    expect(new Set(slots.map((pick) => pick.id)).size).toBe(8);
-    expect(slots.filter((pick) => pick.id === SHARED_SELECTION_ID)).toHaveLength(2);
-
-    const section = screen.getByText("Someone near Yanaka").closest("section");
-    if (!section) throw new Error("Expected the selections section");
-    // A 56px thumbnail beside each label, not a 4:5 panel above it. An empty
-    // panel at that size read as a page still loading.
-    expect(countWithClass(section, "size-14")).toBe(3);
-    expect(countWithClass(section, "aspect-[16/10]")).toBe(0);
-    expect(screen.getAllByText("Also another selection")).toHaveLength(2);
-    expect(
-      screen.getByText("One place appears in two of these three selections. The other seven appear once."),
-    ).toBeTruthy();
   });
 });
 
 describe("landing rollout, edition and close", () => {
+  it("explains that Picks start from where you are, and lets a reader switch", () => {
+    const { container } = render(<LandingPage />);
+
+    expect(screen.getByText("Local by design")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Picked around where you are." })).toBeTruthy();
+    expect(
+      screen.getByText(
+        "When you ask for new Picks, Fiyu starts with where you are and surfaces a few nearby places worth finding.",
+      ),
+    ).toBeTruthy();
+
+    // The overlap arithmetic is gone: it asked a visitor to compare nine names
+    // to feel something, and it was never the behaviour worth a whole section.
+    expect(container.textContent).not.toMatch(/appears in two of these three/i);
+    expect(container.textContent).not.toMatch(/Someone near/i);
+    expect(screen.queryByText("Also another selection")).toBeNull();
+
+    // Two starting points, and the Picks visibly change between them.
+    const surface = screen.getByTestId("location-surface");
+    expect(surface.getAttribute("data-location")).toBe(LOCATION_SETS[0].id);
+    const [first, second] = LOCATION_SETS;
+    expect(within(surface).getByText(first.picks[0].nameJa)).toBeTruthy();
+
+    const control = within(surface).getByRole("button", { name: second.area });
+    expect(control.getAttribute("aria-pressed")).toBe("false");
+    fireEvent.click(control);
+    expect(surface.getAttribute("data-location")).toBe(second.id);
+    expect(control.getAttribute("aria-pressed")).toBe("true");
+    expect(within(surface).getByText(second.picks[0].nameJa)).toBeTruthy();
+    expect(within(surface).queryByText(first.picks[0].nameJa)).toBeNull();
+
+    // And it does not claim Picks follow a reader around.
+    expect(
+      screen.getByText(/Your location is used at the moment a selection is made/),
+    ).toBeTruthy();
+  });
+
   it("gives every city an explicit state on one keyboard-accessible plate", () => {
     render(<LandingPage />);
 
@@ -568,11 +581,15 @@ describe("landing rollout, edition and close", () => {
 
     // The plate is bounded rather than full bleed at its natural ratio, which is
     // what let this section grow past a viewport and a quarter.
-    // A bounded height rather than an aspect box: an aspect box takes its height
-    // from the column, which is how this section stayed the tallest on the page.
+    // A short wide crop at a bounded height. An aspect box takes its height from
+    // the column, which is how this section twice ended up the tallest one.
     const figure = screen.getByTestId("city-edition-plate");
-    expect(figure.getAttribute("class")).toContain("h-[13rem]");
+    expect(figure.getAttribute("class")).toContain("h-[9rem]");
     expect(countWithClass(figure, "aspect-[3/2]")).toBe(0);
+
+    // Three short columns under one hairline and above another: a band, not a
+    // feature block. The row is only as tall as its tallest column.
+    expect(countWithClass(edition, "lg:grid-cols-[minmax(0,0.82fr)_minmax(0,1.05fr)_minmax(0,1.05fr)]")).toBe(1);
     const plate = within(figure).getByRole("img", {
       name: "A line illustration looking out from a restaurant table onto a quiet Tokyo street",
     });
@@ -581,17 +598,33 @@ describe("landing rollout, edition and close", () => {
     expect(edition.querySelector('img[src="/og.png"]')).toBeNull();
   });
 
-  it("closes on a colophon rather than on the hero again", () => {
+  it("closes on Tokyo coverage rather than on a sample of restaurants", () => {
     render(<LandingPage />);
 
     const closing = screen.getByRole("heading", { name: "Your next few are waiting." }).closest("section");
     if (!closing) throw new Error("Expected the closing section");
     expect(closing.querySelector('[data-testid="pick-composition"]')).toBeNull();
 
-    const colophon = screen.getByTestId("closing-colophon");
-    expect(colophon.querySelectorAll("li")).toHaveLength(ALL_EXAMPLES.length);
+    // Areas, not restaurants. Eight restaurant names were an arbitrary sample
+    // that said nothing about how much of the city Fiyu knows.
+    const colophon = screen.getByTestId("coverage-areas");
+    const listed = [...colophon.querySelectorAll("li")].map((item) => item.textContent);
+    expect(listed).toEqual([...TOKYO_AREAS]);
+    expect(listed.length).toBeGreaterThanOrEqual(30);
     expect(within(closing).getByText("In Tokyo now")).toBeTruthy();
     expect(screen.getByRole("link", { name: "Read about Fiyu" }).getAttribute("href")).toBe("/about");
+
+    // The two the brief named explicitly, plus the recognisable openers.
+    for (const area of ["Shinjuku", "Kichijoji", "Shibuya", "Ginza", "Asakusa"]) {
+      expect(listed, `${area} should be listed`).toContain(area);
+    }
+    // No restaurant names, and nothing administrative.
+    for (const name of ["すし善", "江戸酒場 海", "ずるり 谷中総本店"]) {
+      expect(listed).not.toContain(name);
+    }
+    for (const area of listed) {
+      expect(area).not.toMatch(/Chome|\d|,/);
+    }
   });
 
   it("keeps raw geocoder labels off the public page", () => {
@@ -638,12 +671,14 @@ describe("landing motion safeguards", () => {
       expect((scene as HTMLElement).style.getPropertyValue("--scene-progress")).toBe("");
     }
 
-    // The stepped surface reports its last step rather than its first, so the
-    // finished state of the demonstration is what a reader gets.
+    // The stepped surface needs no special case: it is driven by position and by
+    // clicks, neither of which is motion, so it behaves identically and starts
+    // on its first state with all three steps readable and operable.
     const surface = screen.getByTestId("workflow-surface");
-    expect(surface.getAttribute("data-step")).toBe("2");
-    expect(surface.querySelector('[data-tone="saved"]')).toBeTruthy();
-    expect(within(surface).getByText("Discovered")).toBeTruthy();
+    expect(surface.getAttribute("data-step")).toBe("0");
+    for (const title of STEP_TITLES) {
+      expect(screen.getByRole("button", { name: new RegExp(title) })).toBeTruthy();
+    }
 
     for (const element of container.querySelectorAll("[data-in]")) {
       expect(element.getAttribute("data-in")).toBe("true");
@@ -672,11 +707,10 @@ describe("landing motion safeguards", () => {
       expect(unguarded).not.toContain(rule);
     }
 
-    // Progress defaults to finished, so `calc()` resolves to the settled frame.
-    expect(stylesheet).toContain("--p: var(--scene-progress, 1);");
-
-    // Pinning is a capability declared once, and the JS threshold matches it.
-    expect(stylesheet).toContain("@media (min-height: 640px)");
+    // No scroll-progress arithmetic survives in the stylesheet either.
+    expect(stylesheet).not.toContain("--scene-progress");
+    expect(stylesheet).not.toContain("--from");
+    expect(stylesheet).not.toContain("clamp(0, calc(");
   });
 
   it("keeps the mobile surface width-safe", () => {

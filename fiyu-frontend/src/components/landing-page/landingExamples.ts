@@ -1,5 +1,4 @@
 import type { PlateId } from "@/components/landing-page/EditorialPlate";
-import type { ImageSlotId } from "@/components/landing-page/imageSlots";
 
 /**
  * Real published Fiyu discoveries, used as the landing page's examples.
@@ -47,6 +46,12 @@ export interface LandingExample {
   /** One signature dish, verbatim. Empty where the record has none. */
   signature: string | null;
   /**
+   * The stored `score_band`, verbatim. Rendered through the application's own
+   * `scoreBandLabel`, so a band shown on this page is Fiyu's recorded judgement
+   * rather than a word chosen for marketing.
+   */
+  scoreBand: string;
+  /**
    * Card photograph, once one exists. Null falls back to `plate`, which is what
    * the application itself does when Google returns no photo for a place.
    */
@@ -64,6 +69,7 @@ const EXAMPLES = {
     score: 87.44,
     tags: ["居酒屋", "立ち飲み", "日本酒"],
     signature: null,
+    scoreBand: "exceptional",
     photo: null,
     plate: "doorway",
   },
@@ -76,6 +82,7 @@ const EXAMPLES = {
     score: 86.7,
     tags: ["Okinawa soba", "Okinawa cuisine", "lunch"],
     signature: "沖縄そば",
+    scoreBand: "exceptional",
     photo: null,
     plate: "bowl",
   },
@@ -88,6 +95,7 @@ const EXAMPLES = {
     score: 86.12,
     tags: ["pizza", "Italian-style", "takeout"],
     signature: "タグチスペシャルピザ",
+    scoreBand: "exceptional",
     photo: null,
     plate: "hearth",
   },
@@ -100,6 +108,7 @@ const EXAMPLES = {
     score: 83.21,
     tags: ["江戸前寿司", "おまかせ", "刺身"],
     signature: "おまかせ握り",
+    scoreBand: "strong",
     photo: null,
     plate: "counter",
   },
@@ -112,6 +121,7 @@ const EXAMPLES = {
     score: 81.16,
     tags: ["ramen", "chicken paitan ramen", "izakaya"],
     signature: "淡麗醤油ラーメン",
+    scoreBand: "strong",
     photo: null,
     plate: "doorway",
   },
@@ -124,6 +134,7 @@ const EXAMPLES = {
     score: 80.53,
     tags: ["焼き鳥", "串焼き", "日本酒"],
     signature: "焼鳥丼",
+    scoreBand: "strong",
     photo: null,
     plate: "hearth",
   },
@@ -136,6 +147,7 @@ const EXAMPLES = {
     score: 78.53,
     tags: ["Indian curry", "Nepalese cuisine", "naan"],
     signature: "Butter chicken curry",
+    scoreBand: "strong",
     photo: null,
     plate: "counter",
   },
@@ -148,6 +160,7 @@ const EXAMPLES = {
     score: 76.11,
     tags: ["Turkish cuisine", "kebab", "halal"],
     signature: "Lamb skewers",
+    scoreBand: "strong",
     photo: null,
     plate: "doorway",
   },
@@ -201,36 +214,38 @@ export const LOOK_BEYOND_EXAMPLE: LandingExample = EXAMPLES.sushizen;
 export const RESTAURANT_MOMENT_EXAMPLE: LandingExample = EXAMPLES.umi;
 
 /**
- * Three selections for three different readers.
+ * Two starting points, and what Fiyu found from each.
  *
- * The overlap is the whole point and is exact: Zururi appears for the first and
- * third reader and nowhere else, so eight distinct places cover nine slots.
- * Change these and the caption below the columns stops being true.
+ * This replaces three hypothetical readers and a count of how many restaurants
+ * their selections had in common. That version asked a visitor to compare nine
+ * names in order to feel something, and the thing it demonstrated -- overlap
+ * between users -- was never the behaviour most worth explaining. This is:
+ * asking for new Picks starts from where you are.
+ *
+ * Both sets are geographically honest. The Yanaka set is north-east Tokyo and the
+ * Shibuya set is west, so the two really are different parts of the city rather
+ * than the same places relabelled. Nothing here claims a radius, because the
+ * catalog data on this page does not carry distances.
  */
-export const SELECTION_COLUMNS: readonly {
-  label: string;
-  slot: ImageSlotId;
+export interface LocationSet {
+  id: string;
+  /** The human area name shown on the control. */
+  area: string;
   picks: readonly LandingExample[];
-}[] = [
+}
+
+export const LOCATION_SETS: readonly LocationSet[] = [
   {
-    label: "Someone near Yanaka",
-    slot: "selection_01",
-    picks: [EXAMPLES.zururi, EXAMPLES.chokotto, EXAMPLES.umi],
+    id: "yanaka",
+    area: "Yanaka",
+    picks: [EXAMPLES.zururi, EXAMPLES.chokotto, EXAMPLES.taguchi],
   },
   {
-    label: "Someone near Setagaya",
-    slot: "selection_02",
-    picks: [EXAMPLES.nishi, EXAMPLES.sushizen, EXAMPLES.taguchi],
-  },
-  {
-    label: "Someone near Tsukiji",
-    slot: "selection_03",
-    picks: [EXAMPLES.sitara, EXAMPLES.onder, EXAMPLES.zururi],
+    id: "shibuya",
+    area: "Shibuya",
+    picks: [EXAMPLES.sushizen, EXAMPLES.umi, EXAMPLES.nishi],
   },
 ];
-
-/** The place shared between the first and third column. */
-export const SHARED_SELECTION_ID = EXAMPLES.zururi.id;
 
 /**
  * Every example, in published-score order, for the closing colophon.
