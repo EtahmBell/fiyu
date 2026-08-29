@@ -412,7 +412,11 @@ describe("landing narrative sections", () => {
     expect(surface.getAttribute("data-step")).toBe("0");
     expect(within(surface).getByText("Near Lower East Side")).toBeTruthy();
     expect(surface.querySelector("svg")).toBeTruthy();
-    expect(within(surface).getAllByTestId("example-pick-card-brief")).toHaveLength(3);
+    // Four cards across two states, not three across one: state 02 offers three
+    // equal candidates, and state 03 keeps exactly one of them and opens it.
+    expect(within(surface).getAllByTestId("example-pick-card-brief")).toHaveLength(4);
+    const detail = within(surface).getByTestId("workflow-saved-detail");
+    expect(within(detail).getAllByTestId("example-pick-card-brief")).toHaveLength(1);
   });
 
   it("drives the phone workflow by tap, never by scroll position", () => {
@@ -501,13 +505,17 @@ describe("landing narrative sections", () => {
 
     const surface = screen.getByTestId("workflow-surface");
 
-    // No image dependency at all: the plate is markup, so it fills whatever the
-    // panel gives it, breathes from the inside, and is coloured by the same tokens
-    // as the rest of the page.
-    expect(surface.querySelector("img")).toBeNull();
     const plate = surface.querySelector("svg");
     if (!plate) throw new Error("Expected the step-01 plate");
-    expect(plate.getAttribute("viewBox")).toBe("0 0 360 240");
+    // No image dependency in step 01 at all: the plate is markup, so it fills
+    // whatever the panel gives it, breathes from the inside, and is coloured by
+    // the same tokens as the rest of the page. Scoped to the plate's own layer,
+    // because step 03 does legitimately carry photographs on this surface.
+    expect(plate.parentElement?.querySelector("img")).toBeNull();
+    expect(plate.querySelectorAll("image")).toHaveLength(0);
+    // A mild 4:3 holding a square composition, so the subject reads square at
+    // every panel width and only the grid runs off the edge.
+    expect(plate.getAttribute("viewBox")).toBe("0 0 400 300");
     expect(plate.getAttribute("class")).toContain("size-full");
     // `slice`, never `meet`: a panel of any proportion crops the artwork rather
     // than stretching it.
@@ -517,7 +525,16 @@ describe("landing narrative sections", () => {
     // The ingredients: a drifting grid, a breathing local field, three candidates
     // each pinging on its own delay, and the reader's own position.
     expect(plate.querySelector(".fiyu-lp-plate-drift")).toBeTruthy();
-    expect(plate.querySelector(".fiyu-lp-field")).toBeTruthy();
+    const field = plate.querySelector(".fiyu-lp-field");
+    if (!field) throw new Error("Expected the local field");
+    // The radius is a circle with one radius, never an ellipse with two: under a
+    // uniform scale a circle survives the panel's whole aspect range, and an
+    // ellipse read as a squashed oval however the container behaved.
+    expect(field.querySelectorAll("ellipse")).toHaveLength(0);
+    const fieldCircles = [...field.querySelectorAll("circle")];
+    expect(fieldCircles.length).toBeGreaterThan(0);
+    expect(new Set(fieldCircles.map((circle) => circle.getAttribute("r"))).size).toBe(1);
+    expect(plate.querySelectorAll("ellipse")).toHaveLength(0);
     const pings = [...plate.querySelectorAll(".fiyu-lp-ping")];
     expect(pings).toHaveLength(4);
     const delays = pings
@@ -558,14 +575,18 @@ describe("landing narrative sections", () => {
     expect(scene.getByText("Le Zinc des Lilas")).toBeTruthy();
     expect(countWithClass(section, "aspect-[4/3]")).toBe(1);
 
-    // The café photograph, cropped vertically only and anchored low so the
-    // pavement seating survives and the bare pavement below it does not.
+    // The café photograph. A near-square source in a 4:3 box crops vertically
+    // only, and it is anchored hard to the top because the blue enamel street
+    // plate reading RUE JEAN DU BELLAY / 4e ARR lives in the first few percent of
+    // the frame -- it is the one element that unmistakably says Paris, and any
+    // other anchor trims it off. What is dropped instead is the bare pavement
+    // along the bottom, which is the emptiest part of the photograph.
     const photo = within(section).getByRole("img", {
-      name: "A small neighbourhood café at dusk: awning, festoon lights and pavement tables",
+      name: "A corner café in Paris at dusk, its awnings and pavement tables lit by a street lamp",
     });
-    expect(photo.getAttribute("src")).toContain("france_fiyu_1.jpg");
+    expect(photo.getAttribute("src")).toContain("france_fiyu_2.jpg");
     expect(photo.getAttribute("class")).toContain("object-cover");
-    expect(photo.getAttribute("style")).toContain("object-position: 50% 80%");
+    expect(photo.getAttribute("style")).toContain("object-position: 50% 0%");
     expect(photo.getAttribute("loading")).toBe("lazy");
     expect(photo.getAttribute("sizes")).toContain("10rem");
     expect(section.querySelector('[class*="-mt-2"]')).toBeNull();

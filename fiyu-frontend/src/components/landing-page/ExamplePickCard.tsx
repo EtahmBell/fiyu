@@ -199,14 +199,26 @@ function CardFooter({ example, saved }: { example: FictionalRestaurant; saved: b
   );
 }
 
+/**
+ * Whether the card draws its own frame.
+ *
+ * `flush` drops the border, radius and shadow so the card can sit inside a
+ * surface that already has them -- the saved card in step 03 shares one frame
+ * with the detail drawer beneath it, and two nested frames would read as two
+ * objects rather than as one card that opened.
+ */
+export type PickFrame = "card" | "flush";
+
 /** The same card with the plate dropped, for a partly occluded layer. */
 export function ExamplePickCardBrief({
   example,
   tone = "current",
+  frame = "card",
   className,
 }: {
   example: FictionalRestaurant;
   tone?: PickTone;
+  frame?: PickFrame;
   className?: string;
 }) {
   const saved = tone === "saved";
@@ -215,10 +227,14 @@ export function ExamplePickCardBrief({
       data-testid="example-pick-card-brief"
       data-tone={tone}
       className={cn(
-        SURFACE,
-        "p-2 shadow-[0_10px_30px_-24px_rgba(49,40,61,0.5)] sm:p-3",
+        "relative min-w-0 p-2 sm:p-3",
         "transition-colors duration-500 ease-(--ease-fiyu)",
-        saved ? "border-t-gold/60" : "border-t-lavender-500/45",
+        frame === "card" &&
+          cn(
+            "overflow-hidden rounded-card border border-line bg-surface",
+            "shadow-[0_10px_30px_-24px_rgba(49,40,61,0.5)]",
+            saved ? "border-t-gold/60" : "border-t-lavender-500/45",
+          ),
         className,
       )}
     >

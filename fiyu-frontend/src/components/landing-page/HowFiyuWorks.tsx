@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useState } from "react";
 
 import {
@@ -84,24 +85,108 @@ const PANEL_LABEL = "Near Lower East Side";
 const LAYER = "absolute inset-0 transition-opacity duration-[520ms] ease-(--ease-fiyu)";
 
 /**
- * States 02 and 03: the picks that location produced, and then one of them saved.
- *
- * The saved card stays where it is and changes tense instead of place. Moving it
- * into a separate history group was the truer picture of the application, but it
- * also changed the panel's height as the state changed.
+ * State 02: the picks that location produced. Three equal candidates, none
+ * chosen yet -- the whole point of the state is that nothing has been decided.
  */
-function PicksSurface({ saved }: { saved: boolean }) {
-  const [first, ...rest] = WORKFLOW_EXAMPLES;
+function PicksSurface() {
   return (
     <div className="flex h-full flex-col justify-between gap-2">
-      <ExamplePickCardBrief
-        example={first}
-        tone={saved ? "saved" : "current"}
-        className="fiyu-lp-lift"
-      />
-      {rest.map((example) => (
+      {WORKFLOW_EXAMPLES.map((example) => (
         <ExamplePickCardBrief key={example.key} example={example} className="fiyu-lp-lift" />
       ))}
+    </div>
+  );
+}
+
+/*
+ * Three supporting frames for state 03.
+ *
+ * Each crop is chosen against the actual photograph, and the exterior's is
+ * chosen for one hard reason: the lower third of that frame carries a real
+ * restaurant's name, street address and telephone number in legible type. This
+ * page shows invented restaurants on purpose, and hanging a real business's
+ * contact details under the name "Canal Claypot" would be worse than a weaker
+ * crop -- it would be a false claim about a real place. Anchoring to the top
+ * keeps the neon characters, the menu board and the fire escape, which is the
+ * Chinatown reading the strip needs, and drops every identifier.
+ */
+const DETAIL_IMAGES = [
+  // 2947x4421. Visible band ends at about two thirds; the signage begins below it.
+  { src: "/landing/step03_cantonese_exterior.jpg", objectPosition: "50% 0%" },
+  // 4000x6000. Held just low enough for the lanterns and the menu board together.
+  { src: "/landing/step03_cantonese_interior.jpg", objectPosition: "50% 30%" },
+  // 3024x4032. Weighted low so the claypot fills the square rather than the room.
+  { src: "/landing/step03_cantonese_dish.jpg", objectPosition: "50% 60%" },
+] as const;
+
+/**
+ * State 03: one of those picks kept, and opened.
+ *
+ * This was the same three cards as state 02 with the first one tinted gold, and
+ * at a glance the two states were indistinguishable -- which made the third step
+ * of a three step story read as a repeat. So the state now does what the copy
+ * says: it drops to a single restaurant and opens it.
+ *
+ * The card and the detail share one frame, which is why the card is rendered
+ * `flush`. Two nested borders would read as a card sitting on a panel; one
+ * border reads as a card that expanded, which is the gesture being illustrated.
+ *
+ * The strip is a real horizontal scroller with snap points, not a fake one. On a
+ * phone the three squares overrun the frame by a few pixels, so the edge of the
+ * third is visibly clipped and a drag actually moves it; at desktop they are
+ * sized to fit, because there is nothing to discover in a scroller whose content
+ * is already fully visible.
+ */
+function SavedSurface() {
+  const [kept] = WORKFLOW_EXAMPLES;
+  return (
+    <div className="flex h-full flex-col justify-center">
+      <div
+        data-testid="workflow-saved-detail"
+        className={cn(
+          "fiyu-lp-lift overflow-hidden rounded-card border border-line border-t-gold/60",
+          "bg-surface shadow-[0_18px_44px_-30px_rgba(49,40,61,0.55)]",
+        )}
+      >
+        <ExamplePickCardBrief example={kept} tone="saved" frame="flush" />
+        <div className="border-t border-line bg-canvas/50 px-2 pt-2 pb-2 sm:px-3 sm:pt-2.5 sm:pb-3">
+          <div className="flex items-baseline justify-between gap-3">
+            <p className="text-[0.5625rem] font-semibold tracking-[0.16em] text-gold-700 uppercase">
+              Saved to your list
+            </p>
+            {/* The saved footer trades the area for "Discovered", so it returns here. */}
+            <p className="text-[0.5625rem] font-semibold tracking-[0.16em] text-ink-faint uppercase">
+              {kept.area}
+            </p>
+          </div>
+          <ul
+            data-testid="workflow-detail-strip"
+            className={cn(
+              "mt-2 flex snap-x gap-1.5 overflow-x-auto overflow-y-hidden sm:gap-2",
+              "[scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+            )}
+          >
+            {DETAIL_IMAGES.map((image) => (
+              <li
+                key={image.src}
+                className={cn(
+                  "fiyu-lp-thumb relative aspect-square w-[33%] shrink-0 snap-start",
+                  "overflow-hidden rounded-sm border border-line bg-subtle sm:w-[31%]",
+                )}
+              >
+                <Image
+                  src={image.src}
+                  alt=""
+                  fill
+                  sizes="(min-width: 1024px) 11rem, 30vw"
+                  style={{ objectPosition: image.objectPosition }}
+                  className="object-cover"
+                />
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
     </div>
   );
 }
@@ -298,8 +383,11 @@ export function HowFiyuWorks() {
               <div className={cn(LAYER, active === 0 ? "opacity-100" : "opacity-0")}>
                 <WorkflowLocationPlate />
               </div>
-              <div className={cn(LAYER, "py-3 lg:py-4", active === 0 ? "opacity-0" : "opacity-100")}>
-                <PicksSurface saved={active === 2} />
+              <div className={cn(LAYER, "py-3 lg:py-4", active === 1 ? "opacity-100" : "opacity-0")}>
+                <PicksSurface />
+              </div>
+              <div className={cn(LAYER, "py-3 lg:py-4", active === 2 ? "opacity-100" : "opacity-0")}>
+                <SavedSurface />
               </div>
             </div>
             <IllustrativeNote className="mt-3">Illustrative discoveries</IllustrativeNote>

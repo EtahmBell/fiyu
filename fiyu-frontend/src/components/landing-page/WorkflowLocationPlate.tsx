@@ -1,87 +1,88 @@
 import { cn } from "@/lib/utils/cn";
 
 /**
- * Where a selection starts. State 01 of the product demonstration.
+ * Step 01 of "How Fiyu works": the location the flow begins from.
  *
- * Built in code rather than delivered as an image, and that is the point of this
- * version. The supplied PNG it replaces was a good drawing but it behaved like a
- * screenshot: it could not respond to the panel it sat in, nothing inside it
- * could move, and any life had to be faked by animating a ring on top of it. A
- * plate made of markup fills whatever space the panel gives it, breathes from the
- * inside, and is coloured by the same tokens as everything around it -- so it
- * reads as part of the product rather than as a picture of one.
+ * Drawn rather than photographed, so it is first-party site UI that inherits the
+ * palette and never has to be re-exported when a token moves.
  *
- * Composition, back to front: a street grid on a slow drift, two blocks of pale
- * lavender for depth, the local field, three candidate places noticing themselves
- * in turn, and the reader's own position with a ring pinging out of it. Three real
- * neighbourhood names for context -- the same New York areas the picks in states
- * 02 and 03 sit in, so all three states describe one place.
+ * GEOMETRY
  *
- * Two deliberate absences. No coordinates: the geometry is drawn to look right
- * rather than to be right. And no lines from the centre out to the candidates --
- * they were in an earlier version, they read as a network diagram, and staggered
- * rings say "nearby" without the wiring.
+ * The panel this sits in is a wide rectangle -- roughly 1.25 on a phone and 1.57
+ * at desktop -- but the composition inside it is deliberately square, because the
+ * subject is a radius and a radius is round. So the viewBox is a mild 4:3 and the
+ * meaningful content is confined to a 300x300 core centred in it, at x 50-350.
+ * What spills into the leftover width is only grid: streets and blocks that are
+ * supposed to run off the edge. `slice` then crops that spill rather than the
+ * subject, and the square core reads square at every width.
  *
- * It fills its container with `slice` rather than `meet`, so it is cropped when
- * the panel's proportions differ from the artwork's and never stretched.
- * Everything that has to stay legible sits inside a safe band, x 34 to 326 and
- * y 10 to 230, which survives every ratio the panel takes between a phone and a
- * desktop.
+ * The radius is a `circle` with one radius, not an `ellipse` with two. Under
+ * `slice` the viewBox scales uniformly, so a circle stays a circle at both ends
+ * of the panel's aspect range; an ellipse would have read as a squashed oval no
+ * matter what the container did.
+ *
+ * SAFE BAND
+ *
+ * `slice` crops width below 1.333 and height above it. At the two ends of the
+ * panel's range that leaves x 13-387 and y 23-277 always visible, so every label
+ * and marker sits inside that band. Anything placed outside it will be trimmed on
+ * one screen size or the other.
  */
 
-/** Three candidates, each noticing itself a beat after the last. */
+/** Nearby candidates, all inside the radius. Delays stagger the three pings. */
 const CANDIDATES = [
-  { x: 248, y: 84, delay: 900 },
-  { x: 114, y: 168, delay: 2300 },
-  { x: 238, y: 170, delay: 3700 },
+  { x: 262, y: 108, delay: 900 },
+  { x: 146, y: 196, delay: 2300 },
+  { x: 256, y: 194, delay: 3700 },
 ] as const;
 
+/** Areas, never restaurants. Kept inside the safe band. */
 const AREAS = [
-  { label: "NOLITA", x: 150, y: 32 },
-  { label: "LOWER EAST SIDE", x: 100, y: 222 },
-  { label: "CHINATOWN", x: 272, y: 210 },
+  { label: "NOLITA", x: 128, y: 40 },
+  { label: "LOWER EAST SIDE", x: 96, y: 266 },
+  { label: "CHINATOWN", x: 312, y: 262 },
 ] as const;
+
+const CENTRE = { x: 200, y: 150 } as const;
+/** One radius, so the local field reads as a true circle. */
+const RADIUS = 96;
 
 export function WorkflowLocationPlate({ className }: { className?: string }) {
   return (
     <svg
       aria-hidden="true"
-      viewBox="0 0 360 240"
+      viewBox="0 0 400 300"
       preserveAspectRatio="xMidYMid slice"
       className={cn("block size-full", className)}
     >
-      {/* A fragment of somewhere, not a basemap: two families of slightly angled
-          lines running past the frame, at the density of a street grid. */}
+      {/* Streets and blocks. Drawn past the viewBox so the crop never shows an end. */}
       <g className="fiyu-lp-plate-drift">
         <g fill="none" stroke="var(--color-line)" strokeWidth="1">
-          <path d="M-20 54 380 46M-20 118 380 108M-20 182 380 174" />
-          <path d="M74 -20 88 260M176 -20 188 260M276 -20 288 260" />
+          <path d="M-20 66 420 56M-20 150 420 140M-20 234 420 224" />
+          <path d="M92 -20 106 320M198 -20 212 320M300 -20 314 320" />
         </g>
-        {/* One soft line for organic relief. A street, not a route. */}
         <path
-          d="M-20 206C40 190 96 214 156 200S268 168 380 184"
+          d="M-20 258C56 240 122 264 192 250S302 216 420 232"
           fill="none"
           stroke="var(--color-line-strong)"
           strokeWidth="1.2"
           opacity=".5"
         />
-        {/* Two blocks, for depth without describing a city. */}
-        <path d="M232 58h84v40h-84z" fill="var(--color-lavender-100)" opacity=".45" />
+        <path d="M262 70h96v46h-96z" fill="var(--color-lavender-100)" opacity=".45" />
         <path
-          d="M40 148c24-10 50-8 72 6l-10 34H36Z"
+          d="M44 176c28-12 58-10 84 8l-12 40H40Z"
           fill="var(--color-lavender-100)"
           opacity=".38"
         />
       </g>
 
-      {/* The local field. Soft, unmeasured, and breathing. */}
+      {/* The local field: one circle, breathing slowly. */}
       <g className="fiyu-lp-field">
-        <ellipse cx="176" cy="122" rx="104" ry="74" fill="var(--color-lavender-100)" opacity=".55" />
-        <ellipse
-          cx="176"
-          cy="122"
-          rx="104"
-          ry="74"
+        <circle cx={CENTRE.x} cy={CENTRE.y} r={RADIUS} fill="var(--color-lavender-100)" opacity=".55" />
+        <circle
+          cx={CENTRE.x}
+          cy={CENTRE.y}
+          r={RADIUS}
           fill="none"
           stroke="var(--color-lavender-500)"
           strokeWidth="1"
@@ -90,44 +91,49 @@ export function WorkflowLocationPlate({ className }: { className?: string }) {
         />
       </g>
 
-      {/* Nearby places, noticing themselves in turn. No lines drawn to them. */}
-      {CANDIDATES.map(({ x, y, delay }) => (
-        <g key={`${x}-${y}`}>
+      {CANDIDATES.map((candidate) => (
+        <g key={`${candidate.x}-${candidate.y}`}>
           <circle
             className="fiyu-lp-ping"
-            cx={x}
-            cy={y}
+            style={{ "--ping-delay": `${candidate.delay}ms` } as React.CSSProperties}
+            cx={candidate.x}
+            cy={candidate.y}
             r="12"
             fill="none"
-            stroke="var(--color-rose-dust)"
+            stroke="var(--color-lavender-500)"
             strokeWidth="1"
-            style={
-              { "--ping-duration": "6.2s", "--ping-delay": delay + "ms" } as React.CSSProperties
-            }
           />
-          <circle cx={x} cy={y} r="7.5" fill="var(--color-canvas)" />
-          <circle cx={x} cy={y} r="4.5" fill="var(--color-rose-dust)" />
+          <circle cx={candidate.x} cy={candidate.y} r="7.5" fill="var(--color-canvas)" />
+          <circle cx={candidate.x} cy={candidate.y} r="4.5" fill="var(--color-rose-dust)" />
         </g>
       ))}
 
-      {/* You. The only plum mark, the only ring, and the only label in plum. */}
+      {/* You: the centre the radius is measured from. */}
       <circle
         className="fiyu-lp-ping"
-        cx="176"
-        cy="122"
+        cx={CENTRE.x}
+        cy={CENTRE.y}
         r="23"
         fill="none"
         stroke="var(--color-lavender-500)"
         strokeWidth="1.2"
       />
-      <circle cx="176" cy="122" r="15" fill="none" stroke="var(--color-plum)" strokeWidth="1" opacity=".28" />
-      <circle cx="176" cy="122" r="11" fill="var(--color-canvas)" />
-      <circle cx="176" cy="122" r="5.5" fill="var(--color-plum)" />
+      <circle
+        cx={CENTRE.x}
+        cy={CENTRE.y}
+        r="15"
+        fill="none"
+        stroke="var(--color-plum)"
+        strokeWidth="1"
+        opacity=".28"
+      />
+      <circle cx={CENTRE.x} cy={CENTRE.y} r="11" fill="var(--color-canvas)" />
+      <circle cx={CENTRE.x} cy={CENTRE.y} r="5.5" fill="var(--color-plum)" />
       <text
-        x="176"
-        y="157"
+        x={CENTRE.x}
+        y="190"
         fill="var(--color-plum)"
-        fontSize="9"
+        fontSize="10"
         fontWeight="600"
         letterSpacing="1.6"
         textAnchor="middle"
@@ -135,20 +141,20 @@ export function WorkflowLocationPlate({ className }: { className?: string }) {
         YOU
       </text>
 
-      {/* Real areas, one to a side, set as the page sets every micro-caps label. */}
-      <g
-        fill="var(--color-ink-muted)"
-        fontSize="10"
-        fontWeight="600"
-        letterSpacing="1.5"
-        textAnchor="middle"
-      >
-        {AREAS.map(({ label, x, y }) => (
-          <text key={label} x={x} y={y}>
-            {label}
-          </text>
-        ))}
-      </g>
+      {AREAS.map((area) => (
+        <text
+          key={area.label}
+          x={area.x}
+          y={area.y}
+          fill="var(--color-ink-muted)"
+          fontSize="11"
+          fontWeight="600"
+          letterSpacing="1.6"
+          textAnchor="middle"
+        >
+          {area.label}
+        </text>
+      ))}
     </svg>
   );
 }

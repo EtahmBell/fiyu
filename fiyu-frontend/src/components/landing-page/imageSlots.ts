@@ -94,22 +94,22 @@ export const IMAGE_SLOTS: Record<ImageSlotId, ImageSlot> = {
   },
   underexposure_paris: {
     id: "underexposure_paris",
-    path: "/landing/france_fiyu_1.jpg",
+    path: "/landing/france_fiyu_2.jpg",
     available: true,
     /*
-     * A 3215x2871 frame of a café storefront, nearly square, so a 4:3 box crops
-     * vertically only and by about a sixth. 80% keeps the whole of the terrace and
-     * trims the bare pavement below it instead of the awning above.
+     * A 6896x6663 corner frame of a Paris café at dusk, near square, so a 4:3 box
+     * crops vertically only and by about a fifth.
      *
-     * The window that leaves runs from just under the awning valance to the foot
-     * of the chairs, which holds every cue the section needs at thumbnail size:
-     * the awning, the run of festoon bulbs, the lit window, the hand-painted
-     * sign, and the pavement tables. The alternative -- anchoring higher -- kept a
-     * large pale expanse of awning top and cut the seating, which is the one part
-     * that says somebody eats here.
+     * Anchored hard to the top, and for one reason: the blue enamel street plate
+     * reading RUE JEAN DU BELLAY / 4e ARR sits in the top few percent of the
+     * frame, and it is the single most Paris-identifying thing in the photograph.
+     * Any other anchor trims it off. Everything else the section needs comes with
+     * it -- the lit street lamp, both awnings, the painted café panels, the bistro
+     * chairs and the checkerboard floor -- and what gets dropped is the bare
+     * pavement along the bottom, which is the emptiest part of the frame.
      */
-    objectPosition: "50% 80%",
-    alt: "A small neighbourhood café at dusk: awning, festoon lights and pavement tables",
+    objectPosition: "50% 0%",
+    alt: "A corner café in Paris at dusk, its awnings and pavement tables lit by a street lamp",
     aspect: "4:3",
     minWidth: 1200,
     brief:

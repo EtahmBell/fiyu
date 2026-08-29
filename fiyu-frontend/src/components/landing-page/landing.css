@@ -400,3 +400,26 @@
     }
   }
 }
+
+/*
+ * The step 03 detail strip.
+ *
+ * The strip itself scrolls, so its motion is a real gesture rather than an
+ * animation. What is left is a slow zoom under the pointer -- enough to say the
+ * frames are the beginning of a restaurant page and not decoration, and small
+ * enough that it never competes with the crossfade between states.
+ *
+ * Gated on a fine pointer so a touch never leaves a thumbnail stuck zoomed, and
+ * on no-preference so it is simply absent when motion is unwelcome.
+ */
+@media (hover: hover) and (pointer: fine) {
+  @media (prefers-reduced-motion: no-preference) {
+    .fiyu-lp-thumb img {
+      transition: scale 520ms var(--ease-fiyu);
+    }
+
+    .fiyu-lp-thumb:hover img {
+      scale: 1.06;
+    }
+  }
+}
