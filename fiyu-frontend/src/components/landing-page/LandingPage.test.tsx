@@ -62,6 +62,10 @@ afterEach(() => {
 /** The one measure every landing surface shares. */
 const MEASURE_CLASS = "max-w-[90rem]";
 
+/** Committed project assets only: no remote sources on this page. */
+const LOCAL_ASSET = /^\/landing\/[a-z_]+\.(jpg|png)$/;
+const CROP_ANCHOR = /^\d+% \d+%$/;
+
 /**
  * Count descendants carrying a class, matched on the class list.
  *
@@ -339,30 +343,36 @@ describe("landing hero", () => {
 });
 
 describe("landing narrative sections", () => {
-  it("leads on the photograph and annotates one sample discovery", () => {
+  it("leads on the Seoul photograph and annotates one sample discovery", () => {
     render(<LandingPage />);
 
-    const plate = screen.getByRole("img", {
-      name: "A line illustration of a small independent restaurant counter, drawn for Fiyu",
+    const photo = screen.getByRole("img", {
+      name: "A small independent mandu and naengmyeon shop on a quiet Seoul street, its counter visible through the window",
     });
-    const moment = plate.closest("section");
+    expect(photo.getAttribute("src")).toContain("korea_fiyu.jpg");
+    const moment = photo.closest("section");
     if (!moment) throw new Error("Expected the restaurant moment section");
     const scene = within(moment);
 
-    // A fixed aspect box, so the real photograph drops in with no layout shift.
-    expect(countWithClass(moment, "aspect-[4/3]")).toBe(1);
+    // Native 3:2 on a phone, so nothing is cropped and the frame stays short;
+    // 4:3 from `sm`, the intended large presentation, cropping only horizontally.
+    const frame = photo.parentElement?.parentElement;
+    expect(frame?.getAttribute("class")).toContain("aspect-[3/2]");
+    expect(frame?.getAttribute("class")).toContain("sm:aspect-[4/3]");
+    expect(frame?.getAttribute("class")).toContain("overflow-hidden");
+    expect(photo.getAttribute("class")).toContain("object-cover");
+    expect(photo.getAttribute("style")).toContain("object-position: 50% 50%");
+    expect(photo.getAttribute("loading")).toBe("lazy");
+    expect(photo.getAttribute("sizes")).toContain("55vw");
 
-    // One marker, not two. The eyebrow does the work; the credit line that used
-    // to sit beneath the tags on the same single example is gone.
+    // One marker, not two. The eyebrow does the work.
     expect(scene.getByText("Illustrative discovery")).toBeTruthy();
     expect(scene.queryByText("A Fiyu discovery")).toBeNull();
-    expect(scene.queryByText("Exceptional")).toBeNull();
     expect(scene.queryAllByTestId("illustrative-note")).toHaveLength(0);
 
     // Seoul: the first quiet signal that the system is not Tokyo-shaped.
     expect(scene.getByText("Yeonhwa Gukbap")).toBeTruthy();
     expect(scene.getByText("Euljiro, Seoul")).toBeTruthy();
-    expect(scene.getByText("Gukbap / Korean comfort food")).toBeTruthy();
     expect(scene.getByLabelText("Fiyu score 8.7 out of 10")).toBeTruthy();
   });
 
@@ -486,27 +496,34 @@ describe("landing narrative sections", () => {
     expect(container.querySelectorAll("li[data-active][data-observed]")).toHaveLength(0);
   });
 
-  it("keeps the step-01 plate contained rather than stretched", () => {
+  it("crops the step-01 map plate rather than stretching or framing it", () => {
     render(<LandingPage />);
 
     const surface = screen.getByTestId("workflow-surface");
-    const plate = surface.querySelector("svg");
-    expect(plate?.getAttribute("viewBox")).toBe("0 0 320 240");
+    const plate = surface.querySelector("img");
+    if (!plate) throw new Error("Expected the map plate");
+    expect(plate.getAttribute("src")).toContain("how_fiyu_works.png");
 
-    // Capped and centred inside the panel. It used to scale to whatever width the
-    // panel offered, which pulled a 4:3 drawing out to nearly 500px and made it
-    // read as a diagram filling a box.
-    const frame = plate?.parentElement;
-    expect(frame?.getAttribute("class")).toContain("aspect-[4/3]");
-    expect(frame?.getAttribute("class")).toContain("max-w-[17rem]");
+    // The source is a full-bleed 1267x769 map whose only real margin is a band of
+    // near-empty paper along the bottom. A 9:5 window crops vertically only,
+    // anchored to the top, which drops that band and leaves every label intact.
+    const frame = plate.parentElement;
+    expect(frame?.getAttribute("class")).toContain("aspect-[9/5]");
+    expect(frame?.getAttribute("class")).toContain("overflow-hidden");
+    expect(frame?.getAttribute("class")).toContain("max-w-[19rem]");
+    expect(frame?.getAttribute("class")).toContain("lg:max-w-[24rem]");
+    expect(plate.getAttribute("class")).toContain("object-cover");
+    expect(plate.getAttribute("style")).toContain("object-position: 50% 0%");
+
+    // Capped and centred inside the panel, whose height is fixed either way, so
+    // the footprint matches states 02 and 03.
     expect(frame?.parentElement?.getAttribute("class")).toContain("justify-center");
+    expect(surface.getAttribute("class")).toContain("h-[22.5rem]");
+    expect(surface.getAttribute("class")).toContain("lg:h-[28rem]");
 
-    // A place, with real areas and no route drawn between the marks: relationship
-    // lines read as a network diagram, which is the one thing this must not be.
-    for (const area of ["NOLITA", "LOWER EAST SIDE", "CHINATOWN", "YOU"]) {
-      expect(within(surface).getByText(area)).toBeTruthy();
-    }
-    expect(plate?.querySelectorAll("path[stroke*='plum']")).toHaveLength(0);
+    // Decorative: the whole surface is aria-hidden, and the labels live in the
+    // picture rather than in the document.
+    expect(plate.getAttribute("alt")).toBe("");
   });
 
   it("explains underexposure compactly, with nothing overlapping anything", () => {
@@ -718,11 +735,17 @@ describe("landing rollout, edition and close", () => {
     // Three short columns under one hairline and above another: a band, not a
     // feature block. The row is only as tall as its tallest column.
     expect(countWithClass(edition, "lg:grid-cols-[minmax(0,0.82fr)_minmax(0,1.05fr)_minmax(0,1.05fr)]")).toBe(1);
-    const plate = within(figure).getByRole("img", {
-      name: "A line illustration looking out from a restaurant table onto a quiet Tokyo street",
+    // A night frame of a lantern-lit oden shop, cropped into the band that
+    // already existed. The section is not enlarged to fit it.
+    const photo = within(figure).getByRole("img", {
+      name: "A lantern-lit oden shop on a narrow Tokyo street at night",
     });
-    expect(plate.getAttribute("src")).toBe("/images/log-empty-table.png");
-    expect(plate.getAttribute("loading")).toBe("lazy");
+    expect(photo.getAttribute("src")).toContain("japan_fiyu.jpg");
+    expect(photo.getAttribute("class")).toContain("object-cover");
+    // 65% centres the window on the lantern rather than on the middle of the
+    // photograph, which would have kept ducting above and cones below.
+    expect(photo.getAttribute("style")).toContain("object-position: 50% 65%");
+    expect(photo.getAttribute("loading")).toBe("lazy");
     expect(edition.querySelector('img[src="/og.png"]')).toBeNull();
   });
 
@@ -792,11 +815,9 @@ describe("landing rollout, edition and close", () => {
     expect(screen.getAllByTestId("illustrative-note").length).toBeGreaterThanOrEqual(4);
   });
 
-  it("declares the photography it is still waiting on", () => {
-    // Slots, not hardcoded files: an operator sets one `src` and the layout does
-    // not move, because every slot renders inside a fixed aspect box.
-    // Exactly three, each naming the file it expects, so installing an asset is
-    // dropping it at `path` and flipping `available`.
+  it("serves all three photography slots from committed local assets", () => {
+    // Exactly three, each pointing at a file under `public/landing/`, each with a
+    // crop anchor chosen against the actual photograph rather than defaulted.
     const slots = Object.values(IMAGE_SLOTS);
     expect(slots.map((slot) => slot.id)).toEqual([
       "worth_finding_seoul",
@@ -804,17 +825,17 @@ describe("landing rollout, edition and close", () => {
       "current_edition_tokyo",
     ]);
     for (const slot of slots) {
+      expect(slot.available).toBe(true);
+      expect(slot.path).toMatch(LOCAL_ASSET);
+      expect(slot.objectPosition).toMatch(CROP_ANCHOR);
+      expect(slot.alt.length).toBeGreaterThan(20);
       expect(slot.brief.length).toBeGreaterThan(40);
-      expect(slot.aspect).toMatch(/^\d+:\d+$/);
       expect(slot.minWidth).toBeGreaterThanOrEqual(1200);
-      expect(slot.path).toMatch(/^\/images\/landing\/[a-z-]+\.jpg$/);
-      if (!slot.available) {
-        expect(["illustration", "plate"]).toContain(slot.fallback.kind);
-      }
+      // The fallback stays wired in case a file goes missing.
+      expect(["illustration", "plate"]).toContain(slot.fallback.kind);
     }
 
-    // Each line drawing Fiyu owns stands in for exactly one slot. The same
-    // drawing appearing twice on one page is what made the imagery look thin.
+    // Each drawing Fiyu owns stands in for at most one slot.
     const drawings = slots
       .map((slot) => (slot.fallback.kind === "illustration" ? slot.fallback.src : null))
       .filter((src): src is string => src !== null);

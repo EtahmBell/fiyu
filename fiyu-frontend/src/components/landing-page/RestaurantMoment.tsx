@@ -19,9 +19,11 @@ import { cn } from "@/lib/utils/cn";
  * and the right column is a short editorial annotation instead of a
  * metadata table: what the place is, where it is, and Fiyu's own reading of it.
  *
- * The visible line "Illustration. In the application, cards carry photographs
- * from Google Maps." is gone. It was an implementation note that had escaped onto
- * a marketing page -- true, and none of a visitor's business.
+ * The photograph is a Seoul mandu shop shot straight on from across the street:
+ * sky above, storefront across the middle, road below. It is deliberately not
+ * cropped in tight. The strip of sky and the strip of road are what make it read
+ * as a street somebody walked down rather than as a picture of a restaurant, and
+ * that is the section's whole argument.
  *
  * The restaurant is invented, and the eyebrow says so: ILLUSTRATIVE DISCOVERY,
  * not A FIYU DISCOVERY. Printing real underexposed restaurants on a public page
@@ -80,14 +82,20 @@ export function RestaurantMoment() {
            * so the photograph that replaces the drawing changes nothing else.
            */}
           <div
-            className="fiyu-lp-plate relative aspect-[4/3] min-w-0 overflow-hidden rounded-card border border-line"
+            /*
+             * Three-to-two on a phone, which is the photograph's native ratio, so
+             * nothing is cropped and the frame stays short. Four-to-three from
+             * `sm`, the intended large presentation, which crops only horizontally
+             * and only by a tenth.
+             */
+            className="fiyu-lp-plate relative aspect-[3/2] min-w-0 overflow-hidden rounded-card border border-line sm:aspect-[4/3]"
             data-in={flag}
             style={{ "--plate-delay": "120ms" } as React.CSSProperties}
           >
             <div className="fiyu-lp-plate-image size-full" data-in={flag}>
               <SlotImage
                 slot={SLOT}
-                sizes="(max-width: 1023px) calc(100vw - 2.5rem), 58vw"
+                sizes="(max-width: 1023px) calc(100vw - 2.5rem), 55vw"
               />
             </div>
           </div>

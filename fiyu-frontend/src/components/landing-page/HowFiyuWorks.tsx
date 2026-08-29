@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useState } from "react";
 
 import {
@@ -14,7 +15,6 @@ import {
   SectionEyebrow,
 } from "@/components/landing-page/landingSystem";
 import { useEntered } from "@/components/landing-page/motion/scrollScene";
-import { WorkflowLocationPlate } from "@/components/landing-page/WorkflowLocationPlate";
 import { useIsDesktop } from "@/lib/hooks/useMediaQuery";
 import { cn } from "@/lib/utils/cn";
 
@@ -29,7 +29,10 @@ import { cn } from "@/lib/utils/cn";
  * describes less.
  *
  * The three states are one surface evolving, not three mockups: a location, the
- * nearby picks that location produced, and one of those picks acted on. The panel
+ * nearby picks that location produced, and one of those picks acted on. State 01
+ * is now the supplied map plate rather than a drawn one; the footprint is
+ * unchanged, because the panel's height is fixed and the plate is capped inside
+ * it. The panel
  * keeps the same header line -- NEAR LOWER EAST SIDE -- through all three, which
  * is what ties the picks to the place rather than leaving them adjacent to it.
  *
@@ -275,15 +278,32 @@ export function HowFiyuWorks() {
             <div className="relative mt-3 min-h-0 flex-1 border-y border-line py-3 lg:py-4">
               <div className={cn(LAYER, active === 0 ? "opacity-100" : "opacity-0")}>
                 {/*
-                 * Contained, not stretched. The plate used to scale to whatever
-                 * the panel gave it, which at desktop width pulled a 4:3 drawing
-                 * out to nearly five hundred pixels across and made it read as a
-                 * diagram filling a box. Capped and centred, it reads as a plate
-                 * with air around it.
+                 * Contained, not stretched, and cropped.
+                 *
+                 * The source is a 1267x769 full-bleed map: the grid, the labels
+                 * and the lavender field run to every edge, and the only real
+                 * margin in it is a band of near-empty paper along the bottom.
+                 * A nine-to-five window crops on one axis only -- vertically,
+                 * anchored to the top -- which drops that band and touches
+                 * nothing horizontally, so YOU, NOLITA, LOWER EAST SIDE and
+                 * CHINATOWN all survive with room to spare. `overflow-hidden`
+                 * and a radius on the frame are what make the result read as a
+                 * plate rather than as a picture of one.
+                 *
+                 * Capped and centred as well. Left to fill the panel it pulled a
+                 * 1.6 drawing out to nearly five hundred pixels across and read
+                 * as a diagram filling a box.
                  */}
                 <div className="flex size-full items-center justify-center">
-                  <div className="aspect-[4/3] w-full max-w-[17rem] lg:max-w-[19rem]">
-                    <WorkflowLocationPlate />
+                  <div className="relative aspect-[9/5] w-full max-w-[19rem] overflow-hidden rounded-lg lg:max-w-[24rem]">
+                    <Image
+                      src="/landing/how_fiyu_works.png"
+                      alt=""
+                      fill
+                      sizes="(max-width: 1023px) 19rem, 24rem"
+                      style={{ objectPosition: "50% 0%" }}
+                      className="object-cover"
+                    />
                   </div>
                 </div>
               </div>

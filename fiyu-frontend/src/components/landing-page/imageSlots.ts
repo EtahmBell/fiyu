@@ -1,16 +1,19 @@
 /**
  * The landing page's three photography slots.
  *
- * Fiyu owns no photographic library. Card photos in the application come from
- * Google Maps at request time, one billed call each, which is not a cost a public
- * page hit by anonymous traffic can carry -- and stock photography of a
- * restaurant Fiyu did not choose is worse than no photograph at all.
+ * Fiyu owns no photographic library of its own. Card photos in the application
+ * come from Google Maps at request time, one billed call each, which is not a
+ * cost a public page hit by anonymous traffic can carry -- and stock photography
+ * of a restaurant Fiyu did not choose is worse than no photograph at all.
  *
- * So the three image moments are declared slots. Each names the file it expects,
- * the shape it will be cropped to, what belongs in it, and what stands in until
- * it exists. Installing an asset is two edits in one place: drop the file at
- * `path` and flip `available` to true. Nothing else changes, and no layout moves,
- * because every slot renders inside a fixed aspect or fixed-height box.
+ * So the three image moments are declared slots rather than inline paths. Each
+ * names its file, the shape it is cropped to, where in the frame the crop is
+ * anchored, and what stands in if the file goes missing. All three are now filled
+ * from `public/landing/`.
+ *
+ * `objectPosition` is per-slot and deliberate, because every one of these is a
+ * photograph with a subject and every container crops on one axis. Centre would
+ * have been wrong for two of the three.
  *
  * Exactly three, and deliberately not more. The hero, the product demonstration,
  * "Only a few.", the location surface, the world map and the closing colophon all
@@ -44,10 +47,15 @@ export type SlotFallback =
 
 export interface ImageSlot {
   id: ImageSlotId;
-  /** Where the asset goes. Committed here so the filename is not guesswork. */
+  /** The committed asset, under `public/landing/`. */
   path: string;
-  /** Flip to true once the file exists at `path`. */
+  /** False falls back to a drawing rather than a broken image. */
   available: boolean;
+  /**
+   * Where the crop is anchored, chosen against the actual photograph. Passed
+   * straight to `object-position`.
+   */
+  objectPosition: string;
   /** Used only once the asset is available; the fallback carries its own. */
   alt: string;
   /** The shape the slot crops to. */
@@ -61,9 +69,17 @@ export interface ImageSlot {
 export const IMAGE_SLOTS: Record<ImageSlotId, ImageSlot> = {
   worth_finding_seoul: {
     id: "worth_finding_seoul",
-    path: "/images/landing/worth-finding-seoul.jpg",
-    available: false,
-    alt: "The counter of a small independent restaurant in Seoul",
+    path: "/landing/korea_fiyu.jpg",
+    available: true,
+    /*
+     * A 6000x4000 straight-on frame of a Seoul mandu shop: sky above, storefront
+     * across the middle, road below. Both containers crop horizontally only and
+     * the composition is centred, so centre is genuinely right here -- the
+     * shopfront runs the full width and neither edge holds anything the other
+     * does not.
+     */
+    objectPosition: "50% 50%",
+    alt: "A small independent mandu and naengmyeon shop on a quiet Seoul street, its counter visible through the window",
     aspect: "4:3",
     minWidth: 1600,
     brief:
@@ -78,9 +94,18 @@ export const IMAGE_SLOTS: Record<ImageSlotId, ImageSlot> = {
   },
   underexposure_paris: {
     id: "underexposure_paris",
-    path: "/images/landing/underexposure-paris.jpg",
-    available: false,
-    alt: "A small neighbourhood bistro in Paris",
+    path: "/landing/france_fiyu.jpg",
+    available: true,
+    /*
+     * A 4000x6000 *portrait* frame of a Paris bistro terrace, cropped into a
+     * landscape box, so half its height is discarded. 42% keeps the band that
+     * actually reads at thumbnail size -- the festoon lights, the lit doorway and
+     * windows, and the first row of rattan chairs. Anchoring at the top would
+     * have kept an awning nobody can read at 120px; the bottom, chairs without
+     * the glow.
+     */
+    objectPosition: "50% 42%",
+    alt: "The terrace of a small neighbourhood bistro in Paris at dusk, tables set beneath festoon lights",
     aspect: "4:3",
     minWidth: 1200,
     brief:
@@ -92,9 +117,17 @@ export const IMAGE_SLOTS: Record<ImageSlotId, ImageSlot> = {
   },
   current_edition_tokyo: {
     id: "current_edition_tokyo",
-    path: "/images/landing/current-edition-tokyo.jpg",
-    available: false,
-    alt: "A street of small restaurants in Tokyo at dusk",
+    path: "/landing/japan_fiyu.jpg",
+    available: true,
+    /*
+     * A 7008x4672 night frame of a lantern-lit oden shop in a back alley, cropped
+     * into a band around three to one, which discards more than half its height.
+     * 65% is measured: it centres the window on the lantern and the warm doorway
+     * rather than on the middle of the photograph, which would have kept ducting
+     * above and traffic cones below and lost the only thing the band is for.
+     */
+    objectPosition: "50% 65%",
+    alt: "A lantern-lit oden shop on a narrow Tokyo street at night",
     aspect: "16:5",
     minWidth: 2200,
     brief:
