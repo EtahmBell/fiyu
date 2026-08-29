@@ -1,7 +1,10 @@
 "use client";
 
-import { ExamplePickCard } from "@/components/landing-page/ExamplePickCard";
-import { WORKFLOW_EXAMPLES } from "@/components/landing-page/landingExamples";
+import {
+  ExamplePickCardBrief,
+  IllustrativeNote,
+} from "@/components/landing-page/ExamplePickCard";
+import { WORKFLOW_EXAMPLES } from "@/components/landing-page/fictionalRestaurantExamples";
 import {
   LANDING_HEADING,
   LANDING_MEASURE,
@@ -30,13 +33,29 @@ import { cn } from "@/lib/utils/cn";
  * gives 01, 02, 03 and up gives 03, 02, 01 -- because it is a position, not a
  * sequence being played.
  *
- * The step headings are also buttons, and clicking one scrolls its block to the
- * middle of the viewport, which is the exact condition the observer measures. So
- * the click state and the scroll state are the same fact and cannot fight.
+ * The step headings are also buttons. A click sets the state and moves nothing:
+ * scrolling the clicked row onto the observer's line put the selected number near
+ * the foot of the screen, which framed the composition badly for the sake of an
+ * invariant nobody can see. Because the whole band now fits one screen, a click
+ * behaves like a product-demo tab and the composition stays where it is. Scroll
+ * still updates the state as a reader passes through, and a click simply holds
+ * until the next scroll changes the honest answer.
  *
- * The surface is sticky within its own column, not the viewport, so it can never
- * strand a reader in an empty box: it is a tall panel that stays beside the copy
- * for the length of the section and then leaves with it.
+ * The geometry is the fix in this pass. Previously the step column ran half a
+ * screen longer than the surface beside it, so the demonstration finished while
+ * the copy kept going, and a sticky surface could be pushed under the header and
+ * clipped. Now the two columns are the same height by construction -- three step
+ * rows at roughly 150px against a 28rem panel -- and on desktop nothing is sticky
+ * at all, because matched columns have nothing to stick for. One bounded band,
+ * never clipped, both halves ending together.
+ *
+ * A phone still needs the surface pinned, since the columns stack there and the
+ * panel would otherwise scroll away while step 03 is being read. So it is
+ * `sticky` up to `lg` and static above it: one class, no JavaScript.
+ *
+ * The heavy white card around the panel is also gone. It read as a generic
+ * dashboard embedded in an editorial page. What defines the surface now is a pair
+ * of hairlines and the pick cards' own white -- the content is the surface.
  *
  * The surface only shows states the application has. Fiyu's ranking control has
  * no popularity data behind it yet, so no popularity slider is drawn; what is
@@ -62,8 +81,8 @@ const STEPS = [
   },
 ] as const;
 
-const INTERESTS = ["焼き鳥", "ramen", "Okinawa soba", "sushi", "Turkish cuisine"];
-const AREAS = ["Yanaka", "Sendagi", "Nezu"];
+const INTERESTS = ["claypot", "hand-pulled noodles", "counter seating", "late hours"];
+const AREAS = ["Lower East Side", "Nolita", "Chinatown"];
 
 function PanelLabel({ children }: { children: React.ReactNode }) {
   return (
@@ -74,19 +93,17 @@ function PanelLabel({ children }: { children: React.ReactNode }) {
 }
 
 /**
- * State 01: what a reader hands Fiyu.
+ * State 01: what a reader hands Fiyu. Interests and nearby areas, New York, so
+ * the demonstration is visibly not Tokyo-shaped.
  *
  * `justify-between` rather than a stack, so the two groups reach the top and the
- * bottom of the panel and it does not read as a mostly-empty box.
+ * bottom of the panel and it does not read as a mostly-empty field.
  */
 function TasteSurface() {
   return (
     <div className="flex h-full flex-col justify-between gap-6">
+      <TagList tags={INTERESTS} />
       <div>
-        <PanelLabel>Your tastes</PanelLabel>
-        <TagList tags={INTERESTS} className="mt-3.5" />
-      </div>
-      <div className="border-t border-line pt-4">
         <PanelLabel>Around you</PanelLabel>
         <ul className="mt-3 space-y-2">
           {AREAS.map((area) => (
@@ -104,8 +121,9 @@ function TasteSurface() {
 /**
  * States 02 and 03: the picks, and then one of them saved.
  *
- * Full cards rather than brief ones: they fill the panel, and the panel is the
- * one place on the page that should look like the application.
+ * Brief cards, spread to the full height of the panel. Three cards with images
+ * would not fit a panel matched to the step column, and the point of this state
+ * is the set of three rather than any one of them.
  *
  * The saved card stays where it is and changes tense instead of place. Moving it
  * into a separate history group was the truer picture of the application, but it
@@ -114,18 +132,11 @@ function TasteSurface() {
 function PicksSurface({ saved }: { saved: boolean }) {
   const [first, ...rest] = WORKFLOW_EXAMPLES;
   return (
-    <div className="flex h-full flex-col">
-      <PanelLabel>Today</PanelLabel>
-      <div className="mt-3.5 space-y-2.5">
-        <ExamplePickCard
-          example={first}
-          tone={saved ? "saved" : "current"}
-          detail="sm-up"
-        />
-        {rest.map((example) => (
-          <ExamplePickCard key={example.id} example={example} detail="sm-up" />
-        ))}
-      </div>
+    <div className="flex h-full flex-col justify-between gap-2.5">
+      <ExamplePickCardBrief example={first} tone={saved ? "saved" : "current"} />
+      {rest.map((example) => (
+        <ExamplePickCardBrief key={example.key} example={example} />
+      ))}
     </div>
   );
 }
@@ -134,7 +145,7 @@ const LAYER = "absolute inset-0 transition-opacity duration-[520ms] ease-(--ease
 
 export function HowFiyuWorks() {
   const { ref, entered } = useEntered<HTMLElement>("0px 0px -25% 0px");
-  const { register, active, select } = useActiveStep(STEPS.length);
+  const { register, active, select } = useActiveStep(STEPS.length, { scrollOnSelect: false });
   const flag = entered ? "true" : "false";
 
   return (
@@ -150,34 +161,39 @@ export function HowFiyuWorks() {
           )}
         >
           {/*
-           * Sticky inside its own column, never against the viewport. The column
-           * is exactly as tall as the steps beside it, so the panel accompanies
-           * the copy for the whole section and leaves with it.
+           * Sticky only where the columns stack. From `lg` the two columns are
+           * the same height, so there is nothing to stick for and nothing that
+           * can be clipped against the header.
            */}
-          <div className="sticky top-16 z-10 bg-canvas pb-4 lg:top-24 lg:pb-0">
+          <div className="sticky top-16 z-10 bg-canvas pb-4 lg:static lg:pb-0">
             <div
               aria-hidden="true"
               data-testid="workflow-surface"
               data-step={active}
-              className={cn(
-                // Sized to its contents rather than to the viewport, and capped
-                // against `svh` so a short phone shortens the panel instead of
-                // pushing it over the line the observer reads.
-                "fiyu-lp-rise relative h-[min(25.5rem,60svh)] min-w-0 overflow-hidden",
-                "rounded-card border border-line bg-surface lg:h-[27rem]",
-              )}
+              className="fiyu-lp-rise flex h-[min(25rem,58svh)] min-w-0 flex-col lg:h-[28rem]"
               data-in={flag}
             >
-              <div className={cn(LAYER, active === 0 ? "opacity-100" : "opacity-0")}>
-                <div className="size-full p-4 sm:p-5">
-                  <TasteSurface />
+              <p className="text-[0.625rem] font-semibold tracking-[0.16em] text-ink-faint uppercase">
+                {active === 0 ? "Your tastes" : "Today"}
+              </p>
+              {/*
+                Two hairlines and the cards' own white, instead of a large rounded
+                container. The heavy card read as a dashboard dropped into an
+                editorial page; here the content defines the surface.
+              */}
+              <div className="relative mt-3 min-h-0 flex-1 border-y border-line py-4">
+                <div className={cn(LAYER, active === 0 ? "opacity-100" : "opacity-0")}>
+                  <div className="size-full">
+                    <TasteSurface />
+                  </div>
+                </div>
+                <div className={cn(LAYER, active === 0 ? "opacity-0" : "opacity-100")}>
+                  <div className="size-full">
+                    <PicksSurface saved={active === 2} />
+                  </div>
                 </div>
               </div>
-              <div className={cn(LAYER, active === 0 ? "opacity-0" : "opacity-100")}>
-                <div className="size-full p-4 sm:p-5">
-                  <PicksSurface saved={active === 2} />
-                </div>
-              </div>
+              <IllustrativeNote className="mt-3">Illustrative examples</IllustrativeNote>
             </div>
           </div>
 
@@ -195,7 +211,7 @@ export function HowFiyuWorks() {
                   ref={register(index)}
                   data-active={isActive}
                   aria-current={isActive ? "step" : undefined}
-                  className="flex min-h-[16rem] flex-col justify-center border-t border-line py-6 first:border-t-0 lg:min-h-[20rem]"
+                  className="flex min-h-[15rem] flex-col justify-center border-t border-line py-6 first:border-t-0 lg:min-h-0 lg:py-3 lg:first:pt-0"
                 >
                   {/*
                    * The heading is the control. A text button with a hover rule,

@@ -23,27 +23,40 @@ export const LANDING_HEADING =
  * A tracked label with a short rule leading into it: the recurring mark that
  * opens each section and ties them to one another.
  */
+const EYEBROW_TONES = {
+  /** The default: lavender is the brand, and this is the recurring mark. */
+  ink: { text: "text-lavender-700", rule: "bg-rose-dust" },
+  /** On plum. */
+  inverse: { text: "text-lavender-100", rule: "bg-lavender-100/45" },
+  /**
+   * Champagne, for the one section whose identity is context rather than
+   * discovery. `gold-700` is the text step (5.04:1 on white); `gold` is a
+   * graphics-only tone and is used here for a hairline, never for type.
+   */
+  champagne: { text: "text-gold-700", rule: "bg-gold" },
+} as const;
+
+export type EyebrowTone = keyof typeof EYEBROW_TONES;
+
 export function SectionEyebrow({
   children,
   tone = "ink",
   className,
 }: {
   children: ReactNode;
-  tone?: "ink" | "inverse";
+  tone?: EyebrowTone;
   className?: string;
 }) {
+  const { text, rule } = EYEBROW_TONES[tone];
   return (
     <p
       className={cn(
         "flex items-center gap-3 text-[0.6875rem] font-semibold tracking-[0.2em] uppercase",
-        tone === "inverse" ? "text-lavender-100" : "text-lavender-700",
+        text,
         className,
       )}
     >
-      <span
-        aria-hidden="true"
-        className={cn("h-px w-7 shrink-0", tone === "inverse" ? "bg-lavender-100/45" : "bg-rose-dust")}
-      />
+      <span aria-hidden="true" className={cn("h-px w-7 shrink-0", rule)} />
       {children}
     </p>
   );

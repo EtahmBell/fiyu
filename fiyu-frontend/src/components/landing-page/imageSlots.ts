@@ -13,6 +13,10 @@
  * layout moves, because every slot renders inside a fixed aspect box.
  *
  * `brief` is for whoever sources the asset. It is never rendered.
+ *
+ * Imagery should represent the CITY and the food experience, not the invented
+ * restaurant named beside it. No legible signage that identifies a real business,
+ * and never a photograph of a place in Fiyu's own catalog.
  */
 
 export type ImageSlotId = "restaurant_story_01" | "current_city_01";
@@ -41,10 +45,10 @@ export const IMAGE_SLOTS: Record<ImageSlotId, ImageSlot> = {
   restaurant_story_01: {
     id: "restaurant_story_01",
     src: null,
-    alt: "The counter of a small independent restaurant",
+    alt: "A small independent restaurant counter",
     aspect: "4:3",
     brief:
-      "Landscape 4:3, at least 2000px wide. An intimate independent restaurant interior or counter, warm and low-lit, no identifiable faces. This is the emotional focus of the page, so it should read as somewhere you would only find by being told about it. City-neutral: the slot travels to New York unchanged.",
+      "Landscape 4:3, at least 2000px wide. An intimate Seoul counter or interior -- warm, low-lit, no identifiable faces, no legible signage naming a real business. This is the emotional focus of the page. It should represent the city and the experience rather than the invented restaurant named beside it, so nothing in frame should read as a specific establishment.",
     fallback: {
       kind: "illustration",
       src: "/images/about-storefront.png",

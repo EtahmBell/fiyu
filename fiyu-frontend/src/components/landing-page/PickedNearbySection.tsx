@@ -2,8 +2,11 @@
 
 import { useState } from "react";
 
-import { ExampleSelectionRow } from "@/components/landing-page/ExamplePickCard";
-import { LOCATION_SETS } from "@/components/landing-page/landingExamples";
+import {
+  ExampleSelectionRow,
+  IllustrativeNote,
+} from "@/components/landing-page/ExamplePickCard";
+import { LOCATION_SETS } from "@/components/landing-page/fictionalRestaurantExamples";
 import {
   LANDING_HEADING,
   LANDING_MEASURE,
@@ -11,33 +14,66 @@ import {
   SectionEyebrow,
 } from "@/components/landing-page/landingSystem";
 import { useEntered } from "@/components/landing-page/motion/scrollScene";
-import { Chip } from "@/components/ui/Chip";
 import { cn } from "@/lib/utils/cn";
 
 /**
  * Picked around where you are.
  *
- * This replaces "A few for you. Different for someone else." -- three dense
- * tables of names plus a sentence explaining how many of them overlapped. The
- * concept was sound and the execution asked a visitor to do arithmetic, and
- * overlap between hypothetical users was never the behaviour most worth a whole
- * section. Location is.
+ * One surface, three starting points, and a control that switches between them.
+ * Shinjuku, Shibuya and Ginza rather than Yanaka and Setagaya: a visitor who has
+ * never been to Tokyo recognises all three, and recognising the place is what
+ * makes the demonstration land in one glance instead of one reading.
  *
- * One surface, two starting points, and a control that switches between them.
- * Yanaka and Shibuya are genuinely different parts of the city, so the Picks
- * visibly change rather than being the same places relabelled. A visitor gets the
- * idea from one click, without reading an explanation.
+ * Each set draws from genuinely adjacent neighbourhoods -- Shinjuku reaches
+ * Yotsuya and Okubo, Shibuya reaches Tomigaya and Nakameguro, Ginza reaches
+ * Shimbashi and Tsukiji -- so switching visibly moves across the city rather than
+ * relabelling the same places. The areas are real; the restaurants are invented.
  *
- * The control is the application's own filter chip. This section is about a
- * product behaviour, so it should be operated with the product's own component.
+ * The control is text tabs, not pills. The application's filter chip was the
+ * honest reuse but read as app furniture dropped into an editorial page: a
+ * lavender underline under tracked micro-caps belongs here, and still gives a
+ * 44px target and real button semantics.
  *
  * The copy is careful about one thing: Fiyu uses your location *when the
  * selection is made*. It does not follow you around, and a marketing page should
  * not imply that it does -- so the standing line under the surface says so
  * outright.
- *
- * No pinned sequence. A click, a short cross-fade, one entrance.
  */
+
+function AreaTab({
+  label,
+  selected,
+  onSelect,
+}: {
+  label: string;
+  selected: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={selected}
+      onClick={onSelect}
+      className={cn(
+        "relative inline-flex min-h-11 items-center px-1 text-[0.6875rem] font-semibold tracking-[0.18em] uppercase",
+        "transition-colors duration-300 ease-(--ease-fiyu)",
+        "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-500",
+        selected ? "text-lavender-700" : "text-ink-faint hover:text-ink-muted",
+      )}
+    >
+      {label}
+      {/* Always rendered, so the row's height never changes as a tab is chosen. */}
+      <span
+        aria-hidden="true"
+        className={cn(
+          "absolute inset-x-0 bottom-2 h-px origin-left transition-transform duration-300 ease-(--ease-fiyu)",
+          selected ? "scale-x-100 bg-lavender-500" : "scale-x-0 bg-lavender-500",
+        )}
+      />
+    </button>
+  );
+}
+
 export function PickedNearbySection() {
   const { ref, entered } = useEntered<HTMLDivElement>();
   const [selected, setSelected] = useState(LOCATION_SETS[0].id);
@@ -73,24 +109,23 @@ export function PickedNearbySection() {
           <div
             data-testid="location-surface"
             data-location={set.id}
-            className="min-w-0 rounded-card border border-line bg-surface p-4 sm:p-5"
+            className="min-w-0"
           >
+            <p className="text-[0.625rem] font-semibold tracking-[0.16em] text-ink-faint uppercase">
+              Starting from
+            </p>
             <div
               role="group"
               aria-label="Starting point"
-              className="flex min-w-0 flex-wrap items-center gap-2"
+              className="mt-1 flex min-w-0 flex-wrap items-center gap-x-7 border-b border-line"
             >
-              <span aria-hidden="true" className="mr-1 text-[0.625rem] font-semibold tracking-[0.16em] text-ink-faint uppercase">
-                Starting from
-              </span>
               {LOCATION_SETS.map((entry) => (
-                <Chip
+                <AreaTab
                   key={entry.id}
+                  label={entry.area}
                   selected={entry.id === set.id}
-                  onClick={() => setSelected(entry.id)}
-                >
-                  {entry.area}
-                </Chip>
+                  onSelect={() => setSelected(entry.id)}
+                />
               ))}
             </div>
 
@@ -101,16 +136,17 @@ export function PickedNearbySection() {
              */}
             <div
               key={set.id}
-              className="mt-4 border-t border-line pt-1"
+              className="mt-1"
               style={{ animation: "fiyu-fade-in 300ms var(--ease-fiyu)" }}
             >
               {set.picks.map((example) => (
-                <ExampleSelectionRow key={example.id} example={example} />
+                <ExampleSelectionRow key={example.key} example={example} />
               ))}
             </div>
           </div>
 
-          <p className="mt-5 max-w-[30rem] text-[0.8125rem] leading-6 text-ink-faint">
+          <IllustrativeNote className="mt-6">Illustrative examples</IllustrativeNote>
+          <p className="mt-4 max-w-[30rem] text-[0.8125rem] leading-6 text-ink-faint">
             Your location is used at the moment a selection is made. Picks you already have stay
             put as you move.
           </p>

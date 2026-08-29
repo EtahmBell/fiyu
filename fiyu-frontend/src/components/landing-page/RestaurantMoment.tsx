@@ -1,15 +1,19 @@
 "use client";
 
-import { RESTAURANT_MOMENT_EXAMPLE } from "@/components/landing-page/landingExamples";
+import {
+  RESTAURANT_MOMENT_EXAMPLE,
+  scoreMarkValue,
+} from "@/components/landing-page/fictionalRestaurantExamples";
 import {
   LANDING_MEASURE,
   LANDING_RHYTHM,
   SectionEyebrow,
 } from "@/components/landing-page/landingSystem";
+import { IllustrativeNote } from "@/components/landing-page/ExamplePickCard";
 import { useEntered } from "@/components/landing-page/motion/scrollScene";
 import { SlotImage } from "@/components/landing-page/SlotImage";
 import { TagList } from "@/components/restaurant/TagList";
-import { formatFiyuScore, scoreAccessibleLabel, scoreBandLabel } from "@/lib/format/score";
+import { formatFiyuScore, scoreAccessibleLabel } from "@/lib/format/score";
 import { cn } from "@/lib/utils/cn";
 
 /**
@@ -24,13 +28,19 @@ import { cn } from "@/lib/utils/cn";
  * from Google Maps." is gone. It was an implementation note that had escaped onto
  * a marketing page -- true, and none of a visitor's business.
  *
- * Every value in the annotation is published catalog data. The band travels with
- * the example as its stored `score_band` and is rendered through the
- * application's own `scoreBandLabel`, so "Exceptional" here is Fiyu's recorded
- * judgement rather than a word chosen for this page. The three underexposure
- * signals were considered for this block and left out: they are the criteria Fiyu
- * screens on, not a per-restaurant finding, and asserting them about one named
- * place would be fabricating analysis.
+ * The restaurant is invented, and the eyebrow says so: SAMPLE FIYU DISCOVERY,
+ * not A FIYU DISCOVERY. Printing real underexposed restaurants on a public page
+ * works against the product, so the page demonstrates the shape of a discovery
+ * without giving one away.
+ *
+ * Seoul rather than Tokyo, on purpose. The rollout section remains the only
+ * statement of where Fiyu actually operates; this is the first of several quiet
+ * signals that the system is not Tokyo-shaped.
+ *
+ * The score band that used to sit beside the numeral is gone. A band is a
+ * recorded judgement about a real restaurant, and Fiyu has not judged one that
+ * does not exist. The invented score stays, because the score mark is the
+ * product, but the eyebrow makes clear whose score it is.
  *
  * A fixed aspect box means a real photograph drops in with no structural change
  * and no layout shift.
@@ -38,7 +48,7 @@ import { cn } from "@/lib/utils/cn";
 
 const example = RESTAURANT_MOMENT_EXAMPLE;
 const SLOT = "restaurant_story_01";
-const band = scoreBandLabel(example.scoreBand);
+const markScore = scoreMarkValue(example.displayScore);
 
 export function RestaurantMoment() {
   const { ref, entered } = useEntered<HTMLElement>("0px 0px -20% 0px");
@@ -78,18 +88,16 @@ export function RestaurantMoment() {
             data-in={flag}
             style={{ "--rise-delay": "260ms" } as React.CSSProperties}
           >
-            <SectionEyebrow>A Fiyu discovery</SectionEyebrow>
-            <p
-              lang="ja"
-              className="mt-5 font-display text-[clamp(1.625rem,2.8vw,2.5rem)] leading-[1.15] text-ink"
-            >
-              {example.nameJa}
+            <SectionEyebrow>Sample Fiyu discovery</SectionEyebrow>
+            <p className="mt-5 font-display text-[clamp(1.625rem,2.8vw,2.5rem)] leading-[1.15] text-ink">
+              {example.name}
             </p>
-            <p className="mt-2 text-sm text-ink-muted">{example.nameEn}</p>
 
             <dl className="mt-7 border-t border-line pt-4">
               <dt className="sr-only">Area</dt>
-              <dd className="font-display text-lg leading-tight text-ink">{example.area}</dd>
+              <dd className="font-display text-lg leading-tight text-ink">
+                {example.area}, {example.city}
+              </dd>
               <dt className="sr-only">Category</dt>
               <dd className="mt-1.5 text-sm text-ink-muted">{example.category}</dd>
             </dl>
@@ -100,17 +108,15 @@ export function RestaurantMoment() {
               </p>
               <p
                 role="img"
-                aria-label={scoreAccessibleLabel(example.score)}
+                aria-label={scoreAccessibleLabel(markScore)}
                 className="font-display text-[2.25rem] leading-none tabular-nums text-plum"
               >
-                {formatFiyuScore(example.score)}
+                {formatFiyuScore(markScore)}
               </p>
-              {band && (
-                <p className="text-[0.6875rem] tracking-[0.14em] text-gold-700 uppercase">{band}</p>
-              )}
             </div>
 
             <TagList tags={[...example.tags]} max={3} className="mt-6" />
+            <IllustrativeNote className="mt-6">Illustrative example</IllustrativeNote>
           </div>
         </div>
       </div>

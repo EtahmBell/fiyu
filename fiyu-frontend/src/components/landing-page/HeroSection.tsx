@@ -1,5 +1,6 @@
 import { AuthAwarePicksLink } from "@/components/landing-page/AuthAwarePicksLink";
-import { HERO_EXAMPLES } from "@/components/landing-page/landingExamples";
+import { IllustrativeNote } from "@/components/landing-page/ExamplePickCard";
+import { HERO_EXAMPLES } from "@/components/landing-page/fictionalRestaurantExamples";
 import { LANDING_MEASURE } from "@/components/landing-page/landingSystem";
 import { PickComposition } from "@/components/landing-page/PickComposition";
 import { cn } from "@/lib/utils/cn";
@@ -134,6 +135,12 @@ export function HeroSection() {
                 Independent restaurants matched to your tastes and nearby area—whether you’re
                 exploring a new city or rediscovering your everyday one.
               </p>
+              {/*
+               * The cards are invented. Real underexposed restaurants are what
+               * Fiyu exists to protect, so a public page shows the shape of a
+               * discovery rather than giving one away.
+               */}
+              <IllustrativeNote className="mt-5">Illustrative examples</IllustrativeNote>
             </figcaption>
           </div>
         </figure>

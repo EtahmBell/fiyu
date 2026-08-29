@@ -7,7 +7,7 @@ import {
   ExamplePickCard,
   ExamplePickCardBrief,
 } from "@/components/landing-page/ExamplePickCard";
-import type { LandingExample } from "@/components/landing-page/landingExamples";
+import type { FictionalRestaurant } from "@/components/landing-page/fictionalRestaurantExamples";
 import { NearbyDiscoveryPlate } from "@/components/landing-page/NearbyDiscoveryPlate";
 import { usePrefersReducedMotion } from "@/components/landing-page/motion/scrollScene";
 import { cn } from "@/lib/utils/cn";
@@ -144,7 +144,7 @@ export function PickComposition({
   examples,
   className,
 }: {
-  examples: readonly LandingExample[];
+  examples: readonly FictionalRestaurant[];
   className?: string;
 }) {
   const reduced = usePrefersReducedMotion();
@@ -208,11 +208,12 @@ export function PickComposition({
         </Stacked>
       </div>
 
-      {/* The third example is part of the selection even though its card stays
-          concealed, so it is named for assistive tech and for search. */}
+      {/* The third example belongs to the composition even though its card stays
+          concealed, so it is named for assistive tech. Invented restaurants, and
+          the caption beside the composition says so. */}
       <p className="sr-only">
-        Published Fiyu discoveries in Tokyo, shown as examples: {front.nameEn}, {middle.nameEn},
-        and {back.nameEn}.
+        Illustrative Fiyu discoveries in Tokyo: {front.romanized ?? front.name},{" "}
+        {middle.romanized ?? middle.name}, and {back.romanized ?? back.name}.
       </p>
     </div>
   );

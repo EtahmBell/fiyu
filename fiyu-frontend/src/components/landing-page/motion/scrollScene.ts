@@ -118,11 +118,14 @@ export function useEntered<T extends Element>(
  * It is discrete. These are conceptual states, not a continuum, so nothing is
  * ever half-way between two of them.
  *
- * And `select` moves the page rather than overriding the observer: it scrolls the
- * requested block to the middle of the viewport, which is the same condition the
- * observer reads. A clicked state and a scrolled state therefore cannot drift
- * apart, because they are the same measurement. `setActive` runs immediately too,
- * so the surface responds on the click rather than at the end of a smooth scroll.
+ * And `select` is honest about the trade it makes. Scrolling the requested block
+ * onto the line would keep click and scroll provably identical, but it also lands
+ * the selected row near the foot of the screen, which frames the composition
+ * badly. With `scrollOnSelect: false` a click just sets the state and the page
+ * stays put -- a product-demo tab rather than a jump -- and the next scroll that
+ * crosses a boundary restores the position-derived answer. For a caller whose
+ * composition is taller than a viewport, `scrollOnSelect: true` brings the block
+ * to the line instead.
  *
  * When nothing is crossing the line -- the section is above or below the fold --
  * the last answer stands. That is deliberate: a reader who scrolls past should
@@ -130,6 +133,14 @@ export function useEntered<T extends Element>(
  */
 export function useActiveStep(
   count: number,
+  {
+    /**
+     * Whether a click should move the document. False for a composition that
+     * already fits one screen, where moving it can only make the framing worse.
+     */
+    scrollOnSelect = true,
+    rootMargin: rootMarginOption,
+  }: { scrollOnSelect?: boolean; rootMargin?: string } = {},
   /**
    * A zero-height line, placed low on purpose.
    *
@@ -143,12 +154,12 @@ export function useActiveStep(
    * Zero height matters too: exactly one block can cross a line, so there is no
    * boundary case where two report at once and the answer depends on entry order.
    */
-  rootMargin = "-78% 0px -22% 0px",
 ): {
   register: (index: number) => (node: HTMLElement | null) => void;
   active: number;
   select: (index: number) => void;
 } {
+  const rootMargin = rootMarginOption ?? "-78% 0px -22% 0px";
   const nodes = useRef<(HTMLElement | null)[]>([]);
   const reduced = usePrefersReducedMotion();
   const [active, setActive] = useState(0);
@@ -179,12 +190,13 @@ export function useActiveStep(
   const select = useCallback(
     (index: number) => {
       setActive(index);
+      if (!scrollOnSelect) return;
       nodes.current[index]?.scrollIntoView({
         block: "center",
         behavior: reduced ? "auto" : "smooth",
       });
     },
-    [reduced],
+    [reduced, scrollOnSelect],
   );
 
   return { register, active, select };

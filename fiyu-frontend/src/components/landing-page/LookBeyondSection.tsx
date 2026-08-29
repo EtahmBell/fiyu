@@ -1,6 +1,10 @@
 "use client";
 
-import { LOOK_BEYOND_EXAMPLE } from "@/components/landing-page/landingExamples";
+import { IllustrativeNote } from "@/components/landing-page/ExamplePickCard";
+import {
+  LOOK_BEYOND_EXAMPLE,
+  scoreMarkValue,
+} from "@/components/landing-page/fictionalRestaurantExamples";
 import {
   LANDING_HEADING,
   LANDING_MEASURE,
@@ -36,6 +40,15 @@ import { cn } from "@/lib/utils/cn";
  *
  * Entrance motion only. This is a claim about judgement; scrubbing it against a
  * scrollbar would make it feel like a machine demonstrating itself.
+ *
+ * The one section on the page that is champagne rather than lavender. It sat on
+ * `bg-subtle`, a cool lavender-grey, directly above "Only a few." on
+ * `bg-lavender-50` -- two pale lavenders in a row, and in a browser recording they
+ * ran together into one long section. Champagne already means secondary and
+ * editorial context in this system, which is exactly what this section is:
+ * lavender stays with discovery, and the parchment wash, the brass eyebrow and the
+ * warm hairlines give this one an identity of its own. It is spent here and
+ * nowhere else.
  */
 
 const SIGNALS = [
@@ -63,9 +76,9 @@ export function LookBeyondSection() {
   const example = LOOK_BEYOND_EXAMPLE;
 
   return (
-    <section id="look-beyond" className="scroll-mt-24 border-b border-line bg-subtle">
+    <section id="look-beyond" className="scroll-mt-24 border-b border-gold-line bg-gold-soft/30">
       <div ref={ref} className={cn(LANDING_MEASURE, LANDING_RHYTHM)}>
-        <SectionEyebrow>Underexposure</SectionEyebrow>
+        <SectionEyebrow tone="champagne">Underexposure</SectionEyebrow>
         <div className="mt-6 grid gap-x-16 gap-y-8 lg:grid-cols-[minmax(0,0.52fr)_minmax(0,0.48fr)] lg:items-end">
           <h2 className={cn(LANDING_HEADING, "max-w-[18ch] text-ink")}>
             Look beyond what rises to the top.
@@ -83,7 +96,7 @@ export function LookBeyondSection() {
             <li key={signal.label} className="min-w-0">
               <span
                 aria-hidden="true"
-                className="fiyu-lp-rule block h-px w-full origin-left bg-line-strong"
+                className="fiyu-lp-rule block h-px w-full origin-left bg-gold-line"
                 data-in={flag}
                 style={{ "--rule-delay": index * 140 + 100 + "ms" } as React.CSSProperties}
               />
@@ -97,7 +110,7 @@ export function LookBeyondSection() {
                   } as React.CSSProperties
                 }
               >
-                <p className="text-[0.6875rem] font-semibold tracking-[0.14em] text-lavender-700 uppercase">
+                <p className="text-[0.6875rem] font-semibold tracking-[0.14em] text-gold-700 uppercase">
                   {signal.label}
                 </p>
                 <p className="mt-2.5 max-w-[22rem] text-[0.9375rem] leading-6 text-ink-muted">
@@ -113,7 +126,7 @@ export function LookBeyondSection() {
          * the section, in the same measure as everything above it.
          */}
         <div
-          className="fiyu-lp-rise mt-14 border-t border-line-strong pt-6 sm:mt-16"
+          className="fiyu-lp-rise mt-14 border-t border-gold-line pt-6 sm:mt-16"
           data-in={flag}
           style={{ "--rise-delay": "760ms", "--rise-from": "12px" } as React.CSSProperties}
         >
@@ -122,17 +135,15 @@ export function LookBeyondSection() {
               <p className="text-[0.625rem] font-semibold tracking-[0.16em] text-ink-faint uppercase">
                 Then one place worth going
               </p>
-              <p
-                lang="ja"
-                className="mt-3 font-display text-[clamp(1.5rem,3vw,2.5rem)] leading-tight text-ink"
-              >
-                {example.nameJa}
+              <p className="mt-3 font-display text-[clamp(1.5rem,3vw,2.5rem)] leading-tight text-ink">
+                {example.name}
               </p>
               <p className="mt-2 text-sm text-ink-muted">
-                {example.nameEn} · {example.area} · {example.category}
+                {example.area}, {example.city} · {example.category}
               </p>
+              <IllustrativeNote className="mt-4">Illustrative example</IllustrativeNote>
             </div>
-            <ScoreMark score={example.score} size="lg" className="shrink-0" />
+            <ScoreMark score={scoreMarkValue(example.displayScore)} size="lg" className="shrink-0" />
           </div>
         </div>
       </div>

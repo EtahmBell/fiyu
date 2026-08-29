@@ -8,7 +8,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import MarketingLayout from "@/app/(marketing)/layout";
 import PublicLandingPage from "@/app/(marketing)/page";
 import { LandingPage } from "@/components/landing-page/LandingPage";
-import { LOCATION_SETS } from "@/components/landing-page/landingExamples";
+import {
+  ALL_FICTIONAL_EXAMPLES,
+  LOCATION_SETS,
+} from "@/components/landing-page/fictionalRestaurantExamples";
 import { TOKYO_AREAS } from "@/components/landing-page/landingAreas";
 import { IMAGE_SLOTS } from "@/components/landing-page/imageSlots";
 import { WORLD_LAND_PATH } from "@/components/landing-page/worldLandPath";
@@ -305,48 +308,47 @@ describe("landing hero", () => {
     expect(composition.getAllByTestId("example-pick-card-brief")).toHaveLength(1);
     // The concealed layer never hides content from the document: the middle
     // card's restaurant is rendered underneath its veil, not swapped in later.
-    expect(composition.getByText("すし善")).toBeTruthy();
-    expect(composition.getByText("沖縄そば屋 ちょこっと")).toBeTruthy();
+    expect(composition.getByText("月のそば")).toBeTruthy();
+    expect(composition.getByText("黄金食堂")).toBeTruthy();
     expect(compositions[0].querySelector(".fiyu-lp-veil")?.getAttribute("aria-hidden")).toBe("true");
   });
 
-  it("publishes real Fiyu scores rather than invented ones", () => {
+  it("marks every scored composition as illustrative", () => {
     render(<LandingPage />);
 
-    // 86.7 out of 100 is what the catalog holds; 8.7 is Fiyu's public scale.
-    expect(screen.getAllByLabelText("Fiyu score 8.7 out of 10").length).toBeGreaterThan(0);
+    // The score mark is the product and stays, but a card that looks like the
+    // app and carries a number has to say whose number it is.
+    expect(screen.getAllByLabelText("Fiyu score 8.6 out of 10").length).toBeGreaterThan(0);
     expect(screen.queryByLabelText("Fiyu score unavailable")).toBeNull();
+    expect(screen.getAllByTestId("illustrative-note").length).toBeGreaterThanOrEqual(4);
   });
 });
 
 describe("landing narrative sections", () => {
-  it("leads on the photograph and annotates it editorially", () => {
+  it("leads on the photograph and annotates one sample discovery", () => {
     render(<LandingPage />);
 
     const plate = screen.getByRole("img", {
       name: "A line illustration of a small independent restaurant counter, drawn for Fiyu",
     });
-    expect(plate.getAttribute("src")).toBe("/images/about-storefront.png");
     const moment = plate.closest("section");
     if (!moment) throw new Error("Expected the restaurant moment section");
     const scene = within(moment);
 
-    // A fixed aspect box, so the real photograph drops in with no structural
-    // change and no layout shift.
+    // A fixed aspect box, so the real photograph drops in with no layout shift.
     expect(countWithClass(moment, "aspect-[4/3]")).toBe(1);
 
-    // The annotation: name, area, category, score, band. Every value published.
-    expect(scene.getByText("A Fiyu discovery")).toBeTruthy();
-    expect(scene.getByText("江戸酒場 海")).toBeTruthy();
-    expect(scene.getByText("Edo Sakaba Umi")).toBeTruthy();
-    expect(scene.getByText("Jingumae")).toBeTruthy();
-    expect(scene.getByText("Izakaya / standing bar")).toBeTruthy();
-    expect(scene.getByLabelText("Fiyu score 8.7 out of 10")).toBeTruthy();
-    expect(scene.getByText("Exceptional")).toBeTruthy();
+    // "Sample", not "A": the restaurant is invented, and Fiyu has not evaluated
+    // a business that does not exist, so the recorded band is gone too.
+    expect(scene.getByText("Sample Fiyu discovery")).toBeTruthy();
+    expect(scene.queryByText("A Fiyu discovery")).toBeNull();
+    expect(scene.queryByText("Exceptional")).toBeNull();
 
-    // No per-restaurant signal claims: those criteria are what Fiyu screens on,
-    // not a finding about this place.
-    expect(scene.queryByText("Strong local signals")).toBeNull();
+    // Seoul: the first quiet signal that the system is not Tokyo-shaped.
+    expect(scene.getByText("Yeonhwa Gukbap")).toBeTruthy();
+    expect(scene.getByText("Euljiro, Seoul")).toBeTruthy();
+    expect(scene.getByText("Gukbap / Korean comfort food")).toBeTruthy();
+    expect(scene.getByLabelText("Fiyu score 8.7 out of 10")).toBeTruthy();
   });
 
   it("drives three product states from position, reversibly, and by click", async () => {
@@ -355,10 +357,11 @@ describe("landing narrative sections", () => {
     const workflow = screen.getByRole("heading", { name: "How Fiyu works" }).closest("section");
     if (!workflow) throw new Error("Expected the workflow section");
 
-    // Nothing pinned to the viewport and no runway: the surface is sticky inside
-    // its own column, so it can never strand a reader in an empty box.
+    // No runway. Sticky only up to `lg`, where the columns stack; above that the
+    // two columns are the same height and nothing needs to stick.
     expect(workflow.querySelector(".fiyu-lp-scene")).toBeNull();
-    expect(countWithClass(workflow, "sticky")).toBe(1);
+    const surfaceWrapper = workflow.querySelector(".sticky");
+    expect(surfaceWrapper?.getAttribute("class")).toContain("lg:static");
 
     const steps = [...workflow.querySelectorAll("li[data-active]")];
     expect(steps).toHaveLength(3);
@@ -367,9 +370,18 @@ describe("landing narrative sections", () => {
     const surface = screen.getByTestId("workflow-surface");
     expect(surface.getAttribute("data-step")).toBe("0");
     expect(surface.getAttribute("aria-hidden")).toBe("true");
-    expect(surface.children).toHaveLength(2);
+    // Label, the two cross-fading layers in one bordered well, and the credit.
+    expect(surface.children).toHaveLength(3);
+    expect(surface.querySelectorAll(".absolute.inset-0")).toHaveLength(2);
+    // One label above the panel that names the current state, and no outer card:
+    // two hairlines and the picks' own white define the surface.
     expect(within(surface).getByText("Your tastes")).toBeTruthy();
-    expect(within(surface).getAllByTestId("example-pick-card")).toHaveLength(3);
+    expect(surface.getAttribute("class")).not.toContain("rounded-card");
+    expect(within(surface).getAllByTestId("example-pick-card-brief")).toHaveLength(3);
+
+    // The demonstration is New York, so the product does not read as Tokyo-shaped.
+    expect(within(surface).getByText("Canal Claypot")).toBeTruthy();
+    expect(within(surface).getAllByText("Lower East Side").length).toBeGreaterThan(0);
 
     // Every step heading is a control, and the copy is visible either way, so
     // nothing is gated behind the interaction.
@@ -377,13 +389,18 @@ describe("landing narrative sections", () => {
     expect(controls).toHaveLength(3);
     for (const entry of STEP_TITLES) expect(screen.getByRole("heading", { name: entry })).toBeTruthy();
 
-    // Forward, and then back: the state follows the request in both directions.
+    // Forward, and then back: the state follows the request in both directions,
+    // and a click never moves the document -- the whole band already fits a
+    // screen, so scrolling it could only make the framing worse.
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
     for (const index of [1, 2, 1, 0]) {
       fireEvent.click(controls[index]);
       expect(surface.getAttribute("data-step")).toBe(String(index));
       expect(steps[index].getAttribute("data-active")).toBe("true");
       expect(steps[index].getAttribute("aria-current")).toBe("step");
     }
+    expect(scrollIntoView).not.toHaveBeenCalled();
 
     // Keyboard reaches the same control, since it is a real button.
     controls[2].focus();
@@ -475,15 +492,28 @@ describe("landing rollout, edition and close", () => {
     const surface = screen.getByTestId("location-surface");
     expect(surface.getAttribute("data-location")).toBe(LOCATION_SETS[0].id);
     const [first, second] = LOCATION_SETS;
-    expect(within(surface).getByText(first.picks[0].nameJa)).toBeTruthy();
+    expect(within(surface).getByText(first.picks[0].name)).toBeTruthy();
+
+    // Three recognisable areas, as restrained text tabs rather than pills.
+    expect(LOCATION_SETS.map((entry) => entry.area)).toEqual(["Shinjuku", "Shibuya", "Ginza"]);
+    for (const entry of LOCATION_SETS) {
+      const tab = within(surface).getByRole("button", { name: entry.area });
+      expect(tab.getAttribute("class")).toContain("min-h-11");
+      expect(tab.getAttribute("class")).not.toContain("rounded-chip");
+    }
 
     const control = within(surface).getByRole("button", { name: second.area });
     expect(control.getAttribute("aria-pressed")).toBe("false");
     fireEvent.click(control);
     expect(surface.getAttribute("data-location")).toBe(second.id);
     expect(control.getAttribute("aria-pressed")).toBe("true");
-    expect(within(surface).getByText(second.picks[0].nameJa)).toBeTruthy();
-    expect(within(surface).queryByText(first.picks[0].nameJa)).toBeNull();
+    expect(within(surface).getByText(second.picks[0].name)).toBeTruthy();
+    expect(within(surface).queryByText(first.picks[0].name)).toBeNull();
+
+    // And the third state works too.
+    fireEvent.click(within(surface).getByRole("button", { name: LOCATION_SETS[2].area }));
+    expect(surface.getAttribute("data-location")).toBe(LOCATION_SETS[2].id);
+    expect(within(surface).getByText(LOCATION_SETS[2].picks[0].name)).toBeTruthy();
 
     // And it does not claim Picks follow a reader around.
     expect(
@@ -630,11 +660,38 @@ describe("landing rollout, edition and close", () => {
   it("keeps raw geocoder labels off the public page", () => {
     const { container } = render(<LandingPage />);
 
-    // "3 Chome Sendagi" is a field, not a place a person would name. Every
-    // example carries the recognisable area instead.
-    expect(container.textContent).not.toMatch(/\bChome\b/i);
-    expect(screen.getAllByText("Sendagi").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Jingumae").length).toBeGreaterThan(0);
+    // "3 Chome Sendagi" is a field, not a place a person would name.
+    expect(container.textContent).not.toContain("Chome");
+    expect(screen.getAllByText("Shinjuku").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Koenji").length).toBeGreaterThan(0);
+  });
+
+  it("shows no real catalog restaurant anywhere on the page", () => {
+    const { container } = render(<LandingPage />);
+    const text = container.textContent ?? "";
+
+    // Every restaurant that used to appear here was a real published discovery.
+    // Printing those on a public page overexposes the places Fiyu exists to
+    // protect, so all of them are gone and the fixture that held them is deleted.
+    for (const real of [
+      "江戸酒場 海",
+      "Edo Sakaba Umi",
+      "すし善",
+      "Sushizen",
+      "沖縄そば屋 ちょこっと",
+      "さるり 谷中総本店",
+      "ONDER",
+      "維摩",
+      "Yuima",
+    ]) {
+      expect(text, `${real} must not appear`).not.toContain(real);
+    }
+
+    // Nothing rendered here can be resolved to an entity.
+    for (const example of ALL_FICTIONAL_EXAMPLES) {
+      expect(example.key).not.toMatch(/^ChIJ/);
+    }
+    expect(screen.getAllByTestId("illustrative-note").length).toBeGreaterThanOrEqual(4);
   });
 
   it("declares the photography it is still waiting on", () => {
