@@ -94,29 +94,27 @@ export const IMAGE_SLOTS: Record<ImageSlotId, ImageSlot> = {
   },
   underexposure_paris: {
     id: "underexposure_paris",
-    path: "/landing/france_fiyu.jpg",
+    path: "/landing/france_fiyu_1.jpg",
     available: true,
     /*
-     * A 4000x6000 *portrait* frame of a Paris bistro terrace, cropped into a
-     * landscape box, so half its height is discarded and the anchor decides
-     * everything.
+     * A 3215x2871 frame of a café storefront, nearly square, so a 4:3 box crops
+     * vertically only and by about a sixth. 80% keeps the whole of the terrace and
+     * trims the bare pavement below it instead of the awning above.
      *
-     * Raised from 42% to 8%. At 42% the window ran from about a fifth to
-     * two-thirds down the frame, which kept the glow and the chairs but cut the
-     * awning off the top -- and the awning is the only thing in the photograph
-     * that says France out loud. At 8% the 3000px window sits at roughly y 240 to
-     * 3240, which holds the "Bistrot" lettering, the gold signage beneath it, the
-     * full run of festoon bulbs and the lit doorway. It gives up the rattan
-     * chairs, which is the right trade: at this size a legible sign reads and a
-     * chair does not.
+     * The window that leaves runs from just under the awning valance to the foot
+     * of the chairs, which holds every cue the section needs at thumbnail size:
+     * the awning, the run of festoon bulbs, the lit window, the hand-painted
+     * sign, and the pavement tables. The alternative -- anchoring higher -- kept a
+     * large pale expanse of awning top and cut the seating, which is the one part
+     * that says somebody eats here.
      */
-    objectPosition: "50% 8%",
-    alt: "The terrace of a small neighbourhood bistro in Paris at dusk, tables set beneath festoon lights",
+    objectPosition: "50% 80%",
+    alt: "A small neighbourhood café at dusk: awning, festoon lights and pavement tables",
     aspect: "4:3",
     minWidth: 1200,
     brief:
-      "A small Paris neighbourhood restaurant: a bistro exterior, a doorway, an intimate dining room, or a counter and table detail. Quiet and residential rather than grand. Renders at roughly a third of the width of its row, so it must survive being small -- one clear subject, no fine detail, no crowd.",
-    // A tonal plate rather than a drawing: this slot renders about 120px wide on
+      "A small neighbourhood restaurant or café: an exterior, a doorway, an intimate dining room, or a counter and table detail. Quiet and residential rather than grand. Renders at roughly a third of the width of its row, so it must survive being small -- one clear subject, no fine detail, no crowd. Signage in frame should not place the photograph in a city other than the one the section names.",
+    // A tonal plate rather than a drawing: this slot renders about 160px wide on
     // a phone, where a 1px line illustration is a smudge, and the page's other
     // drawing is already spoken for by the section above.
     fallback: { kind: "plate", label: "Paris" },

@@ -181,14 +181,14 @@ export function LookBeyondSection() {
          * fixed aspect box in it rather than a layout that depends on an image.
          */}
         <div
-          className="fiyu-lp-rise mt-10 grid grid-cols-[9rem_minmax(0,1fr)] items-end gap-5 border-t border-gold-line pt-6 sm:mt-14 sm:grid-cols-[minmax(0,0.3fr)_minmax(0,0.7fr)] sm:gap-8"
+          className="fiyu-lp-rise mt-10 grid grid-cols-[10rem_minmax(0,1fr)] items-end gap-5 border-t border-gold-line pt-6 sm:mt-14 sm:grid-cols-[minmax(0,0.3fr)_minmax(0,0.7fr)] sm:gap-8"
           data-in={flag}
           style={{ "--rise-delay": "960ms", "--rise-from": "12px" } as React.CSSProperties}
         >
           <div className="relative aspect-[4/3] min-w-0 overflow-hidden rounded-card border border-gold-line">
             <SlotImage
               slot="underexposure_paris"
-              sizes="(max-width: 639px) 9rem, 30vw"
+              sizes="(max-width: 639px) 10rem, 30vw"
             />
           </div>
 

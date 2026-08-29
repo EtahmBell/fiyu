@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { useState } from "react";
 
 import {
@@ -15,6 +14,7 @@ import {
   SectionEyebrow,
 } from "@/components/landing-page/landingSystem";
 import { useEntered } from "@/components/landing-page/motion/scrollScene";
+import { WorkflowLocationPlate } from "@/components/landing-page/WorkflowLocationPlate";
 import { useIsDesktop } from "@/lib/hooks/useMediaQuery";
 import { cn } from "@/lib/utils/cn";
 
@@ -34,11 +34,13 @@ import { cn } from "@/lib/utils/cn";
  * unchanged, because the panel's height is fixed and the plate is capped inside
  * it.
  *
- * Two pieces of ambient life, both deliberately below notice. A single ring pings
- * out of the `YOU` marker every four and a bit seconds, and the plate breathes by
- * three percent over twenty-six. In states 02 and 03 the pick cards lift two
- * pixels under a pointer. None of it fires on a touch screen or under reduced
- * motion, and none of it moves anything in the layout. The panel
+ * State 01 is now a first-party graphic rather than an image: see
+ * `WorkflowLocationPlate`. It carries its own ambient life -- a ring pinging out
+ * of the reader's position, three nearby places noticing themselves in turn, the
+ * local field breathing, the street grid drifting under all of it. In states 02
+ * and 03 the pick cards lift two pixels under a pointer. None of it fires on a
+ * touch screen or under reduced motion, and none of it moves anything in the
+ * layout. The panel
  * keeps the same header line -- NEAR LOWER EAST SIDE -- through all three, which
  * is what ties the picks to the place rather than leaving them adjacent to it.
  *
@@ -285,59 +287,18 @@ export function HowFiyuWorks() {
             <p className="text-[0.625rem] font-semibold tracking-[0.16em] text-ink-faint uppercase">
               {PANEL_LABEL}
             </p>
-            <div className="relative mt-3 min-h-0 flex-1 border-y border-line py-3 lg:py-4">
+            <div className="relative mt-3 min-h-0 flex-1 overflow-hidden border-y border-line">
+              {/*
+                The plate bleeds to the well's hairlines on purpose: it is the
+                surface, not a picture resting on it. `slice` inside the SVG means
+                a panel of any proportion crops the artwork rather than stretching
+                it, and everything legible sits inside a safe band that survives
+                every ratio between a phone and a desktop.
+              */}
               <div className={cn(LAYER, active === 0 ? "opacity-100" : "opacity-0")}>
-                {/*
-                 * Contained, not stretched, and cropped.
-                 *
-                 * The source is a 1267x769 full-bleed map: the grid, the labels
-                 * and the lavender field run to every edge, and the only real
-                 * margin in it is a band of near-empty paper along the bottom.
-                 * A nine-to-five window crops on one axis only -- vertically,
-                 * anchored to the top -- which drops that band and touches
-                 * nothing horizontally, so YOU, NOLITA, LOWER EAST SIDE and
-                 * CHINATOWN all survive with room to spare. `overflow-hidden`
-                 * and a radius on the frame are what make the result read as a
-                 * plate rather than as a picture of one.
-                 *
-                 * Capped and centred as well. Left to fill the panel it pulled a
-                 * 1.6 drawing out to nearly five hundred pixels across and read
-                 * as a diagram filling a box.
-                 */}
-                <div className="flex size-full items-center justify-center">
-                  <div className="relative aspect-[9/5] w-full max-w-[19rem] overflow-hidden rounded-lg lg:max-w-[24rem]">
-                    {/*
-                     * The image and the ping share one wrapper, and the wrapper is
-                     * what breathes. Scaling them together is the only way the
-                     * ring stays over the dot it belongs to -- animating the
-                     * picture alone would walk the marker out from under it.
-                     */}
-                    <div className="fiyu-lp-breathe absolute inset-0">
-                      <Image
-                        src="/landing/how_fiyu_works.png"
-                        alt=""
-                        fill
-                        sizes="(max-width: 1023px) 19rem, 24rem"
-                        style={{ objectPosition: "50% 0%" }}
-                        className="object-cover"
-                      />
-                      {/*
-                       * Positioned on the marker in the picture, not guessed: the
-                       * plum dot's centre is at (629, 355) of a 1267x769 source,
-                       * and the 9:5 window crops vertically to 704px, which puts
-                       * it at 49.6% across and 50.4% down.
-                       */}
-                      <span
-                        aria-hidden="true"
-                        className="pointer-events-none absolute top-[50.4%] left-[49.6%] block w-[6.5%] -translate-x-1/2 -translate-y-1/2"
-                      >
-                        <span className="fiyu-lp-ping block aspect-square w-full rounded-full border border-lavender-500/60" />
-                      </span>
-                    </div>
-                  </div>
-                </div>
+                <WorkflowLocationPlate />
               </div>
-              <div className={cn(LAYER, active === 0 ? "opacity-0" : "opacity-100")}>
+              <div className={cn(LAYER, "py-3 lg:py-4", active === 0 ? "opacity-0" : "opacity-100")}>
                 <PicksSurface saved={active === 2} />
               </div>
             </div>

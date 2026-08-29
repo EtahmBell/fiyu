@@ -63,7 +63,7 @@ afterEach(() => {
 const MEASURE_CLASS = "max-w-[90rem]";
 
 /** Committed project assets only: no remote sources on this page. */
-const LOCAL_ASSET = /^\/landing\/[a-z_]+\.(jpg|png)$/;
+const LOCAL_ASSET = /^\/landing\/[a-z0-9_]+\.(jpg|png)$/;
 const CROP_ANCHOR = /^\d+% \d+%$/;
 
 /**
@@ -496,43 +496,42 @@ describe("landing narrative sections", () => {
     expect(container.querySelectorAll("li[data-active][data-observed]")).toHaveLength(0);
   });
 
-  it("crops the step-01 map plate rather than stretching or framing it", () => {
+  it("builds the step-01 plate in code rather than depending on an image", () => {
     render(<LandingPage />);
 
     const surface = screen.getByTestId("workflow-surface");
-    const plate = surface.querySelector("img");
-    if (!plate) throw new Error("Expected the map plate");
-    expect(plate.getAttribute("src")).toContain("how_fiyu_works.png");
 
-    // The source is a full-bleed 1267x769 map whose only real margin is a band of
-    // near-empty paper along the bottom. A 9:5 window crops vertically only,
-    // anchored to the top, which drops that band and leaves every label intact.
-    //
-    // The image sits inside a breathing wrapper so the location ping scales with
-    // it and stays over the dot, so the cropping frame is one level further up.
-    const breathe = plate.parentElement;
-    expect(breathe?.getAttribute("class")).toContain("fiyu-lp-breathe");
-    const ping = breathe?.querySelector(".fiyu-lp-ping");
-    expect(ping).toBeTruthy();
-    expect(ping?.parentElement?.getAttribute("class")).toContain("top-[50.4%]");
-    expect(ping?.parentElement?.getAttribute("class")).toContain("left-[49.6%]");
-    const frame = breathe?.parentElement;
-    expect(frame?.getAttribute("class")).toContain("aspect-[9/5]");
-    expect(frame?.getAttribute("class")).toContain("overflow-hidden");
-    expect(frame?.getAttribute("class")).toContain("max-w-[19rem]");
-    expect(frame?.getAttribute("class")).toContain("lg:max-w-[24rem]");
-    expect(plate.getAttribute("class")).toContain("object-cover");
-    expect(plate.getAttribute("style")).toContain("object-position: 50% 0%");
+    // No image dependency at all: the plate is markup, so it fills whatever the
+    // panel gives it, breathes from the inside, and is coloured by the same tokens
+    // as the rest of the page.
+    expect(surface.querySelector("img")).toBeNull();
+    const plate = surface.querySelector("svg");
+    if (!plate) throw new Error("Expected the step-01 plate");
+    expect(plate.getAttribute("viewBox")).toBe("0 0 360 240");
+    expect(plate.getAttribute("class")).toContain("size-full");
+    // `slice`, never `meet`: a panel of any proportion crops the artwork rather
+    // than stretching it.
+    expect(plate.getAttribute("preserveAspectRatio")).toBe("xMidYMid slice");
+    expect(plate.getAttribute("aria-hidden")).toBe("true");
 
-    // Capped and centred inside the panel, whose height is fixed either way, so
-    // the footprint matches states 02 and 03.
-    expect(frame?.parentElement?.getAttribute("class")).toContain("justify-center");
-    expect(surface.getAttribute("class")).toContain("h-[22.5rem]");
-    expect(surface.getAttribute("class")).toContain("lg:h-[28rem]");
+    // The ingredients: a drifting grid, a breathing local field, three candidates
+    // each pinging on its own delay, and the reader's own position.
+    expect(plate.querySelector(".fiyu-lp-plate-drift")).toBeTruthy();
+    expect(plate.querySelector(".fiyu-lp-field")).toBeTruthy();
+    const pings = [...plate.querySelectorAll(".fiyu-lp-ping")];
+    expect(pings).toHaveLength(4);
+    const delays = pings
+      .map((ping) => ping.getAttribute("style") ?? "")
+      .filter((style) => style.includes("--ping-delay"));
+    expect(delays).toHaveLength(3);
+    expect(new Set(delays).size).toBe(3);
 
-    // Decorative: the whole surface is aria-hidden, and the labels live in the
-    // picture rather than in the document.
-    expect(plate.getAttribute("alt")).toBe("");
+    // Context, and no invented restaurant names in the picture.
+    for (const area of ["NOLITA", "LOWER EAST SIDE", "CHINATOWN", "YOU"]) {
+      expect(within(surface).getByText(area)).toBeTruthy();
+    }
+    // No lines drawn from the centre out: that read as a network diagram.
+    expect(plate.querySelectorAll("path[stroke*='plum']")).toHaveLength(0);
   });
 
   it("explains underexposure compactly, with nothing overlapping anything", () => {
@@ -558,6 +557,17 @@ describe("landing narrative sections", () => {
     expect(scene.getByText("Illustrative discovery")).toBeTruthy();
     expect(scene.getByText("Le Zinc des Lilas")).toBeTruthy();
     expect(countWithClass(section, "aspect-[4/3]")).toBe(1);
+
+    // The café photograph, cropped vertically only and anchored low so the
+    // pavement seating survives and the bare pavement below it does not.
+    const photo = within(section).getByRole("img", {
+      name: "A small neighbourhood café at dusk: awning, festoon lights and pavement tables",
+    });
+    expect(photo.getAttribute("src")).toContain("france_fiyu_1.jpg");
+    expect(photo.getAttribute("class")).toContain("object-cover");
+    expect(photo.getAttribute("style")).toContain("object-position: 50% 80%");
+    expect(photo.getAttribute("loading")).toBe("lazy");
+    expect(photo.getAttribute("sizes")).toContain("10rem");
     expect(section.querySelector('[class*="-mt-2"]')).toBeNull();
   });
 

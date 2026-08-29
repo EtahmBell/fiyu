@@ -153,6 +153,31 @@
   }
 }
 
+@keyframes fiyu-lp-field {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.82;
+    transform: scale(1.02);
+  }
+}
+
+@keyframes fiyu-lp-plate-drift {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  33% {
+    transform: translate(-2.5px, 1.5px);
+  }
+  66% {
+    transform: translate(2px, -2px);
+  }
+}
+
 /* A live city marker breathing. Opacity and scale on a halo ring, never a glow. */
 @keyframes fiyu-lp-halo {
   0%,
@@ -218,7 +243,29 @@
       animation: fiyu-lp-breathe var(--breathe-duration, 26s) ease-in-out infinite;
     }
 
+    /*
+     * The local field, breathing. Two percent of scale and a little opacity over
+     * eighteen seconds: it should look like the zone is alive rather than like it
+     * is being resized.
+     */
+    .fiyu-lp-field {
+      transform-box: fill-box;
+      transform-origin: center;
+      animation: fiyu-lp-field 18s ease-in-out infinite;
+    }
+
+    /*
+     * The street grid, drifting. Two and a half *user units* -- inside an SVG a
+     * CSS pixel is a viewBox unit, so this is under one percent of the plate and
+     * takes forty seconds to cross it. It exists to stop the layer beneath the
+     * markers reading as printed.
+     */
+    .fiyu-lp-plate-drift {
+      animation: fiyu-lp-plate-drift 40s ease-in-out infinite;
+    }
+
     .fiyu-lp-ping {
+      transform-box: fill-box;
       transform-origin: center;
       animation: fiyu-lp-ping var(--ping-duration, 4.4s) var(--ease-fiyu)
         var(--ping-delay, 0ms) infinite;
