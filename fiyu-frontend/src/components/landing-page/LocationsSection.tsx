@@ -63,11 +63,11 @@ function Rollout({ flag }: { flag: string }) {
   return (
     <div className="min-w-0">
       <SectionEyebrow>Locations</SectionEyebrow>
-      <h2 className="mt-5 max-w-[16ch] font-display text-[clamp(1.75rem,2.6vw,2.5rem)] leading-[1.05] tracking-[-0.02em] text-ink">
+      <h2 className="mt-4 max-w-[16ch] font-display text-[clamp(1.625rem,2.6vw,2.5rem)] leading-[1.1] tracking-[-0.02em] text-ink sm:mt-5">
         Fiyu opens city by city.
       </h2>
 
-      <dl className="mt-8 min-w-0 lg:mt-10">
+      <dl className="mt-7 min-w-0 lg:mt-10">
         {ROLLOUT.map((entry) => (
           <div
             key={entry.city}
@@ -292,7 +292,7 @@ export function LocationsSection() {
         className={cn(
           LANDING_MEASURE,
           LANDING_RHYTHM,
-          "grid gap-x-12 gap-y-12",
+          "grid gap-x-12 gap-y-9 sm:gap-y-12",
           "lg:grid-cols-[minmax(0,0.44fr)_minmax(0,0.56fr)] lg:items-center",
         )}
       >

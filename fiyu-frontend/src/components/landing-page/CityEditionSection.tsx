@@ -84,7 +84,7 @@ export function CityEditionSection({ edition = TOKYO_EDITION }: { edition?: City
           </p>
         </div>
 
-        <div className="mt-7 grid gap-x-12 gap-y-7 lg:grid-cols-[minmax(0,0.82fr)_minmax(0,1.05fr)_minmax(0,1.05fr)] lg:items-center">
+        <div className="mt-6 grid gap-x-12 gap-y-6 sm:mt-7 sm:gap-y-7 lg:grid-cols-[minmax(0,0.82fr)_minmax(0,1.05fr)_minmax(0,1.05fr)] lg:items-center">
           <div className="min-w-0">
             <p
               aria-hidden="true"
@@ -139,7 +139,7 @@ export function CityEditionSection({ edition = TOKYO_EDITION }: { edition?: City
 
         {edition.nextUp && (
           <dl
-            className="fiyu-lp-rise mt-7 flex flex-wrap items-baseline gap-x-5 gap-y-2 border-t border-white/15 pt-4"
+            className="fiyu-lp-rise mt-6 flex flex-wrap items-baseline gap-x-5 gap-y-2 border-t border-white/15 pt-4 sm:mt-7"
             data-in={flag}
             style={{ "--rise-delay": "360ms" } as React.CSSProperties}
           >

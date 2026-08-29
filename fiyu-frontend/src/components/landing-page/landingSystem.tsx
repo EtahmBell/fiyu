@@ -12,12 +12,31 @@ import { cn } from "@/lib/utils/cn";
  */
 export const LANDING_MEASURE = "mx-auto w-full max-w-[90rem] px-5 sm:px-8 lg:px-12";
 
-/** Section padding. The hero sets its own, because it also carries a min height. */
-export const LANDING_RHYTHM = "py-20 sm:py-24 lg:py-28";
+/**
+ * Section padding, and the page's mobile rhythm in one place.
+ *
+ * Mobile was inheriting the desktop figure: 80px top and bottom on every section
+ * meant 160px of padding between two blocks of copy on a 390px screen, which is a
+ * quarter of the viewport spent on nothing. 56px is still generous at that width
+ * -- the page should read as editorial rather than as endless -- and desktop is
+ * untouched at 112px.
+ *
+ * Used only by landing-page sections, so changing the mobile step here is the
+ * consistent fix rather than nine one-off overrides.
+ */
+export const LANDING_RHYTHM = "py-14 sm:py-20 lg:py-28";
 
-/** Every section heading below the hero. Colour is left to the caller. */
+/**
+ * Every section heading below the hero. Colour is left to the caller.
+ *
+ * The lower bound is 2.25rem rather than 2.5rem, which is not a general shrink:
+ * at 40px on a 350px measure "How Fiyu works" broke to two lines with one word on
+ * the second, and every other heading on the page picked up a similar orphan. At
+ * 36px they all set in one or two full lines. Desktop is unchanged, since the
+ * viewport term takes over well before `sm`.
+ */
 export const LANDING_HEADING =
-  "font-display text-[clamp(2.5rem,4.4vw,4.25rem)] leading-[0.95] tracking-[-0.02em]";
+  "font-display text-[clamp(2.25rem,4.4vw,4.25rem)] leading-[0.95] tracking-[-0.02em]";
 
 /**
  * A tracked label with a short rule leading into it: the recurring mark that

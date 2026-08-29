@@ -84,10 +84,24 @@ function landingRoute() {
 
 /** Section order, top to bottom, keyed by a heading only that section has. */
 const STEP_TITLES = [
-  "Tell us what you like",
+  "Start with where you are",
   "Receive a few considered picks",
   "Reveal, save, and visit",
 ];
+
+/** Reports a desktop viewport, so the scroll-driven split view is exercised. */
+function stubDesktopViewport() {
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: query.includes("min-width: 64rem"),
+    media: query,
+    onchange: null,
+    addEventListener: () => undefined,
+    removeEventListener: () => undefined,
+    addListener: () => undefined,
+    removeListener: () => undefined,
+    dispatchEvent: () => false,
+  }));
+}
 
 const NARRATIVE = [
   "Hidden places. Carefully uncovered.",
@@ -351,66 +365,119 @@ describe("landing narrative sections", () => {
     expect(scene.getByLabelText("Fiyu score 8.7 out of 10")).toBeTruthy();
   });
 
-  it("drives three product states from position, reversibly, and by click", async () => {
+  it("starts the product story at location, not at food preferences", () => {
     const { container } = render(<LandingPage />);
+    expect(container.textContent ?? "").not.toContain("Tell us what you like");
 
-    const workflow = screen.getByRole("heading", { name: "How Fiyu works" }).closest("section");
-    if (!workflow) throw new Error("Expected the workflow section");
+    // Fiyu's Picks flow begins with where a reader is. The old step 01 described
+    // taste and adventurousness controls the product does not have. Scoped to this
+    // section: the hero legitimately says a selection is matched to your tastes,
+    // which is personalisation rather than a screen with preference controls on it.
+    const section = screen.getByRole("heading", { name: "How Fiyu works" }).closest("section");
+    if (!section) throw new Error("Expected the workflow section");
+    const sectionText = section.textContent ?? "";
+    expect(sectionText).not.toMatch(/adventurous/i);
+    expect(sectionText).not.toMatch(/food interests/i);
+    expect(sectionText).not.toMatch(/tastes/i);
 
-    // No runway. Sticky only up to `lg`, where the columns stack; above that the
-    // two columns are the same height and nothing needs to stick.
-    expect(workflow.querySelector(".fiyu-lp-scene")).toBeNull();
-    const surfaceWrapper = workflow.querySelector(".sticky");
-    expect(surfaceWrapper?.getAttribute("class")).toContain("lg:static");
+    expect(screen.getByRole("heading", { name: "Start with where you are" })).toBeTruthy();
+    expect(
+      screen.getByText("When you ask for new Picks, Fiyu starts with your current location."),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(
+        "Fiyu surfaces a small selection nearby instead of giving you an endless feed.",
+      ),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(
+        "Explore each place, keep the ones you love, and experience the city thoughtfully.",
+      ),
+    ).toBeTruthy();
 
-    const steps = [...workflow.querySelectorAll("li[data-active]")];
-    expect(steps).toHaveLength(3);
-    expect(steps.filter((step) => step.getAttribute("data-active") === "true")).toHaveLength(1);
-
+    // State 01 is a place, and the panel header ties the picks to that place
+    // through all three states.
     const surface = screen.getByTestId("workflow-surface");
     expect(surface.getAttribute("data-step")).toBe("0");
-    expect(surface.getAttribute("aria-hidden")).toBe("true");
-    // Label, the two cross-fading layers in one bordered well, and the credit.
-    expect(surface.children).toHaveLength(3);
-    expect(surface.querySelectorAll(".absolute.inset-0")).toHaveLength(2);
-    // One label above the panel that names the current state, and no outer card:
-    // two hairlines and the picks' own white define the surface.
-    expect(within(surface).getByText("Your tastes")).toBeTruthy();
-    expect(surface.getAttribute("class")).not.toContain("rounded-card");
+    expect(within(surface).getByText("Near Lower East Side")).toBeTruthy();
+    expect(surface.querySelector("svg")).toBeTruthy();
     expect(within(surface).getAllByTestId("example-pick-card-brief")).toHaveLength(3);
+  });
 
-    // The demonstration is New York, so the product does not read as Tokyo-shaped.
-    expect(within(surface).getByText("Canal Claypot")).toBeTruthy();
-    expect(within(surface).getAllByText("Lower East Side").length).toBeGreaterThan(0);
+  it("drives the phone workflow by tap, never by scroll position", () => {
+    render(<LandingPage />);
 
-    // Every step heading is a control, and the copy is visible either way, so
-    // nothing is gated behind the interaction.
-    const controls = STEP_TITLES.map((title) => screen.getByRole("button", { name: new RegExp(title) }));
+    // `useIsDesktop` is false on the server and on the first client render, so
+    // this is the default path: a phone is never waiting on a media query.
+    const tabs = screen.getByTestId("workflow-tabs");
+    const controls = STEP_TITLES.map((title) =>
+      within(tabs).getByRole("button", { name: new RegExp(title) }),
+    );
     expect(controls).toHaveLength(3);
-    for (const entry of STEP_TITLES) expect(screen.getByRole("heading", { name: entry })).toBeTruthy();
+    for (const control of controls) {
+      expect(control.getAttribute("class")).toContain("min-h-11");
+      expect(control.getAttribute("class")).not.toContain("rounded-chip");
+    }
 
-    // Forward, and then back: the state follows the request in both directions,
-    // and a click never moves the document -- the whole band already fits a
-    // screen, so scrolling it could only make the framing worse.
+    // The numbered headings are not controls here; the strip is.
+    const workflow = tabs.closest("section");
+    if (!workflow) throw new Error("Expected the workflow section");
+    expect(workflow.querySelectorAll("h3 button")).toHaveLength(0);
+
+    // Nothing sticky, and no page movement when a state changes.
+    expect(countWithClass(workflow, "sticky")).toBe(0);
     const scrollIntoView = vi.fn();
     Element.prototype.scrollIntoView = scrollIntoView;
+
+    const surface = screen.getByTestId("workflow-surface");
+    const steps = [...workflow.querySelectorAll("li[data-active]")];
     for (const index of [1, 2, 1, 0]) {
       fireEvent.click(controls[index]);
       expect(surface.getAttribute("data-step")).toBe(String(index));
       expect(steps[index].getAttribute("data-active")).toBe("true");
       expect(steps[index].getAttribute("aria-current")).toBe("step");
+      expect(controls[index].getAttribute("aria-pressed")).toBe("true");
     }
     expect(scrollIntoView).not.toHaveBeenCalled();
 
-    // Keyboard reaches the same control, since it is a real button.
-    controls[2].focus();
-    expect(document.activeElement).toBe(controls[2]);
-    fireEvent.click(controls[2]);
-    expect(surface.getAttribute("data-step")).toBe("2");
-    expect(surface.querySelector('[data-tone="saved"]')).toBeTruthy();
+    // A compact panel, not the desktop one forced into a phone.
+    expect(surface.getAttribute("class")).toContain("h-[22.5rem]");
+    expect(surface.getAttribute("class")).toContain("lg:h-[28rem]");
+    expect(surface.getAttribute("class")).not.toContain("rounded-card");
+  });
 
-    // No popularity control is drawn: the product has no popularity data yet.
-    expect(container.textContent).not.toMatch(/Popular favourites|Hidden gems/i);
+  it("splits into scroll-driven columns on a desktop viewport", () => {
+    stubDesktopViewport();
+    render(<LandingPage />);
+
+    const workflow = screen.getByRole("heading", { name: "How Fiyu works" }).closest("section");
+    if (!workflow) throw new Error("Expected the workflow section");
+
+    // Two matched columns, side by side, neither sticky and neither clipped.
+    const grid = workflow.querySelector("ol")?.parentElement;
+    expect(grid?.getAttribute("class")).toContain("lg:grid-cols-");
+    expect(countWithClass(workflow, "sticky")).toBe(0);
+    expect(countWithClass(workflow, "lg:h-[28rem]")).toBe(1);
+
+    // Here the numbered headings are the controls, and the button sits inside the
+    // heading rather than wrapping it: a button may only contain phrasing content.
+    const rowButtons = [...workflow.querySelectorAll("h3 button")];
+    expect(rowButtons).toHaveLength(3);
+
+    const surface = screen.getByTestId("workflow-surface");
+    const steps = [...workflow.querySelectorAll("li[data-active]")];
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+
+    // Forward and then back, by click. Scroll drives the same state through one
+    // observer line, which is symmetric because it reports a position.
+    for (const index of [1, 2, 1, 0]) {
+      fireEvent.click(rowButtons[index]);
+      expect(surface.getAttribute("data-step")).toBe(String(index));
+      expect(steps[index].getAttribute("data-active")).toBe("true");
+    }
+    expect(scrollIntoView).not.toHaveBeenCalled();
+    expect(screen.getByTestId("workflow-tabs").getAttribute("class")).toContain("lg:hidden");
   });
 
   it("explains underexposure compactly, with nothing overlapping anything", () => {
@@ -777,6 +844,43 @@ describe("landing motion safeguards", () => {
     expect(main?.className).toContain("min-w-0");
     expect(main?.className).toContain("overflow-x-clip");
     expect(screen.getByTestId("world-locations-map").getAttribute("class")).toContain("w-full");
+  });
+
+  it("gives the phone its own spacing rhythm, not the desktop one", async () => {
+    const { container } = render(<LandingPage />);
+    const { LANDING_RHYTHM } = await import("@/components/landing-page/landingSystem");
+
+    // One mobile step, changed in one place, rather than nine overrides. 80px of
+    // padding top and bottom on a 390px screen spent a quarter of the viewport
+    // on nothing.
+    expect(LANDING_RHYTHM).toBe("py-14 sm:py-20 lg:py-28");
+
+    // No viewport-relative or minimum heights outside the desktop breakpoint.
+    // Those are what clip a composition on a short phone.
+    for (const element of container.querySelectorAll("[class]")) {
+      for (const token of (element.getAttribute("class") ?? "").split(" ")) {
+        if (token.startsWith("lg:") || token.startsWith("sm:")) continue;
+        expect(token, `viewport height outside lg on ${token}`).not.toMatch(/^h-\[.*[sdl]?vh/);
+        expect(token, `minimum height outside lg on ${token}`).not.toMatch(/^min-h-\[/);
+      }
+    }
+  });
+
+  it("keeps the coverage list efficient at phone width", () => {
+    render(<LandingPage />);
+
+    // Thirty-nine areas as thirty-nine full-width rows would be 600px of list on
+    // a phone. Three columns of smaller type is a third of that, and every area
+    // stays present rather than being truncated.
+    const colophon = screen.getByTestId("coverage-areas");
+    const classes = colophon.getAttribute("class") ?? "";
+    expect(classes).toContain("grid-cols-3");
+    expect(classes).toContain("sm:grid-cols-4");
+    expect(classes).toContain("lg:grid-cols-6");
+    expect(colophon.querySelectorAll("li")).toHaveLength(TOKYO_AREAS.length);
+    for (const item of colophon.querySelectorAll("li")) {
+      expect(item.getAttribute("class")).toContain("truncate");
+    }
   });
 
   it("hydrates the server-rendered landing route without a warning", async () => {

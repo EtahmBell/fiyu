@@ -87,7 +87,7 @@ export function PickedNearbySection() {
         className={cn(
           LANDING_MEASURE,
           LANDING_RHYTHM,
-          "grid gap-x-16 gap-y-10 lg:grid-cols-[minmax(0,0.46fr)_minmax(0,0.54fr)] lg:items-center",
+          "grid gap-x-16 gap-y-8 sm:gap-y-10 lg:grid-cols-[minmax(0,0.46fr)_minmax(0,0.54fr)] lg:items-center",
         )}
       >
         <div className="min-w-0">
@@ -95,7 +95,7 @@ export function PickedNearbySection() {
           <h2 className={cn(LANDING_HEADING, "mt-6 max-w-[16ch] text-ink")}>
             Picked around where you are.
           </h2>
-          <p className="mt-7 max-w-[32rem] text-base leading-8 text-ink-muted">
+          <p className="mt-6 max-w-[32rem] text-base leading-7 text-ink-muted sm:mt-7 sm:leading-8">
             When you ask for new Picks, Fiyu starts with where you are and surfaces a few nearby
             places worth finding.
           </p>

@@ -280,3 +280,23 @@
     display: inline;
   }
 }
+
+/*
+ * The workflow steps, on a phone.
+ *
+ * There the three states are a tab strip, so only the selected step's copy is
+ * shown -- the numbers above it are the control, and repeating all three blocks
+ * underneath would be the desktop layout stacked, which is the thing this pass
+ * exists to stop doing. From `lg` all three rows are visible and the numbered
+ * headings are the control instead.
+ *
+ * Gated on `scripting: enabled` as well as width, because the strip that reveals
+ * the other two steps needs JavaScript to work. Without it the three rows simply
+ * stack, which is the honest fallback rather than two steps a reader can never
+ * reach.
+ */
+@media (max-width: 1023px) and (scripting: enabled) {
+  .fiyu-lp-step[data-active="false"] {
+    display: none;
+  }
+}

@@ -135,12 +135,22 @@ export function useActiveStep(
   count: number,
   {
     /**
+     * Whether scroll position drives the state at all.
+     *
+     * False on a phone. There, the three states are a tab strip: the columns
+     * have stacked, so the surface and the copy are no longer side by side, and
+     * a step that changes because the page moved reads as the section losing
+     * track of itself. Taps are the only input, and the observer is never
+     * created rather than created and ignored.
+     */
+    observe = true,
+    /**
      * Whether a click should move the document. False for a composition that
      * already fits one screen, where moving it can only make the framing worse.
      */
     scrollOnSelect = true,
     rootMargin: rootMarginOption,
-  }: { scrollOnSelect?: boolean; rootMargin?: string } = {},
+  }: { observe?: boolean; scrollOnSelect?: boolean; rootMargin?: string } = {},
   /**
    * A zero-height line, placed low on purpose.
    *
@@ -172,7 +182,7 @@ export function useActiveStep(
   );
 
   useEffect(() => {
-    if (typeof IntersectionObserver === "undefined") return;
+    if (!observe || typeof IntersectionObserver === "undefined") return;
     const observer = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
@@ -185,7 +195,7 @@ export function useActiveStep(
     );
     for (const node of nodes.current) if (node) observer.observe(node);
     return () => observer.disconnect();
-  }, [count, rootMargin]);
+  }, [count, observe, rootMargin]);
 
   const select = useCallback(
     (index: number) => {

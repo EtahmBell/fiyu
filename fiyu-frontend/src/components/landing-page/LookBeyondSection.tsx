@@ -79,11 +79,11 @@ export function LookBeyondSection() {
     <section id="look-beyond" className="scroll-mt-24 border-b border-gold-line bg-gold-soft/30">
       <div ref={ref} className={cn(LANDING_MEASURE, LANDING_RHYTHM)}>
         <SectionEyebrow tone="champagne">Underexposure</SectionEyebrow>
-        <div className="mt-6 grid gap-x-16 gap-y-8 lg:grid-cols-[minmax(0,0.52fr)_minmax(0,0.48fr)] lg:items-end">
+        <div className="mt-5 grid gap-x-16 gap-y-6 sm:mt-6 sm:gap-y-8 lg:grid-cols-[minmax(0,0.52fr)_minmax(0,0.48fr)] lg:items-end">
           <h2 className={cn(LANDING_HEADING, "max-w-[18ch] text-ink")}>
             Look beyond what rises to the top.
           </h2>
-          <p className="max-w-[30rem] text-base leading-8 text-ink-muted lg:pb-2">
+          <p className="max-w-[30rem] text-base leading-7 text-ink-muted sm:leading-8 lg:pb-2">
             Discovery platforms reinforce whatever is already easiest to find. Fiyu reads the
             context those platforms never index, and weighs quality against how widely a place
             is already known.
@@ -91,7 +91,7 @@ export function LookBeyondSection() {
         </div>
 
         {/* The four signals, on one row. Nothing overlaps anything. */}
-        <ol className="mt-14 grid gap-x-10 gap-y-9 sm:grid-cols-2 sm:mt-16 lg:grid-cols-4 lg:gap-x-12">
+        <ol className="mt-10 grid gap-x-10 gap-y-7 sm:mt-14 sm:grid-cols-2 sm:gap-y-9 lg:grid-cols-4 lg:gap-x-12">
           {SIGNALS.map((signal, index) => (
             <li key={signal.label} className="min-w-0">
               <span
@@ -126,7 +126,7 @@ export function LookBeyondSection() {
          * the section, in the same measure as everything above it.
          */}
         <div
-          className="fiyu-lp-rise mt-14 border-t border-gold-line pt-6 sm:mt-16"
+          className="fiyu-lp-rise mt-10 border-t border-gold-line pt-6 sm:mt-14"
           data-in={flag}
           style={{ "--rise-delay": "760ms", "--rise-from": "12px" } as React.CSSProperties}
         >

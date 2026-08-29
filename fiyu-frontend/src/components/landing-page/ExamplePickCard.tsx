@@ -58,7 +58,7 @@ export function IllustrativeNote({
     <p
       data-testid="illustrative-note"
       className={cn(
-        "flex items-center gap-2.5 text-[0.625rem] tracking-[0.16em] text-ink-faint uppercase",
+        "flex items-center gap-2.5 text-[0.6875rem] tracking-[0.14em] text-ink-faint uppercase",
         className,
       )}
     >
@@ -211,7 +211,7 @@ export function ExamplePickCardBrief({
       data-tone={tone}
       className={cn(
         SURFACE,
-        "p-2.5 shadow-[0_10px_30px_-24px_rgba(49,40,61,0.5)] sm:p-3",
+        "p-2 shadow-[0_10px_30px_-24px_rgba(49,40,61,0.5)] sm:p-3",
         "transition-colors duration-500 ease-(--ease-fiyu)",
         saved ? "border-t-gold/60" : "border-t-lavender-500/45",
         className,

@@ -58,13 +58,13 @@ export function RestaurantMoment() {
     <section id="worth-finding" ref={ref} className="scroll-mt-24 border-b border-line bg-canvas">
       <div className={cn(LANDING_MEASURE, LANDING_RHYTHM)}>
         <h2
-          className="fiyu-lp-rise max-w-[24ch] font-display text-[clamp(1.875rem,5vw,4rem)] leading-[0.98] tracking-[-0.02em] text-ink"
+          className="fiyu-lp-rise max-w-[24ch] font-display text-[clamp(1.75rem,5vw,4rem)] leading-[0.98] tracking-[-0.02em] text-ink"
           data-in={flag}
         >
           Worth finding isn’t always easy to find.
         </h2>
 
-        <div className="mt-10 grid gap-x-14 gap-y-8 lg:mt-14 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] lg:items-end">
+        <div className="mt-8 grid gap-x-14 gap-y-7 lg:mt-14 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] lg:items-end">
           {/*
            * The emotional focus, and the reason the section exists. Fixed aspect,
            * so the photograph that replaces the drawing changes nothing else.

@@ -80,19 +80,19 @@ export function HeroSection() {
            */}
           <span
             aria-hidden="true"
-            className="fiyu-lp-rule mt-8 block h-px w-16 origin-left bg-rose-dust sm:mt-10"
+            className="fiyu-lp-rule mt-7 block h-px w-16 origin-left bg-rose-dust sm:mt-10"
             data-in="true"
             style={{ "--rule-delay": "260ms" } as React.CSSProperties}
           />
           <h1
-            className="fiyu-lp-rise mt-8 max-w-[46rem] font-display text-[clamp(2.5rem,5.2vw,5rem)] leading-[0.95] tracking-[-0.03em] text-ink sm:mt-10"
+            className="fiyu-lp-rise mt-7 max-w-[46rem] font-display text-[clamp(2.125rem,5.2vw,5rem)] leading-[0.95] tracking-[-0.03em] text-ink sm:mt-10"
             data-in="true"
             style={{ "--rise-delay": "120ms" } as React.CSSProperties}
           >
             Hidden places. Carefully uncovered.
           </h1>
           <p
-            className="fiyu-lp-rise mt-7 max-w-[34rem] text-base leading-8 text-ink-muted sm:text-[1.0625rem]"
+            className="fiyu-lp-rise mt-6 max-w-[34rem] text-base leading-7 text-ink-muted sm:mt-7 sm:leading-8 sm:text-[1.0625rem]"
             data-in="true"
             style={{ "--rise-delay": "220ms" } as React.CSSProperties}
           >
@@ -100,7 +100,7 @@ export function HeroSection() {
             independent, underexposed restaurants suited to your tastes.
           </p>
           <div
-            className="fiyu-lp-rise mt-10 flex flex-col items-start gap-5 sm:flex-row sm:items-center sm:gap-7"
+            className="fiyu-lp-rise mt-8 flex flex-col items-start gap-5 sm:mt-10 sm:flex-row sm:items-center sm:gap-7"
             data-in="true"
             style={{ "--rise-delay": "320ms" } as React.CSSProperties}
           >
@@ -123,7 +123,7 @@ export function HeroSection() {
          */}
         <figure
           data-testid="hero-nearby-figure"
-          className="min-w-0 border-t border-line pt-10 lg:border-t-0 lg:pt-0"
+          className="min-w-0 border-t border-line pt-8 sm:pt-10 lg:border-t-0 lg:pt-0"
         >
           <div className="mx-auto w-full max-w-[25rem] lg:mr-0 lg:ml-auto lg:max-w-[28rem]">
             <PickComposition examples={HERO_EXAMPLES} />

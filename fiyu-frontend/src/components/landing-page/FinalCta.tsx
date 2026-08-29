@@ -38,11 +38,11 @@ export function FinalCta() {
 
   return (
     <section id="start" ref={ref} className="scroll-mt-24 border-b border-line bg-canvas">
-      <div className={cn(LANDING_MEASURE, "pt-20 pb-14 sm:pt-24 lg:pt-28")}>
-        <div className="grid gap-x-16 gap-y-10 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)] lg:items-end">
+      <div className={cn(LANDING_MEASURE, "pt-14 pb-10 sm:pt-20 sm:pb-14 lg:pt-28")}>
+        <div className="grid gap-x-16 gap-y-8 sm:gap-y-10 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)] lg:items-end">
           <div className="min-w-0">
             <h2
-              className="fiyu-lp-rise max-w-[16ch] font-display text-[clamp(2.5rem,6vw,5.25rem)] leading-[0.94] tracking-[-0.03em] text-ink"
+              className="fiyu-lp-rise max-w-[16ch] font-display text-[clamp(2.125rem,6vw,5.25rem)] leading-[0.94] tracking-[-0.03em] text-ink"
               data-in={flag}
             >
               Your next few are waiting.
@@ -95,12 +95,12 @@ export function FinalCta() {
         </div>
         <ul
           data-testid="coverage-areas"
-          className="mt-5 grid grid-cols-2 gap-x-6 gap-y-2.5 sm:grid-cols-4 lg:grid-cols-6"
+          className="mt-5 grid grid-cols-3 gap-x-4 gap-y-2 sm:grid-cols-4 sm:gap-x-6 sm:gap-y-2.5 lg:grid-cols-6"
         >
           {TOKYO_AREAS.map((area, index) => (
             <li
               key={area}
-              className="fiyu-lp-rise min-w-0 truncate text-[0.8125rem] leading-5 text-ink"
+              className="fiyu-lp-rise min-w-0 truncate text-xs leading-5 text-ink sm:text-[0.8125rem]"
               data-in={flag}
               style={
                 {

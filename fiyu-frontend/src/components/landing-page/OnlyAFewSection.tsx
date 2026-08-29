@@ -83,7 +83,7 @@ export function OnlyAFewSection() {
          */}
         <div
           ref={ref}
-          className="mx-auto mt-10 grid max-w-[62rem] gap-3 sm:mt-14 sm:grid-cols-3 sm:gap-5 lg:gap-7"
+          className="mx-auto mt-8 grid max-w-[62rem] gap-3 sm:mt-14 sm:grid-cols-3 sm:gap-5 lg:gap-7"
         >
           {ONLY_A_FEW_EXAMPLES.map((example, index) => (
             <div key={example.key} className="min-w-0 border-b border-line-strong pb-3 sm:pb-4">
@@ -105,7 +105,7 @@ export function OnlyAFewSection() {
           ))}
         </div>
 
-        <IllustrativeNote className="mx-auto mt-8 w-fit">
+        <IllustrativeNote className="mx-auto mt-7 w-fit">
           Illustrative discoveries in Los Angeles
         </IllustrativeNote>
 
