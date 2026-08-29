@@ -12,6 +12,7 @@ import {
   SectionEyebrow,
 } from "@/components/landing-page/landingSystem";
 import { useEntered } from "@/components/landing-page/motion/scrollScene";
+import { SlotImage } from "@/components/landing-page/SlotImage";
 import { ScoreMark } from "@/components/ui/ScoreMark";
 import { cn } from "@/lib/utils/cn";
 
@@ -71,13 +72,37 @@ const SIGNALS = [
 ] as const;
 
 export function LookBeyondSection() {
-  const { ref, entered } = useEntered<HTMLDivElement>();
+  /*
+   * Observed on the section, and gated on a quarter of it having arrived.
+   *
+   * This was the bug. The observer had no threshold, so it reported intersecting
+   * the instant the element's top edge crossed the root -- and the element was
+   * the whole section, eight hundred pixels of it. The sequence therefore started
+   * while only the eyebrow had appeared, and finished about a second and a half
+   * later, by which time a reader scrolling normally had carried the signals and
+   * the closing line past the fold. Nothing was broken; the entrance simply ran
+   * off screen, which is why it appeared to work only when the page was reloaded
+   * with the section already in view.
+   *
+   * A quarter of the section is roughly its heading plus the top of the signal
+   * row: enough on screen that the sequence is watched rather than merely
+   * completed. Expressed against the section's own height, it scales by itself
+   * from a 700px desktop section to an 1100px one on a phone.
+   */
+  const { ref, entered } = useEntered<HTMLElement>({
+    rootMargin: "0px",
+    threshold: 0.25,
+  });
   const flag = entered ? "true" : "false";
   const example = LOOK_BEYOND_EXAMPLE;
 
   return (
-    <section id="look-beyond" className="scroll-mt-24 border-b border-gold-line bg-gold-soft/30">
-      <div ref={ref} className={cn(LANDING_MEASURE, LANDING_RHYTHM)}>
+    <section
+      id="look-beyond"
+      ref={ref}
+      className="scroll-mt-24 border-b border-gold-line bg-gold-soft/30"
+    >
+      <div className={cn(LANDING_MEASURE, LANDING_RHYTHM)}>
         <SectionEyebrow tone="champagne">Underexposure</SectionEyebrow>
         <div className="mt-5 grid gap-x-16 gap-y-6 sm:mt-6 sm:gap-y-8 lg:grid-cols-[minmax(0,0.52fr)_minmax(0,0.48fr)] lg:items-end">
           <h2 className={cn(LANDING_HEADING, "max-w-[18ch] text-ink")}>
@@ -98,14 +123,20 @@ export function LookBeyondSection() {
                 aria-hidden="true"
                 className="fiyu-lp-rule block h-px w-full origin-left bg-gold-line"
                 data-in={flag}
-                style={{ "--rule-delay": index * 140 + 100 + "ms" } as React.CSSProperties}
+                style={
+                  {
+                    "--rule-delay": index * 110 + 80 + "ms",
+                    "--rule-duration": "620ms",
+                  } as React.CSSProperties
+                }
               />
               <div
                 className="fiyu-lp-rise pt-4"
                 data-in={flag}
                 style={
                   {
-                    "--rise-delay": index * 140 + 240 + "ms",
+                    "--rise-delay": index * 110 + 200 + "ms",
+                    "--rise-duration": "520ms",
                     "--rise-from": "10px",
                   } as React.CSSProperties
                 }
@@ -122,26 +153,35 @@ export function LookBeyondSection() {
         </ol>
 
         {/*
-         * And one place. A single ruled line rather than a card: the last word of
-         * the section, in the same measure as everything above it.
+         * And one place, with a picture of the kind of street it is on.
+         *
+         * The photograph is about a third of this row and the last thing in the
+         * section, which is the right weight: Underexposure is an argument, and an
+         * argument should not be illustrated more than it is made. It also stays
+         * intentional while the slot is empty, because the row is a grid with a
+         * fixed aspect box in it rather than a layout that depends on an image.
          */}
         <div
-          className="fiyu-lp-rise mt-10 border-t border-gold-line pt-6 sm:mt-14"
+          className="fiyu-lp-rise mt-10 grid grid-cols-[7.5rem_minmax(0,1fr)] items-end gap-5 border-t border-gold-line pt-6 sm:mt-14 sm:grid-cols-[minmax(0,0.3fr)_minmax(0,0.7fr)] sm:gap-8"
           data-in={flag}
-          style={{ "--rise-delay": "760ms", "--rise-from": "12px" } as React.CSSProperties}
+          style={{ "--rise-delay": "600ms", "--rise-from": "12px" } as React.CSSProperties}
         >
-          <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-4">
+          <div className="relative aspect-[4/3] min-w-0 overflow-hidden rounded-card border border-gold-line">
+            <SlotImage
+              slot="underexposure_paris"
+              sizes="(max-width: 639px) 7.5rem, 30vw"
+            />
+          </div>
+
+          <div className="flex min-w-0 flex-wrap items-end justify-between gap-x-8 gap-y-4">
             <div className="min-w-0">
-              <p className="text-[0.625rem] font-semibold tracking-[0.16em] text-ink-faint uppercase">
-                Then one place worth going
-              </p>
-              <p className="mt-3 font-display text-[clamp(1.5rem,3vw,2.5rem)] leading-tight text-ink">
+              <IllustrativeNote>Illustrative discovery</IllustrativeNote>
+              <p className="mt-3 font-display text-[clamp(1.375rem,3vw,2.5rem)] leading-tight text-ink">
                 {example.name}
               </p>
               <p className="mt-2 text-sm text-ink-muted">
                 {example.area}, {example.city} · {example.category}
               </p>
-              <IllustrativeNote className="mt-4">Illustrative example</IllustrativeNote>
             </div>
             <ScoreMark score={scoreMarkValue(example.displayScore)} size="lg" className="shrink-0" />
           </div>

@@ -33,7 +33,7 @@ import { cn } from "@/lib/utils/cn";
  * Motion is one staggered entrance and nothing else.
  */
 export function FinalCta() {
-  const { ref, entered } = useEntered<HTMLElement>();
+  const { ref, entered } = useEntered<HTMLElement>({ threshold: 0.12 });
   const flag = entered ? "true" : "false";
 
   return (
@@ -83,6 +83,12 @@ export function FinalCta() {
        * The colophon. A ruled grid of areas, sized to fit all of them rather than
        * truncated: the length is the point. Row-major over a prominence-ordered
        * list, so it opens on the names a visitor will already know.
+       *
+       * Two columns on the narrowest phones and three from 420px, because three
+       * columns at 390px leaves about a hundred pixels for names like
+       * Monzen-nakacho. A longer list of readable areas beats a shorter list of
+       * ellipses -- the point of the block is breadth, and a truncated place name
+       * communicates none.
        */}
       <div className={cn(LANDING_MEASURE, "border-t border-line py-8 sm:py-10")}>
         <div className="flex flex-wrap items-baseline justify-between gap-x-8 gap-y-2">
@@ -95,7 +101,7 @@ export function FinalCta() {
         </div>
         <ul
           data-testid="coverage-areas"
-          className="mt-5 grid grid-cols-3 gap-x-4 gap-y-2 sm:grid-cols-4 sm:gap-x-6 sm:gap-y-2.5 lg:grid-cols-6"
+          className="mt-5 grid grid-cols-2 gap-x-5 gap-y-2 min-[420px]:grid-cols-3 sm:grid-cols-4 sm:gap-x-6 sm:gap-y-2.5 lg:grid-cols-6"
         >
           {TOKYO_AREAS.map((area, index) => (
             <li

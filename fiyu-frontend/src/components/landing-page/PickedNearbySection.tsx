@@ -34,6 +34,11 @@ import { cn } from "@/lib/utils/cn";
  * lavender underline under tracked micro-caps belongs here, and still gives a
  * 44px target and real button semantics.
  *
+ * The rows carry a named Fiyu Score column. It is the value a reader looks for
+ * once they have understood that the places changed, and it is the product's own
+ * mark -- but every number here is invented, which is why the credit beneath the
+ * surface says so.
+ *
  * The copy is careful about one thing: Fiyu uses your location *when the
  * selection is made*. It does not follow you around, and a marketing page should
  * not imply that it does -- so the standing line under the surface says so
@@ -75,7 +80,7 @@ function AreaTab({
 }
 
 export function PickedNearbySection() {
-  const { ref, entered } = useEntered<HTMLDivElement>();
+  const { ref, entered } = useEntered<HTMLDivElement>({ threshold: 0.15 });
   const [selected, setSelected] = useState(LOCATION_SETS[0].id);
   const flag = entered ? "true" : "false";
   const set = LOCATION_SETS.find((entry) => entry.id === selected) ?? LOCATION_SETS[0];
@@ -117,7 +122,7 @@ export function PickedNearbySection() {
             <div
               role="group"
               aria-label="Starting point"
-              className="mt-1 flex min-w-0 flex-wrap items-center gap-x-7 border-b border-line"
+              className="mt-1 flex min-w-0 flex-wrap items-center gap-x-7"
             >
               {LOCATION_SETS.map((entry) => (
                 <AreaTab
@@ -130,13 +135,25 @@ export function PickedNearbySection() {
             </div>
 
             {/*
+             * A column header rather than a table: two tracked labels over ruled
+             * rows. The score is what a reader is looking for once they have
+             * understood that the places changed, so it needs naming -- but this
+             * is an editorial index, not a data grid, so it gets a caption and
+             * nothing else.
+             */}
+            <div className="mt-4 flex items-baseline justify-between gap-4 text-[0.625rem] font-semibold tracking-[0.16em] text-ink-faint uppercase">
+              <span>Place</span>
+              <span>Fiyu Score</span>
+            </div>
+
+            {/*
              * Keyed on the selection, so switching remounts the rows and replays
              * the shared fade rather than needing a transition per row. The
              * container height is stable: three rows either way.
              */}
             <div
               key={set.id}
-              className="mt-1"
+              className="mt-1 border-t border-line"
               style={{ animation: "fiyu-fade-in 300ms var(--ease-fiyu)" }}
             >
               {set.picks.map((example) => (
@@ -145,7 +162,7 @@ export function PickedNearbySection() {
             </div>
           </div>
 
-          <IllustrativeNote className="mt-6">Illustrative examples</IllustrativeNote>
+          <IllustrativeNote className="mt-6">Illustrative discoveries</IllustrativeNote>
           <p className="mt-4 max-w-[30rem] text-[0.8125rem] leading-6 text-ink-faint">
             Your location is used at the moment a selection is made. Picks you already have stay
             put as you move.

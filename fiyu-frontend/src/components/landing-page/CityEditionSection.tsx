@@ -53,13 +53,13 @@ const TOKYO_EDITION: CityEdition = {
   heading: "Fiyu has arrived in Tokyo.",
   description:
     "Explore Tokyo’s independent and underexposed restaurants, selected around your tastes—from local izakayas to tucked-away ramen counters you might otherwise miss.",
-  slot: "current_city_01",
+  slot: "current_edition_tokyo",
   nextUp: { city: "New York", when: "October 2026" },
 };
 
 export function CityEditionSection({ edition = TOKYO_EDITION }: { edition?: CityEdition }) {
   const picksHref = usePicksEntryHref();
-  const { ref, entered } = useEntered<HTMLElement>();
+  const { ref, entered } = useEntered<HTMLElement>({ threshold: 0.15 });
   const flag = entered ? "true" : "false";
 
   return (

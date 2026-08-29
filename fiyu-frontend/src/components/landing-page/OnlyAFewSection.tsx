@@ -59,7 +59,7 @@ export function OnlyAFewSection() {
    * the copy are fully readable above it, and the first shelf is just entering, so
    * the one-two-three is perceived rather than merely completed.
    */
-  const { ref, entered } = useEntered<HTMLDivElement>("0px 0px -28% 0px");
+  const { ref, entered } = useEntered<HTMLDivElement>({ rootMargin: "0px 0px -28% 0px" });
   const flag = entered ? "true" : "false";
 
   return (

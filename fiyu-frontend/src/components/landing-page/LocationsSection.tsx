@@ -282,7 +282,7 @@ function Atlas({ picksHref, flag }: { picksHref: string; flag: string }) {
 
 export function LocationsSection() {
   const picksHref = usePicksEntryHref();
-  const { ref, entered } = useEntered<HTMLDivElement>("0px 0px -20% 0px");
+  const { ref, entered } = useEntered<HTMLDivElement>({ rootMargin: "0px 0px -20% 0px", threshold: 0.15 });
   const flag = entered ? "true" : "false";
 
   return (

@@ -352,11 +352,12 @@ describe("landing narrative sections", () => {
     // A fixed aspect box, so the real photograph drops in with no layout shift.
     expect(countWithClass(moment, "aspect-[4/3]")).toBe(1);
 
-    // "Sample", not "A": the restaurant is invented, and Fiyu has not evaluated
-    // a business that does not exist, so the recorded band is gone too.
-    expect(scene.getByText("Sample Fiyu discovery")).toBeTruthy();
+    // One marker, not two. The eyebrow does the work; the credit line that used
+    // to sit beneath the tags on the same single example is gone.
+    expect(scene.getByText("Illustrative discovery")).toBeTruthy();
     expect(scene.queryByText("A Fiyu discovery")).toBeNull();
     expect(scene.queryByText("Exceptional")).toBeNull();
+    expect(scene.queryAllByTestId("illustrative-note")).toHaveLength(0);
 
     // Seoul: the first quiet signal that the system is not Tokyo-shaped.
     expect(scene.getByText("Yeonhwa Gukbap")).toBeTruthy();
@@ -446,9 +447,9 @@ describe("landing narrative sections", () => {
     expect(surface.getAttribute("class")).not.toContain("rounded-card");
   });
 
-  it("splits into scroll-driven columns on a desktop viewport", () => {
+  it("changes state only when asked, at every width", () => {
     stubDesktopViewport();
-    render(<LandingPage />);
+    const { container } = render(<LandingPage />);
 
     const workflow = screen.getByRole("heading", { name: "How Fiyu works" }).closest("section");
     if (!workflow) throw new Error("Expected the workflow section");
@@ -469,15 +470,43 @@ describe("landing narrative sections", () => {
     const scrollIntoView = vi.fn();
     Element.prototype.scrollIntoView = scrollIntoView;
 
-    // Forward and then back, by click. Scroll drives the same state through one
-    // observer line, which is symmetric because it reports a position.
+    // Forward and then back, by click, and nothing moves the document.
     for (const index of [1, 2, 1, 0]) {
       fireEvent.click(rowButtons[index]);
       expect(surface.getAttribute("data-step")).toBe(String(index));
       expect(steps[index].getAttribute("data-active")).toBe("true");
+      expect(rowButtons[index].getAttribute("aria-pressed")).toBe("true");
     }
     expect(scrollIntoView).not.toHaveBeenCalled();
     expect(screen.getByTestId("workflow-tabs").getAttribute("class")).toContain("lg:hidden");
+
+    // Nothing observes scroll for this section any more. Two passes of
+    // scroll-derived steps never felt deliberate: one wheel gesture could cross
+    // all three states before a reader had read one.
+    expect(container.querySelectorAll("li[data-active][data-observed]")).toHaveLength(0);
+  });
+
+  it("keeps the step-01 plate contained rather than stretched", () => {
+    render(<LandingPage />);
+
+    const surface = screen.getByTestId("workflow-surface");
+    const plate = surface.querySelector("svg");
+    expect(plate?.getAttribute("viewBox")).toBe("0 0 320 240");
+
+    // Capped and centred inside the panel. It used to scale to whatever width the
+    // panel offered, which pulled a 4:3 drawing out to nearly 500px and made it
+    // read as a diagram filling a box.
+    const frame = plate?.parentElement;
+    expect(frame?.getAttribute("class")).toContain("aspect-[4/3]");
+    expect(frame?.getAttribute("class")).toContain("max-w-[17rem]");
+    expect(frame?.parentElement?.getAttribute("class")).toContain("justify-center");
+
+    // A place, with real areas and no route drawn between the marks: relationship
+    // lines read as a network diagram, which is the one thing this must not be.
+    for (const area of ["NOLITA", "LOWER EAST SIDE", "CHINATOWN", "YOU"]) {
+      expect(within(surface).getByText(area)).toBeTruthy();
+    }
+    expect(plate?.querySelectorAll("path[stroke*='plum']")).toHaveLength(0);
   });
 
   it("explains underexposure compactly, with nothing overlapping anything", () => {
@@ -498,9 +527,11 @@ describe("landing narrative sections", () => {
     }
 
     // The floated card that used to cut through the paragraph is gone; the
-    // section resolves into one ruled line instead.
+    // section resolves into one ruled row with a photograph slot beside it.
     expect(scene.queryAllByTestId("example-pick-card")).toHaveLength(0);
-    expect(scene.getByText("Then one place worth going")).toBeTruthy();
+    expect(scene.getByText("Illustrative discovery")).toBeTruthy();
+    expect(scene.getByText("Le Zinc des Lilas")).toBeTruthy();
+    expect(countWithClass(section, "aspect-[4/3]")).toBe(1);
     expect(section.querySelector('[class*="-mt-2"]')).toBeNull();
   });
 
@@ -764,11 +795,30 @@ describe("landing rollout, edition and close", () => {
   it("declares the photography it is still waiting on", () => {
     // Slots, not hardcoded files: an operator sets one `src` and the layout does
     // not move, because every slot renders inside a fixed aspect box.
-    for (const slot of Object.values(IMAGE_SLOTS)) {
+    // Exactly three, each naming the file it expects, so installing an asset is
+    // dropping it at `path` and flipping `available`.
+    const slots = Object.values(IMAGE_SLOTS);
+    expect(slots.map((slot) => slot.id)).toEqual([
+      "worth_finding_seoul",
+      "underexposure_paris",
+      "current_edition_tokyo",
+    ]);
+    for (const slot of slots) {
       expect(slot.brief.length).toBeGreaterThan(40);
       expect(slot.aspect).toMatch(/^\d+:\d+$/);
-      if (slot.src === null) expect(slot.fallback).toBeTruthy();
+      expect(slot.minWidth).toBeGreaterThanOrEqual(1200);
+      expect(slot.path).toMatch(/^\/images\/landing\/[a-z-]+\.jpg$/);
+      if (!slot.available) {
+        expect(["illustration", "plate"]).toContain(slot.fallback.kind);
+      }
     }
+
+    // Each line drawing Fiyu owns stands in for exactly one slot. The same
+    // drawing appearing twice on one page is what made the imagery look thin.
+    const drawings = slots
+      .map((slot) => (slot.fallback.kind === "illustration" ? slot.fallback.src : null))
+      .filter((src): src is string => src !== null);
+    expect(new Set(drawings).size).toBe(drawings.length);
   });
 });
 
@@ -844,6 +894,103 @@ describe("landing motion safeguards", () => {
     expect(main?.className).toContain("min-w-0");
     expect(main?.className).toContain("overflow-x-clip");
     expect(screen.getByTestId("world-locations-map").getAttribute("class")).toContain("w-full");
+  });
+
+  it("holds the underexposure entrance until enough of the section has arrived", async () => {
+    const { LookBeyondSection } = await import("@/components/landing-page/LookBeyondSection");
+    const observed: { root: Element | null; options: IntersectionObserverInit }[] = [];
+
+    class Recording {
+      constructor(
+        _callback: IntersectionObserverCallback,
+        public options: IntersectionObserverInit = {},
+      ) {}
+      observe(target: Element) {
+        observed.push({ root: target, options: this.options });
+      }
+      unobserve() {}
+      disconnect() {}
+      takeRecords() {
+        return [];
+      }
+    }
+    vi.stubGlobal("IntersectionObserver", Recording);
+
+    render(<LookBeyondSection />);
+
+    // The bug: with no threshold an observer reports intersecting the moment one
+    // pixel of the target crosses the root. The target here is the whole section,
+    // so the sequence began while only the eyebrow had appeared and finished about
+    // a second and a half later, off screen. It looked like it had not run.
+    expect(observed).toHaveLength(1);
+    expect(observed[0].options.threshold).toBe(0.25);
+    expect(observed[0].options.rootMargin).toBe("0px");
+    expect(observed[0].root?.tagName).toBe("SECTION");
+    expect(observed[0].root?.id).toBe("look-beyond");
+  });
+
+  it("names a Fiyu Score column on the location surface", () => {
+    render(<LandingPage />);
+
+    const surface = screen.getByTestId("location-surface");
+    expect(within(surface).getByText("Place")).toBeTruthy();
+    expect(within(surface).getByText("Fiyu Score")).toBeTruthy();
+
+    // Every row carries a score, right-aligned, in tabular numerals, and the
+    // area now sits beside the type so the middle column reads as one field.
+    for (const set of LOCATION_SETS) {
+      fireEvent.click(within(surface).getByRole("button", { name: set.area }));
+      const scores = within(surface).getAllByRole("img", { name: /Fiyu score/ });
+      expect(scores).toHaveLength(3);
+      for (const score of scores) {
+        expect(score.getAttribute("class")).toContain("tabular-nums");
+        expect(score.getAttribute("class")).toContain("shrink-0");
+      }
+      for (const pick of set.picks) {
+        expect(within(surface).getByText(`${pick.area} · ${pick.category}`)).toBeTruthy();
+      }
+    }
+
+    // Marketing-only values, and the surface says so once.
+    expect(within(surface.parentElement as HTMLElement).getByTestId("illustrative-note")).toBeTruthy();
+  });
+
+  it("separates the hero from Worth Finding on a phone", () => {
+    render(<LandingPage />);
+
+    // Below `sm` both sections are cream and read as one very long stretch, so the
+    // boundary gets a lavender-tinted rule and the section beyond it goes
+    // near-white. Desktop keeps the neutral hairline it already had.
+    const hero = screen.getByTestId("landing-wordmark").closest("section");
+    expect(hero?.getAttribute("class")).toContain("border-lavender-100");
+    expect(hero?.getAttribute("class")).toContain("sm:border-line");
+
+    const moment = screen
+      .getByRole("heading", { name: "Worth finding isn’t always easy to find." })
+      .closest("section");
+    expect(moment?.getAttribute("class")).toContain("bg-surface");
+    expect(moment?.getAttribute("class")).toContain("sm:bg-canvas");
+    // Intentional top spacing before the headline, more than the shared rhythm.
+    expect(moment?.querySelector(".pt-16")).toBeTruthy();
+  });
+
+  it("shows one trust marker per illustrative composition, never two", () => {
+    render(<LandingPage />);
+
+    // Six compositions carry invented restaurants; each names itself once.
+    const markers = screen.getAllByTestId("illustrative-note");
+    expect(markers.length).toBeGreaterThanOrEqual(4);
+    for (const marker of markers) {
+      expect(marker.textContent ?? "").toMatch(/^Illustrative discover(y|ies)/);
+    }
+
+    // No composition carries two of them.
+    for (const marker of markers) {
+      const section = marker.closest("section");
+      if (!section) continue;
+      const inSection = section.querySelectorAll('[data-testid="illustrative-note"]');
+      expect(inSection.length, `${section.id} has ${inSection.length} markers`).toBe(1);
+    }
   });
 
   it("gives the phone its own spacing rhythm, not the desktop one", async () => {

@@ -25,10 +25,10 @@ export function SlotImage({
 }) {
   const slot = IMAGE_SLOTS[slotId];
 
-  if (slot.src) {
+  if (slot.available) {
     return (
       <Image
-        src={slot.src}
+        src={slot.path}
         alt={slot.alt}
         fill
         priority={priority}
@@ -36,6 +36,20 @@ export function SlotImage({
         sizes={sizes}
         className={cn("object-cover object-center", className)}
       />
+    );
+  }
+
+  if (slot.fallback.kind === "plate") {
+    return (
+      <div
+        aria-hidden="true"
+        className="flex size-full items-center justify-center bg-gold-soft"
+      >
+        <span className="font-display text-[1.375rem] leading-none text-gold-700/70">
+          {slot.fallback.label}
+        </span>
+        <span className="absolute inset-x-0 bottom-0 h-px bg-gold/45" />
+      </div>
     );
   }
 
@@ -52,14 +66,7 @@ export function SlotImage({
   );
 }
 
-/**
- * True while a slot is still showing a drawing rather than a photograph.
- *
- * The restaurant moment captions itself as an illustration while it is one, and
- * stops doing so the moment a real photograph lands. Saying which it is beats
- * letting a reader assume Fiyu photographed the place.
- */
+/** True while a slot is still showing a drawing rather than a photograph. */
 export function slotIsIllustrated(slotId: ImageSlotId): boolean {
-  const slot = IMAGE_SLOTS[slotId];
-  return slot.src === null && slot.fallback.kind === "illustration";
+  return !IMAGE_SLOTS[slotId].available;
 }

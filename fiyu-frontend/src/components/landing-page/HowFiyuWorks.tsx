@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 import {
   ExamplePickCardBrief,
   IllustrativeNote,
@@ -11,7 +13,7 @@ import {
   LANDING_RHYTHM,
   SectionEyebrow,
 } from "@/components/landing-page/landingSystem";
-import { useActiveStep, useEntered } from "@/components/landing-page/motion/scrollScene";
+import { useEntered } from "@/components/landing-page/motion/scrollScene";
 import { WorkflowLocationPlate } from "@/components/landing-page/WorkflowLocationPlate";
 import { useIsDesktop } from "@/lib/hooks/useMediaQuery";
 import { cn } from "@/lib/utils/cn";
@@ -31,19 +33,16 @@ import { cn } from "@/lib/utils/cn";
  * keeps the same header line -- NEAR LOWER EAST SIDE -- through all three, which
  * is what ties the picks to the place rather than leaving them adjacent to it.
  *
- * Two behaviours, because the two layouts are genuinely different products.
+ * One interaction model at every width: click or tap a step, and only that
+ * changes the state. Nothing observes scroll, nothing advances on a timer, and
+ * selecting a step never moves the page.
  *
- * On a desktop the columns sit side by side and scroll position drives the state:
- * the step block crossing a line in the viewport is the active one, so down gives
- * 01 to 03 and up gives 03 to 01 for free, and the numbered headings are also
- * buttons. Both columns are about 450px, so neither outruns the other and nothing
- * needs to stick or can be clipped.
- *
- * On a phone the columns have stacked, so the surface and the copy are no longer
- * side by side and a state that changes because the page moved reads as the
- * section losing track of itself. There it is a tab strip: three numbers, the
- * active step's copy, and a compact surface beneath. Taps only -- the observer is
- * never created, so there is nothing to fight.
+ * The control differs because the layout does. On a desktop the columns sit side
+ * by side, all three numbered headings are visible, and each is the button for
+ * its own state; both columns are about 450px, so neither outruns the other and
+ * nothing needs to stick or can be clipped. On a phone the columns have stacked,
+ * so only the selected step's copy is shown and a strip of three numbers above it
+ * is the control -- one set of buttons either way, never two.
  *
  * `useIsDesktop` reports false on the server and on the first client render, so
  * the tab behaviour is the default and desktop is the enhancement. That is the
@@ -133,12 +132,19 @@ function StepTab({
 }
 
 export function HowFiyuWorks() {
-  const { ref, entered } = useEntered<HTMLElement>("0px 0px -20% 0px");
+  const { ref, entered } = useEntered<HTMLElement>({ rootMargin: "0px 0px -20% 0px" });
   const isDesktop = useIsDesktop();
-  const { register, active, select } = useActiveStep(STEPS.length, {
-    observe: isDesktop,
-    scrollOnSelect: false,
-  });
+  /*
+   * Plain state, and nothing else touches it.
+   *
+   * Scroll position drove this for two passes and never felt deliberate: the
+   * section is a viewport and a half tall, so a single wheel gesture could cross
+   * all three states before a reader had read one of them. It is a small product
+   * demonstration, so it behaves like one -- it opens on 01 and changes only when
+   * somebody asks it to. Scrolling past now just scrolls, and scrolling back
+   * finds whichever state was last chosen.
+   */
+  const [active, setActive] = useState(0);
   const flag = entered ? "true" : "false";
 
   return (
@@ -160,7 +166,7 @@ export function HowFiyuWorks() {
               number={entry.number}
               title={entry.title}
               selected={active === index}
-              onSelect={() => select(index)}
+              onSelect={() => setActive(index)}
             />
           ))}
         </div>
@@ -181,7 +187,6 @@ export function HowFiyuWorks() {
               return (
                 <li
                   key={entry.number}
-                  ref={register(index)}
                   data-active={isActive}
                   aria-current={isActive ? "step" : undefined}
                   className={cn(
@@ -205,7 +210,7 @@ export function HowFiyuWorks() {
                       <button
                         type="button"
                         aria-pressed={isActive}
-                        onClick={() => select(index)}
+                        onClick={() => setActive(index)}
                         className="group flex w-full items-baseline gap-4 text-left focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-lavender-500"
                       >
                         <span
@@ -269,15 +274,24 @@ export function HowFiyuWorks() {
             </p>
             <div className="relative mt-3 min-h-0 flex-1 border-y border-line py-3 lg:py-4">
               <div className={cn(LAYER, active === 0 ? "opacity-100" : "opacity-0")}>
-                <div className="size-full px-1 py-1">
-                  <WorkflowLocationPlate />
+                {/*
+                 * Contained, not stretched. The plate used to scale to whatever
+                 * the panel gave it, which at desktop width pulled a 4:3 drawing
+                 * out to nearly five hundred pixels across and made it read as a
+                 * diagram filling a box. Capped and centred, it reads as a plate
+                 * with air around it.
+                 */}
+                <div className="flex size-full items-center justify-center">
+                  <div className="aspect-[4/3] w-full max-w-[17rem] lg:max-w-[19rem]">
+                    <WorkflowLocationPlate />
+                  </div>
                 </div>
               </div>
               <div className={cn(LAYER, active === 0 ? "opacity-0" : "opacity-100")}>
                 <PicksSurface saved={active === 2} />
               </div>
             </div>
-            <IllustrativeNote className="mt-3">Illustrative examples</IllustrativeNote>
+            <IllustrativeNote className="mt-3">Illustrative discoveries</IllustrativeNote>
           </div>
         </div>
       </div>

@@ -46,9 +46,14 @@ export type PickDetail = "always" | "sm-up";
  * ink tone, set like an editorial credit. It is honest without being loud, and it
  * uses neutral rather than champagne so that introducing brass as a section
  * identity elsewhere on the page stays meaningful.
+ *
+ * One phrase family -- ILLUSTRATIVE DISCOVERY, or DISCOVERIES for a set -- and
+ * exactly one per composition, never one per card. Two markers on the same
+ * example, which is what the restaurant moment had, turns honesty into a visual
+ * motif and stops being read.
  */
 export function IllustrativeNote({
-  children = "Illustrative examples",
+  children = "Illustrative discoveries",
   className,
 }: {
   children?: React.ReactNode;
@@ -284,7 +289,7 @@ export function ExampleSelectionRow({ example }: { example: FictionalRestaurant 
           {example.name}
         </p>
         <p className="mt-1 truncate text-[0.625rem] tracking-[0.12em] text-ink-faint uppercase">
-          {example.area}
+          {example.area} · {example.category}
         </p>
       </div>
       <p

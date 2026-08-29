@@ -50,8 +50,15 @@ function CityRail() {
 }
 
 export function HeroSection() {
+  /*
+   * The bottom hairline is lavender-tinted on a phone only. Below `sm` the hero
+   * and the section beneath it share the same cream, and in a recording they read
+   * as one very long section; a warmer-than-neutral rule, plus the near-white
+   * surface on the far side of it, is enough to feel like turning a page. Desktop
+   * keeps the neutral hairline, which was already right.
+   */
   return (
-    <section className="relative border-b border-line">
+    <section className="relative border-b border-lavender-100 sm:border-line">
       {/*
        * A tall hero, but not a full viewport: at 1080 the restaurant moment
        * below stays just in view, so the page reads as a composition rather
@@ -140,7 +147,7 @@ export function HeroSection() {
                * Fiyu exists to protect, so a public page shows the shape of a
                * discovery rather than giving one away.
                */}
-              <IllustrativeNote className="mt-5">Illustrative examples</IllustrativeNote>
+              <IllustrativeNote className="mt-5">Illustrative discoveries</IllustrativeNote>
             </figcaption>
           </div>
         </figure>

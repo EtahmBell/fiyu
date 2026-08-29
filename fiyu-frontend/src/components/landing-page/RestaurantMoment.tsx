@@ -4,12 +4,7 @@ import {
   RESTAURANT_MOMENT_EXAMPLE,
   scoreMarkValue,
 } from "@/components/landing-page/fictionalRestaurantExamples";
-import {
-  LANDING_MEASURE,
-  LANDING_RHYTHM,
-  SectionEyebrow,
-} from "@/components/landing-page/landingSystem";
-import { IllustrativeNote } from "@/components/landing-page/ExamplePickCard";
+import { LANDING_MEASURE, SectionEyebrow } from "@/components/landing-page/landingSystem";
 import { useEntered } from "@/components/landing-page/motion/scrollScene";
 import { SlotImage } from "@/components/landing-page/SlotImage";
 import { TagList } from "@/components/restaurant/TagList";
@@ -28,10 +23,14 @@ import { cn } from "@/lib/utils/cn";
  * from Google Maps." is gone. It was an implementation note that had escaped onto
  * a marketing page -- true, and none of a visitor's business.
  *
- * The restaurant is invented, and the eyebrow says so: SAMPLE FIYU DISCOVERY,
+ * The restaurant is invented, and the eyebrow says so: ILLUSTRATIVE DISCOVERY,
  * not A FIYU DISCOVERY. Printing real underexposed restaurants on a public page
  * works against the product, so the page demonstrates the shape of a discovery
  * without giving one away.
+ *
+ * The eyebrow is the only marker here. It previously carried both an eyebrow and
+ * a separate credit line beneath the tags, on the same single example, which read
+ * as a disclaimer rather than as a credit.
  *
  * Seoul rather than Tokyo, on purpose. The rollout section remains the only
  * statement of where Fiyu actually operates; this is the first of several quiet
@@ -47,16 +46,27 @@ import { cn } from "@/lib/utils/cn";
  */
 
 const example = RESTAURANT_MOMENT_EXAMPLE;
-const SLOT = "restaurant_story_01";
+const SLOT = "worth_finding_seoul";
 const markScore = scoreMarkValue(example.displayScore);
 
 export function RestaurantMoment() {
-  const { ref, entered } = useEntered<HTMLElement>("0px 0px -20% 0px");
+  const { ref, entered } = useEntered<HTMLElement>({ rootMargin: "0px 0px -20% 0px" });
   const flag = entered ? "true" : "false";
 
+  /*
+   * Near-white below `sm`, cream from `sm` up. The only background change on the
+   * page that exists for a breakpoint rather than for a section identity, and it
+   * exists because the hero above shares this section's cream: on a phone the two
+   * ran together into one very long stretch. Once the Seoul photograph is
+   * installed the distinction carries itself and this becomes belt and braces.
+   */
   return (
-    <section id="worth-finding" ref={ref} className="scroll-mt-24 border-b border-line bg-canvas">
-      <div className={cn(LANDING_MEASURE, LANDING_RHYTHM)}>
+    <section
+      id="worth-finding"
+      ref={ref}
+      className="scroll-mt-24 border-b border-line bg-surface sm:bg-canvas"
+    >
+      <div className={cn(LANDING_MEASURE, "pt-16 pb-14 sm:pt-20 sm:pb-20 lg:py-28")}>
         <h2
           className="fiyu-lp-rise max-w-[24ch] font-display text-[clamp(1.75rem,5vw,4rem)] leading-[0.98] tracking-[-0.02em] text-ink"
           data-in={flag}
@@ -88,7 +98,7 @@ export function RestaurantMoment() {
             data-in={flag}
             style={{ "--rise-delay": "260ms" } as React.CSSProperties}
           >
-            <SectionEyebrow>Sample Fiyu discovery</SectionEyebrow>
+            <SectionEyebrow>Illustrative discovery</SectionEyebrow>
             <p className="mt-5 font-display text-[clamp(1.625rem,2.8vw,2.5rem)] leading-[1.15] text-ink">
               {example.name}
             </p>
@@ -116,7 +126,6 @@ export function RestaurantMoment() {
             </div>
 
             <TagList tags={[...example.tags]} max={3} className="mt-6" />
-            <IllustrativeNote className="mt-6">Illustrative example</IllustrativeNote>
           </div>
         </div>
       </div>
