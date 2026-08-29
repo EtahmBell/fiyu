@@ -52,6 +52,21 @@ import { cn } from "@/lib/utils/cn";
  * nowhere else.
  */
 
+/**
+ * How far apart the four signals arrive.
+ *
+ * Raised from 110ms, and the rules and copy lengthened with it, because the
+ * sequence was finishing in a little over a second -- fast enough to register as
+ * a flicker rather than as four things being read. At 190ms it runs for about
+ * 1.7 seconds end to end, which is roughly the pacing of the card arrivals under
+ * "Only a few." and the point at which a reader can follow it.
+ *
+ * There is room for it now: the entrance no longer fires until a quarter of the
+ * section is on screen, so a slower sequence does not go back to finishing below
+ * the fold.
+ */
+const SIGNAL_STAGGER_MS = 190;
+
 const SIGNALS = [
   {
     label: "Local-language context",
@@ -88,6 +103,10 @@ export function LookBeyondSection() {
    * row: enough on screen that the sequence is watched rather than merely
    * completed. Expressed against the section's own height, it scales by itself
    * from a 700px desktop section to an 1100px one on a phone.
+   *
+   * This is also what affords the slower pacing above: the sequence starts with
+   * the signal row arriving rather than with the eyebrow, so 1.7 seconds of it
+   * happens on screen.
    */
   const { ref, entered } = useEntered<HTMLElement>({
     rootMargin: "0px",
@@ -125,8 +144,8 @@ export function LookBeyondSection() {
                 data-in={flag}
                 style={
                   {
-                    "--rule-delay": index * 110 + 80 + "ms",
-                    "--rule-duration": "620ms",
+                    "--rule-delay": index * SIGNAL_STAGGER_MS + 60 + "ms",
+                    "--rule-duration": "850ms",
                   } as React.CSSProperties
                 }
               />
@@ -135,8 +154,8 @@ export function LookBeyondSection() {
                 data-in={flag}
                 style={
                   {
-                    "--rise-delay": index * 110 + 200 + "ms",
-                    "--rise-duration": "520ms",
+                    "--rise-delay": index * SIGNAL_STAGGER_MS + 240 + "ms",
+                    "--rise-duration": "700ms",
                     "--rise-from": "10px",
                   } as React.CSSProperties
                 }
@@ -162,14 +181,14 @@ export function LookBeyondSection() {
          * fixed aspect box in it rather than a layout that depends on an image.
          */}
         <div
-          className="fiyu-lp-rise mt-10 grid grid-cols-[7.5rem_minmax(0,1fr)] items-end gap-5 border-t border-gold-line pt-6 sm:mt-14 sm:grid-cols-[minmax(0,0.3fr)_minmax(0,0.7fr)] sm:gap-8"
+          className="fiyu-lp-rise mt-10 grid grid-cols-[9rem_minmax(0,1fr)] items-end gap-5 border-t border-gold-line pt-6 sm:mt-14 sm:grid-cols-[minmax(0,0.3fr)_minmax(0,0.7fr)] sm:gap-8"
           data-in={flag}
-          style={{ "--rise-delay": "600ms", "--rise-from": "12px" } as React.CSSProperties}
+          style={{ "--rise-delay": "960ms", "--rise-from": "12px" } as React.CSSProperties}
         >
           <div className="relative aspect-[4/3] min-w-0 overflow-hidden rounded-card border border-gold-line">
             <SlotImage
               slot="underexposure_paris"
-              sizes="(max-width: 639px) 7.5rem, 30vw"
+              sizes="(max-width: 639px) 9rem, 30vw"
             />
           </div>
 

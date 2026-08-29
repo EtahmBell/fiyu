@@ -32,7 +32,13 @@ import { cn } from "@/lib/utils/cn";
  * nearby picks that location produced, and one of those picks acted on. State 01
  * is now the supplied map plate rather than a drawn one; the footprint is
  * unchanged, because the panel's height is fixed and the plate is capped inside
- * it. The panel
+ * it.
+ *
+ * Two pieces of ambient life, both deliberately below notice. A single ring pings
+ * out of the `YOU` marker every four and a bit seconds, and the plate breathes by
+ * three percent over twenty-six. In states 02 and 03 the pick cards lift two
+ * pixels under a pointer. None of it fires on a touch screen or under reduced
+ * motion, and none of it moves anything in the layout. The panel
  * keeps the same header line -- NEAR LOWER EAST SIDE -- through all three, which
  * is what ties the picks to the place rather than leaving them adjacent to it.
  *
@@ -86,9 +92,13 @@ function PicksSurface({ saved }: { saved: boolean }) {
   const [first, ...rest] = WORKFLOW_EXAMPLES;
   return (
     <div className="flex h-full flex-col justify-between gap-2">
-      <ExamplePickCardBrief example={first} tone={saved ? "saved" : "current"} />
+      <ExamplePickCardBrief
+        example={first}
+        tone={saved ? "saved" : "current"}
+        className="fiyu-lp-lift"
+      />
       {rest.map((example) => (
-        <ExamplePickCardBrief key={example.key} example={example} />
+        <ExamplePickCardBrief key={example.key} example={example} className="fiyu-lp-lift" />
       ))}
     </div>
   );
@@ -296,14 +306,34 @@ export function HowFiyuWorks() {
                  */}
                 <div className="flex size-full items-center justify-center">
                   <div className="relative aspect-[9/5] w-full max-w-[19rem] overflow-hidden rounded-lg lg:max-w-[24rem]">
-                    <Image
-                      src="/landing/how_fiyu_works.png"
-                      alt=""
-                      fill
-                      sizes="(max-width: 1023px) 19rem, 24rem"
-                      style={{ objectPosition: "50% 0%" }}
-                      className="object-cover"
-                    />
+                    {/*
+                     * The image and the ping share one wrapper, and the wrapper is
+                     * what breathes. Scaling them together is the only way the
+                     * ring stays over the dot it belongs to -- animating the
+                     * picture alone would walk the marker out from under it.
+                     */}
+                    <div className="fiyu-lp-breathe absolute inset-0">
+                      <Image
+                        src="/landing/how_fiyu_works.png"
+                        alt=""
+                        fill
+                        sizes="(max-width: 1023px) 19rem, 24rem"
+                        style={{ objectPosition: "50% 0%" }}
+                        className="object-cover"
+                      />
+                      {/*
+                       * Positioned on the marker in the picture, not guessed: the
+                       * plum dot's centre is at (629, 355) of a 1267x769 source,
+                       * and the 9:5 window crops vertically to 704px, which puts
+                       * it at 49.6% across and 50.4% down.
+                       */}
+                      <span
+                        aria-hidden="true"
+                        className="pointer-events-none absolute top-[50.4%] left-[49.6%] block w-[6.5%] -translate-x-1/2 -translate-y-1/2"
+                      >
+                        <span className="fiyu-lp-ping block aspect-square w-full rounded-full border border-lavender-500/60" />
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>

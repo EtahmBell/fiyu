@@ -129,6 +129,30 @@
   }
 }
 
+/*
+ * A location ping: one ring emanating from the `YOU` marker on the step 01 plate.
+ *
+ * The plate is a raster image, so nothing inside it can move; this is a single
+ * ring positioned over the dot in the picture. It expands and fades, then holds
+ * empty for the last third of the cycle, which is what keeps it from reading as a
+ * constant pulse. Four and a bit seconds and one ring: the section needed a sign
+ * of life, not a radar sweep.
+ */
+@keyframes fiyu-lp-ping {
+  0% {
+    opacity: 0.5;
+    transform: scale(0.72);
+  }
+  66% {
+    opacity: 0;
+    transform: scale(1.55);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.55);
+  }
+}
+
 /* A live city marker breathing. Opacity and scale on a halo ring, never a glow. */
 @keyframes fiyu-lp-halo {
   0%,
@@ -192,6 +216,12 @@
 
     .fiyu-lp-breathe {
       animation: fiyu-lp-breathe var(--breathe-duration, 26s) ease-in-out infinite;
+    }
+
+    .fiyu-lp-ping {
+      transform-origin: center;
+      animation: fiyu-lp-ping var(--ping-duration, 4.4s) var(--ease-fiyu)
+        var(--ping-delay, 0ms) infinite;
     }
 
     .fiyu-lp-map-drift {
@@ -298,5 +328,28 @@
 @media (max-width: 1023px) and (scripting: enabled) {
   .fiyu-lp-step[data-active="false"] {
     display: none;
+  }
+}
+
+/*
+ * A card lifting under the pointer.
+ *
+ * Gated on `hover: hover` and `pointer: fine` as well as the motion preference:
+ * on a touch screen `:hover` sticks after a tap, so a lift there would leave a
+ * card raised with no way to put it down. Two pixels and a slightly deeper
+ * shadow -- enough to feel like a surface, not enough to be an effect.
+ */
+@media (hover: hover) and (pointer: fine) {
+  @media (prefers-reduced-motion: no-preference) {
+    .fiyu-lp-lift {
+      transition:
+        transform 220ms var(--ease-fiyu),
+        box-shadow 220ms var(--ease-fiyu);
+    }
+
+    .fiyu-lp-lift:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 16px 36px -22px rgba(49, 40, 61, 0.5);
+    }
   }
 }

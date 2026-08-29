@@ -98,13 +98,19 @@ export const IMAGE_SLOTS: Record<ImageSlotId, ImageSlot> = {
     available: true,
     /*
      * A 4000x6000 *portrait* frame of a Paris bistro terrace, cropped into a
-     * landscape box, so half its height is discarded. 42% keeps the band that
-     * actually reads at thumbnail size -- the festoon lights, the lit doorway and
-     * windows, and the first row of rattan chairs. Anchoring at the top would
-     * have kept an awning nobody can read at 120px; the bottom, chairs without
-     * the glow.
+     * landscape box, so half its height is discarded and the anchor decides
+     * everything.
+     *
+     * Raised from 42% to 8%. At 42% the window ran from about a fifth to
+     * two-thirds down the frame, which kept the glow and the chairs but cut the
+     * awning off the top -- and the awning is the only thing in the photograph
+     * that says France out loud. At 8% the 3000px window sits at roughly y 240 to
+     * 3240, which holds the "Bistrot" lettering, the gold signage beneath it, the
+     * full run of festoon bulbs and the lit doorway. It gives up the rattan
+     * chairs, which is the right trade: at this size a legible sign reads and a
+     * chair does not.
      */
-    objectPosition: "50% 42%",
+    objectPosition: "50% 8%",
     alt: "The terrace of a small neighbourhood bistro in Paris at dusk, tables set beneath festoon lights",
     aspect: "4:3",
     minWidth: 1200,

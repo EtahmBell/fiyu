@@ -507,7 +507,16 @@ describe("landing narrative sections", () => {
     // The source is a full-bleed 1267x769 map whose only real margin is a band of
     // near-empty paper along the bottom. A 9:5 window crops vertically only,
     // anchored to the top, which drops that band and leaves every label intact.
-    const frame = plate.parentElement;
+    //
+    // The image sits inside a breathing wrapper so the location ping scales with
+    // it and stays over the dot, so the cropping frame is one level further up.
+    const breathe = plate.parentElement;
+    expect(breathe?.getAttribute("class")).toContain("fiyu-lp-breathe");
+    const ping = breathe?.querySelector(".fiyu-lp-ping");
+    expect(ping).toBeTruthy();
+    expect(ping?.parentElement?.getAttribute("class")).toContain("top-[50.4%]");
+    expect(ping?.parentElement?.getAttribute("class")).toContain("left-[49.6%]");
+    const frame = breathe?.parentElement;
     expect(frame?.getAttribute("class")).toContain("aspect-[9/5]");
     expect(frame?.getAttribute("class")).toContain("overflow-hidden");
     expect(frame?.getAttribute("class")).toContain("max-w-[19rem]");
@@ -888,18 +897,22 @@ describe("landing motion safeguards", () => {
       "utf8",
     ).replace(/\/\*[\s\S]*?\*\//g, "");
 
-    // Every motion-preference guard also asks whether scripting can release what
-    // it hides. Without both, JavaScript off means content off.
-    const guards = stylesheet.split("@media (prefers-reduced-motion: no-preference)");
+    // Every rule that hides something must sit inside a `scripting: enabled`
+    // block, or JavaScript off means content off. Checked by selector rather than
+    // by declaration, because `opacity: 0` also appears in `@keyframes`, where it
+    // is the start of an animation and hides nothing on its own.
+    //
+    // Rules that only add a transition or a hover lift need no such gate: nothing
+    // in them is waiting on JavaScript to become visible.
+    const guards = stylesheet.split("@media (scripting: enabled)");
     expect(guards.length).toBeGreaterThanOrEqual(3);
-    for (const block of guards.slice(1)) {
-      expect(block).toContain("@media (scripting: enabled)");
-    }
-
-    // Nothing that hides an element may exist outside those guards.
-    const unguarded = stylesheet.split("@media (scripting: enabled)")[0];
-    for (const rule of [".fiyu-lp-rise,", ".fiyu-lp-rule {", ".fiyu-lp-path {"]) {
-      expect(unguarded).not.toContain(rule);
+    for (const rule of [
+      ".fiyu-lp-rise,",
+      ".fiyu-lp-rule {",
+      ".fiyu-lp-path {",
+      ".fiyu-lp-step[",
+    ]) {
+      expect(guards[0], `${rule} hides content and must be gated`).not.toContain(rule);
     }
 
     // No scroll-progress arithmetic survives in the stylesheet either.
