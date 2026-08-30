@@ -39,6 +39,8 @@ export type MappableRestaurant = PublicRestaurant & {
   longitude: number;
   /** Present on authenticated Map rows; absent on ordinary public catalog rows. */
   is_visited?: boolean;
+  /** Latest explicit owner-selected rating; absent/null for legacy reaction-only visits. */
+  user_rating?: number | null;
 };
 
 function isValidLatitude(value: number | null): value is number {

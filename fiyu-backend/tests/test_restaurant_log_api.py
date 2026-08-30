@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime
 import sqlite3
+from datetime import datetime
 from uuid import uuid4
 
 import pytest
@@ -76,7 +76,7 @@ def _create_visit(
     owner_id: str,
     place_id: str = "tokyo-a",
     visited_at: str = "2026-08-08T12:00:00Z",
-    reaction: str = "like_it",
+    rating: float = 4,
     private_note: str | None = None,
 ):
     return client.post(
@@ -85,13 +85,13 @@ def _create_visit(
         json={
             "place_id": place_id,
             "visited_at": visited_at,
-            "reaction": reaction,
+            "rating": rating,
             "private_note": private_note,
         },
     )
 
 
-def test_existing_visit_table_adds_constrained_reaction_column(log_db):
+def test_existing_visit_table_adds_nullable_constrained_rating_column(log_db):
     owner = _owner_id()
     with connect(log_db) as connection:
         connection.execute(
@@ -116,6 +116,7 @@ def test_existing_visit_table_adds_constrained_reaction_column(log_db):
             row["name"] for row in connection.execute("PRAGMA table_info(restaurant_visits)")
         }
         assert "reaction" in columns
+        assert "rating" in columns
         connection.execute(
             """
             INSERT INTO restaurant_visits
@@ -129,8 +130,8 @@ def test_existing_visit_table_adds_constrained_reaction_column(log_db):
             connection.execute(
                 """
                 INSERT INTO restaurant_visits
-                    (id, owner_id, place_id, visited_at, reaction, created_at, updated_at)
-                VALUES ('bad', 'owner', 'tokyo-a', 'now', 'five_stars', 'now', 'now')
+                    (id, owner_id, place_id, visited_at, reaction, rating, created_at, updated_at)
+                VALUES ('bad', 'owner', 'tokyo-a', 'now', 'like_it', 6, 'now', 'now')
                 """
             )
 
@@ -139,11 +140,13 @@ def test_existing_visit_table_adds_constrained_reaction_column(log_db):
         "/log/legacy", headers=_headers(owner), json={"private_note": "updated"}
     )
     completed = client.patch(
-        "/log/legacy", headers=_headers(owner), json={"reaction": "like_it"}
+        "/log/legacy", headers=_headers(owner), json={"rating": 4}
     )
 
-    assert missing.status_code == 422
+    assert missing.status_code == 200
+    assert missing.json()["rating"] is None
     assert completed.status_code == 200
+    assert completed.json()["rating"] == 4
     assert completed.json()["reaction"] == "like_it"
 
 
@@ -154,13 +157,14 @@ def test_owner_can_create_visit_with_safe_defaults(log_db):
     response = client.post(
         "/log",
         headers=_headers(owner),
-        json={"place_id": "tokyo-a", "reaction": "love_it"},
+        json={"place_id": "tokyo-a", "rating": 5},
     )
 
     assert response.status_code == 201
     body = response.json()
     assert body["place_id"] == "tokyo-a"
     assert body["reaction"] == "love_it"
+    assert body["rating"] == 5
     assert body["private_note"] is None
     assert datetime.fromisoformat(body["visited_at"]).tzinfo is not None
     assert body["restaurant"] == {
@@ -176,21 +180,38 @@ def test_owner_can_create_visit_with_safe_defaults(log_db):
     assert "why_fiyu" not in body["restaurant"]
 
 
+@pytest.mark.parametrize(
+    ("rating", "compatibility_reaction"),
+    [(1, "not_for_me"), (3, "like_it"), (5, "love_it")],
+)
+def test_integer_star_ratings_persist_exactly(log_db, rating, compatibility_reaction):
+    client = TestClient(api.app)
+    response = _create_visit(client, _owner_id(), rating=rating)
+
+    assert response.status_code == 201
+    assert response.json()["rating"] == rating
+    assert response.json()["reaction"] == compatibility_reaction
+
+
 def test_visit_input_validation(log_db):
     client = TestClient(api.app)
     owner = _owner_id()
 
     naive_time = _create_visit(client, owner, visited_at="2026-08-08T12:00:00")
     long_note = _create_visit(client, owner, private_note="x" * 2001)
-    missing_reaction = client.post(
+    missing_rating = client.post(
         "/log", headers=_headers(owner), json={"place_id": "tokyo-a"}
     )
-    invalid_reaction = _create_visit(client, owner, reaction="five_stars")
+    zero_rating = _create_visit(client, owner, rating=0)
+    high_rating = _create_visit(client, owner, rating=6)
+    non_integer_rating = _create_visit(client, owner, rating=3.5)
 
     assert naive_time.status_code == 422
     assert long_note.status_code == 422
-    assert missing_reaction.status_code == 422
-    assert invalid_reaction.status_code == 422
+    assert missing_rating.status_code == 422
+    assert zero_rating.status_code == 422
+    assert high_rating.status_code == 422
+    assert non_integer_rating.status_code == 422
 
 
 def test_owner_may_log_same_restaurant_multiple_times(log_db):
@@ -216,6 +237,7 @@ def test_visits_and_private_notes_are_owner_isolated(log_db):
     public = client.get("/public/restaurants/tokyo-a").json()
     assert "private_note" not in public
     assert "reaction" not in public
+    assert "rating" not in public
     assert "For my eyes only" not in str(public)
 
 
@@ -240,7 +262,7 @@ def test_owner_can_edit_and_delete_visit(log_db):
         headers=_headers(owner),
         json={
             "visited_at": "2026-08-09T15:30:00+09:00",
-            "reaction": "not_for_me",
+            "rating": 1,
             "private_note": " revised ",
         },
     )
@@ -249,6 +271,7 @@ def test_owner_can_edit_and_delete_visit(log_db):
     assert updated.status_code == 200
     assert updated.json()["visited_at"] == "2026-08-09T06:30:00+00:00"
     assert updated.json()["reaction"] == "not_for_me"
+    assert updated.json()["rating"] == 1
     assert updated.json()["private_note"] == "revised"
     assert deleted.json() == {"deleted": True}
     assert client.get(f"/log/{visit_id}", headers=_headers(owner)).status_code == 404

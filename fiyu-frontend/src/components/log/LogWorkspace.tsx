@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { RestaurantPhoto } from "@/components/restaurant/RestaurantPhoto";
+import { StarRatingInput } from "@/components/log/StarRatingInput";
 import { Button } from "@/components/ui/Button";
 import { Sheet } from "@/components/ui/Sheet";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -16,9 +17,20 @@ import {
   fetchSeenRestaurantIds,
   updateRestaurantVisit,
 } from "@/lib/api/client";
-import { useAccountQuery } from "@/lib/accountQueryCache";
+import {
+  accountQueryKey,
+  readAccountQuery,
+  useAccountQuery,
+  writeAccountQuery,
+} from "@/lib/accountQueryCache";
 import { FiyuApiError } from "@/lib/api/errors";
-import type { PublicRestaurant, RestaurantVisit, VisitReaction } from "@/lib/api/schemas";
+import type {
+  MapRestaurant,
+  PublicRestaurant,
+  RestaurantVisit,
+  VisitRating,
+  VisitReaction,
+} from "@/lib/api/schemas";
 import { useIsDesktop } from "@/lib/hooks/useMediaQuery";
 import { getOrCreateAnonymousOwnerKey } from "@/lib/lists/identity";
 import { useProfileIdentity } from "@/lib/profile/profileIdentity";
@@ -39,14 +51,18 @@ const FIELD_LABEL_CLASS =
 const FIELD_CLASS =
   "mt-2 min-h-12 w-full rounded-lg border border-line bg-canvas px-3 text-sm text-ink transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600";
 
-const REACTION_OPTIONS: { value: VisitReaction; label: string }[] = [
+const LEGACY_REACTION_OPTIONS: { value: VisitReaction; label: string }[] = [
   { value: "love_it", label: "Love it" },
   { value: "like_it", label: "Like it" },
   { value: "not_for_me", label: "Not for me" },
 ];
 
 function reactionLabel(reaction: VisitReaction): string {
-  return REACTION_OPTIONS.find((option) => option.value === reaction)?.label ?? reaction;
+  return LEGACY_REACTION_OPTIONS.find((option) => option.value === reaction)?.label ?? reaction;
+}
+
+function starText(rating: number): string {
+  return `${"★".repeat(rating)}${"☆".repeat(5 - rating)}`;
 }
 
 function todayInputValue(): string {
@@ -165,7 +181,7 @@ export function LogWorkspace({
   const [restaurantSearchOpen, setRestaurantSearchOpen] = useState(false);
   const [activeRestaurantIndex, setActiveRestaurantIndex] = useState(-1);
   const [visitDate, setVisitDate] = useState(todayInputValue);
-  const [reaction, setReaction] = useState<VisitReaction | "">("");
+  const [rating, setRating] = useState<VisitRating | null>(null);
   const [privateNote, setPrivateNote] = useState("");
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -237,7 +253,7 @@ export function LogWorkspace({
     setRestaurantSearchOpen(false);
     setActiveRestaurantIndex(-1);
     setVisitDate(todayInputValue());
-    setReaction("");
+    setRating(null);
     setPrivateNote("");
     setFormError(null);
     setSaveConfirmation(false);
@@ -249,7 +265,7 @@ export function LogWorkspace({
     setEditingVisit(visit);
     setPlaceId(visit.place_id);
     setVisitDate(visit.visited_at.slice(0, 10));
-    setReaction(visit.reaction ?? "");
+    setRating(visit.rating as VisitRating | null);
     setPrivateNote(visit.private_note ?? "");
     setFormError(null);
     setSaveConfirmation(false);
@@ -275,7 +291,7 @@ export function LogWorkspace({
   const saveVisit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setValidationAttempted(true);
-    if (!placeId || !visitDate || !reaction) return;
+    if (!placeId || !visitDate || (!editingVisit && rating === null)) return;
     setSaving(true);
     setFormError(null);
     try {
@@ -283,7 +299,11 @@ export function LogWorkspace({
       if (editingVisit) {
         const updated = await updateRestaurantVisit(
           editingVisit.id,
-          { visited_at: visitTimestamp(visitDate), reaction, private_note: note },
+          {
+            visited_at: visitTimestamp(visitDate),
+            ...(rating === null ? {} : { rating }),
+            private_note: note,
+          },
           { clientId: getOrCreateAnonymousOwnerKey() },
         );
         setVisits((current = []) =>
@@ -291,10 +311,27 @@ export function LogWorkspace({
         );
       } else {
         const created = await createRestaurantVisit(
-          { place_id: placeId, visited_at: visitTimestamp(visitDate), reaction, private_note: note },
+          { place_id: placeId, visited_at: visitTimestamp(visitDate), rating: rating!, private_note: note },
           { clientId: getOrCreateAnonymousOwnerKey() },
         );
         setVisits((current = []) => newestFirst([created, ...current]));
+      }
+      if (accountId && rating !== null) {
+        const mapKey = accountQueryKey("map-restaurants", accountId);
+        const cached = readAccountQuery<MapRestaurant[]>(mapKey);
+        const selectedRestaurant = catalog.find((restaurant) => restaurant.place_id === placeId);
+        if (cached) {
+          const next = cached.some((restaurant) => restaurant.place_id === placeId)
+            ? cached.map((restaurant) =>
+                restaurant.place_id === placeId
+                  ? { ...restaurant, is_visited: true, user_rating: rating }
+                  : restaurant,
+              )
+            : selectedRestaurant
+              ? [...cached, { ...selectedRestaurant, is_visited: true, user_rating: rating }]
+              : cached;
+          writeAccountQuery(mapKey, next);
+        }
       }
       if (isDesktop) {
         setSheetOpen(false);
@@ -306,7 +343,7 @@ export function LogWorkspace({
         setRestaurantSearchOpen(false);
         setActiveRestaurantIndex(-1);
         setVisitDate(todayInputValue());
-        setReaction("");
+        setRating(null);
         setPrivateNote("");
         setSaveConfirmation(true);
         setValidationAttempted(false);
@@ -614,36 +651,22 @@ export function LogWorkspace({
               />
             </div>
 
-            <fieldset aria-describedby={validationAttempted && (!placeId || !reaction) ? "log-visit-reaction-error" : undefined}>
+            <fieldset>
               <legend className={FIELD_LABEL_CLASS}>How was it?</legend>
-              <div role="radiogroup" aria-required="true" className="mt-2 grid grid-cols-3 gap-2">
-                {REACTION_OPTIONS.map((option) => {
-                  const selected = reaction === option.value;
-                  return (
-                    <button
-                      key={option.value}
-                      type="button"
-                      role="radio"
-                      aria-checked={selected}
-                      onClick={() => setReaction(option.value)}
-                      className={`min-h-11 rounded-full border px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600 ${
-                        selected
-                          ? "border-lavender-600 bg-lavender-50 text-plum"
-                          : "border-line bg-canvas text-ink-muted hover:border-lavender-300 hover:text-ink"
-                      }`}
-                    >
-                      {option.label}
-                    </button>
-                  );
-                })}
-              </div>
-              {validationAttempted && (!placeId || !reaction) && (
-                <p id="log-visit-reaction-error" role="alert" className="mt-2 text-xs leading-5 text-rose-dust">
-                  {!placeId && !reaction
-                    ? "Choose a restaurant and how it was."
+              <StarRatingInput
+                value={rating}
+                onChange={setRating}
+                describedBy={validationAttempted && (!placeId || (!editingVisit && rating === null))
+                  ? "log-visit-rating-error"
+                  : undefined}
+              />
+              {validationAttempted && (!placeId || (!editingVisit && rating === null)) && (
+                <p id="log-visit-rating-error" role="alert" className="mt-2 text-xs leading-5 text-rose-dust">
+                  {!placeId && rating === null
+                    ? "Choose a restaurant and a star rating."
                     : !placeId
                       ? "Choose a restaurant before saving."
-                      : "Choose one reaction before saving."}
+                      : "Choose a star rating before saving."}
                 </p>
               )}
             </fieldset>
@@ -666,7 +689,7 @@ export function LogWorkspace({
                 onChange={(event) => setPrivateNote(event.target.value)}
                 maxLength={2000}
                 rows={4}
-                placeholder="A detail you want to remember…"
+                placeholder="Something you want to remember…"
                 className="mt-2 w-full resize-y rounded-lg border border-line bg-canvas px-3 py-3 text-sm leading-6 text-ink placeholder:text-ink-faint focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600"
               />
               <p id="log-visit-note-hint" className="mt-2 text-xs leading-5 text-ink-faint">
@@ -955,11 +978,18 @@ function VisitEntry({
           {metadata && (
             <p className="mt-1 text-xs leading-5 text-ink-faint">{metadata}</p>
           )}
-          {visit.reaction && (
+          {visit.rating !== null ? (
+            <p
+              aria-label={`${visit.rating} out of 5 stars`}
+              className="mt-1.5 text-sm tracking-[0.08em] text-lavender-600"
+            >
+              <span aria-hidden="true">{starText(visit.rating)}</span>
+            </p>
+          ) : visit.reaction ? (
             <p className="mt-1.5 text-xs font-medium text-plum/80">
               {reactionLabel(visit.reaction)}
             </p>
-          )}
+          ) : null}
           {visit.private_note && (
             // A margin annotation rather than a panel: hairline rule, smaller
             // type, so the note stays clearly secondary to the visit itself.

@@ -81,12 +81,6 @@ export function MapMarkers({
         const selected = restaurant.place_id === selectedPlaceId;
         const visited = restaurant.is_visited;
         const marker = visited ? "var(--map-marker-visited)" : "var(--map-marker)";
-        const markerSelected = visited
-          ? "var(--map-marker-visited-selected)"
-          : "var(--map-marker-selected)";
-        const markerCenter = visited
-          ? "var(--map-marker-visited-center)"
-          : "var(--map-marker-center)";
         const label = resolveNames(restaurant).primary?.text ?? "Unnamed restaurant";
 
         return (
@@ -128,20 +122,11 @@ export function MapMarkers({
               cx={x}
               cy={y}
               r={size(selected ? MARKER_RADIUS + 1.5 : MARKER_RADIUS)}
-              fill={selected ? markerSelected : markerCenter}
-              stroke={selected ? markerSelected : marker}
-              strokeWidth={size(3)}
+              fill={marker}
+              stroke="var(--map-marker-center)"
+              strokeWidth={size(selected ? 3 : 2.5)}
               className="transition-all duration-[180ms] ease-(--ease-fiyu)"
             />
-            {selected && (
-              <circle
-                cx={x}
-                cy={y}
-                r={size(3.5)}
-                fill={markerCenter}
-                className="transition-all duration-[180ms] ease-(--ease-fiyu)"
-              />
-            )}
             <title>{label}</title>
           </g>
         );

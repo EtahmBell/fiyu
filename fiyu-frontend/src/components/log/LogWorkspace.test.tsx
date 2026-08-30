@@ -100,6 +100,7 @@ function visit(overrides: Partial<RestaurantVisit> = {}): RestaurantVisit {
     place_id: "tokyo-a",
     visited_at: "2026-08-08T12:00:00+00:00",
     reaction: "like_it",
+    rating: 4,
     private_note: "Counter seat near the chef.",
     created_at: "2026-08-08T12:00:00+00:00",
     updated_at: "2026-08-08T12:00:00+00:00",
@@ -199,7 +200,7 @@ describe("LogWorkspace", () => {
     fireEvent.change(within(dialog).getByLabelText("Visit date"), {
       target: { value: "2026-08-08" },
     });
-    fireEvent.click(within(dialog).getByRole("radio", { name: "Love it" }));
+    fireEvent.click(within(dialog).getByRole("radio", { name: "5 out of 5 stars" }));
     fireEvent.click(within(dialog).getByRole("button", { name: "Save visit" }));
 
     await waitFor(() => {
@@ -207,7 +208,7 @@ describe("LogWorkspace", () => {
         {
           place_id: "tokyo-a",
           visited_at: "2026-08-08T12:00:00.000Z",
-          reaction: "love_it",
+          rating: 5,
           private_note: "Counter seat near the chef.",
         },
         { clientId: "11111111-1111-4111-8111-111111111111" },
@@ -268,7 +269,7 @@ describe("LogWorkspace", () => {
     const restaurant = await screen.findByRole("combobox", { name: "Restaurant" });
     fireEvent.change(restaurant, { target: { value: "Tokyo Sushi" } });
     fireEvent.keyDown(restaurant, { key: "Enter" });
-    fireEvent.click(screen.getByRole("radio", { name: "Like it" }));
+    fireEvent.click(screen.getByRole("radio", { name: "4 out of 5 stars" }));
     fireEvent.click(screen.getByRole("button", { name: "Save visit" }));
 
     expect(await screen.findByText("Visit saved.")).toBeTruthy();
@@ -287,13 +288,13 @@ describe("LogWorkspace", () => {
     expect(await screen.findByRole("heading", { name: "History" })).toBeTruthy();
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(screen.getByText("Tokyo Sushi")).toBeTruthy();
-    expect(screen.getByText("Like it")).toBeTruthy();
+    expect(screen.getByLabelText("4 out of 5 stars")).toBeTruthy();
     expect(screen.getByRole("link", { name: "Back to Log a visit" }).getAttribute("href")).toBe(
       "/log",
     );
   });
 
-  it("requires a restaurant and exactly one reaction before saving", async () => {
+  it("requires a restaurant and exactly one star rating before saving", async () => {
     desktopViewport = false;
     vi.mocked(fetchRestaurantLog).mockResolvedValue([]);
     render(<LogWorkspace />);
@@ -301,17 +302,44 @@ describe("LogWorkspace", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Save visit" }));
 
     expect(screen.getByRole("alert").textContent).toContain(
-      "Choose a restaurant and how it was.",
+      "Choose a restaurant and a star rating.",
     );
     expect(createRestaurantVisit).not.toHaveBeenCalled();
 
-    const loveIt = screen.getByRole("radio", { name: "Love it" });
-    const likeIt = screen.getByRole("radio", { name: "Like it" });
-    fireEvent.click(loveIt);
-    expect(loveIt.getAttribute("aria-checked")).toBe("true");
-    fireEvent.click(likeIt);
-    expect(loveIt.getAttribute("aria-checked")).toBe("false");
-    expect(likeIt.getAttribute("aria-checked")).toBe("true");
+    const fiveStars = screen.getByRole("radio", { name: "5 out of 5 stars" });
+    const threeStars = screen.getByRole("radio", { name: "3 out of 5 stars" });
+    fireEvent.click(fiveStars);
+    expect(fiveStars.getAttribute("aria-checked")).toBe("true");
+    fireEvent.click(threeStars);
+    expect(fiveStars.getAttribute("aria-checked")).toBe("false");
+    expect(threeStars.getAttribute("aria-checked")).toBe("true");
+  });
+
+  it("loads and edits a legacy reaction-only visit without fabricating a star", async () => {
+    const legacy = visit({ rating: null, reaction: "love_it" });
+    vi.mocked(fetchRestaurantLog).mockResolvedValue([legacy]);
+    vi.mocked(updateRestaurantVisit).mockResolvedValue({
+      ...legacy,
+      private_note: "Still private.",
+    });
+    render(<LogWorkspace />);
+
+    expect(await screen.findByText("Love it")).toBeTruthy();
+    const historyEntry = screen.getByRole("listitem");
+    expect(within(historyEntry).queryByLabelText(/out of 5 stars/)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+    const dialog = screen.getByRole("dialog", { name: "Edit visit" });
+    expect(within(dialog).getAllByRole("radio").every((star) => star.getAttribute("aria-checked") === "false")).toBe(true);
+    fireEvent.change(within(dialog).getByLabelText(/Private note/), {
+      target: { value: "Still private." },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save visit" }));
+
+    await waitFor(() => expect(updateRestaurantVisit).toHaveBeenCalledWith(
+      "visit-a",
+      expect.not.objectContaining({ rating: expect.anything() }),
+      { clientId: "11111111-1111-4111-8111-111111111111" },
+    ));
   });
 
   it("renders separate visits newest-first and supports edit and delete", async () => {

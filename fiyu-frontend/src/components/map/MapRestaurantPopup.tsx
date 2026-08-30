@@ -84,6 +84,10 @@ export function MapRestaurantPopup({
    * the truncation clips the category rather than the status.
    */
   const visited = restaurant.is_visited === true;
+  const userRating = visited && typeof restaurant.user_rating === "number" &&
+    Number.isInteger(restaurant.user_rating)
+    ? restaurant.user_rating
+    : null;
   const edge = visited ? "border-gold/45" : "border-line";
 
   return (
@@ -125,6 +129,19 @@ export function MapRestaurantPopup({
             <span className="shrink-0 text-[0.625rem] font-medium tracking-[0.08em] text-gold-700 uppercase">
               Visited
             </span>
+          )}
+          {visited && userRating !== null && (
+            <>
+              <span aria-hidden="true" className="shrink-0 text-gold/70">·</span>
+              <span
+                aria-label={`Your rating: ${userRating} out of 5 stars`}
+                className="shrink-0 tracking-[0.06em] text-gold-700"
+              >
+                <span aria-hidden="true">
+                  {"★".repeat(userRating)}{"☆".repeat(5 - userRating)}
+                </span>
+              </span>
+            </>
           )}
           {visited && metadata && (
             <span aria-hidden="true" className="shrink-0 text-gold/70">

@@ -388,6 +388,7 @@ describe("restaurantVisitSchema", () => {
       place_id: "tokyo-a",
       visited_at: "2026-08-08T12:00:00+00:00",
       reaction: "love_it",
+      rating: null,
       private_note: "Private note",
       created_at: "2026-08-08T12:00:00+00:00",
       updated_at: "2026-08-08T12:00:00+00:00",
@@ -404,6 +405,7 @@ describe("restaurantVisitSchema", () => {
 
     expect(parsed.private_note).toBe("Private note");
     expect(parsed.reaction).toBe("love_it");
+    expect(parsed.rating).toBeNull();
     expect(parsed.restaurant).not.toHaveProperty("why_fiyu");
   });
 });

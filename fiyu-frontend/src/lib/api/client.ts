@@ -58,7 +58,7 @@ import {
   type PublicRestaurantDetail,
   type DeleteRestaurantVisitResponse,
   type RestaurantVisit,
-  type VisitReaction,
+  type VisitRating,
   type SmartViewCatalogResponse,
   type SmartViewResponse,
   type UserNotification,
@@ -457,13 +457,13 @@ function listHeaders(identity: ListIdentity): Record<string, string> {
 export interface CreateRestaurantVisitRequest {
   place_id: string;
   visited_at: string;
-  reaction: VisitReaction;
+  rating: VisitRating;
   private_note: string | null;
 }
 
 export interface UpdateRestaurantVisitRequest {
   visited_at?: string;
-  reaction?: VisitReaction;
+  rating?: VisitRating;
   private_note?: string | null;
 }
 

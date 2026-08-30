@@ -330,7 +330,13 @@ def remove_item(*, user_id: str, list_id: int, place_id: str) -> bool:
 
 
 def create_visit(
-    *, user_id: str, place_id: str, visited_at: str, reaction: str, private_note: str | None
+    *,
+    user_id: str,
+    place_id: str,
+    visited_at: str,
+    reaction: str,
+    rating: int,
+    private_note: str | None,
 ) -> dict[str, Any]:
     now = _now()
     result = _request(
@@ -342,6 +348,7 @@ def create_visit(
             "place_id": place_id,
             "visited_at": visited_at,
             "reaction": reaction,
+            "rating": rating,
             "private_note": private_note,
             "created_at": now,
             "updated_at": now,
@@ -376,6 +383,29 @@ def visited_place_ids(*, user_id: str) -> list[str]:
     if not isinstance(result, list):
         return []
     return list(dict.fromkeys(str(row["place_id"]) for row in result))
+
+
+def latest_visit_ratings(*, user_id: str) -> dict[str, int]:
+    """Return each visited restaurant's latest explicit rating, newest visit first."""
+    result = _request(
+        "fiyu_restaurant_visits",
+        query={
+            "select": "place_id,rating",
+            "user_id": f"eq.{user_id}",
+            "order": "visited_at.desc,created_at.desc,id.desc",
+        },
+    )
+    if not isinstance(result, list):
+        return {}
+    latest: dict[str, int] = {}
+    for row in result:
+        place_id = str(row["place_id"])
+        if place_id in latest:
+            continue
+        rating = row.get("rating")
+        if isinstance(rating, int) and 1 <= rating <= 5:
+            latest[place_id] = rating
+    return latest
 
 
 def get_visit(*, user_id: str, visit_id: str) -> dict[str, Any] | None:

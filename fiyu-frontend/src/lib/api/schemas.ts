@@ -265,6 +265,9 @@ export const publicRestaurantListSchema = z.array(publicRestaurantSchema);
 /** Account-private presentation state returned only by Map endpoints. */
 export const mapRestaurantSchema = publicRestaurantSchema.extend({
   is_visited: z.boolean(),
+  // Default supports a safe rolling deploy against an older API response;
+  // absence is legacy/no explicit rating, never an inferred star value.
+  user_rating: z.number().int().min(1).max(5).nullable().default(null),
 });
 export const mapRestaurantListSchema = z.array(mapRestaurantSchema);
 
@@ -454,6 +457,7 @@ export const restaurantVisitSchema = z.object({
   place_id: z.string().min(1),
   visited_at: z.string().min(1),
   reaction: visitReactionSchema.nullable(),
+  rating: z.number().int().min(1).max(5).nullable(),
   private_note: nullableString,
   created_at: z.string().min(1),
   updated_at: z.string().min(1),
@@ -577,6 +581,7 @@ export type DailyPickRevealResponse = z.infer<typeof dailyPickRevealResponseSche
 export type RecentDailyPickRound = z.infer<typeof recentDailyPickRoundSchema>;
 export type RestaurantVisit = z.infer<typeof restaurantVisitSchema>;
 export type VisitReaction = z.infer<typeof visitReactionSchema>;
+export type VisitRating = 1 | 2 | 3 | 4 | 5;
 export type DeleteRestaurantVisitResponse = z.infer<typeof deleteRestaurantVisitResponseSchema>;
 export type SmartViewCatalogEntry = z.infer<typeof smartViewCatalogEntrySchema>;
 export type SmartViewCatalogResponse = z.infer<typeof smartViewCatalogResponseSchema>;

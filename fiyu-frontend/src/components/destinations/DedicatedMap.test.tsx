@@ -186,13 +186,14 @@ describe("dedicated user map", () => {
     );
 
     expect(visitedPin.getAttribute("data-visited")).toBe("true");
-    expect(visitedPin.querySelectorAll("circle")[2]?.getAttribute("stroke")).toBe(
+    expect(visitedPin.querySelectorAll("circle")[2]?.getAttribute("fill")).toBe(
       "var(--map-marker-visited)",
     );
     expect(activePin?.getAttribute("data-visited")).toBe("false");
-    expect(activePin?.querySelectorAll("circle")[2]?.getAttribute("stroke")).toBe(
+    expect(activePin?.querySelectorAll("circle")[2]?.getAttribute("fill")).toBe(
       "var(--map-marker)",
     );
+    expect(visitedPin.querySelectorAll("circle")).toHaveLength(3);
 
     fireEvent.click(visitedPin);
     const popup = container.querySelector('[data-layer="restaurant-popup"]');
@@ -320,6 +321,49 @@ describe("dedicated user map", () => {
     expect(container.querySelector('[data-layer="restaurant-popup"]')).toBeTruthy();
     fireEvent.keyDown(window, { key: "Escape" });
     expect(container.querySelector('[data-layer="restaurant-popup"]')).toBeNull();
+  });
+
+  it("shows the owner's explicit rating separately from Fiyu Score and omits private notes", async () => {
+    api.fetchAuthenticatedMapRestaurants.mockResolvedValue([
+      mapRestaurantSchema.parse({
+        ...verifiedLocationCatalog[0],
+        is_visited: true,
+        user_rating: 4,
+      }),
+    ]);
+    publishProfileIdentity(profile("user-a"));
+    const { container } = render(<DedicatedMap />);
+
+    const pin = await waitFor(() => {
+      const found = container.querySelector('[data-marker-kind="restaurant"]');
+      expect(found).toBeTruthy();
+      return found as Element;
+    });
+    fireEvent.click(pin);
+
+    const popup = container.querySelector('[data-layer="restaurant-popup"]') as HTMLElement;
+    expect(within(popup).getByLabelText("Your rating: 4 out of 5 stars")).toBeTruthy();
+    expect(within(popup).getByTestId("map-popup-score").textContent).toContain("Fiyu Score");
+    expect(popup.textContent).not.toContain("private note");
+  });
+
+  it("does not fabricate a star rating for a legacy visited restaurant", async () => {
+    api.fetchAuthenticatedMapRestaurants.mockResolvedValue([
+      mapRestaurantSchema.parse({
+        ...verifiedLocationCatalog[0],
+        is_visited: true,
+        user_rating: null,
+      }),
+    ]);
+    publishProfileIdentity(profile("user-a"));
+    const { container } = render(<DedicatedMap />);
+    const pin = await waitFor(() => {
+      const found = container.querySelector('[data-marker-kind="restaurant"]');
+      expect(found).toBeTruthy();
+      return found;
+    });
+    fireEvent.click(pin as Element);
+    expect(container.querySelector('[aria-label^="Your rating:"]')).toBeNull();
   });
 
   it("masks the previous account while the next account's Map hydrates", async () => {

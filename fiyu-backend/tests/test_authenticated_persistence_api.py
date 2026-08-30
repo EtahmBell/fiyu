@@ -90,13 +90,14 @@ def shared_account_api(tmp_path, monkeypatch):
         items[user_id] = [item for item in items[user_id] if item["place_id"] != place_id]
         return len(items[user_id]) != previous_count
 
-    def create_visit(*, user_id, place_id, visited_at, reaction, private_note):
+    def create_visit(*, user_id, place_id, visited_at, reaction, rating, private_note):
         row = {
             "id": str(uuid4()),
             "user_id": user_id,
             "place_id": place_id,
             "visited_at": visited_at,
             "reaction": reaction,
+            "rating": rating,
             "private_note": private_note,
             "created_at": datetime.now(UTC).isoformat(),
             "updated_at": datetime.now(UTC).isoformat(),
@@ -134,6 +135,15 @@ def shared_account_api(tmp_path, monkeypatch):
             dict.fromkeys(str(visit["place_id"]) for visit in reversed(visits[user_id]))
         ),
     )
+    def latest_visit_ratings(*, user_id):
+        latest = {}
+        for visit in reversed(visits[user_id]):
+            rating = visit.get("rating")
+            if rating is not None:
+                latest.setdefault(str(visit["place_id"]), rating)
+        return latest
+
+    monkeypatch.setattr(api.shared_user_data, "latest_visit_ratings", latest_visit_ratings)
     monkeypatch.setattr(
         api.shared_user_data, "seen_place_ids", lambda *, user_id: list(seen[user_id])
     )
@@ -324,6 +334,7 @@ def test_authenticated_smart_views_use_supabase_relationships_and_sqlite_catalog
         place_id="tokyo-0",
         visited_at="2026-08-27T00:00:00+00:00",
         reaction="like_it",
+        rating=4,
         private_note="legacy local visit must be ignored",
     )
 
@@ -349,7 +360,7 @@ def test_authenticated_smart_views_use_supabase_relationships_and_sqlite_catalog
         json={
             "place_id": "tokyo-0",
             "visited_at": "2026-08-27T01:00:00+00:00",
-            "reaction": "love_it",
+            "rating": 5,
         },
     )
     assert logged.status_code == 201
@@ -480,7 +491,7 @@ def test_map_visibility_expires_but_seen_history_and_retained_relationships_rema
         json={
             "place_id": "tokyo-2",
             "visited_at": "2026-08-22T12:00:00Z",
-            "reaction": "like_it",
+            "rating": 4,
             "private_note": "Retained by the canonical visit relationship",
         },
     )
@@ -581,7 +592,7 @@ def test_map_visibility_deduplicates_active_saved_and_visited_membership(
             json={
                 "place_id": "tokyo-0",
                 "visited_at": "2026-08-22T12:00:00Z",
-                "reaction": "love_it",
+                "rating": 5,
             },
         ).status_code
         == 201
@@ -664,7 +675,7 @@ def test_product_exclusion_filters_discovery_but_preserves_saved_and_visit_histo
         json={
             "place_id": "tokyo-1",
             "visited_at": "2026-08-22T12:00:00Z",
-            "reaction": "like_it",
+            "rating": 4,
             "private_note": "Historical relationship remains private and readable",
         },
     ).status_code == 201
@@ -865,7 +876,7 @@ def test_authenticated_lists_log_and_seen_are_account_owned(shared_account_api):
         json={
             "place_id": "tokyo-1",
             "visited_at": "2026-08-08T12:00:00Z",
-            "reaction": "love_it",
+            "rating": 5,
             "private_note": "User A private note",
         },
     )
@@ -890,12 +901,12 @@ def test_authenticated_lists_log_and_seen_are_account_owned(shared_account_api):
     assert visit.json()["reaction"] == "love_it"
     assert visit.json()["private_note"] == "User A private note"
     assert surfaced.status_code == 200
-    assert {
-        item["place_id"]
-        for item in client.get(
-            "/profiles/me/map-restaurants", headers=_auth("token-a")
-        ).json()
-    } == {"tokyo-1"}
+    map_rows = client.get(
+        "/profiles/me/map-restaurants", headers=_auth("token-a")
+    ).json()
+    assert {item["place_id"] for item in map_rows} == {"tokyo-1"}
+    assert map_rows[0]["user_rating"] == 5
+    assert "private_note" not in map_rows[0]
 
     assert (
         client.get("/lists/default", params={"city_id": "tokyo"}, headers=_auth("token-b")).json()[

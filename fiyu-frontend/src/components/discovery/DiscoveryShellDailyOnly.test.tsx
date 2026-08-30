@@ -713,7 +713,7 @@ describe("daily-only discovery shell", () => {
       '[data-place-id="ChIJe1D1MyeLGGARBHKRN0-hQUw"]',
     );
     expect(visitedMarker?.getAttribute("data-visited")).toBe("true");
-    expect(visitedMarker?.querySelectorAll("circle")[2]?.getAttribute("stroke")).toBe(
+    expect(visitedMarker?.querySelectorAll("circle")[2]?.getAttribute("fill")).toBe(
       "var(--map-marker-visited)",
     );
 

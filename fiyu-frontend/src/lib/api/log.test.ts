@@ -14,6 +14,7 @@ const visit = {
   place_id: "tokyo-a",
   visited_at: "2026-08-08T12:00:00+00:00",
   reaction: "like_it",
+  rating: 4,
   private_note: "Private note",
   created_at: "2026-08-08T12:00:00+00:00",
   updated_at: "2026-08-08T12:00:00+00:00",
@@ -53,7 +54,7 @@ describe("private Log API adapter", () => {
       {
         place_id: "tokyo-a",
         visited_at: "2026-08-08T12:00:00.000Z",
-        reaction: "like_it",
+        rating: 4,
         private_note: "Private note",
       },
       identity,

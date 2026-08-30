@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS restaurant_visits (
     place_id TEXT NOT NULL,
     visited_at TEXT NOT NULL,
     reaction TEXT NOT NULL,
+    rating INTEGER,
     private_note TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
@@ -20,6 +21,7 @@ CREATE TABLE IF NOT EXISTS restaurant_visits (
     CHECK (TRIM(owner_id) <> ''),
     CHECK (TRIM(place_id) <> ''),
     CHECK (reaction IN ('love_it', 'like_it', 'not_for_me')),
+    CHECK (rating IS NULL OR (TYPEOF(rating) = 'integer' AND rating BETWEEN 1 AND 5)),
     CHECK (private_note IS NULL OR LENGTH(private_note) <= 2000)
 );
 CREATE INDEX IF NOT EXISTS idx_restaurant_visits_owner_visited
@@ -47,6 +49,11 @@ def ensure_restaurant_visit_schema(db_path: str | Path) -> None:
                 "ALTER TABLE restaurant_visits ADD COLUMN reaction TEXT "
                 "CHECK (reaction IN ('love_it', 'like_it', 'not_for_me'))"
             )
+        if "rating" not in columns:
+            connection.execute(
+                "ALTER TABLE restaurant_visits ADD COLUMN rating INTEGER "
+                "CHECK (rating IS NULL OR (TYPEOF(rating) = 'integer' AND rating BETWEEN 1 AND 5))"
+            )
         connection.commit()
 
 
@@ -57,6 +64,7 @@ def _visit_select() -> str:
             v.place_id,
             v.visited_at,
             v.reaction,
+            v.rating,
             v.private_note,
             v.created_at,
             v.updated_at,
@@ -79,6 +87,7 @@ def create_visit(
     place_id: str,
     visited_at: str,
     reaction: str,
+    rating: int,
     private_note: str | None,
 ) -> dict[str, object] | None:
     ensure_restaurant_visit_schema(db_path)
@@ -95,10 +104,10 @@ def create_visit(
         connection.execute(
             """
             INSERT INTO restaurant_visits
-                (id, owner_id, place_id, visited_at, reaction, private_note, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                (id, owner_id, place_id, visited_at, reaction, rating, private_note, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (visit_id, owner_id, place_id, visited_at, reaction, private_note, now, now),
+            (visit_id, owner_id, place_id, visited_at, reaction, rating, private_note, now, now),
         )
         row = connection.execute(
             _visit_select() + " WHERE v.id = ? AND v.owner_id = ?",
@@ -141,9 +150,11 @@ def update_visit(
     visit_id: str,
     visited_at: str | None,
     reaction: str | None,
+    rating: int | None,
     private_note: str | None,
     update_visited_at: bool,
     update_reaction: bool,
+    update_rating: bool,
     update_private_note: bool,
 ) -> dict[str, object] | None:
     ensure_restaurant_visit_schema(db_path)
@@ -155,6 +166,9 @@ def update_visit(
     if update_reaction:
         assignments.append("reaction = ?")
         values.append(reaction)
+    if update_rating:
+        assignments.append("rating = ?")
+        values.append(rating)
     if update_private_note:
         assignments.append("private_note = ?")
         values.append(private_note)

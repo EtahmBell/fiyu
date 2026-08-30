@@ -251,6 +251,7 @@ class PublicRestaurantSummary(BaseModel):
 
 class MapRestaurantSummary(PublicRestaurantSummary):
     is_visited: bool = False
+    user_rating: int | None = Field(default=None, ge=1, le=5)
 
 
 class PublicRestaurantDetail(PublicRestaurantSummary):
@@ -330,7 +331,7 @@ class SavedRestaurantSummary(BaseModel):
 class CreateVisitRequest(BaseModel):
     place_id: str = Field(min_length=1, max_length=256)
     visited_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
-    reaction: Literal["love_it", "like_it", "not_for_me"]
+    rating: int = Field(ge=1, le=5, strict=True)
     private_note: str | None = Field(default=None, max_length=2000)
 
     @field_validator("visited_at")
@@ -358,7 +359,7 @@ class CreateVisitRequest(BaseModel):
 
 class UpdateVisitRequest(BaseModel):
     visited_at: datetime | None = None
-    reaction: Literal["love_it", "like_it", "not_for_me"] | None = None
+    rating: int | None = Field(default=None, ge=1, le=5, strict=True)
     private_note: str | None = Field(default=None, max_length=2000)
 
     @field_validator("visited_at")
@@ -381,6 +382,7 @@ class RestaurantVisitResponse(BaseModel):
     place_id: str
     visited_at: str
     reaction: Literal["love_it", "like_it", "not_for_me"] | None = None
+    rating: int | None = Field(default=None, ge=1, le=5)
     private_note: str | None = None
     created_at: str
     updated_at: str
@@ -1047,6 +1049,7 @@ def _visit_response_from_row(row: dict[str, object]) -> RestaurantVisitResponse:
         place_id=str(row["place_id"]),
         visited_at=str(row["visited_at"]),
         reaction=row.get("reaction"),
+        rating=row.get("rating"),
         private_note=str(row["private_note"]) if row.get("private_note") is not None else None,
         created_at=str(row["created_at"]),
         updated_at=str(row["updated_at"]),
@@ -1135,6 +1138,15 @@ def _smart_view_relationship_state(
     )
     visited_ids = set(shared_user_data.visited_place_ids(user_id=str(owner_id)))
     return saved_rows, visited_ids
+
+
+def _compatibility_reaction_for_rating(rating: int) -> str:
+    """Preserve the legacy private signal without inventing historical stars."""
+    if rating == 5:
+        return "love_it"
+    if rating >= 3:
+        return "like_it"
+    return "not_for_me"
 
 
 def _smart_view_response(
@@ -1766,7 +1778,7 @@ def _map_eligible_public_restaurants_for_place_ids(
 
 def _authenticated_map_membership(
     user_id: str, *, city_id: str = "tokyo"
-) -> tuple[list[str], set[str]]:
+) -> tuple[list[str], set[str], dict[str, int]]:
     """Derive Map membership from revealed discoveries and visit relationships."""
     now = datetime.now(UTC)
     active_row = shared_user_data.get_active_daily_picks(user_id=user_id, city_id=city_id)
@@ -1784,6 +1796,7 @@ def _authenticated_map_membership(
         for round_row in recent_rounds
         for place_id in _shared_assignment(round_row).revealed_place_ids
     ]
+    latest_ratings = shared_user_data.latest_visit_ratings(user_id=user_id)
     visited_place_ids = list(shared_user_data.visited_place_ids(user_id=user_id))
     visited_place_id_set = set(visited_place_ids)
     visible_place_ids = list(
@@ -1796,7 +1809,7 @@ def _authenticated_map_membership(
             ]
         )
     )
-    return visible_place_ids, visited_place_id_set
+    return visible_place_ids, visited_place_id_set, latest_ratings
 
 
 def _authenticated_map_visible_place_ids(
@@ -1809,11 +1822,15 @@ def _authenticated_map_visible_place_ids(
 def _authenticated_map_restaurants(
     user_id: str, *, city_id: str = "tokyo"
 ) -> list[dict[str, object]]:
-    visible_place_ids, visited_place_ids = _authenticated_map_membership(
+    visible_place_ids, visited_place_ids, latest_ratings = _authenticated_map_membership(
         user_id, city_id=city_id
     )
     return [
-        {**restaurant, "is_visited": str(restaurant["place_id"]) in visited_place_ids}
+        {
+            **restaurant,
+            "is_visited": str(restaurant["place_id"]) in visited_place_ids,
+            "user_rating": latest_ratings.get(str(restaurant["place_id"])),
+        }
         for restaurant in _map_eligible_public_restaurants_for_place_ids(
             visible_place_ids
         )
@@ -2589,7 +2606,8 @@ def create_restaurant_log_visit(
                     user_id=str(owner_id),
                     place_id=payload.place_id,
                     visited_at=payload.visited_at.astimezone(UTC).isoformat(),
-                    reaction=payload.reaction,
+                    reaction=_compatibility_reaction_for_rating(payload.rating),
+                    rating=payload.rating,
                     private_note=payload.private_note,
                 )
             ]
@@ -2600,7 +2618,8 @@ def create_restaurant_log_visit(
             owner_id=owner_id,
             place_id=payload.place_id,
             visited_at=payload.visited_at.astimezone(UTC).isoformat(),
-            reaction=payload.reaction,
+            reaction=_compatibility_reaction_for_rating(payload.rating),
+            rating=payload.rating,
             private_note=payload.private_note,
         )
     if row is None:
@@ -2636,9 +2655,9 @@ def update_restaurant_log_visit(
     update_visited_at = "visited_at" in payload.model_fields_set
     if update_visited_at and payload.visited_at is None:
         raise HTTPException(status_code=422, detail="visited_at cannot be null")
-    update_reaction = "reaction" in payload.model_fields_set
-    if update_reaction and payload.reaction is None:
-        raise HTTPException(status_code=422, detail="reaction cannot be null")
+    update_rating = "rating" in payload.model_fields_set
+    if update_rating and payload.rating is None:
+        raise HTTPException(status_code=422, detail="rating cannot be null")
     existing = (
         shared_user_data.get_visit(user_id=str(owner_id), visit_id=visit_id)
         if _shared_owner(owner_id)
@@ -2646,14 +2665,13 @@ def update_restaurant_log_visit(
     )
     if existing is None:
         raise HTTPException(status_code=404, detail="Visit not found")
-    if not update_reaction and existing.get("reaction") is None:
-        raise HTTPException(status_code=422, detail="reaction is required")
     if _shared_owner(owner_id):
         changes: dict[str, object] = {}
         if update_visited_at:
             changes["visited_at"] = payload.visited_at.astimezone(UTC).isoformat()
-        if update_reaction:
-            changes["reaction"] = payload.reaction
+        if update_rating:
+            changes["rating"] = payload.rating
+            changes["reaction"] = _compatibility_reaction_for_rating(payload.rating)
         if "private_note" in payload.model_fields_set:
             changes["private_note"] = payload.private_note
         row = shared_user_data.update_visit(
@@ -2671,10 +2689,16 @@ def update_restaurant_log_visit(
                 if payload.visited_at is not None
                 else None
             ),
-            reaction=payload.reaction,
+            reaction=(
+                _compatibility_reaction_for_rating(payload.rating)
+                if payload.rating is not None
+                else None
+            ),
+            rating=payload.rating,
             private_note=payload.private_note,
             update_visited_at=update_visited_at,
-            update_reaction=update_reaction,
+            update_reaction=update_rating,
+            update_rating=update_rating,
             update_private_note="private_note" in payload.model_fields_set,
         )
     if row is None:

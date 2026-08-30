@@ -101,6 +101,25 @@ def test_visited_place_ids_are_unique_and_latest_first(monkeypatch):
     }
 
 
+def test_latest_visit_ratings_uses_most_recent_explicit_rating(monkeypatch):
+    def request(path, *, query):
+        assert path == "fiyu_restaurant_visits"
+        assert query["select"] == "place_id,rating"
+        return [
+            {"place_id": "a", "rating": None},
+            {"place_id": "b", "rating": 2},
+            {"place_id": "a", "rating": 4},
+            {"place_id": "a", "rating": 5},
+        ]
+
+    monkeypatch.setattr(supabase_user_data, "_request", request)
+
+    assert supabase_user_data.latest_visit_ratings(user_id="user-a") == {
+        "b": 2,
+        "a": 4,
+    }
+
+
 def test_active_pick_lookup_uses_strict_expiration_boundary(monkeypatch):
     requests: list[tuple[str, dict[str, str]]] = []
 
