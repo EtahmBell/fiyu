@@ -14,6 +14,7 @@ interface Props {
   anchors: LocationAnchor[];
   geolocation: UseGeolocation;
   onConfigured(location: DiscoveryLocation): void;
+  confirmedOutsideTokyo?: boolean;
 }
 
 type LocationCheckStatus =
@@ -24,18 +25,29 @@ type LocationCheckStatus =
   | "permission_denied"
   | "unavailable";
 
-export function AuthenticatedLocationSetup({ anchors, geolocation, onConfigured }: Props) {
+export function AuthenticatedLocationSetup({
+  anchors,
+  geolocation,
+  onConfigured,
+  confirmedOutsideTokyo = false,
+}: Props) {
   const [query, setQuery] = useState("");
   const [focused, setFocused] = useState(false);
   const [selected, setSelected] = useState<LocationAnchor | null>(null);
   const [arrivalDate, setArrivalDate] = useState("");
   const [serviceCheckStatus, setServiceCheckStatus] =
-    useState<Exclude<LocationCheckStatus, "permission_denied">>("idle");
-  const [outsideDialogOpen, setOutsideDialogOpen] = useState(false);
+    useState<Exclude<LocationCheckStatus, "permission_denied">>(
+      confirmedOutsideTokyo ? "outside_tokyo" : "idle",
+    );
+  const [outsideDialogOpen, setOutsideDialogOpen] = useState(confirmedOutsideTokyo);
   const [activeResultIndex, setActiveResultIndex] = useState(-1);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const submittedPoint = useRef<string | null>(null);
+  const submittedPoint = useRef<string | null>(
+    confirmedOutsideTokyo && geolocation.state.status === "granted"
+      ? `${geolocation.state.point.lat}:${geolocation.state.point.lng}`
+      : null,
+  );
   const areaSearchRef = useRef<HTMLInputElement>(null);
   const areaComboboxRef = useRef<HTMLDivElement>(null);
   const outsideDialogRef = useRef<HTMLDialogElement>(null);

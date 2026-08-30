@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   DailyPicksPanel,
   type ActivePicksDiscoveryLocation,
+  type NewRoundLocationResolution,
 } from "@/components/daily-picks/DailyPicksPanel";
 import { AuthenticatedLocationSetup } from "@/components/location/AuthenticatedLocationSetup";
 import { PageIntro, SiteFooter } from "@/components/layout/SiteHeader";
@@ -55,6 +56,10 @@ interface VisibleRestaurantState {
   restaurants: PublicRestaurant[];
 }
 
+type NewRoundLocationGate =
+  | "outside_tokyo_needs_preview_area"
+  | "location_unavailable";
+
 /**
  * Owns the client-side daily-feed selection and map-card synchronization.
  *
@@ -103,80 +108,117 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
   });
   const [homeArea, setHomeArea] = useState<LocationAnchor | null>(null);
   const [continuedWithoutLocation, setContinuedWithoutLocation] = useState(false);
-  const [previewGpsResolution, setPreviewGpsResolution] = useState<{
-    userId: string;
-    pointKey: string;
-  } | null>(null);
-  const previewGpsAttemptUserRef = useRef<string | null>(null);
-  const previewGpsAwaitingRequestUserRef = useRef<string | null>(null);
-  const previewGpsCheckKeyRef = useRef<string | null>(null);
+  const [newRoundLocationGate, setNewRoundLocationGate] =
+    useState<NewRoundLocationGate | null>(null);
+  const pendingLocationResolutionRef = useRef<
+    ((resolution: NewRoundLocationResolution) => void) | null
+  >(null);
+  const pendingLocationOwnerRef = useRef<string | null>(null);
   const scrollRegionRef = useRef<HTMLDivElement>(null);
 
   const geolocation = useGeolocation();
-  const geolocationStatus = geolocation.state.status;
-  const geolocationPoint =
-    geolocation.state.status === "granted" ? geolocation.state.point : null;
-  const geolocationPointKey = geolocationPoint
-    ? `${geolocationPoint.lat}:${geolocationPoint.lng}`
-    : null;
-  const requestGeolocation = geolocation.request;
+  const requestFreshGeolocation = geolocation.requestFresh;
+
+  const waitForTokyoArea = useCallback(
+    (status: NewRoundLocationGate, userId: string) =>
+      new Promise<NewRoundLocationResolution>((resolve) => {
+        pendingLocationResolutionRef.current = resolve;
+        pendingLocationOwnerRef.current = userId;
+        setNewRoundLocationGate(status);
+      }),
+    [],
+  );
 
   useEffect(() => {
-    const userId = identity.profile?.user_id;
-    if (!userId || accountLocation?.location_mode !== "preview") {
-      previewGpsAttemptUserRef.current = null;
-      return;
-    }
-    if (previewGpsAttemptUserRef.current === userId) return;
-    previewGpsAttemptUserRef.current = userId;
-    previewGpsAwaitingRequestUserRef.current = userId;
-    previewGpsCheckKeyRef.current = null;
-    requestGeolocation();
-  }, [
-    accountLocation?.location_mode,
-    identity.profile?.user_id,
-    requestGeolocation,
-  ]);
-
-  useEffect(() => {
-    const userId = identity.profile?.user_id;
-    if (geolocationStatus === "requesting") {
-      previewGpsAwaitingRequestUserRef.current = null;
-      return;
-    }
     if (
-      !userId ||
-      accountLocation?.location_mode !== "preview" ||
-      !geolocationPoint ||
-      !geolocationPointKey ||
-      previewGpsAwaitingRequestUserRef.current === userId
+      !pendingLocationOwnerRef.current ||
+      pendingLocationOwnerRef.current === authenticatedUserId
     ) {
       return;
     }
-    const checkKey = `${userId}:${geolocationPointKey}`;
-    if (previewGpsCheckKeyRef.current === checkKey) return;
-    previewGpsCheckKeyRef.current = checkKey;
-    void checkCurrentDiscoveryLocation(
-      geolocationPoint.lat,
-      geolocationPoint.lng,
-    )
-      .then((result) => {
-        if (result.inside_service_area) {
-          setDiscoveryLocation(result.location);
-        }
-      })
-      .catch(() => undefined)
-      .finally(() => {
-        setPreviewGpsResolution({ userId, pointKey: geolocationPointKey });
-      });
+    pendingLocationResolutionRef.current?.({
+      status: "location_unavailable",
+      location: null,
+    });
+    pendingLocationResolutionRef.current = null;
+    pendingLocationOwnerRef.current = null;
+    setNewRoundLocationGate(null);
+  }, [authenticatedUserId]);
+
+  const resolveNewRoundLocation = useCallback(async (): Promise<NewRoundLocationResolution> => {
+    const requestUserId = authenticatedUserId;
+    if (!requestUserId) {
+      return { status: "location_unavailable", location: null };
+    }
+    const fresh = await requestFreshGeolocation();
+    if (authenticatedUserId !== requestUserId) {
+      return { status: "location_unavailable", location: null };
+    }
+    if (fresh.status !== "granted") {
+      return waitForTokyoArea("location_unavailable", requestUserId);
+    }
+    try {
+      const result = await checkCurrentDiscoveryLocation(fresh.point.lat, fresh.point.lng);
+      if (authenticatedUserId !== requestUserId) {
+        return { status: "location_unavailable", location: null };
+      }
+      if (result.inside_service_area) {
+        setDiscoveryLocation(result.location);
+        return {
+          status: "in_tokyo_gps",
+          location: {
+            mode: "current",
+            label: result.location.discovery_label,
+            latitude: fresh.point.lat,
+            longitude: fresh.point.lng,
+          },
+        };
+      }
+      if (
+        accountLocation &&
+        accountLocation.location_mode !== "current" &&
+        accountLocation.discovery_latitude !== null &&
+        accountLocation.discovery_longitude !== null
+      ) {
+        setDiscoveryLocation(result.location);
+        return {
+          status: "outside_tokyo_with_preview_area",
+          location: {
+            mode: accountLocation.location_mode,
+            label: accountLocation.discovery_label,
+            latitude: accountLocation.discovery_latitude,
+            longitude: accountLocation.discovery_longitude,
+          },
+        };
+      }
+      return waitForTokyoArea("outside_tokyo_needs_preview_area", requestUserId);
+    } catch {
+      return waitForTokyoArea("location_unavailable", requestUserId);
+    }
   }, [
-    accountLocation?.location_mode,
-    geolocationPoint,
-    geolocationPointKey,
-    geolocationStatus,
-    identity.profile?.user_id,
+    accountLocation,
+    authenticatedUserId,
+    requestFreshGeolocation,
     setDiscoveryLocation,
+    waitForTokyoArea,
   ]);
+
+  const finishNewRoundLocationGate = useCallback((location: DiscoveryLocation) => {
+    setDiscoveryLocation(location);
+    setNewRoundLocationGate(null);
+    const resolve = pendingLocationResolutionRef.current;
+    pendingLocationResolutionRef.current = null;
+    pendingLocationOwnerRef.current = null;
+    resolve?.({
+      status: "outside_tokyo_with_preview_area",
+      location: {
+        mode: location.location_mode,
+        label: location.discovery_label,
+        latitude: location.discovery_latitude,
+        longitude: location.discovery_longitude,
+      },
+    });
+  }, [setDiscoveryLocation]);
 
   const origin = useMemo<FreeDiscoveryOrigin | null>(() => {
     const current = originFromGeolocation(geolocation.state);
@@ -313,20 +355,9 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
     return () => observer.disconnect();
   }, []);
 
-  const previewGpsPending =
-    identity.profile &&
-    accountLocation?.location_mode === "preview" &&
-    !(
-      previewGpsResolution?.userId === identity.profile.user_id &&
-      geolocationPointKey !== null &&
-      previewGpsResolution.pointKey === geolocationPointKey
-    ) &&
-    !["denied", "unavailable", "timeout"].includes(geolocationStatus);
-
   if (
     identity.status === "loading" ||
-    (authenticatedUserId && locationQuery.status === "loading") ||
-    previewGpsPending
+    (authenticatedUserId && locationQuery.status === "loading")
   ) {
     return <FiyuLoadingScreen />;
   }
@@ -365,9 +396,23 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
   }
 
   return (
+    <>
+      {newRoundLocationGate && (
+        <AuthenticatedLocationSetup
+          anchors={areaAnchors}
+          geolocation={geolocation}
+          confirmedOutsideTokyo={
+            newRoundLocationGate === "outside_tokyo_needs_preview_area"
+          }
+          onConfigured={finishNewRoundLocationGate}
+        />
+      )}
     <div
       data-testid="discovery-layout"
-      className="grid h-[calc(100dvh-var(--spacing-header))] min-h-0 grid-cols-1 overflow-hidden bg-canvas lg:grid-cols-[minmax(0,44fr)_minmax(0,56fr)] xl:grid-cols-[minmax(0,40fr)_minmax(0,60fr)]"
+      className={cn(
+        "grid h-[calc(100dvh-var(--spacing-header))] min-h-0 grid-cols-1 overflow-hidden bg-canvas lg:grid-cols-[minmax(0,44fr)_minmax(0,56fr)] xl:grid-cols-[minmax(0,40fr)_minmax(0,60fr)]",
+        newRoundLocationGate && "hidden",
+      )}
     >
       <section
         className="contents lg:block lg:min-h-0 lg:min-w-0 lg:overflow-y-auto lg:overscroll-contain"
@@ -403,6 +448,7 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
                 restaurants={restaurants}
                 accountId={identity.profile?.user_id ?? null}
                 activeDiscoveryLocation={activeDiscoveryLocation}
+                resolveNewRoundLocation={identity.profile ? resolveNewRoundLocation : undefined}
                 onOpenRestaurant={selectFromFeed}
                 onViewRestaurant={openRestaurantDetail}
                 onVisibleRestaurantsChange={updateVisibleRestaurants}
@@ -456,5 +502,6 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
       </aside>
 
     </div>
+    </>
   );
 }

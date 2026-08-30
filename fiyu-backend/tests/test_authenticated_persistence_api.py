@@ -866,6 +866,10 @@ def test_authenticated_lists_log_and_seen_are_account_owned(shared_account_api):
         json={
             "city_id": "tokyo",
             "candidate_place_ids": ["tokyo-0", "tokyo-1", "tokyo-2", "tokyo-3"],
+            "active_area": "Shibuya",
+            "location_mode": "current",
+            "discovery_latitude": 35.658,
+            "discovery_longitude": 139.7016,
             "seed": 7,
             "requested_count": 3,
         },
@@ -901,6 +905,10 @@ def test_authenticated_lists_log_and_seen_are_account_owned(shared_account_api):
         json={
             "city_id": "tokyo",
             "candidate_place_ids": ["tokyo-0", "tokyo-1", "tokyo-2", "tokyo-3"],
+            "active_area": "Shibuya",
+            "location_mode": "current",
+            "discovery_latitude": 35.658,
+            "discovery_longitude": 139.7016,
             "seed": 7,
             "requested_count": 3,
         },
@@ -969,6 +977,10 @@ def test_authenticated_assignment_records_only_returned_picks_not_legacy_or_cand
             "city_id": "tokyo",
             "candidate_place_ids": candidates,
             "legacy_served_place_ids": [f"stale-{index}" for index in range(18)],
+            "active_area": "Shibuya",
+            "location_mode": "current",
+            "discovery_latitude": 35.658,
+            "discovery_longitude": 139.7016,
             "seed": 11,
             "requested_count": 3,
         },
@@ -1020,6 +1032,91 @@ def test_authenticated_daily_pick_snapshot_is_reused_and_account_specific(
     assert other_account.json() is None
 
 
+def test_authenticated_new_round_uses_request_location_not_saved_gps(
+    shared_account_api, monkeypatch
+):
+    client, _, _ = shared_account_api
+    monkeypatch.setattr(
+        api.shared_user_data,
+        "get_discovery_location",
+        lambda *, user_id: {
+            "location_mode": "current",
+            "discovery_label": "Ginza",
+            "discovery_latitude": 35.6717,
+            "discovery_longitude": 139.765,
+        },
+    )
+
+    response = client.post(
+        "/daily-picks/assign",
+        headers=_auth("token-a"),
+        json={
+            "city_id": "tokyo",
+            "active_area": "Shibuya",
+            "location_mode": "current",
+            "discovery_latitude": 35.658,
+            "discovery_longitude": 139.7016,
+            "requested_count": 3,
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["discovery_mode"] == "current"
+    assert response.json()["discovery_label"] == "Shibuya"
+
+
+def test_authenticated_new_round_requires_a_resolved_tokyo_location(shared_account_api):
+    client, _, _ = shared_account_api
+
+    missing = client.post(
+        "/daily-picks/assign",
+        headers=_auth("token-a"),
+        json={"city_id": "tokyo", "requested_count": 3},
+    )
+    outside = client.post(
+        "/daily-picks/assign",
+        headers=_auth("token-a"),
+        json={
+            "city_id": "tokyo",
+            "active_area": "Osaka",
+            "location_mode": "current",
+            "discovery_latitude": 34.6937,
+            "discovery_longitude": 135.5023,
+            "requested_count": 3,
+        },
+    )
+
+    assert missing.status_code == 422
+    assert missing.json()["detail"]["code"] == "fresh_location_required"
+    assert outside.status_code == 422
+    assert outside.json()["detail"]["code"] == "location_outside_service_area"
+
+
+def test_authenticated_existing_round_restores_without_new_location(shared_account_api):
+    client, _, _ = shared_account_api
+    created = client.post(
+        "/daily-picks/assign",
+        headers=_auth("token-a"),
+        json={
+            "city_id": "tokyo",
+            "active_area": "Ginza",
+            "location_mode": "preview",
+            "discovery_latitude": 35.6717,
+            "discovery_longitude": 139.765,
+            "requested_count": 3,
+        },
+    )
+
+    restored = client.post(
+        "/daily-picks/assign",
+        headers=_auth("token-a"),
+        json={"city_id": "tokyo", "requested_count": 3},
+    )
+
+    assert created.status_code == restored.status_code == 200
+    assert restored.json() == created.json()
+
+
 def test_authenticated_daily_pick_reveal_persists_across_restore_and_is_account_owned(
     shared_account_api,
 ):
@@ -1027,7 +1124,15 @@ def test_authenticated_daily_pick_reveal_persists_across_restore_and_is_account_
     created = client.post(
         "/daily-picks/assign",
         headers=_auth("token-a"),
-        json={"city_id": "tokyo", "seed": 3, "requested_count": 3},
+        json={
+            "city_id": "tokyo",
+            "active_area": "Shibuya",
+            "location_mode": "current",
+            "discovery_latitude": 35.658,
+            "discovery_longitude": 139.7016,
+            "seed": 3,
+            "requested_count": 3,
+        },
     )
     round_id = created.json()["round_id"]
 

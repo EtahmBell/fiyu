@@ -30,6 +30,7 @@ const TIMEOUT_MS = 10_000;
 export interface UseGeolocation {
   state: GeolocationState;
   request: () => void;
+  requestFresh: () => Promise<GeolocationState>;
   clear: () => void;
 }
 
@@ -38,42 +39,59 @@ export function useGeolocation(): UseGeolocation {
   // Guards against a late callback from a request the user already cleared.
   const requestId = useRef(0);
 
-  const request = useCallback(() => {
+  const resolvePosition = useCallback((maximumAge: number): Promise<GeolocationState> => {
     if (typeof navigator === "undefined" || !navigator.geolocation) {
-      setState({ status: "unavailable" });
-      return;
+      const unavailable: GeolocationState = { status: "unavailable" };
+      setState(unavailable);
+      return Promise.resolve(unavailable);
     }
 
     const id = ++requestId.current;
     setState({ status: "requesting" });
 
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        if (id !== requestId.current) return;
-        setState({
-          status: "granted",
-          point: { lat: position.coords.latitude, lng: position.coords.longitude },
-          accuracyMeters: Number.isFinite(position.coords.accuracy)
-            ? position.coords.accuracy
-            : null,
-        });
-      },
-      (error) => {
-        if (id !== requestId.current) return;
-        switch (error.code) {
-          case error.PERMISSION_DENIED:
-            setState({ status: "denied" });
-            break;
-          case error.TIMEOUT:
-            setState({ status: "timeout" });
-            break;
-          default:
-            setState({ status: "unavailable" });
-        }
-      },
-      { enableHighAccuracy: false, timeout: TIMEOUT_MS, maximumAge: 300_000 },
-    );
+    return new Promise((resolve) => {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          if (id !== requestId.current) {
+            resolve({ status: "unavailable" });
+            return;
+          }
+          const granted: GeolocationState = {
+            status: "granted",
+            point: { lat: position.coords.latitude, lng: position.coords.longitude },
+            accuracyMeters: Number.isFinite(position.coords.accuracy)
+              ? position.coords.accuracy
+              : null,
+          };
+          setState(granted);
+          resolve(granted);
+        },
+        (error) => {
+          if (id !== requestId.current) {
+            resolve({ status: "unavailable" });
+            return;
+          }
+          const failure: GeolocationState = error.code === error.PERMISSION_DENIED
+            ? { status: "denied" }
+            : error.code === error.TIMEOUT
+              ? { status: "timeout" }
+              : { status: "unavailable" };
+          setState(failure);
+          resolve(failure);
+        },
+        { enableHighAccuracy: false, timeout: TIMEOUT_MS, maximumAge },
+      );
+    });
   }, []);
+
+  const request = useCallback(() => {
+    void resolvePosition(300_000);
+  }, [resolvePosition]);
+
+  const requestFresh = useCallback(
+    () => resolvePosition(0),
+    [resolvePosition],
+  );
 
   const clear = useCallback(() => {
     // Invalidate any in-flight request so its result cannot revive the anchor.
@@ -81,7 +99,7 @@ export function useGeolocation(): UseGeolocation {
     setState({ status: "idle" });
   }, []);
 
-  return { state, request, clear };
+  return { state, request, requestFresh, clear };
 }
 
 /** User-facing explanation for each failure. */

@@ -1304,10 +1304,6 @@ def create_daily_pick_assignment(
     discovery_longitude = request.discovery_longitude
     if authenticated_owner:
         saved_location = shared_user_data.get_discovery_location(user_id=str(owner_id))
-        if saved_location and saved_location.get("location_mode"):
-            active_area = str(saved_location["discovery_label"])
-            discovery_latitude = float(saved_location["discovery_latitude"])
-            discovery_longitude = float(saved_location["discovery_longitude"])
         active = shared_user_data.get_active_daily_picks(user_id=str(owner_id), city_id=city_id)
         if active is not None:
             assignment = _repair_shared_active_assignment(
@@ -1317,6 +1313,26 @@ def create_daily_pick_assignment(
                 saved_location=saved_location,
             )
             return _daily_pick_response(assignment, city_id)
+        if (
+            request.location_mode not in {"current", "preview", "manual"}
+            or discovery_latitude is None
+            or discovery_longitude is None
+        ):
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": "fresh_location_required",
+                    "message": "Resolve a current location or choose a Tokyo preview area.",
+                },
+            )
+        if not TOKYO_SERVICE_AREA.contains(discovery_latitude, discovery_longitude):
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": "location_outside_service_area",
+                    "message": "Choose a supported Tokyo preview area.",
+                },
+            )
     else:
         seed_served_history(
             DB_PATH,
@@ -1360,11 +1376,7 @@ def create_daily_pick_assignment(
                     requested_count=request.requested_count,
                     seed=request.seed,
                 )
-            metadata["discovery_mode"] = (
-                str(saved_location.get("location_mode"))
-                if saved_location
-                else request.location_mode
-            )
+            metadata["discovery_mode"] = request.location_mode
             metadata["discovery_label"] = active_area
             metadata["discovery_latitude"] = discovery_latitude
             metadata["discovery_longitude"] = discovery_longitude

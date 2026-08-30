@@ -56,6 +56,7 @@ export interface DailyPicksPanelProps {
   /** Authenticated UUID used only to isolate the browser cache by account. */
   accountId?: string | null;
   activeDiscoveryLocation?: ActivePicksDiscoveryLocation | null;
+  resolveNewRoundLocation?: () => Promise<NewRoundLocationResolution>;
   storage?: DailyPicksStorage;
   onOpenRestaurant?: (restaurant: PublicRestaurant) => void;
   onViewRestaurant?: (restaurant: PublicRestaurant) => void;
@@ -72,6 +73,16 @@ export interface ActivePicksDiscoveryLocation {
   latitude: number | null;
   longitude: number | null;
 }
+
+export type NewRoundLocationResolution =
+  | {
+      status: "in_tokyo_gps" | "outside_tokyo_with_preview_area";
+      location: ActivePicksDiscoveryLocation;
+    }
+  | {
+      status: "outside_tokyo_needs_preview_area" | "location_unavailable";
+      location: null;
+    };
 
 /**
  * How long the discovery sequence stays on screen after the user asks for picks.
@@ -202,6 +213,7 @@ export function DailyPicksPanel({
   restaurants,
   accountId = null,
   activeDiscoveryLocation = null,
+  resolveNewRoundLocation,
   storage: injectedStorage,
   onOpenRestaurant,
   onViewRestaurant,
@@ -458,7 +470,7 @@ export function DailyPicksPanel({
     findingTimerRef.current = null;
   };
 
-  const generate = (developmentRefresh = false) => {
+  const generate = async (developmentRefresh = false) => {
     // This timestamp is intentionally captured on the user action, not during render.
     // eslint-disable-next-line react-hooks/purity
     const generatedAt = Date.now();
@@ -474,11 +486,21 @@ export function DailyPicksPanel({
     ];
 
     setInventoryMessage(null);
-    const requestLocation = activeDiscoveryLocation
+    let requestLocation = activeDiscoveryLocation
       ? { ...activeDiscoveryLocation }
       : null;
-    setSearchLocation(requestLocation);
     setPhase("finding");
+
+    if (resolveNewRoundLocation && !useDevelopmentRefresh) {
+      const resolution = await resolveNewRoundLocation();
+      if (generation !== assignmentGenerationRef.current) return;
+      if (!resolution.location) {
+        finishDiscovery(generation);
+        return;
+      }
+      requestLocation = resolution.location;
+    }
+    setSearchLocation(requestLocation);
 
     if (injectedStorage === undefined && !useDevelopmentRefresh) {
       const assignment = assignDailyPicks(
@@ -822,7 +844,7 @@ export function DailyPicksPanel({
                 <div className="pt-0.5">
                   <Button
                     variant="primary"
-                    onClick={() => generate()}
+                    onClick={() => void generate()}
                     className="min-h-12 w-full px-6 text-sm sm:w-auto"
                   >
                     Find today&apos;s restaurants
@@ -838,7 +860,7 @@ export function DailyPicksPanel({
                   className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dashed border-lavender-100 bg-lavender-50/35 p-3"
                 >
                   <p className="text-xs font-medium text-lavender-700">Development testing mode</p>
-                  <Button size="sm" variant="secondary" onClick={() => generate(true)}>
+                  <Button size="sm" variant="secondary" onClick={() => void generate(true)}>
                     Generate another test set
                   </Button>
                 </div>

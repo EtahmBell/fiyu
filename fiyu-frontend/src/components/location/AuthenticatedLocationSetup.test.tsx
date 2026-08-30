@@ -27,6 +27,7 @@ const anchors: LocationAnchor[] = [
 const idle = (request = vi.fn()): UseGeolocation => ({
   state: { status: "idle" },
   request,
+  requestFresh: vi.fn(),
   clear: vi.fn(),
 });
 
@@ -51,7 +52,12 @@ describe("AuthenticatedLocationSetup", () => {
     render(
       <AuthenticatedLocationSetup
         anchors={anchors}
-        geolocation={{ state: { status: "denied" }, request: vi.fn(), clear: vi.fn() }}
+        geolocation={{
+          state: { status: "denied" },
+          request: vi.fn(),
+          requestFresh: vi.fn(),
+          clear: vi.fn(),
+        }}
         onConfigured={vi.fn()}
       />,
     );
@@ -80,13 +86,14 @@ describe("AuthenticatedLocationSetup", () => {
         geolocation={{
           state: { status: "granted", point: { lat: 34.69, lng: 135.5 }, accuracyMeters: 20 },
           request: vi.fn(),
+          requestFresh: vi.fn(),
           clear: vi.fn(),
         }}
         onConfigured={onConfigured}
       />,
     );
     expect(await screen.findByRole("heading", { name: "Heading to Tokyo?" })).toBeTruthy();
-    const dialog = screen.getByRole("dialog", { name: "You're not in Tokyo right now" });
+    const dialog = await screen.findByRole("dialog", { name: "You're not in Tokyo right now" });
     expect(dialog).toBeTruthy();
     expect(screen.queryByText(/couldn't check that location/i)).toBeNull();
     expect(screen.queryByRole("button", { name: "Use my location" })).toBeNull();

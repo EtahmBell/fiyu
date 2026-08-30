@@ -30,6 +30,7 @@ const dailyApi = vi.hoisted(() => ({
 const locationApi = vi.hoisted(() => ({
   checkCurrentDiscoveryLocation: vi.fn(),
   fetchDiscoveryLocation: vi.fn(),
+  saveManualDiscoveryLocation: vi.fn(),
 }));
 const mapApi = vi.hoisted(() => ({ fetchAuthenticatedMapRestaurants: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => router }));
@@ -43,6 +44,7 @@ vi.mock("@/lib/api/client", async (importOriginal) => {
     revealDailyPicks: dailyApi.revealDailyPicks,
     checkCurrentDiscoveryLocation: locationApi.checkCurrentDiscoveryLocation,
     fetchDiscoveryLocation: locationApi.fetchDiscoveryLocation,
+    saveManualDiscoveryLocation: locationApi.saveManualDiscoveryLocation,
     fetchAuthenticatedMapRestaurants: mapApi.fetchAuthenticatedMapRestaurants,
   };
 });
@@ -72,6 +74,16 @@ const unconfiguredLocation: DiscoveryLocation = {
   last_location_check_at: null,
   updated_at: null,
   can_change_location_freely: true,
+};
+
+const shinjukuAnchor = {
+  id: "shinjuku-station",
+  display_name: "Shinjuku Station",
+  area_name: "Shinjuku",
+  latitude: 35.6938,
+  longitude: 139.7034,
+  precision: "area_anchor",
+  qualifier: "Approximate center of Shinjuku",
 };
 
 const accountProfile = (userId: string, username: string) => ({
@@ -185,6 +197,7 @@ beforeEach(() => {
   dailyApi.revealDailyPicks.mockReset();
   locationApi.fetchDiscoveryLocation.mockReset();
   locationApi.checkCurrentDiscoveryLocation.mockReset();
+  locationApi.saveManualDiscoveryLocation.mockReset();
   mapApi.fetchAuthenticatedMapRestaurants.mockReset();
   mapApi.fetchAuthenticatedMapRestaurants.mockResolvedValue(catalog.slice(0, 3));
   locationApi.fetchDiscoveryLocation.mockImplementation(() => new Promise(() => undefined));
@@ -192,6 +205,9 @@ beforeEach(() => {
     inside_service_area: false,
     location: configuredLocation("Ginza", "preview"),
   });
+  locationApi.saveManualDiscoveryLocation.mockResolvedValue(
+    configuredLocation("Shinjuku", "preview"),
+  );
   dailyApi.assignDailyPicks.mockResolvedValue({
     round_id: "round-one",
     city_id: "tokyo",
@@ -571,7 +587,12 @@ describe("daily-only discovery shell", () => {
   });
 
   it("keeps mobile Picks free of a mini-map after the first restaurant is revealed", async () => {
+    const gps = installControlledGeolocation();
     locationApi.fetchDiscoveryLocation.mockResolvedValueOnce(configuredLocation("Shinjuku"));
+    locationApi.checkCurrentDiscoveryLocation.mockResolvedValueOnce({
+      inside_service_area: true,
+      location: configuredLocation("Shinjuku", "current"),
+    });
     publishProfileIdentity(accountProfile("account-first-pick", "firstpick"));
     render(<DiscoveryShell restaurants={catalog} areaAnchors={[]} />);
 
@@ -579,6 +600,9 @@ describe("daily-only discovery shell", () => {
     expect(screen.queryByTestId("mobile-map-region")).toBeNull();
     vi.useFakeTimers();
     fireEvent.click(findButton);
+    expect(gps.getCurrentPosition).toHaveBeenCalledOnce();
+    act(() => gps.grant(35.6938, 139.7034));
+    await act(async () => Promise.resolve());
     await act(async () => {
       vi.advanceTimersByTime(1_500);
       await Promise.resolve();
@@ -733,25 +757,36 @@ describe("daily-only discovery shell", () => {
     ).toBe("true");
   });
 
-  it("uses the saved current-location record for both fresh-search copy and assignment", async () => {
+  it("ignores a stale Tokyo cache and requires a preview when fresh GPS is outside", async () => {
+    const gps = installControlledGeolocation();
     locationApi.fetchDiscoveryLocation.mockResolvedValueOnce(
-      configuredLocation("Shinjuku", "current"),
+      configuredLocation("Ginza", "current"),
     );
+    locationApi.checkCurrentDiscoveryLocation.mockResolvedValueOnce({
+      inside_service_area: false,
+      location: configuredLocation("Ginza", "current"),
+    });
     publishProfileIdentity(accountProfile("account-a", "accounta"));
-    render(<DiscoveryShell restaurants={catalog} areaAnchors={[]} />);
+    render(<DiscoveryShell restaurants={catalog} areaAnchors={[shinjukuAnchor]} />);
 
     fireEvent.click(await screen.findByRole("button", { name: /Find today's restaurants/i }));
+    await waitFor(() => expect(gps.getCurrentPosition).toHaveBeenCalledOnce());
+    act(() => gps.grant(34.6937, 135.5023));
 
-    expect(screen.getByText("Searching near you")).toBeTruthy();
-    expect(dailyApi.assignDailyPicks).toHaveBeenCalledWith(
+    expect(await screen.findByRole("heading", { name: "Heading to Tokyo?" })).toBeTruthy();
+    expect(dailyApi.assignDailyPicks).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Choose Tokyo area" }));
+    fireEvent.click(screen.getByRole("option", { name: /Shinjuku/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Explore this area" }));
+    await waitFor(() => expect(dailyApi.assignDailyPicks).toHaveBeenCalledWith(
       expect.objectContaining({
         active_area: "Shinjuku",
-        location_mode: "current",
+        location_mode: "preview",
         discovery_latitude: 35.6938,
         discovery_longitude: 139.7034,
       }),
       expect.anything(),
-    );
+    ));
   });
 
   it("keeps an outside-Tokyo preview when the live device point is still outside", async () => {
@@ -769,6 +804,7 @@ describe("daily-only discovery shell", () => {
     publishProfileIdentity(accountProfile("account-a", "accounta"));
     render(<DiscoveryShell restaurants={catalog} areaAnchors={[]} />);
 
+    fireEvent.click(await screen.findByRole("button", { name: /Find today's restaurants/i }));
     await waitFor(() => expect(gps.getCurrentPosition).toHaveBeenCalledOnce());
     act(() => gps.grant(34.6937, 135.5023));
     await waitFor(() =>
@@ -777,16 +813,15 @@ describe("daily-only discovery shell", () => {
         135.5023,
       ),
     );
-    fireEvent.click(await screen.findByRole("button", { name: /Find today's restaurants/i }));
-
-    expect(dailyApi.assignDailyPicks).toHaveBeenCalledWith(
+    await waitFor(() => expect(dailyApi.assignDailyPicks).toHaveBeenCalledWith(
       expect.objectContaining({
         active_area: "Ginza",
+        location_mode: "preview",
         discovery_latitude: 35.6717,
         discovery_longitude: 139.765,
       }),
       expect.anything(),
-    );
+    ));
   });
 
   it("promotes confirmed in-Tokyo GPS over a persisted preview for the next round", async () => {
@@ -805,6 +840,7 @@ describe("daily-only discovery shell", () => {
     publishProfileIdentity(accountProfile("account-a", "accounta"));
     render(<DiscoveryShell restaurants={catalog} areaAnchors={[]} />);
 
+    fireEvent.click(await screen.findByRole("button", { name: /Find today's restaurants/i }));
     await waitFor(() => expect(gps.getCurrentPosition).toHaveBeenCalledOnce());
     act(() => gps.grant(35.658, 139.7016));
     await waitFor(() =>
@@ -813,9 +849,7 @@ describe("daily-only discovery shell", () => {
         139.7016,
       ),
     );
-    fireEvent.click(await screen.findByRole("button", { name: /Find today's restaurants/i }));
-
-    expect(dailyApi.assignDailyPicks).toHaveBeenCalledWith(
+    await waitFor(() => expect(dailyApi.assignDailyPicks).toHaveBeenCalledWith(
       expect.objectContaining({
         active_area: "Shibuya",
         location_mode: "current",
@@ -823,10 +857,10 @@ describe("daily-only discovery shell", () => {
         discovery_longitude: 139.7016,
       }),
       expect.anything(),
-    );
+    ));
   });
 
-  it("does not regenerate an active snapshot when preview GPS resolves inside Tokyo", async () => {
+  it("restores an active snapshot without requesting or checking location", async () => {
     const gps = installControlledGeolocation();
     const now = Date.now();
     dailyApi.fetchActiveDailyPicks.mockResolvedValueOnce({
@@ -840,20 +874,13 @@ describe("daily-only discovery shell", () => {
     locationApi.fetchDiscoveryLocation.mockResolvedValueOnce(
       configuredLocation("Ginza", "preview"),
     );
-    locationApi.checkCurrentDiscoveryLocation.mockResolvedValueOnce({
-      inside_service_area: true,
-      location: configuredLocation("Shibuya", "current"),
-    });
     publishProfileIdentity(accountProfile("account-a", "accounta"));
     render(<DiscoveryShell restaurants={catalog} areaAnchors={[]} />);
 
-    await waitFor(() => expect(gps.getCurrentPosition).toHaveBeenCalledOnce());
-    act(() => gps.grant(35.658, 139.7016));
     await screen.findByTestId("discovery-layout");
-    await waitFor(() =>
-      expect(locationApi.checkCurrentDiscoveryLocation).toHaveBeenCalledOnce(),
-    );
 
+    expect(gps.getCurrentPosition).not.toHaveBeenCalled();
+    expect(locationApi.checkCurrentDiscoveryLocation).not.toHaveBeenCalled();
     expect(dailyApi.assignDailyPicks).not.toHaveBeenCalled();
   });
 
@@ -943,44 +970,53 @@ describe("daily-only discovery shell", () => {
     expect(screen.getAllByTestId("concealed-restaurant-card")).toHaveLength(2);
   });
 
-  it("falls back to the preview when automatic geolocation permission is denied", async () => {
+  it("requires manual area selection when fresh geolocation permission is denied", async () => {
     const gps = installControlledGeolocation();
     const preview = configuredLocation("Ginza", "preview");
     locationApi.fetchDiscoveryLocation.mockResolvedValueOnce(preview);
     publishProfileIdentity(accountProfile("account-a", "accounta"));
-    render(<DiscoveryShell restaurants={catalog} areaAnchors={[]} />);
+    render(<DiscoveryShell restaurants={catalog} areaAnchors={[shinjukuAnchor]} />);
 
+    fireEvent.click(await screen.findByRole("button", { name: /Find today's restaurants/i }));
     await waitFor(() => expect(gps.getCurrentPosition).toHaveBeenCalledOnce());
     act(() => gps.deny());
-    fireEvent.click(await screen.findByRole("button", { name: /Find today's restaurants/i }));
 
     expect(locationApi.checkCurrentDiscoveryLocation).not.toHaveBeenCalled();
-    expect(dailyApi.assignDailyPicks).toHaveBeenCalledWith(
-      expect.objectContaining({ active_area: "Ginza" }),
-      expect.anything(),
-    );
+    expect(await screen.findByText(/Location isn't available/)).toBeTruthy();
+    expect(dailyApi.assignDailyPicks).not.toHaveBeenCalled();
   });
 
-  it("uses one saved manual-location snapshot for the label and assignment coordinates", async () => {
+  it("uses a saved manual preview only after fresh GPS confirms the user is outside", async () => {
+    const gps = installControlledGeolocation();
     locationApi.fetchDiscoveryLocation.mockResolvedValueOnce(configuredLocation("Shibuya"));
+    locationApi.checkCurrentDiscoveryLocation.mockResolvedValueOnce({
+      inside_service_area: false,
+      location: configuredLocation("Shibuya"),
+    });
     publishProfileIdentity(accountProfile("account-a", "accounta"));
     render(<DiscoveryShell restaurants={catalog} areaAnchors={[]} />);
 
     fireEvent.click(await screen.findByRole("button", { name: /Find today's restaurants/i }));
+    await waitFor(() => expect(gps.getCurrentPosition).toHaveBeenCalledOnce());
+    act(() => gps.grant(34.6937, 135.5023));
 
-    expect(screen.getByText("Searching near Shibuya")).toBeTruthy();
-    expect(dailyApi.assignDailyPicks).toHaveBeenCalledWith(
+    await waitFor(() => expect(dailyApi.assignDailyPicks).toHaveBeenCalledWith(
       expect.objectContaining({
         active_area: "Shibuya",
         discovery_latitude: 35.6938,
         discovery_longitude: 139.7034,
       }),
       expect.anything(),
-    );
+    ));
   });
 
   it("does not add a post-request delay when a fresh assignment exceeds the minimum", async () => {
+    const gps = installControlledGeolocation();
     locationApi.fetchDiscoveryLocation.mockResolvedValueOnce(configuredLocation("Shibuya"));
+    locationApi.checkCurrentDiscoveryLocation.mockResolvedValueOnce({
+      inside_service_area: true,
+      location: configuredLocation("Shibuya", "current"),
+    });
     publishProfileIdentity(accountProfile("account-a", "accounta"));
     render(<DiscoveryShell restaurants={catalog} areaAnchors={[]} />);
     const button = await screen.findByRole("button", { name: /Find today's restaurants/i });
@@ -996,6 +1032,9 @@ describe("daily-only discovery shell", () => {
     vi.useFakeTimers();
 
     fireEvent.click(button);
+    expect(gps.getCurrentPosition).toHaveBeenCalledOnce();
+    act(() => gps.grant(35.6938, 139.7034));
+    await act(async () => Promise.resolve());
     act(() => vi.advanceTimersByTime(4_000));
     await act(async () => {
       resolveAssignment?.({
