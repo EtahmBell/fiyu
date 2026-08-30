@@ -868,6 +868,7 @@ def test_authenticated_lists_log_and_seen_are_account_owned(shared_account_api):
             "candidate_place_ids": ["tokyo-0", "tokyo-1", "tokyo-2", "tokyo-3"],
             "active_area": "Shibuya",
             "location_mode": "current",
+            "location_state": "in_tokyo_live_gps",
             "discovery_latitude": 35.658,
             "discovery_longitude": 139.7016,
             "seed": 7,
@@ -907,6 +908,7 @@ def test_authenticated_lists_log_and_seen_are_account_owned(shared_account_api):
             "candidate_place_ids": ["tokyo-0", "tokyo-1", "tokyo-2", "tokyo-3"],
             "active_area": "Shibuya",
             "location_mode": "current",
+            "location_state": "in_tokyo_live_gps",
             "discovery_latitude": 35.658,
             "discovery_longitude": 139.7016,
             "seed": 7,
@@ -979,6 +981,7 @@ def test_authenticated_assignment_records_only_returned_picks_not_legacy_or_cand
             "legacy_served_place_ids": [f"stale-{index}" for index in range(18)],
             "active_area": "Shibuya",
             "location_mode": "current",
+            "location_state": "in_tokyo_live_gps",
             "discovery_latitude": 35.658,
             "discovery_longitude": 139.7016,
             "seed": 11,
@@ -1003,6 +1006,7 @@ def test_authenticated_daily_pick_snapshot_is_reused_and_account_specific(
         "discovery_longitude": 139.70,
         "active_area": "Asakusa",
         "location_mode": "preview",
+        "location_state": "outside_tokyo_with_preview_area",
         "seed": 3,
         "requested_count": 3,
     }
@@ -1054,6 +1058,7 @@ def test_authenticated_new_round_uses_request_location_not_saved_gps(
             "city_id": "tokyo",
             "active_area": "Shibuya",
             "location_mode": "current",
+            "location_state": "in_tokyo_live_gps",
             "discovery_latitude": 35.658,
             "discovery_longitude": 139.7016,
             "requested_count": 3,
@@ -1080,8 +1085,35 @@ def test_authenticated_new_round_requires_a_resolved_tokyo_location(shared_accou
             "city_id": "tokyo",
             "active_area": "Osaka",
             "location_mode": "current",
+            "location_state": "in_tokyo_live_gps",
             "discovery_latitude": 34.6937,
             "discovery_longitude": 135.5023,
+            "requested_count": 3,
+        },
+    )
+    stale_ginza_after_outside = client.post(
+        "/daily-picks/assign",
+        headers=_auth("token-a"),
+        json={
+            "city_id": "tokyo",
+            "active_area": "Ginza",
+            "location_mode": "current",
+            "location_state": "outside_tokyo_needs_preview_area",
+            "discovery_latitude": 35.6717,
+            "discovery_longitude": 139.765,
+            "requested_count": 3,
+        },
+    )
+    mismatched_preview = client.post(
+        "/daily-picks/assign",
+        headers=_auth("token-a"),
+        json={
+            "city_id": "tokyo",
+            "active_area": "Ginza",
+            "location_mode": "current",
+            "location_state": "outside_tokyo_with_preview_area",
+            "discovery_latitude": 35.6717,
+            "discovery_longitude": 139.765,
             "requested_count": 3,
         },
     )
@@ -1090,6 +1122,10 @@ def test_authenticated_new_round_requires_a_resolved_tokyo_location(shared_accou
     assert missing.json()["detail"]["code"] == "fresh_location_required"
     assert outside.status_code == 422
     assert outside.json()["detail"]["code"] == "location_outside_service_area"
+    assert stale_ginza_after_outside.status_code == 422
+    assert stale_ginza_after_outside.json()["detail"]["code"] == "preview_area_required"
+    assert mismatched_preview.status_code == 422
+    assert mismatched_preview.json()["detail"]["code"] == "preview_area_required"
 
 
 def test_authenticated_existing_round_restores_without_new_location(shared_account_api):
@@ -1101,6 +1137,7 @@ def test_authenticated_existing_round_restores_without_new_location(shared_accou
             "city_id": "tokyo",
             "active_area": "Ginza",
             "location_mode": "preview",
+            "location_state": "outside_tokyo_with_preview_area",
             "discovery_latitude": 35.6717,
             "discovery_longitude": 139.765,
             "requested_count": 3,
@@ -1128,6 +1165,7 @@ def test_authenticated_daily_pick_reveal_persists_across_restore_and_is_account_
             "city_id": "tokyo",
             "active_area": "Shibuya",
             "location_mode": "current",
+            "location_state": "in_tokyo_live_gps",
             "discovery_latitude": 35.658,
             "discovery_longitude": 139.7016,
             "seed": 3,

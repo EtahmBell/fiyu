@@ -114,6 +114,14 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
     ((resolution: NewRoundLocationResolution) => void) | null
   >(null);
   const pendingLocationOwnerRef = useRef<string | null>(null);
+  // A preview is valid for fresh outside-Tokyo generation only after the user
+  // explicitly chooses it during this mounted account session. Persisted
+  // discovery locations are presentation/history state, not proof of consent
+  // to reuse an old preview for a new round.
+  const outsidePreviewRef = useRef<{
+    ownerId: string;
+    location: ActivePicksDiscoveryLocation;
+  } | null>(null);
   const scrollRegionRef = useRef<HTMLDivElement>(null);
 
   const geolocation = useGeolocation();
@@ -130,6 +138,9 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
   );
 
   useEffect(() => {
+    if (outsidePreviewRef.current?.ownerId !== authenticatedUserId) {
+      outsidePreviewRef.current = null;
+    }
     if (
       !pendingLocationOwnerRef.current ||
       pendingLocationOwnerRef.current === authenticatedUserId
@@ -163,9 +174,10 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
         return { status: "location_unavailable", location: null };
       }
       if (result.inside_service_area) {
+        outsidePreviewRef.current = null;
         setDiscoveryLocation(result.location);
         return {
-          status: "in_tokyo_gps",
+          status: "in_tokyo_live_gps",
           location: {
             mode: "current",
             label: result.location.discovery_label,
@@ -174,21 +186,12 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
           },
         };
       }
-      if (
-        accountLocation &&
-        accountLocation.location_mode !== "current" &&
-        accountLocation.discovery_latitude !== null &&
-        accountLocation.discovery_longitude !== null
-      ) {
+      const sessionPreview = outsidePreviewRef.current;
+      if (sessionPreview?.ownerId === requestUserId) {
         setDiscoveryLocation(result.location);
         return {
           status: "outside_tokyo_with_preview_area",
-          location: {
-            mode: accountLocation.location_mode,
-            label: accountLocation.discovery_label,
-            latitude: accountLocation.discovery_latitude,
-            longitude: accountLocation.discovery_longitude,
-          },
+          location: sessionPreview.location,
         };
       }
       return waitForTokyoArea("outside_tokyo_needs_preview_area", requestUserId);
@@ -196,7 +199,6 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
       return waitForTokyoArea("location_unavailable", requestUserId);
     }
   }, [
-    accountLocation,
     authenticatedUserId,
     requestFreshGeolocation,
     setDiscoveryLocation,
@@ -204,6 +206,16 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
   ]);
 
   const finishNewRoundLocationGate = useCallback((location: DiscoveryLocation) => {
+    const ownerId = pendingLocationOwnerRef.current;
+    const previewLocation: ActivePicksDiscoveryLocation = {
+      mode: location.location_mode,
+      label: location.discovery_label,
+      latitude: location.discovery_latitude,
+      longitude: location.discovery_longitude,
+    };
+    if (ownerId && location.location_mode !== "current") {
+      outsidePreviewRef.current = { ownerId, location: previewLocation };
+    }
     setDiscoveryLocation(location);
     setNewRoundLocationGate(null);
     const resolve = pendingLocationResolutionRef.current;
@@ -211,14 +223,15 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
     pendingLocationOwnerRef.current = null;
     resolve?.({
       status: "outside_tokyo_with_preview_area",
-      location: {
-        mode: location.location_mode,
-        label: location.discovery_label,
-        latitude: location.discovery_latitude,
-        longitude: location.discovery_longitude,
-      },
+      location: previewLocation,
     });
   }, [setDiscoveryLocation]);
+
+  const showPreviewAreaGate = useCallback(() => {
+    if (!authenticatedUserId) return;
+    pendingLocationOwnerRef.current = authenticatedUserId;
+    setNewRoundLocationGate("outside_tokyo_needs_preview_area");
+  }, [authenticatedUserId]);
 
   const origin = useMemo<FreeDiscoveryOrigin | null>(() => {
     const current = originFromGeolocation(geolocation.state);
@@ -449,6 +462,7 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
                 accountId={identity.profile?.user_id ?? null}
                 activeDiscoveryLocation={activeDiscoveryLocation}
                 resolveNewRoundLocation={identity.profile ? resolveNewRoundLocation : undefined}
+                onPreviewAreaRequired={identity.profile ? showPreviewAreaGate : undefined}
                 onOpenRestaurant={selectFromFeed}
                 onViewRestaurant={openRestaurantDetail}
                 onVisibleRestaurantsChange={updateVisibleRestaurants}

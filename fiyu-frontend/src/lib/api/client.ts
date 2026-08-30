@@ -345,6 +345,12 @@ export interface DailyPickAssignmentRequest {
   non_japanese: "yes" | "occasionally" | "japanese-only";
   active_area: string | null;
   location_mode?: "current" | "preview" | "manual" | null;
+  location_state?:
+    | "in_tokyo_live_gps"
+    | "outside_tokyo_with_preview_area"
+    | "outside_tokyo_needs_preview_area"
+    | "location_unavailable"
+    | null;
   discovery_latitude?: number | null;
   discovery_longitude?: number | null;
   seed?: number;

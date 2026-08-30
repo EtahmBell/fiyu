@@ -634,6 +634,12 @@ class DailyPickAssignmentRequest(BaseModel):
     non_japanese: Literal["yes", "occasionally", "japanese-only"] = "occasionally"
     active_area: str | None = Field(default=None, max_length=120)
     location_mode: Literal["current", "preview", "manual"] | None = None
+    location_state: Literal[
+        "in_tokyo_live_gps",
+        "outside_tokyo_with_preview_area",
+        "outside_tokyo_needs_preview_area",
+        "location_unavailable",
+    ] | None = None
     discovery_latitude: float | None = Field(default=None, ge=-90, le=90)
     discovery_longitude: float | None = Field(default=None, ge=-180, le=180)
     seed: int | None = None
@@ -1474,8 +1480,36 @@ def create_daily_pick_assignment(
                 saved_location=saved_location,
             )
             return _daily_pick_response(assignment, city_id)
+        if request.location_state in {
+            "outside_tokyo_needs_preview_area",
+            "location_unavailable",
+        }:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": "preview_area_required",
+                    "message": "Choose a supported Tokyo preview area.",
+                },
+            )
+        if request.location_state == "in_tokyo_live_gps" and request.location_mode != "current":
+            raise HTTPException(
+                status_code=422,
+                detail={"code": "fresh_location_required", "message": "Resolve a current location."},
+            )
         if (
-            request.location_mode not in {"current", "preview", "manual"}
+            request.location_state == "outside_tokyo_with_preview_area"
+            and request.location_mode not in {"preview", "manual"}
+        ):
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": "preview_area_required",
+                    "message": "Choose a supported Tokyo preview area.",
+                },
+            )
+        if (
+            request.location_state is None
+            or request.location_mode not in {"current", "preview", "manual"}
             or discovery_latitude is None
             or discovery_longitude is None
         ):

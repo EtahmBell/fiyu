@@ -57,6 +57,7 @@ export interface DailyPicksPanelProps {
   accountId?: string | null;
   activeDiscoveryLocation?: ActivePicksDiscoveryLocation | null;
   resolveNewRoundLocation?: () => Promise<NewRoundLocationResolution>;
+  onPreviewAreaRequired?: () => void;
   storage?: DailyPicksStorage;
   onOpenRestaurant?: (restaurant: PublicRestaurant) => void;
   onViewRestaurant?: (restaurant: PublicRestaurant) => void;
@@ -76,7 +77,7 @@ export interface ActivePicksDiscoveryLocation {
 
 export type NewRoundLocationResolution =
   | {
-      status: "in_tokyo_gps" | "outside_tokyo_with_preview_area";
+      status: "in_tokyo_live_gps" | "outside_tokyo_with_preview_area";
       location: ActivePicksDiscoveryLocation;
     }
   | {
@@ -214,6 +215,7 @@ export function DailyPicksPanel({
   accountId = null,
   activeDiscoveryLocation = null,
   resolveNewRoundLocation,
+  onPreviewAreaRequired,
   storage: injectedStorage,
   onOpenRestaurant,
   onViewRestaurant,
@@ -489,6 +491,7 @@ export function DailyPicksPanel({
     let requestLocation = activeDiscoveryLocation
       ? { ...activeDiscoveryLocation }
       : null;
+    let requestLocationState: NewRoundLocationResolution["status"] | null = null;
     setPhase("finding");
 
     if (resolveNewRoundLocation && !useDevelopmentRefresh) {
@@ -499,6 +502,7 @@ export function DailyPicksPanel({
         return;
       }
       requestLocation = resolution.location;
+      requestLocationState = resolution.status;
     }
     setSearchLocation(requestLocation);
 
@@ -511,6 +515,7 @@ export function DailyPicksPanel({
           non_japanese: state.preferences.nonJapanese,
           active_area: requestLocation?.label ?? null,
           location_mode: requestLocation?.mode ?? null,
+          location_state: requestLocationState,
           discovery_latitude: requestLocation?.latitude ?? null,
           discovery_longitude: requestLocation?.longitude ?? null,
           requested_count: 3,
@@ -526,6 +531,13 @@ export function DailyPicksPanel({
       void Promise.allSettled([assignment, minimum]).then(([result]) => {
         if (generation !== assignmentGenerationRef.current) return;
         if (result.status === "rejected") {
+          if (
+            result.reason instanceof FiyuApiError &&
+            result.reason.status === 422 &&
+            result.reason.detail?.includes("Choose a supported Tokyo preview area")
+          ) {
+            onPreviewAreaRequired?.();
+          }
           setInventoryMessage(
             result.reason instanceof FiyuApiError && result.reason.status === 409
               ? "You’ve discovered every currently available restaurant."
