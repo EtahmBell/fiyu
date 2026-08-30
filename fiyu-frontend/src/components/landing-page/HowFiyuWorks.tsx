@@ -339,7 +339,7 @@ export function HowFiyuWorks() {
                       <span className="text-ink">{entry.title}</span>
                     )}
                   </h3>
-                  <p className="mt-2.5 max-w-[26rem] text-[0.9375rem] leading-6 text-ink-muted lg:mt-4 lg:leading-7">
+                  <p className="mt-2.5 max-w-[26rem] text-[0.9375rem] leading-6 text-ink-body lg:mt-4 lg:leading-7">
                     {entry.copy}
                   </p>
                   <span

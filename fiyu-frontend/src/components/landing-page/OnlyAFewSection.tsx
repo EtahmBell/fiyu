@@ -70,7 +70,7 @@ export function OnlyAFewSection() {
           <h2 className="mt-4 font-display text-[clamp(2.5rem,7vw,5.5rem)] leading-[0.9] tracking-[-0.03em] text-ink sm:mt-5">
             Only a few.
           </h2>
-          <p className="mx-auto mt-4 max-w-[34rem] text-sm leading-6 text-ink-muted sm:mt-6 sm:text-base sm:leading-8">
+          <p className="mx-auto mt-4 max-w-[34rem] text-sm leading-6 text-ink-body sm:mt-6 sm:text-base sm:leading-8">
             A small, personal selection from a much broader pool of strong restaurants—so
             attention spreads instead of landing on the same few places.
           </p>

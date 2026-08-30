@@ -99,7 +99,7 @@ export function HeroSection() {
             Hidden places. Carefully uncovered.
           </h1>
           <p
-            className="fiyu-lp-rise mt-6 max-w-[34rem] text-base leading-7 text-ink-muted sm:mt-7 sm:leading-8 sm:text-[1.0625rem]"
+            className="fiyu-lp-rise mt-6 max-w-[34rem] text-base leading-7 text-ink-body sm:mt-7 sm:leading-8 sm:text-[1.0625rem]"
             data-in="true"
             style={{ "--rise-delay": "220ms" } as React.CSSProperties}
           >
@@ -138,7 +138,7 @@ export function HeroSection() {
               <p className="font-display text-[1.5rem] leading-tight text-ink">
                 Selected around you.
               </p>
-              <p className="mt-3 max-w-[26rem] text-sm leading-7 text-ink-muted">
+              <p className="mt-3 max-w-[26rem] text-sm leading-7 text-ink-body">
                 Independent restaurants matched to your tastes and nearby area—whether you’re
                 exploring a new city or rediscovering your everyday one.
               </p>

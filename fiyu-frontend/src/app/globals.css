@@ -37,6 +37,8 @@
   --color-line-strong: #d8d2dd;
 
   --color-ink: #19171d;
+  /* Readable long-form copy; metadata and controls may remain ink-muted. */
+  --color-ink-body: #4f4a53;
   --color-ink-muted: #706b76;
   --color-ink-faint: #9a949f;
 

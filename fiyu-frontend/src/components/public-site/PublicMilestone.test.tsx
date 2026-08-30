@@ -51,8 +51,12 @@ describe("public account milestone", () => {
     expect(
       screen.getByRole("heading", { name: "Discovery without the popularity contest" }),
     ).toBeTruthy();
-    expect(screen.getByText(/local-language research, machine learning/i)).toBeTruthy();
+    expect(screen.getByText(/local-language research and deliberately small selections/i)).toBeTruthy();
     expect(screen.getByTestId("about-tabletop")).toBeTruthy();
+    expect(screen.getAllByTestId("about-principle")).toHaveLength(3);
+    expect(screen.getByText("Quality beyond visibility")).toBeTruthy();
+    expect(screen.getByText("Attention shared gradually")).toBeTruthy();
+    expect(screen.getByText("No public leaderboard")).toBeTruthy();
   });
 
   it("submits the Contact form and shows an inline success state", async () => {

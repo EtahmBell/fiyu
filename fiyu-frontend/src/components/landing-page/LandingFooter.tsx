@@ -23,7 +23,7 @@ export function LandingFooter() {
             >
               Fiyu
             </Link>
-            <p className="mt-4 max-w-xs text-sm leading-7 text-ink-muted">
+            <p className="mt-4 max-w-xs text-sm leading-7 text-ink-body">
               Independent restaurants, uncovered a few at a time.
             </p>
           </div>

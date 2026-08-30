@@ -60,7 +60,7 @@ export function FinalCta() {
             data-in={flag}
             style={{ "--rise-delay": "160ms" } as React.CSSProperties}
           >
-            <p className="max-w-[28rem] text-base leading-8 text-ink-muted">
+            <p className="max-w-[28rem] text-base leading-8 text-ink-body">
               Tokyo is open now. Tell Fiyu what you like, and a small selection of independent
               places will be there when you look.
             </p>

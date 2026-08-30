@@ -100,7 +100,7 @@ export function PickedNearbySection() {
           <h2 className={cn(LANDING_HEADING, "mt-6 max-w-[16ch] text-ink")}>
             Picked around where you are.
           </h2>
-          <p className="mt-6 max-w-[32rem] text-base leading-7 text-ink-muted sm:mt-7 sm:leading-8">
+          <p className="mt-6 max-w-[32rem] text-base leading-7 text-ink-body sm:mt-7 sm:leading-8">
             When you ask for new Picks, Fiyu starts with where you are and surfaces a few nearby
             places worth finding.
           </p>
@@ -163,7 +163,7 @@ export function PickedNearbySection() {
           </div>
 
           <IllustrativeNote className="mt-6">Illustrative discoveries</IllustrativeNote>
-          <p className="mt-4 max-w-[30rem] text-[0.8125rem] leading-6 text-ink-faint">
+          <p className="mt-4 max-w-[30rem] text-[0.8125rem] leading-6 text-ink-muted">
             Your location is used at the moment a selection is made. Picks you already have stay
             put as you move.
           </p>

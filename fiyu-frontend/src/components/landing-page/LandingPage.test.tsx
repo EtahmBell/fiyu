@@ -567,9 +567,9 @@ describe("landing narrative sections", () => {
     ]) {
       expect(scene.getByText(label)).toBeTruthy();
     }
-    expect(scene.getByText(/Discovery platforms reinforce/).className).toContain("text-ink/80");
+    expect(scene.getByText(/Discovery platforms reinforce/).className).toContain("text-ink-body");
     expect(scene.getByText("Better than its digital footprint suggests.").className).toContain(
-      "text-ink/80",
+      "text-ink-body",
     );
 
     // The floated card that used to cut through the paragraph is gone; the

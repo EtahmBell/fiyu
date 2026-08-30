@@ -127,7 +127,7 @@ export function LookBeyondSection() {
           <h2 className={cn(LANDING_HEADING, "max-w-[18ch] text-ink")}>
             Look beyond what rises to the top.
           </h2>
-          <p className="max-w-[30rem] text-base leading-7 text-ink/80 sm:leading-8 lg:pb-2">
+          <p className="max-w-[30rem] text-base leading-7 text-ink-body sm:leading-8 lg:pb-2">
             Discovery platforms reinforce whatever is already easiest to find. Fiyu reads the
             context those platforms never index, and weighs quality against how widely a place
             is already known.
@@ -163,7 +163,7 @@ export function LookBeyondSection() {
                 <p className="text-[0.6875rem] font-semibold tracking-[0.14em] text-gold-700 uppercase">
                   {signal.label}
                 </p>
-                <p className="mt-2.5 max-w-[22rem] text-[0.9375rem] leading-6 text-ink/80">
+                <p className="mt-2.5 max-w-[22rem] text-[0.9375rem] leading-6 text-ink-body">
                   {signal.copy}
                 </p>
               </div>
