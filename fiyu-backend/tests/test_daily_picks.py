@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
@@ -36,6 +37,7 @@ def _insert(
     published: int = 1,
     map_eligible: int = 1,
     score: float = 70.0,
+    budget_maximum: int | None = None,
 ) -> None:
     connection.execute(
         """
@@ -44,8 +46,8 @@ def _insert(
             signature_dishes_json, discovery_area, discovery_areas_json,
             fiyu_score, local_discovery_score, is_published,
             map_display_eligible, latitude, longitude, map_location_precision,
-            created_at, updated_at
-        ) VALUES (?, ?, 'restaurant', '[]', '[]', 'Shibuya', '[]', ?, ?, ?, ?, ?, ?, ?, 'now', 'now')
+            budget_json, created_at, updated_at
+        ) VALUES (?, ?, 'restaurant', '[]', '[]', 'Shibuya', '[]', ?, ?, ?, ?, ?, ?, ?, ?, 'now', 'now')
         """,
         (
             place_id,
@@ -57,6 +59,11 @@ def _insert(
             LATITUDE,
             LONGITUDE + distance_km / 90.0,
             precision,
+            (
+                json.dumps({"currency": "JPY", "minimum": 1000, "maximum": budget_maximum})
+                if budget_maximum is not None
+                else None
+            ),
         ),
     )
 
@@ -124,7 +131,12 @@ def test_complete_catalog_not_frontend_candidate_subset_drives_selection(daily_p
 def test_saved_unpublished_and_map_ineligible_are_excluded(daily_picks_db):
     with connect(daily_picks_db) as connection:
         connection.execute(
-            "UPDATE public_restaurants SET product_eligible = 0 WHERE place_id = 'place-129'"
+            """
+            UPDATE public_restaurants
+            SET product_eligible = 0,
+                budget_json = '{"currency":"JPY","minimum":1000,"maximum":2000}'
+            WHERE place_id = 'place-129'
+            """
         )
         connection.commit()
     selected, metadata = _plan(
@@ -230,6 +242,93 @@ def test_exactly_three_unseen_returns_three_without_repeat(daily_picks_db):
     selected, metadata = _plan(daily_picks_db, saved_place_ids=saved)
     assert set(selected) == {"place-000", "place-001", "place-002"}
     assert metadata["repeat_selected_count"] == 0
+
+
+def test_new_three_pick_round_reserves_one_known_affordable_slot(daily_picks_db):
+    with connect(daily_picks_db) as connection:
+        connection.execute("UPDATE public_restaurants SET is_published = 0")
+        _insert(connection, "affordable", budget_maximum=3000)
+        for index in range(9):
+            _insert(connection, f"normal-{index}", budget_maximum=6000)
+        connection.commit()
+
+    selected, metadata = _plan(daily_picks_db, seed=9)
+
+    assert len(selected) == len(set(selected)) == 3
+    assert "affordable" in selected
+    assert metadata["affordable_slot_applied"] is True
+
+
+@pytest.mark.parametrize("seed", [1, 7, 19])
+def test_multiple_affordable_candidates_still_use_seeded_random_selection(
+    daily_picks_db, seed
+):
+    with connect(daily_picks_db) as connection:
+        connection.execute("UPDATE public_restaurants SET is_published = 0")
+        for index in range(3):
+            _insert(connection, f"affordable-{index}", budget_maximum=3000)
+        for index in range(7):
+            _insert(connection, f"normal-{index}", budget_maximum=6000)
+        connection.commit()
+
+    selected, metadata = _plan(daily_picks_db, seed=seed)
+
+    assert len(selected) == len(set(selected)) == 3
+    assert any(place_id.startswith("affordable-") for place_id in selected)
+    assert metadata["affordable_slot_applied"] is True
+
+
+def test_unknown_budget_can_fill_normal_slot_but_not_affordable_slot(daily_picks_db):
+    with connect(daily_picks_db) as connection:
+        connection.execute("UPDATE public_restaurants SET is_published = 0")
+        for index in range(3):
+            _insert(connection, f"unknown-{index}")
+        connection.commit()
+
+    selected, metadata = _plan(daily_picks_db)
+
+    assert set(selected) == {"unknown-0", "unknown-1", "unknown-2"}
+    assert metadata["affordable_slot_applied"] is False
+
+
+def test_affordable_slot_does_not_bypass_repeat_cooldown(daily_picks_db):
+    with connect(daily_picks_db) as connection:
+        connection.execute("UPDATE public_restaurants SET is_published = 0")
+        _insert(connection, "recent-affordable", budget_maximum=2500)
+        for index in range(3):
+            _insert(connection, f"normal-{index}", budget_maximum=6000)
+        connection.commit()
+
+    selected, metadata = _plan(
+        daily_picks_db,
+        served_history={"recent-affordable": NOW - timedelta(days=1)},
+    )
+
+    assert "recent-affordable" not in selected
+    assert len(selected) == 3
+    assert metadata["affordable_slot_applied"] is False
+
+
+def test_affordable_repeat_can_fill_slot_without_bypassing_unseen_first(daily_picks_db):
+    with connect(daily_picks_db) as connection:
+        connection.execute("UPDATE public_restaurants SET is_published = 0")
+        _insert(connection, "unseen-a", budget_maximum=7000)
+        _insert(connection, "unseen-b")
+        _insert(connection, "old-affordable", budget_maximum=3000)
+        _insert(connection, "old-expensive", budget_maximum=9000)
+        connection.commit()
+
+    selected, metadata = _plan(
+        daily_picks_db,
+        served_history={
+            "old-affordable": NOW - timedelta(days=8),
+            "old-expensive": NOW - timedelta(days=8),
+        },
+    )
+
+    assert {"unseen-a", "unseen-b", "old-affordable"} == set(selected)
+    assert metadata["repeat_selected_count"] == 1
+    assert metadata["affordable_slot_applied"] is True
 
 
 def test_precision_allowances_and_area_fallback_are_conservative(daily_picks_db):

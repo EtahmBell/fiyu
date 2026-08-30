@@ -270,7 +270,7 @@ def _published_catalog(connection: Any) -> list[dict[str, object]]:
         dict(row)
         for row in connection.execute(
             """
-            SELECT place_id, latitude, longitude,
+            SELECT place_id, latitude, longitude, budget_json,
                    COALESCE(map_location_precision, location_precision) AS location_precision,
                    discovery_area, discovery_areas_json
             FROM public_restaurants
@@ -283,6 +283,39 @@ def _published_catalog(connection: Any) -> list[dict[str, object]]:
             """
         ).fetchall()
     ]
+
+
+def _known_affordable_budget(row: Mapping[str, object]) -> bool:
+    """Return whether canonical per-person budget has a known <=Y3,000 ceiling."""
+    raw_budget = row.get("budget_json")
+    if not raw_budget:
+        return False
+    try:
+        budget = json.loads(str(raw_budget))
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return False
+    if not isinstance(budget, dict):
+        return False
+    maximum = budget.get("maximum")
+    return isinstance(maximum, (int, float)) and not isinstance(maximum, bool) and maximum <= 3000
+
+
+def _sample_with_affordable_slot(
+    rows: list[dict[str, object]],
+    count: int,
+    rng: random.Random | random.SystemRandom,
+) -> tuple[list[dict[str, object]], bool]:
+    """Sample normally, reserving one slot for a known affordable row when possible."""
+    if count != 3 or len(rows) < count:
+        return rng.sample(rows, count), False
+    affordable = [row for row in rows if _known_affordable_budget(row)]
+    if not affordable:
+        return rng.sample(rows, count), False
+    required = rng.choice(affordable)
+    remaining = [row for row in rows if row is not required]
+    selected = [required, *rng.sample(remaining, count - 1)]
+    rng.shuffle(selected)
+    return selected, True
 
 
 def select_daily_pick_plan(
@@ -298,6 +331,7 @@ def select_daily_pick_plan(
     seed: int | None = None,
     excluded_place_ids: set[str] | None = None,
     allow_partial: bool = False,
+    apply_affordable_slot: bool = True,
 ) -> tuple[tuple[str, ...], dict[str, object]]:
     """Plan one V1 selection from the complete canonical catalog without writing."""
     catalog = _published_catalog(connection)
@@ -338,8 +372,14 @@ def select_daily_pick_plan(
             break
 
     rng = random.Random(seed) if seed is not None else random.SystemRandom()
+    affordable_slot_applied = False
     if len(final_unseen) >= requested_count:
-        selected_rows = rng.sample(final_unseen, requested_count)
+        if apply_affordable_slot:
+            selected_rows, affordable_slot_applied = _sample_with_affordable_slot(
+                final_unseen, requested_count, rng
+            )
+        else:
+            selected_rows = rng.sample(final_unseen, requested_count)
         repeat_count = 0
     else:
         repeat_reserve = [
@@ -350,10 +390,33 @@ def select_daily_pick_plan(
             raise InsufficientUnseenPoolError(
                 len(final_unseen) + len(repeat_reserve), requested_count
             )
-        selected_rows = [
-            *final_unseen,
-            *rng.sample(repeat_reserve, min(needed, len(repeat_reserve))),
-        ]
+        repeats_to_select = min(needed, len(repeat_reserve))
+        selected_repeats: list[dict[str, object]]
+        if (
+            apply_affordable_slot
+            and requested_count == 3
+            and not any(_known_affordable_budget(row) for row in final_unseen)
+            and repeats_to_select > 0
+        ):
+            affordable_repeats = [
+                row for row in repeat_reserve if _known_affordable_budget(row)
+            ]
+            if affordable_repeats:
+                required = rng.choice(affordable_repeats)
+                remaining_repeats = [row for row in repeat_reserve if row is not required]
+                selected_repeats = [
+                    required,
+                    *rng.sample(remaining_repeats, repeats_to_select - 1),
+                ]
+                affordable_slot_applied = True
+            else:
+                selected_repeats = rng.sample(repeat_reserve, repeats_to_select)
+        else:
+            selected_repeats = rng.sample(repeat_reserve, repeats_to_select)
+            affordable_slot_applied = any(
+                _known_affordable_budget(row) for row in final_unseen
+            ) and requested_count == 3
+        selected_rows = [*final_unseen, *selected_repeats]
         rng.shuffle(selected_rows)
         repeat_count = min(needed, len(repeat_reserve))
 
@@ -378,6 +441,7 @@ def select_daily_pick_plan(
             str(row["place_id"]) in old_repeat_ids for row in final_pool
         ),
         "repeat_selected_count": repeat_count,
+        "affordable_slot_applied": affordable_slot_applied,
         "chosen_place_ids": list(chosen_ids),
         "precision_distribution": precision_distribution,
     }
@@ -420,6 +484,7 @@ def plan_repaired_daily_picks(
             seed=seed,
             excluded_place_ids=set(preserved),
             allow_partial=True,
+            apply_affordable_slot=False,
         )
     repaired_ids = (*preserved, *replacements)
     preserved_revealed = tuple(

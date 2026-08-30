@@ -22,6 +22,7 @@ import {
   englishStructuredValue,
 } from "@/lib/daily-picks/cardContent";
 import { cn } from "@/lib/utils/cn";
+import { formatRestaurantBudget } from "@/lib/restaurant/budget";
 
 function BookmarkIcon({ filled }: { filled: boolean }) {
   return (
@@ -110,6 +111,7 @@ export function CompactRestaurantCard({
   const subtitle = englishName && englishName !== title ? englishName : null;
   const description = compactDescription(restaurant);
   const tags = englishCardTags(restaurant);
+  const budget = formatRestaurantBudget(restaurant.budget);
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
   const [descriptionTruncated, setDescriptionTruncated] = useState(false);
   const descriptionRef = useRef<HTMLParagraphElement>(null);
@@ -277,6 +279,11 @@ export function CompactRestaurantCard({
                 )}
               >
                 {description}
+              </p>
+            )}
+            {budget && (
+              <p className="mt-1 text-[0.6875rem] font-medium leading-none text-ink-muted lg:text-xs">
+                {budget}
               </p>
             )}
             {description && (descriptionExpanded || descriptionTruncated) && (

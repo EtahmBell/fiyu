@@ -19,7 +19,8 @@ import { mappableRestaurants } from "@/lib/geo/mappable";
 import { PICKS_DETAIL_MAP_SESSION_KEY } from "@/lib/map/viewportSession";
 import { readPicksReturnState } from "@/lib/navigation/restaurantDetail";
 import { useDefaultList } from "@/lib/lists/useDefaultList";
-import { knownHours, practicalFacts } from "@/lib/restaurant/detailEnrichment";
+import { classifyPracticalInfo, knownHours } from "@/lib/restaurant/detailEnrichment";
+import { formatRestaurantBudget } from "@/lib/restaurant/budget";
 import { cn } from "@/lib/utils/cn";
 
 const subscribeClock = (listener: () => void) => {
@@ -59,22 +60,6 @@ function formatResearchDate(value: string | null): string | null {
   }).format(date);
 }
 
-function formatBudget(restaurant: PublicRestaurantDetail): string | null {
-  const budget = restaurant.budget;
-  if (!budget) return null;
-  const formatter = new Intl.NumberFormat("ja-JP", {
-    style: "currency",
-    currency: budget.currency,
-    maximumFractionDigits: 0,
-  });
-  if (budget.minimum !== null && budget.maximum !== null) {
-    return `${formatter.format(budget.minimum)}–${formatter.format(budget.maximum)} per person`;
-  }
-  if (budget.minimum !== null) return `${formatter.format(budget.minimum)}+ per person`;
-  if (budget.maximum !== null) return `Up to ${formatter.format(budget.maximum)} per person`;
-  return null;
-}
-
 function formatReservationStatus(value: string | null | undefined): string | null {
   switch (value) {
     case "required":
@@ -90,6 +75,21 @@ function formatReservationStatus(value: string | null | undefined): string | nul
     default:
       return null;
   }
+}
+
+function formatBookingMethods(methods: string[] | undefined): string | null {
+  if (!methods?.length) return null;
+  const labels = methods.map((method) => {
+    switch (method.trim().toLowerCase()) {
+      case "phone": return "Phone";
+      case "online":
+      case "reservation_platform": return "online reservation";
+      case "website": return "restaurant website";
+      case "walk_in": return "walk-in";
+      default: return formatTagForDisplay(method).toLowerCase();
+    }
+  });
+  return [...new Set(labels)].join(" or ");
 }
 
 function BackIcon() {
@@ -265,15 +265,19 @@ function RestaurantDetailContent({
   const reviewThemes = (restaurant.review_themes ?? [])
     .map((theme) => theme.theme.trim())
     .filter(Boolean);
-  const practical = practicalFacts(restaurant.practical_info);
+  const practical = classifyPracticalInfo(restaurant.practical_info);
   const hours = knownHours(restaurant.opening_hours);
   const scheduleNote = restaurant.opening_hours?.schedule_note?.trim() || null;
-  const hasHours = hours.length > 0 || restaurant.opening_hours?.reservation_only === true || Boolean(scheduleNote);
-  const budget = formatBudget(restaurant);
-  const reservationStatus = formatReservationStatus(restaurant.reservation_status);
+  const hasHours = hours.length > 0 || Boolean(scheduleNote);
+  const budget = formatRestaurantBudget(restaurant.budget, { includePerPerson: true });
+  const reservationStatus = formatReservationStatus(restaurant.reservation_status)
+    ?? (restaurant.opening_hours?.reservation_only === true ? "Reservation required" : null)
+    ?? formatReservationStatus(restaurant.practical_info?.reservation?.status);
   const bookingUrl = safeExternalUrl(restaurant.booking_url);
+  const bookingMethods = formatBookingMethods(restaurant.booking_methods);
   const hasContact = Boolean(
-    reservationStatus || budget || restaurant.phone_number || bookingUrl || restaurant.contact_note || restaurant.booking_methods?.length,
+    reservationStatus || budget || restaurant.phone_number || bookingUrl || restaurant.contact_note
+      || bookingMethods || practical.bookingNotes.length,
   );
 
   return (
@@ -321,11 +325,11 @@ function RestaurantDetailContent({
         </section>
       )}
 
-      {practical.length > 0 && (
-        <section aria-labelledby="good-to-know-heading" className="border-t border-line pt-6">
-          <h2 id="good-to-know-heading" className="font-display text-2xl text-ink">Good to know</h2>
+      {practical.atAGlance.length > 0 && (
+        <section aria-labelledby="at-a-glance-heading" className="border-t border-line pt-6">
+          <h2 id="at-a-glance-heading" className="font-display text-2xl text-ink">At a glance</h2>
           <ul className="mt-3 flex flex-wrap gap-2">
-            {practical.map((fact) => (
+            {practical.atAGlance.map((fact) => (
               <li key={fact} className="rounded-chip border border-line bg-subtle px-3 py-1.5 text-xs text-ink-muted">
                 {fact}
               </li>
@@ -341,10 +345,15 @@ function RestaurantDetailContent({
             {reservationStatus && <><dt className="sr-only">Reservation policy</dt><dd className="col-span-2 text-ink/85">{reservationStatus}</dd></>}
             {budget && <><dt className="text-ink-muted">Budget</dt><dd className="text-ink/85">{budget}</dd></>}
             {restaurant.phone_number && <><dt className="text-ink-muted">Phone</dt><dd><a className="text-lavender-700 underline underline-offset-2" href={`tel:${restaurant.phone_number}`}>{restaurant.phone_number}</a></dd></>}
-            {(restaurant.booking_methods?.length ?? 0) > 0 && <><dt className="text-ink-muted">Booking</dt><dd className="text-ink/85">{restaurant.booking_methods?.map((method) => formatTagForDisplay(method)).join(", ")}</dd></>}
+            {bookingMethods && <><dt className="text-ink-muted">Booking</dt><dd className="text-ink/85">{bookingMethods}</dd></>}
             {bookingUrl && <><dt className="text-ink-muted">Online</dt><dd><a className="text-lavender-700 underline underline-offset-2" href={bookingUrl} target="_blank" rel="noopener noreferrer nofollow">Book online ↗</a></dd></>}
           </dl>
           {restaurant.contact_note && <p className="mt-3 max-w-prose text-sm leading-6 text-ink-muted">{restaurant.contact_note}</p>}
+          {practical.bookingNotes.length > 0 && (
+            <ul className="mt-3 max-w-prose space-y-1 text-sm leading-6 text-ink-muted">
+              {practical.bookingNotes.map((note) => <li key={note}>{note}</li>)}
+            </ul>
+          )}
         </section>
       )}
 
@@ -361,10 +370,16 @@ function RestaurantDetailContent({
               ))}
             </dl>
           )}
-          {restaurant.opening_hours?.reservation_only === true && (
-            <p className="mt-3 text-sm text-ink/85">Reservation only</p>
-          )}
           {scheduleNote && <p className="mt-2 max-w-prose text-sm leading-6 text-ink-muted">{scheduleNote}</p>}
+        </section>
+      )}
+
+      {practical.beforeYouGo.length > 0 && (
+        <section aria-labelledby="before-you-go-heading" className="border-t border-line pt-6">
+          <h2 id="before-you-go-heading" className="font-display text-2xl text-ink">Before you go</h2>
+          <ul className="mt-3 max-w-prose space-y-2 text-sm leading-6 text-ink/85">
+            {practical.beforeYouGo.map((note) => <li key={note}>{note}</li>)}
+          </ul>
         </section>
       )}
 

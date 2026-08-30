@@ -19,39 +19,56 @@ const PERIOD_LABELS: Record<string, string> = {
   late_night: "Late night",
 };
 
-export function practicalFacts(info: PracticalInfo | undefined): string[] {
-  if (!info) return [];
+export interface PracticalPresentation {
+  atAGlance: string[];
+  bookingNotes: string[];
+  beforeYouGo: string[];
+}
 
-  const facts: string[] = [];
-  const reservation = info.reservation?.status;
-  if (reservation === "required") facts.push("Reservations required");
-  if (reservation === "strongly_recommended") facts.push("Reservations strongly recommended");
-  if (reservation === "recommended") facts.push("Reservations recommended");
-  if (reservation === "walk_ins_ok") facts.push("Walk-ins welcome");
-  if (reservation === "usually_not_needed") facts.push("Reservations usually not needed");
+const RESERVATION_COPY = /\b(reservation|booking)\b/i;
+const HOURS_COPY = /\b(closed|opening hours?|service (?:runs|hours?)|lunch|dinner|late[- ]night)\b|\b\d{1,2}:\d{2}\b/i;
+const CATEGORICAL_OTHER = /^(?:non[- ]smoking|smoking allowed|standing bar)$/i;
+const STRUCTURED_RESERVATION_COPY = /^(?:reservations? (?:are )?(?:required|strongly recommended|recommended|usually not needed)|walk-ins? (?:are )?welcome)\.?$/i;
 
-  if (info.seating?.counter === true) facts.push("Counter seating");
-  if (info.seating?.tables === true) facts.push("Table seating");
-  if (info.seating?.private_rooms === true) facts.push("Private rooms");
-  if (info.seating?.small_capacity === true) facts.push("Small capacity");
+export function classifyPracticalInfo(info: PracticalInfo | undefined): PracticalPresentation {
+  if (!info) return { atAGlance: [], bookingNotes: [], beforeYouGo: [] };
 
-  if (info.visit_style?.solo_friendly === true) facts.push("Solo-friendly");
-  if (info.visit_style?.group_friendly === true) facts.push("Good for groups");
-  if (info.visit_style?.date_friendly === true) facts.push("Good for dates");
+  const atAGlance: string[] = [];
+  const bookingNotes: string[] = [];
+  const beforeYouGo: string[] = [];
 
-  if (info.service_periods?.lunch === true) facts.push("Lunch");
-  if (info.service_periods?.dinner === true) facts.push("Dinner");
-  if (info.service_periods?.late_night === true) facts.push("Late night");
+  if (info.seating?.counter === true) atAGlance.push("Counter seating");
+  if (info.seating?.tables === true) atAGlance.push("Table seating");
+  if (info.seating?.private_rooms === true) atAGlance.push("Private rooms");
+  if (info.seating?.small_capacity === true) atAGlance.push("Small capacity");
 
-  if (info.payment?.cash_only === true) facts.push("Cash only");
-  if (info.payment?.cards === true) facts.push("Cards accepted");
-  if (info.payment?.electronic_payment === true) facts.push("Electronic payment accepted");
+  if (info.visit_style?.solo_friendly === true) atAGlance.push("Solo-friendly");
+  if (info.visit_style?.group_friendly === true) atAGlance.push("Good for groups");
+  if (info.visit_style?.date_friendly === true) atAGlance.push("Good for dates");
+
+  if (info.payment?.cash_only === true) atAGlance.push("Cash only");
+  if (info.payment?.cards === true) atAGlance.push("Cards accepted");
+  if (info.payment?.electronic_payment === true) atAGlance.push("Electronic payment accepted");
 
   for (const fact of info.other ?? []) {
     const trimmed = fact.trim();
-    if (trimmed) facts.push(trimmed);
+    if (!trimmed) continue;
+    if (RESERVATION_COPY.test(trimmed)) {
+      if (!STRUCTURED_RESERVATION_COPY.test(trimmed)) bookingNotes.push(trimmed);
+    } else if (HOURS_COPY.test(trimmed)) {
+      // Structured Hours owns service periods, closures, and clock-time restatements.
+      continue;
+    } else if (CATEGORICAL_OTHER.test(trimmed)) {
+      atAGlance.push(trimmed);
+    } else if (!/^(?:cash only|cards accepted|electronic payment accepted)$/i.test(trimmed)) {
+      beforeYouGo.push(trimmed);
+    }
   }
-  return [...new Set(facts)];
+  return {
+    atAGlance: [...new Set(atAGlance)].slice(0, 6),
+    bookingNotes: [...new Set(bookingNotes)],
+    beforeYouGo: [...new Set(beforeYouGo)],
+  };
 }
 
 export interface HoursRow {

@@ -64,6 +64,52 @@ afterEach(() => {
 });
 
 describe("compact restaurant card content", () => {
+  it("renders known budget ranges without changing the card structure", () => {
+    render(
+      <CompactRestaurantCard
+        restaurant={restaurant({
+          budget: {
+            currency: "JPY",
+            minimum: 2000,
+            maximum: 3000,
+            band: "budget",
+            source_type: "researched_source",
+            confidence: 0.9,
+          },
+        })}
+        saved={false}
+        onToggleSaved={() => {}}
+      />,
+    );
+    expect(screen.getByText("¥2,000–¥3,000")).toBeTruthy();
+    expect(screen.getByTestId("compact-card-layout")).toBeTruthy();
+  });
+
+  it("renders open-ended known budget and omits unknown budget", () => {
+    const { rerender } = render(
+      <CompactRestaurantCard
+        restaurant={restaurant({
+          budget: {
+            currency: "JPY",
+            minimum: 10000,
+            maximum: null,
+            band: "splurge",
+            source_type: "researched_source",
+            confidence: 0.8,
+          },
+        })}
+        saved={false}
+        onToggleSaved={() => {}}
+      />,
+    );
+    expect(screen.getByText("¥10,000+")).toBeTruthy();
+
+    rerender(
+      <CompactRestaurantCard restaurant={restaurant({ budget: null })} saved={false} onToggleSaved={() => {}} />,
+    );
+    expect(screen.queryByText(/¥|Unknown|Price unavailable/)).toBeNull();
+  });
+
   it("uses the Japanese title and English subtitle", () => {
     render(
       <CompactRestaurantCard restaurant={restaurant()} saved={false} onToggleSaved={() => {}} />,
