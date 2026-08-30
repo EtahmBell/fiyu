@@ -1350,7 +1350,7 @@ def _repair_shared_active_assignment(
 def _recent_daily_pick_response(
     assignment: DailyPickAssignment, city_id: str, now: datetime
 ) -> RecentDailyPickRoundResponse:
-    restaurants = _public_restaurants_for_place_ids(assignment.place_ids)
+    restaurants = _public_restaurants_for_place_ids(assignment.revealed_place_ids)
     return RecentDailyPickRoundResponse(
         round_id=assignment.round_id,
         city_id=city_id,
@@ -1682,7 +1682,7 @@ def get_recent_daily_pick_discoveries(
     owner_id: Annotated[str, Depends(_owner_id_from_header)],
     city_id: str = Query(default="tokyo"),
 ) -> list[RecentDailyPickRoundResponse]:
-    """Return complete expired Picks rounds still inside the existing 72-hour window."""
+    """Return revealed items from expired rounds inside the retention window."""
     _ensure_database()
     normalized_city = _normalize_list_city(city_id)
     now = datetime.now(UTC)
@@ -1767,10 +1767,12 @@ def _map_eligible_public_restaurants_for_place_ids(
 def _authenticated_map_membership(
     user_id: str, *, city_id: str = "tokyo"
 ) -> tuple[list[str], set[str]]:
-    """Derive Map membership and visit state from current account relationships."""
+    """Derive Map membership from revealed discoveries and visit relationships."""
     now = datetime.now(UTC)
-    active = shared_user_data.get_active_daily_picks(user_id=user_id, city_id=city_id)
-    active_place_ids = active.get("place_ids", []) if active else []
+    active_row = shared_user_data.get_active_daily_picks(user_id=user_id, city_id=city_id)
+    active_place_ids = (
+        list(_shared_assignment(active_row).revealed_place_ids) if active_row else []
+    )
     recent_rounds = shared_user_data.get_recent_daily_pick_rounds(
         user_id=user_id,
         city_id=city_id,
@@ -1780,7 +1782,7 @@ def _authenticated_map_membership(
     recent_place_ids = [
         place_id
         for round_row in recent_rounds
-        for place_id in round_row.get("place_ids", [])
+        for place_id in _shared_assignment(round_row).revealed_place_ids
     ]
     visited_place_ids = list(shared_user_data.visited_place_ids(user_id=user_id))
     visited_place_id_set = set(visited_place_ids)

@@ -62,6 +62,7 @@ export interface DailyPicksPanelProps {
   onOpenRestaurant?: (restaurant: PublicRestaurant) => void;
   onViewRestaurant?: (restaurant: PublicRestaurant) => void;
   onVisibleRestaurantsChange?: (restaurants: PublicRestaurant[]) => void;
+  onActiveRoundAssigned?: (previousUnrevealedPlaceIds: string[]) => void;
   selectedPlaceId?: string | null;
   scrollToPlaceId?: string | null;
   scrollRequestKey?: number;
@@ -220,6 +221,7 @@ export function DailyPicksPanel({
   onOpenRestaurant,
   onViewRestaurant,
   onVisibleRestaurantsChange,
+  onActiveRoundAssigned,
   selectedPlaceId = null,
   scrollToPlaceId = null,
   scrollRequestKey = 0,
@@ -549,6 +551,11 @@ export function DailyPicksPanel({
         const assignedAt = Date.parse(result.value.assigned_at);
         setAssignmentRestaurants(result.value.restaurants ?? []);
         setAssignmentAccountId(accountId);
+        onActiveRoundAssigned?.(
+          (state.selection?.restaurantIds ?? []).filter(
+            (placeId) => !state.selection?.revealedIds.includes(placeId),
+          ),
+        );
         if (hydrationKey) {
           const previous = readAccountQuery<DailyPicksHydration>(hydrationKey);
           writeAccountQuery(hydrationKey, {

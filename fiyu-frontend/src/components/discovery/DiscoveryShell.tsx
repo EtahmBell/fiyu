@@ -106,6 +106,8 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
     loader: loadMapRestaurants,
     enabled: Boolean(authenticatedUserId),
   });
+  const refreshMapRestaurants = mapQuery.refresh;
+  const setMapRestaurants = mapQuery.setData;
   const [homeArea, setHomeArea] = useState<LocationAnchor | null>(null);
   const [continuedWithoutLocation, setContinuedWithoutLocation] = useState(false);
   const [newRoundLocationGate, setNewRoundLocationGate] =
@@ -294,6 +296,22 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
       setVisibleRestaurantState({ ownerKey: restaurantOwnerKey, restaurants: nextRestaurants }),
     [restaurantOwnerKey],
   );
+  const reconcileMapForNewRound = useCallback(
+    (previousUnrevealedPlaceIds: string[]) => {
+      const staleIds = new Set(previousUnrevealedPlaceIds);
+      if (staleIds.size > 0) {
+        setMapRestaurants((current) =>
+          (current ?? []).filter(
+            (restaurant) =>
+              ("is_visited" in restaurant && restaurant.is_visited === true) ||
+              !staleIds.has(restaurant.place_id),
+          ),
+        );
+      }
+      void refreshMapRestaurants(true).catch(() => undefined);
+    },
+    [refreshMapRestaurants, setMapRestaurants],
+  );
 
   useEffect(() => {
     for (const restaurant of visibleRestaurants.slice(0, 8)) {
@@ -466,6 +484,7 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
                 onOpenRestaurant={selectFromFeed}
                 onViewRestaurant={openRestaurantDetail}
                 onVisibleRestaurantsChange={updateVisibleRestaurants}
+                onActiveRoundAssigned={reconcileMapForNewRound}
                 selectedPlaceId={selection?.placeId ?? null}
                 scrollToPlaceId={selection?.source === "map" ? selection.placeId : null}
                 scrollRequestKey={selection?.navigationKey ?? 0}

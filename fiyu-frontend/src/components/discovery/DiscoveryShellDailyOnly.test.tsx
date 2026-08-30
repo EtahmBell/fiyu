@@ -757,6 +757,75 @@ describe("daily-only discovery shell", () => {
     ).toBe("true");
   });
 
+  it("removes stale unrevealed markers when a new authenticated round is assigned", async () => {
+    const accountId = "account-stale-map";
+    const now = Date.now();
+    window.localStorage.setItem(
+      dailyPicksStorageKey(accountId),
+      JSON.stringify({
+        version: 3,
+        preferences: { categories: [], nonJapanese: "occasionally" },
+        selection: {
+          restaurantIds: ["one", "two", "three"],
+          revealedIds: ["one"],
+          generatedAt: new Date(now - 26 * 60 * 60 * 1_000).toISOString(),
+          expiresAt: new Date(now - 2 * 60 * 60 * 1_000).toISOString(),
+        },
+        discoveries: [
+          { restaurantId: "one", revealedAt: new Date(now - 25 * 60 * 60 * 1_000).toISOString() },
+        ],
+        savedRestaurantIds: [],
+      }),
+    );
+    dailyApi.fetchRecentDailyPicks.mockResolvedValueOnce([{
+      round_id: "expired-round",
+      city_id: "tokyo",
+      place_ids: ["one"],
+      assigned_at: new Date(now - 26 * 60 * 60 * 1_000).toISOString(),
+      retention_expires_at: new Date(now + 46 * 60 * 60 * 1_000).toISOString(),
+      restaurants: [catalog[0]],
+    }]);
+    dailyApi.assignDailyPicks.mockResolvedValueOnce({
+      round_id: "new-hidden-round",
+      city_id: "tokyo",
+      place_ids: ["four", "five", "six"],
+      assigned_at: new Date(now).toISOString(),
+      expires_at: new Date(now + 24 * 60 * 60 * 1_000).toISOString(),
+      revealed_place_ids: [],
+      restaurants: catalog.slice(3),
+    });
+    mapApi.fetchAuthenticatedMapRestaurants
+      .mockResolvedValueOnce(catalog.slice(0, 3))
+      .mockResolvedValueOnce([catalog[0]]);
+    locationApi.fetchDiscoveryLocation.mockResolvedValueOnce(configuredLocation("Shinjuku"));
+    locationApi.checkCurrentDiscoveryLocation.mockResolvedValueOnce({
+      inside_service_area: true,
+      location: configuredLocation("Shinjuku", "current"),
+    });
+    const gps = installControlledGeolocation();
+    publishProfileIdentity(accountProfile(accountId, "stalemap"));
+    const { container } = render(<DiscoveryShell restaurants={catalog} areaAnchors={[]} />);
+
+    await waitFor(() =>
+      expect(container.querySelectorAll('[data-marker-kind="restaurant"]')).toHaveLength(3),
+    );
+    fireEvent.click(await screen.findByRole("button", { name: /Find today's restaurants/i }));
+    act(() => gps.grant(35.6938, 139.7034));
+    await waitFor(() =>
+      expect(screen.getAllByTestId("concealed-restaurant-card")).toHaveLength(3),
+      { timeout: 3_000 },
+    );
+
+    await waitFor(() =>
+      expect(container.querySelectorAll('[data-marker-kind="restaurant"]')).toHaveLength(1),
+    );
+    expect(container.querySelector('[data-place-id="one"]')).toBeTruthy();
+    expect(container.querySelector('[data-place-id="two"]')).toBeNull();
+    expect(container.querySelector('[data-place-id="three"]')).toBeNull();
+    expect(container.querySelector('[data-place-id="four"]')).toBeNull();
+    expect(mapApi.fetchAuthenticatedMapRestaurants).toHaveBeenCalledTimes(2);
+  });
+
   it("ignores a stale Tokyo cache and requires a preview when fresh GPS is outside", async () => {
     const gps = installControlledGeolocation();
     locationApi.fetchDiscoveryLocation.mockResolvedValueOnce(

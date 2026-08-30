@@ -409,7 +409,9 @@ def test_authenticated_map_uses_current_relationships_not_historical_seen(
         "place_ids": ["tokyo-1", "tokyo-2", "tokyo-3"],
         "assigned_at": now.isoformat(),
         "expires_at": (now + timedelta(hours=24)).isoformat(),
-        "selection_metadata": {},
+        "selection_metadata": {
+            "revealed_place_ids": ["tokyo-1", "tokyo-2", "tokyo-3"]
+        },
     }
     assert map_place_ids() == ["tokyo-1", "tokyo-2", "tokyo-3"]
     assert "tokyo-0" not in map_place_ids()
@@ -439,7 +441,7 @@ def test_map_visibility_expires_but_seen_history_and_retained_relationships_rema
         "place_ids": place_ids,
         "assigned_at": assigned_at.isoformat(),
         "expires_at": (assigned_at + timedelta(hours=24)).isoformat(),
-        "selection_metadata": {},
+        "selection_metadata": {"revealed_place_ids": place_ids},
     }
     client.fiyu_test_state["recent_rounds"][(user_id, "tokyo")].append(
         {
@@ -447,7 +449,7 @@ def test_map_visibility_expires_but_seen_history_and_retained_relationships_rema
             "place_ids": place_ids,
             "assigned_at": assigned_at.isoformat(),
             "expires_at": (assigned_at + timedelta(hours=24)).isoformat(),
-            "selection_metadata": {},
+            "selection_metadata": {"revealed_place_ids": place_ids},
         }
     )
     seen[user_id].extend(place_ids)
@@ -532,7 +534,9 @@ def test_new_active_round_replaces_old_unsaved_map_membership(shared_account_api
         "place_ids": ["tokyo-1", "tokyo-2", "tokyo-3"],
         "assigned_at": now.isoformat(),
         "expires_at": (now + timedelta(hours=24)).isoformat(),
-        "selection_metadata": {},
+        "selection_metadata": {
+            "revealed_place_ids": ["tokyo-1", "tokyo-2", "tokyo-3"]
+        },
     }
 
     response = client.get("/profiles/me/map-restaurants", headers=_auth("token-a"))
@@ -558,7 +562,9 @@ def test_map_visibility_deduplicates_active_saved_and_visited_membership(
         "place_ids": ["tokyo-0", "tokyo-1", "tokyo-2"],
         "assigned_at": now.isoformat(),
         "expires_at": (now + timedelta(hours=24)).isoformat(),
-        "selection_metadata": {},
+        "selection_metadata": {
+            "revealed_place_ids": ["tokyo-0", "tokyo-1", "tokyo-2"]
+        },
     }
     assert (
         client.post(
@@ -604,7 +610,9 @@ def test_map_visibility_still_requires_published_map_eligible_catalog_rows(
         "place_ids": ["tokyo-0", "tokyo-1", "tokyo-2"],
         "assigned_at": now.isoformat(),
         "expires_at": (now + timedelta(hours=24)).isoformat(),
-        "selection_metadata": {},
+        "selection_metadata": {
+            "revealed_place_ids": ["tokyo-0", "tokyo-1", "tokyo-2"]
+        },
     }
     with connect(api.DB_PATH) as connection:
         connection.execute(
@@ -632,7 +640,9 @@ def test_product_exclusion_filters_discovery_but_preserves_saved_and_visit_histo
         "place_ids": ["tokyo-0", "tokyo-1", "tokyo-2"],
         "assigned_at": now.isoformat(),
         "expires_at": (now + timedelta(hours=24)).isoformat(),
-        "selection_metadata": {},
+        "selection_metadata": {
+            "revealed_place_ids": ["tokyo-0", "tokyo-1", "tokyo-2"]
+        },
     }
     client.fiyu_test_state["snapshots"][(user_id, "tokyo")] = snapshot
     client.fiyu_test_state["recent_rounds"][(user_id, "tokyo")].append(
@@ -837,9 +847,8 @@ def test_active_snapshot_with_no_replacements_returns_and_persists_empty_gracefu
     assert second.json()["place_ids"] == []
     assert client.fiyu_test_state["snapshots"][(user_id, "tokyo")]["place_ids"] == []
     assert seen[user_id] == original
-    assert client.get(
-        "/profiles/me/map-restaurants", headers=_auth("token-a")
-    ).json() == []
+    for map_path in ("/profiles/me/map-restaurants", "/map/restaurants"):
+        assert client.get(map_path, headers=_auth("token-a")).json() == []
 
 
 def test_authenticated_lists_log_and_seen_are_account_owned(shared_account_api):
@@ -886,7 +895,7 @@ def test_authenticated_lists_log_and_seen_are_account_owned(shared_account_api):
         for item in client.get(
             "/profiles/me/map-restaurants", headers=_auth("token-a")
         ).json()
-    } == set(surfaced.json()["place_ids"]) | {"tokyo-1"}
+    } == {"tokyo-1"}
 
     assert (
         client.get("/lists/default", params={"city_id": "tokyo"}, headers=_auth("token-b")).json()[
@@ -922,7 +931,7 @@ def test_authenticated_lists_log_and_seen_are_account_owned(shared_account_api):
         for item in client.get(
             "/profiles/me/map-restaurants", headers=_auth("token-b")
         ).json()
-    } == set(surfaced_for_b.json()["place_ids"])
+    } == set()
 
     assert (
         client.get("/lists/default", params={"city_id": "tokyo"}, headers=_auth("token-a")).json()[
@@ -1176,10 +1185,16 @@ def test_authenticated_daily_pick_reveal_persists_across_restore_and_is_account_
 
     place_ids = created.json()["place_ids"]
     assert created.json()["revealed_place_ids"] == []
+    assert client.get(
+        "/profiles/me/map-restaurants", headers=_auth("token-a")
+    ).json() == []
     first = client.post(
         f"/daily-picks/{round_id}/reveal",
         headers=_auth("token-a"),
         json={"place_id": place_ids[0]},
+    )
+    map_after_first = client.get(
+        "/profiles/me/map-restaurants", headers=_auth("token-a")
     )
     second = client.post(
         f"/daily-picks/{round_id}/reveal",
@@ -1199,10 +1214,14 @@ def test_authenticated_daily_pick_reveal_persists_across_restore_and_is_account_
 
     assert first.status_code == second.status_code == restored_after_two.status_code == 200
     assert first.json()["revealed_place_ids"] == [place_ids[0]]
+    assert [row["place_id"] for row in map_after_first.json()] == place_ids[:1]
     assert second.json()["revealed_place_ids"] == place_ids[:2]
     assert restored_after_two.json()["revealed_place_ids"] == place_ids[:2]
     assert restored_after_two.json()["revealed_at"] is None
     assert restored_after_two.json()["place_ids"] == place_ids
+    assert [row["place_id"] for row in client.get(
+        "/profiles/me/map-restaurants", headers=_auth("token-a")
+    ).json()] == place_ids[:2]
     assert other_account.status_code == 404
 
     third = client.post(
@@ -1218,6 +1237,42 @@ def test_authenticated_daily_pick_reveal_persists_across_restore_and_is_account_
     assert third.json()["revealed_at"] is not None
     assert fully_restored.json()["revealed_place_ids"] == place_ids
     assert fully_restored.json()["revealed_at"] == third.json()["revealed_at"]
+    assert [row["place_id"] for row in client.get(
+        "/profiles/me/map-restaurants", headers=_auth("token-a")
+    ).json()] == place_ids
+
+
+def test_recent_discoveries_and_map_include_only_revealed_expired_round_items(
+    shared_account_api,
+):
+    client, user_ids, seen = shared_account_api
+    user_id = user_ids["token-a"]
+    now = datetime.now(UTC)
+    round_id = str(uuid4())
+    place_ids = ["tokyo-0", "tokyo-1", "tokyo-2"]
+    client.fiyu_test_state["recent_rounds"][(user_id, "tokyo")].append(
+        {
+            "round_id": round_id,
+            "assigned_at": (now - timedelta(hours=25)).isoformat(),
+            "expires_at": (now - timedelta(hours=1)).isoformat(),
+            "selection_metadata": {"revealed_place_ids": place_ids[:2]},
+            "place_ids": place_ids,
+        }
+    )
+    seen[user_id].extend(place_ids)
+
+    recent = client.get(
+        "/daily-picks/recent", params={"city_id": "tokyo"}, headers=_auth("token-a")
+    )
+    map_rows = client.get(
+        "/profiles/me/map-restaurants", headers=_auth("token-a")
+    )
+
+    assert recent.status_code == map_rows.status_code == 200
+    assert recent.json()[0]["place_ids"] == place_ids[:2]
+    assert [row["place_id"] for row in recent.json()[0]["restaurants"]] == place_ids[:2]
+    assert [row["place_id"] for row in map_rows.json()] == place_ids[:2]
+    assert seen[user_id] == place_ids
 
 
 def test_recent_discoveries_restore_every_persisted_round_item_with_account_isolation(
@@ -1232,7 +1287,7 @@ def test_recent_discoveries_restore_every_persisted_round_item_with_account_isol
             "round_id": round_id,
             "assigned_at": assigned_at,
             "expires_at": (datetime.now(UTC) - timedelta(hours=1)).isoformat(),
-            "selection_metadata": {},
+            "selection_metadata": {"revealed_place_ids": place_ids},
             "place_ids": place_ids,
         }
     )

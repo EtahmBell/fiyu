@@ -195,6 +195,8 @@ def test_generation_uses_real_selector_affordable_rule_and_persists(developer_ap
     assert body["diagnostics"]["effective_area"] == "Ginza"
     assert body["diagnostics"]["affordable_slot_satisfied"] is True
     assert len(body["assignment"]["place_ids"]) == 3
+    assert body["assignment"]["revealed_place_ids"] == []
+    assert body["assignment"]["revealed_at"] is None
     assert any(place_id == "ginza-0" for place_id in body["assignment"]["place_ids"])
     assert state["active"][DEV_USER]["selection_metadata"]["is_dev_generated"] is True
     assert state["active"][NORMAL_USER] == {"round_id": "normal-round"}
