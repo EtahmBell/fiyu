@@ -51,9 +51,25 @@ describe("restaurant detail enrichment presentation", () => {
       wednesday: { status: "irregular", periods: [] },
       thursday: { status: "unknown", periods: [] },
     })).toEqual([
-      { day: "Monday", value: "Lunch 12:00–14:00, last order 13:30; Dinner 18:00–22:00, last order 21:30" },
-      { day: "Tuesday", value: "Closed" },
-      { day: "Wednesday", value: "Irregular" },
+      { day: "Mon", value: "Lunch 12:00–14:00, last order 13:30; Dinner 18:00–22:00, last order 21:30" },
+      { day: "Tue", value: "Closed" },
+      { day: "Wed", value: "Irregular" },
+    ]);
+  });
+
+  it("groups adjacent days only when their known schedules are identical", () => {
+    expect(knownHours({
+      monday: { status: "open", periods: [{ open: "18:00", close: "23:00", label: "dinner" }] },
+      tuesday: { status: "open", periods: [{ open: "18:00", close: "23:00", label: "dinner" }] },
+      wednesday: { status: "unknown", periods: [] },
+      thursday: { status: "open", periods: [{ open: "18:00", close: "23:00", label: "dinner" }] },
+      friday: { status: "closed", periods: [] },
+      saturday: { status: "closed", periods: [] },
+      sunday: { status: "closed", periods: [] },
+    })).toEqual([
+      { day: "Mon–Tue", value: "Dinner 18:00–23:00" },
+      { day: "Thu", value: "Dinner 18:00–23:00" },
+      { day: "Fri–Sun", value: "Closed" },
     ]);
   });
 

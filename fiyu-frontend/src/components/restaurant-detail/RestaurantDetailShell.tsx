@@ -264,7 +264,8 @@ function RestaurantDetailContent({
   );
   const reviewThemes = (restaurant.review_themes ?? [])
     .map((theme) => theme.theme.trim())
-    .filter(Boolean);
+    .filter(Boolean)
+    .slice(0, 4);
   const practical = classifyPracticalInfo(restaurant.practical_info);
   const hours = knownHours(restaurant.opening_hours);
   const scheduleNote = restaurant.opening_hours?.schedule_note?.trim() || null;
@@ -275,93 +276,166 @@ function RestaurantDetailContent({
     ?? formatReservationStatus(restaurant.practical_info?.reservation?.status);
   const bookingUrl = safeExternalUrl(restaurant.booking_url);
   const bookingMethods = formatBookingMethods(restaurant.booking_methods);
-  const hasContact = Boolean(
+  const locationSummary = restaurant.neighborhood?.trim()
+    || restaurant.discovery_area?.trim()
+    || null;
+  const cuisineSummary = [restaurant.category, ...restaurant.cuisine_terms_en]
+    .map((value) => value?.trim())
+    .filter((value): value is string => Boolean(value))
+    .filter((value, index, values) => values.findIndex(
+      (candidate) => candidate.toLocaleLowerCase() === value.toLocaleLowerCase(),
+    ) === index)
+    .slice(0, 2)
+    .join(" · ") || null;
+  const summaryFacts = [
+    locationSummary ? { label: "Area", value: locationSummary } : null,
+    cuisineSummary ? { label: "Cuisine", value: cuisineSummary } : null,
+    budget ? { label: "Budget", value: budget } : null,
+  ].filter((value): value is { label: string; value: string } => value !== null);
+  const quickFacts = practical.atAGlance;
+  const quickFactGroups = [
+    {
+      label: "Seating",
+      values: quickFacts.filter((fact) => [
+        "Counter seating", "Table seating", "Private rooms", "Small capacity",
+      ].includes(fact)),
+    },
+    {
+      label: "Good for",
+      values: quickFacts.filter((fact) => [
+        "Solo-friendly", "Good for groups", "Good for dates",
+      ].includes(fact)),
+    },
+    {
+      label: "Payment",
+      values: quickFacts.filter((fact) => [
+        "Cash only", "Cards accepted", "Electronic payment accepted",
+      ].includes(fact)),
+    },
+    {
+      label: "Service",
+      values: [
+        restaurant.practical_info?.service_periods?.lunch === true ? "Lunch" : null,
+        restaurant.practical_info?.service_periods?.dinner === true ? "Dinner" : null,
+        restaurant.practical_info?.service_periods?.late_night === true ? "Late night" : null,
+      ].filter((value): value is string => value !== null),
+    },
+    {
+      label: "Other",
+      values: quickFacts.filter((fact) => ![
+        "Counter seating", "Table seating", "Private rooms", "Small capacity",
+        "Solo-friendly", "Good for groups", "Good for dates",
+        "Cash only", "Cards accepted", "Electronic payment accepted",
+      ].includes(fact)),
+    },
+  ].filter((group) => group.values.length > 0);
+  const practicalNotes = [
+    restaurant.contact_note?.trim(),
+    ...practical.bookingNotes,
+    ...practical.beforeYouGo,
+  ].filter((value): value is string => Boolean(value))
+    .filter((value, index, values) => values.findIndex(
+      (candidate) => candidate.toLocaleLowerCase() === value.toLocaleLowerCase(),
+    ) === index);
+  const hasPracticalInfo = Boolean(
     reservationStatus || budget || restaurant.phone_number || bookingUrl || restaurant.contact_note
-      || bookingMethods || practical.bookingNotes.length,
+      || bookingMethods || quickFactGroups.length || practicalNotes.length,
   );
 
   return (
-    <article className="space-y-8 pb-[calc(var(--spacing-mobile-nav)+1.25rem)] lg:pb-12" style={{ animation: "fiyu-reveal-in 220ms var(--ease-fiyu) both" }}>
+    <article className="space-y-6 pb-[calc(var(--spacing-mobile-nav)+1.25rem)] lg:pb-12" style={{ animation: "fiyu-reveal-in 220ms var(--ease-fiyu) both" }}>
       <RestaurantPhotoGallery
         placeId={restaurant.place_id}
         restaurantName={title}
         onPhotosChange={updatePhotos}
       />
 
-      <section aria-labelledby="restaurant-identity-heading" className="space-y-4">
+      <section aria-labelledby="restaurant-identity-heading" className="space-y-3">
         <div className="flex min-w-0 items-start justify-between gap-5">
           <div className="min-w-0">
             <h1 id="restaurant-identity-heading" lang={names.primary?.lang} className="font-display text-3xl leading-tight text-ink sm:text-4xl">
               {title}
             </h1>
             {names.secondary && <p lang={names.secondary.lang} className="mt-1.5 text-base text-ink-muted">{names.secondary.text}</p>}
-            {restaurant.category && <p className="mt-3 text-sm text-ink-muted">{restaurant.category}</p>}
           </div>
           <ScoreMark score={restaurant.fiyu_score} size="lg" />
         </div>
+        {summaryFacts.length > 0 && (
+          <dl className="grid grid-cols-2 gap-x-5 gap-y-3 border-y border-line py-3 text-sm sm:grid-cols-3">
+            {summaryFacts.map((fact) => (
+              <div key={fact.label} className="min-w-0">
+                <dt className="text-[0.6875rem] font-semibold tracking-[0.08em] text-ink-muted uppercase">{fact.label}</dt>
+                <dd className="mt-0.5 text-sm leading-5 text-ink/85">{fact.value}</dd>
+              </div>
+            ))}
+          </dl>
+        )}
         {restaurant.food_tags.length > 0 && (
           <TagList tags={restaurant.food_tags} titleCaseEnglish />
         )}
         <div className="flex flex-wrap items-center gap-3">
           <SaveButton saved={saved} onToggle={onToggleSaved} />
           <OutboundMapActions restaurant={restaurant} />
+          {bookingUrl && (
+            <a
+              href={bookingUrl}
+              target="_blank"
+              rel="noopener noreferrer nofollow"
+              className="inline-flex min-h-11 items-center text-xs font-medium text-lavender-700 underline decoration-line underline-offset-2 hover:text-plum hover:decoration-lavender-500"
+            >
+              Book online ↗
+            </a>
+          )}
         </div>
         {saveError && <p role="status" className="text-xs text-dusty-rose">{saveError}</p>}
       </section>
 
-      {displayDescription && (
-        <section aria-labelledby="about-heading" className="border-t border-line pt-6">
-          <h2 id="about-heading" className="font-display text-2xl text-ink">About</h2>
-          <p className="mt-3 max-w-prose whitespace-pre-line text-[0.9375rem] leading-7 text-ink/85">{displayDescription}</p>
-        </section>
-      )}
-
-      {reviewThemes.length > 0 && (
-        <section aria-labelledby="people-like-heading" className="border-t border-line pt-6">
-          <h2 id="people-like-heading" className="font-display text-2xl text-ink">People like</h2>
-          <ul className="mt-3 space-y-2 text-sm leading-6 text-ink/85">
-            {reviewThemes.map((theme) => <li key={theme}>{theme}</li>)}
-          </ul>
-        </section>
-      )}
-
-      {practical.atAGlance.length > 0 && (
-        <section aria-labelledby="at-a-glance-heading" className="border-t border-line pt-6">
-          <h2 id="at-a-glance-heading" className="font-display text-2xl text-ink">At a glance</h2>
-          <ul className="mt-3 flex flex-wrap gap-2">
-            {practical.atAGlance.map((fact) => (
-              <li key={fact} className="rounded-chip border border-line bg-subtle px-3 py-1.5 text-xs text-ink-muted">
-                {fact}
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      {hasContact && (
-        <section aria-labelledby="booking-heading" className="border-t border-line pt-6">
-          <h2 id="booking-heading" className="font-display text-2xl text-ink">Booking and budget</h2>
-          <dl className="mt-3 grid max-w-md grid-cols-[6rem_minmax(0,1fr)] gap-x-4 gap-y-2 text-sm leading-6">
-            {reservationStatus && <><dt className="sr-only">Reservation policy</dt><dd className="col-span-2 text-ink/85">{reservationStatus}</dd></>}
-            {budget && <><dt className="text-ink-muted">Budget</dt><dd className="text-ink/85">{budget}</dd></>}
-            {restaurant.phone_number && <><dt className="text-ink-muted">Phone</dt><dd><a className="text-lavender-700 underline underline-offset-2" href={`tel:${restaurant.phone_number}`}>{restaurant.phone_number}</a></dd></>}
-            {bookingMethods && <><dt className="text-ink-muted">Booking</dt><dd className="text-ink/85">{bookingMethods}</dd></>}
-            {bookingUrl && <><dt className="text-ink-muted">Online</dt><dd><a className="text-lavender-700 underline underline-offset-2" href={bookingUrl} target="_blank" rel="noopener noreferrer nofollow">Book online ↗</a></dd></>}
-          </dl>
-          {restaurant.contact_note && <p className="mt-3 max-w-prose text-sm leading-6 text-ink-muted">{restaurant.contact_note}</p>}
-          {practical.bookingNotes.length > 0 && (
-            <ul className="mt-3 max-w-prose space-y-1 text-sm leading-6 text-ink-muted">
-              {practical.bookingNotes.map((note) => <li key={note}>{note}</li>)}
+      {(displayDescription || reviewThemes.length > 0) && (
+        <section aria-labelledby="overview-heading" className="border-t border-line pt-5">
+          <h2 id="overview-heading" className="font-display text-2xl text-ink">Overview</h2>
+          {displayDescription && <p className="mt-3 max-w-prose whitespace-pre-line text-[0.9375rem] leading-6 text-ink/85">{displayDescription}</p>}
+          {reviewThemes.length > 0 && (
+            <ul className="mt-4 grid gap-2 text-sm leading-5 text-ink/85 sm:grid-cols-2 sm:gap-x-6">
+              {reviewThemes.map((theme) => (
+                <li key={theme} className="relative pl-4 before:absolute before:top-[0.55rem] before:left-0 before:size-1 before:rounded-full before:bg-lavender-500">
+                  {theme}
+                </li>
+              ))}
             </ul>
           )}
         </section>
       )}
 
+      {hasPracticalInfo && (
+        <section aria-labelledby="practical-info-heading" className="border-t border-line pt-5">
+          <h2 id="practical-info-heading" className="font-display text-2xl text-ink">Practical info</h2>
+          <dl className="mt-3 divide-y divide-line border-y border-line text-sm leading-5">
+            {budget && <div className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-3 py-2.5"><dt className="text-ink-muted">Budget</dt><dd className="text-ink/85">{budget}</dd></div>}
+            {reservationStatus && <div className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-3 py-2.5"><dt className="text-ink-muted">Reservations</dt><dd className="text-ink/85">{reservationStatus}</dd></div>}
+            {quickFactGroups.map((group) => (
+              <div key={group.label} className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-3 py-2.5">
+                <dt className="text-ink-muted">{group.label}</dt>
+                <dd><ul className="flex flex-wrap gap-1.5">{group.values.map((fact) => <li key={fact} className="rounded-chip border border-line bg-subtle px-2.5 py-1 text-xs text-ink-muted">{fact}</li>)}</ul></dd>
+              </div>
+            ))}
+            {bookingMethods && <div className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-3 py-2.5"><dt className="text-ink-muted">Booking</dt><dd className="text-ink/85">{bookingMethods}</dd></div>}
+            {restaurant.phone_number && <div className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-3 py-2.5"><dt className="text-ink-muted">Phone</dt><dd><a className="text-lavender-700 underline underline-offset-2" href={`tel:${restaurant.phone_number}`}>{restaurant.phone_number}</a></dd></div>}
+            {bookingUrl && <div className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-3 py-2.5"><dt className="text-ink-muted">Online</dt><dd><a className="text-lavender-700 underline underline-offset-2" href={bookingUrl} target="_blank" rel="noopener noreferrer nofollow">Book online ↗</a></dd></div>}
+            {practicalNotes.length > 0 && (
+              <div className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-3 py-2.5">
+                <dt className="text-ink-muted">Notes</dt>
+                <dd><ul className="space-y-1.5 text-ink/85">{practicalNotes.map((note) => <li key={note}>{note}</li>)}</ul></dd>
+              </div>
+            )}
+          </dl>
+        </section>
+      )}
+
       {hasHours && (
-        <section aria-labelledby="hours-heading" className="border-t border-line pt-6">
+        <section aria-labelledby="hours-heading" className="border-t border-line pt-5">
           <h2 id="hours-heading" className="font-display text-2xl text-ink">Hours</h2>
           {hours.length > 0 && (
-            <dl className="mt-3 grid max-w-md grid-cols-[6rem_minmax(0,1fr)] gap-x-4 gap-y-2 text-sm leading-6">
+            <dl className="mt-3 grid max-w-lg grid-cols-[4.5rem_minmax(0,1fr)] gap-x-4 gap-y-1.5 text-sm leading-5">
               {hours.map((row) => (
                 <div key={row.day} className="contents">
                   <dt className="text-ink-muted">{row.day}</dt>
@@ -370,16 +444,7 @@ function RestaurantDetailContent({
               ))}
             </dl>
           )}
-          {scheduleNote && <p className="mt-2 max-w-prose text-sm leading-6 text-ink-muted">{scheduleNote}</p>}
-        </section>
-      )}
-
-      {practical.beforeYouGo.length > 0 && (
-        <section aria-labelledby="before-you-go-heading" className="border-t border-line pt-6">
-          <h2 id="before-you-go-heading" className="font-display text-2xl text-ink">Before you go</h2>
-          <ul className="mt-3 max-w-prose space-y-2 text-sm leading-6 text-ink/85">
-            {practical.beforeYouGo.map((note) => <li key={note}>{note}</li>)}
-          </ul>
+          {scheduleNote && <p className="mt-2 max-w-prose text-xs leading-5 text-ink-muted">{scheduleNote}</p>}
         </section>
       )}
 

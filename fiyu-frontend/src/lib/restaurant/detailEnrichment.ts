@@ -4,13 +4,13 @@ type PracticalInfo = NonNullable<PublicRestaurantDetail["practical_info"]>;
 type OpeningHours = NonNullable<PublicRestaurantDetail["opening_hours"]>;
 
 const DAY_LABELS = [
-  ["monday", "Monday"],
-  ["tuesday", "Tuesday"],
-  ["wednesday", "Wednesday"],
-  ["thursday", "Thursday"],
-  ["friday", "Friday"],
-  ["saturday", "Saturday"],
-  ["sunday", "Sunday"],
+  ["monday", "Mon"],
+  ["tuesday", "Tue"],
+  ["wednesday", "Wed"],
+  ["thursday", "Thu"],
+  ["friday", "Fri"],
+  ["saturday", "Sat"],
+  ["sunday", "Sun"],
 ] as const;
 
 const PERIOD_LABELS: Record<string, string> = {
@@ -86,13 +86,13 @@ function periodText(period: NonNullable<NonNullable<OpeningHours["monday"]>["per
 
 export function knownHours(hours: OpeningHours | undefined): HoursRow[] {
   if (!hours) return [];
-  const rows: HoursRow[] = [];
+  const rows: Array<HoursRow & { dayIndex: number }> = [];
 
-  for (const [key, day] of DAY_LABELS) {
+  for (const [dayIndex, [key, day]] of DAY_LABELS.entries()) {
     const schedule = hours[key];
     if (!schedule || schedule.status === "unknown" || !schedule.status) continue;
     if (schedule.status === "closed") {
-      rows.push({ day, value: "Closed" });
+      rows.push({ day, value: "Closed", dayIndex });
       continue;
     }
 
@@ -100,10 +100,20 @@ export function knownHours(hours: OpeningHours | undefined): HoursRow[] {
       .map(periodText)
       .filter((value): value is string => value !== null);
     if (schedule.status === "irregular") {
-      rows.push({ day, value: periods.length > 0 ? `Irregular · ${periods.join("; ")}` : "Irregular" });
+      rows.push({ day, value: periods.length > 0 ? `Irregular · ${periods.join("; ")}` : "Irregular", dayIndex });
     } else if (periods.length > 0) {
-      rows.push({ day, value: periods.join("; ") });
+      rows.push({ day, value: periods.join("; "), dayIndex });
     }
   }
-  return rows;
+
+  return rows.reduce<Array<HoursRow & { endIndex: number }>>((grouped, row) => {
+    const previous = grouped.at(-1);
+    if (previous && previous.value === row.value && previous.endIndex + 1 === row.dayIndex) {
+      previous.endIndex = row.dayIndex;
+      previous.day = `${previous.day.split("–")[0]}–${row.day}`;
+      return grouped;
+    }
+    grouped.push({ ...row, endIndex: row.dayIndex });
+    return grouped;
+  }, []).map(({ day, value }) => ({ day, value }));
 }

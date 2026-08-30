@@ -567,6 +567,10 @@ describe("landing narrative sections", () => {
     ]) {
       expect(scene.getByText(label)).toBeTruthy();
     }
+    expect(scene.getByText(/Discovery platforms reinforce/).className).toContain("text-ink/80");
+    expect(scene.getByText("Better than its digital footprint suggests.").className).toContain(
+      "text-ink/80",
+    );
 
     // The floated card that used to cut through the paragraph is gone; the
     // section resolves into one ruled row with a photograph slot beside it.

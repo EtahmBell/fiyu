@@ -31,6 +31,7 @@ const restaurant = publicRestaurantDetailSchema.parse({
   location_status: "location_provisional",
   verified_core_address: "東京都港区六本木1丁目",
   external_map_search_query: "東京都港区六本木1丁目",
+  neighborhood: "Roppongi",
   fiyu_score: 94,
   food_tags: ["寿司", "おまかせ"],
   restaurant_type_en: "Counter sushi restaurant",
@@ -71,7 +72,9 @@ describe("restaurant detail view", () => {
     render(<RestaurantDetailShell restaurant={restaurant} restaurants={[restaurant]} />);
 
     expect(screen.getByRole("heading", { level: 1, name: "鮨さいとう" })).toBeTruthy();
-    expect(screen.getByRole("heading", { level: 2, name: "About" })).toBeTruthy();
+    expect(screen.getByText("Area").nextElementSibling?.textContent).toBe("Roppongi");
+    expect(screen.getByText("Cuisine").nextElementSibling?.textContent).toContain("Sushi");
+    expect(screen.getByRole("heading", { level: 2, name: "Overview" })).toBeTruthy();
     expect(screen.getByRole("heading", { level: 2, name: "Signature dishes" })).toBeTruthy();
     expect(screen.getByText("Seasonal nigiri")).toBeTruthy();
     expect(screen.getByRole("heading", { level: 2, name: "Menu and format" })).toBeTruthy();
@@ -121,7 +124,7 @@ describe("restaurant detail view", () => {
 
     render(<RestaurantDetailShell restaurant={rolls} restaurants={[rolls]} />);
 
-    expect(screen.getByRole("heading", { name: "About" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Overview" })).toBeTruthy();
     expect(screen.getByText(fullDescription)).toBeTruthy();
     expect(screen.queryByText(/more creative than\.$/)).toBeNull();
   });
@@ -166,16 +169,18 @@ describe("restaurant detail view", () => {
 
     render(<RestaurantDetailShell restaurant={enrichedRestaurant} restaurants={[enrichedRestaurant]} />);
 
-    expect(screen.getByRole("heading", { name: "People like" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Overview" })).toBeTruthy();
     expect(screen.getByText("Quiet counter atmosphere")).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "At a glance" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Practical info" })).toBeTruthy();
     for (const fact of ["Counter seating", "Small capacity", "Solo-friendly", "Cards accepted"]) {
       expect(screen.getByText(fact)).toBeTruthy();
     }
-    expect(screen.getByRole("heading", { name: "Booking and budget" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "People like" })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "At a glance" })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Booking and budget" })).toBeNull();
     expect(screen.getAllByText("Reservation required")).toHaveLength(1);
-    expect(screen.queryByText("Lunch")).toBeNull();
-    expect(screen.queryByText("Dinner")).toBeNull();
+    expect(screen.getByText("Lunch")).toBeTruthy();
+    expect(screen.getByText("Dinner")).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Hours" })).toBeTruthy();
     expect(screen.getByText("Lunch 12:00–14:00, last order 13:30; Dinner 18:00–22:00, last order 21:30")).toBeTruthy();
     expect(screen.getByText("Closed")).toBeTruthy();
@@ -207,16 +212,17 @@ describe("restaurant detail view", () => {
 
     render(<RestaurantDetailShell restaurant={enrichedRestaurant} restaurants={[enrichedRestaurant]} />);
 
-    expect(screen.getByRole("heading", { name: "Booking and budget" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Practical info" })).toBeTruthy();
     expect(screen.getByText("Reservation strongly recommended")).toBeTruthy();
-    expect(screen.getByText((text) => text.includes("3,000") && text.includes("5,000 per person"))).toBeTruthy();
+    expect(screen.getAllByText((text) => text.includes("3,000") && text.includes("5,000 per person"))).toHaveLength(2);
     expect(screen.getByRole("link", { name: "03-1234-5678" }).getAttribute("href")).toBe("tel:03-1234-5678");
     expect(screen.getByText("Phone or online reservation")).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Book online ↗" }).getAttribute("href")).toBe("https://reserve.example/detail-place");
+    expect(screen.getAllByRole("link", { name: "Book online ↗" })).toHaveLength(2);
+    expect(screen.getAllByRole("link", { name: "Book online ↗" })[0].getAttribute("href")).toBe("https://reserve.example/detail-place");
     expect(screen.getByText("Same-day bookings may be limited.")).toBeTruthy();
   });
 
-  it("places operational detail in Before you go without repeating booking or hours", () => {
+  it("places operational detail in Practical info without repeating booking or hours", () => {
     const enrichedRestaurant = publicRestaurantDetailSchema.parse({
       ...restaurant,
       reservation_status: "required",
@@ -235,20 +241,19 @@ describe("restaurant detail view", () => {
 
     render(<RestaurantDetailShell restaurant={enrichedRestaurant} restaurants={[enrichedRestaurant]} />);
 
-    expect(screen.getByRole("heading", { name: "At a glance" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Practical info" })).toBeTruthy();
     expect(screen.getByText("Counter seating")).toBeTruthy();
     expect(screen.getByText("Cards accepted")).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "Booking and budget" })).toBeTruthy();
     expect(screen.getByText("Reservation phone hours are 13:00–17:00.")).toBeTruthy();
     expect(screen.getAllByText("Reservation required")).toHaveLength(1);
     expect(screen.getByRole("heading", { name: "Hours" })).toBeTruthy();
     expect(screen.getByText("Closed")).toBeTruthy();
     expect(screen.queryByText("The restaurant is closed on Wednesdays.")).toBeNull();
-    expect(screen.getByRole("heading", { name: "Before you go" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Before you go" })).toBeNull();
     expect(screen.getByText("Six-seat counter and private room for up to six guests.")).toBeTruthy();
   });
 
-  it("renders a budget-only Booking and budget section", () => {
+  it("renders a budget-only Practical info section", () => {
     const budgetOnly = publicRestaurantDetailSchema.parse({
       ...restaurant,
       budget: {
@@ -262,8 +267,8 @@ describe("restaurant detail view", () => {
     });
 
     render(<RestaurantDetailShell restaurant={budgetOnly} restaurants={[budgetOnly]} />);
-    expect(screen.getByRole("heading", { name: "Booking and budget" })).toBeTruthy();
-    expect(screen.getByText("¥10,000+ per person")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Practical info" })).toBeTruthy();
+    expect(screen.getAllByText("¥10,000+ per person")).toHaveLength(2);
   });
 
   it("hides unknown reservation status and clears the fixed mobile navigation", () => {
@@ -299,10 +304,10 @@ describe("restaurant detail view", () => {
 
     render(<RestaurantDetailShell restaurant={koda} restaurants={[koda]} />);
 
-    expect(screen.getByRole("heading", { name: "About" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Overview" })).toBeTruthy();
     expect(screen.getByText(koda.card_description ?? "missing description")).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "People like" })).toBeNull();
-    expect(screen.queryByRole("heading", { name: "At a glance" })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Practical info" })).toBeNull();
     expect(screen.queryByRole("heading", { name: "Hours" })).toBeNull();
   });
 
@@ -330,7 +335,7 @@ describe("restaurant detail view", () => {
 
     render(<RestaurantDetailShell restaurant={sparse} restaurants={[sparse]} />);
 
-    expect(screen.queryByRole("heading", { name: "About" })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Overview" })).toBeNull();
     expect(screen.queryByRole("heading", { name: "Signature dishes" })).toBeNull();
     expect(screen.queryByRole("heading", { name: "Menu and format" })).toBeNull();
     expect(screen.queryByRole("heading", { name: "Location" })).toBeNull();
