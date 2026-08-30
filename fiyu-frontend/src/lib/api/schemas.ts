@@ -399,6 +399,35 @@ export const dailyPickAssignmentResponseSchema = z.object({
 
 export const activeDailyPickAssignmentResponseSchema = dailyPickAssignmentResponseSchema.nullable();
 
+export const developerStatusSchema = z.object({
+  enabled: z.literal(true),
+  location_mode: z.enum(["real", "area", "outside_tokyo"]),
+  area_name: nullableString,
+  location_options: z.array(z.object({
+    area_name: z.string().min(1),
+    display_name: z.string().min(1),
+  })),
+});
+
+export const developerGeneratePicksResponseSchema = z.object({
+  assignment: dailyPickAssignmentResponseSchema,
+  diagnostics: z.object({
+    effective_location_source: z.enum(["LIVE_GPS", "DEV_OVERRIDE", "PREVIEW_AREA"]),
+    effective_area: z.string().min(1),
+    final_radius_km: nullableNumber,
+    selectable_candidate_count: z.number().int().nonnegative(),
+    affordable_eligible_count: z.number().int().nonnegative(),
+    affordable_slot_satisfied: z.boolean(),
+    expired_round_count: z.number().int().nonnegative(),
+  }),
+});
+
+export const developerResetPicksResponseSchema = z.object({
+  reset: z.literal(true),
+  deleted_rounds: z.number().int().nonnegative(),
+  deleted_seen: z.number().int().nonnegative(),
+});
+
 export const dailyPickRevealResponseSchema = z.object({
   round_id: z.string().min(1),
   place_id: z.string().min(1),
@@ -541,6 +570,9 @@ export type DefaultListResponse = z.infer<typeof defaultListResponseSchema>;
 export type DefaultListMutationResponse = z.infer<typeof defaultListMutationResponseSchema>;
 export type DefaultListMembershipResponse = z.infer<typeof defaultListMembershipResponseSchema>;
 export type DailyPickAssignmentResponse = z.infer<typeof dailyPickAssignmentResponseSchema>;
+export type DeveloperStatus = z.infer<typeof developerStatusSchema>;
+export type DeveloperGeneratePicksResponse = z.infer<typeof developerGeneratePicksResponseSchema>;
+export type DeveloperResetPicksResponse = z.infer<typeof developerResetPicksResponseSchema>;
 export type DailyPickRevealResponse = z.infer<typeof dailyPickRevealResponseSchema>;
 export type RecentDailyPickRound = z.infer<typeof recentDailyPickRoundSchema>;
 export type RestaurantVisit = z.infer<typeof restaurantVisitSchema>;

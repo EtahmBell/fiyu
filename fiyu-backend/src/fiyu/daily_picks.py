@@ -421,6 +421,15 @@ def select_daily_pick_plan(
         repeat_count = min(needed, len(repeat_reserve))
 
     chosen_ids = tuple(str(row["place_id"]) for row in selected_rows)
+    selectable_rows = [
+        row
+        for row in final_pool
+        if str(row["place_id"]) not in recent_ids
+        and (
+            str(row["place_id"]) not in served_history
+            or str(row["place_id"]) in old_repeat_ids
+        )
+    ]
     precision_distribution: dict[str, int] = {}
     for row in final_pool:
         precision = _precision_group(row.get("location_precision"))
@@ -441,6 +450,10 @@ def select_daily_pick_plan(
             str(row["place_id"]) in old_repeat_ids for row in final_pool
         ),
         "repeat_selected_count": repeat_count,
+        "selectable_candidate_count": len(selectable_rows),
+        "affordable_eligible_count": sum(
+            _known_affordable_budget(row) for row in selectable_rows
+        ),
         "affordable_slot_applied": affordable_slot_applied,
         "chosen_place_ids": list(chosen_ids),
         "precision_distribution": precision_distribution,

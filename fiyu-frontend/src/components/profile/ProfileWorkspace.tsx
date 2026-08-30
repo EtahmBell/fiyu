@@ -21,6 +21,7 @@ import {
 } from "@/lib/profile/profileIdentity";
 import { prepareAvatarImage } from "@/lib/profile/avatarImage";
 import { cn } from "@/lib/utils/cn";
+import { DeveloperTools } from "@/components/profile/DeveloperTools";
 
 export type ProfileSection = "profile" | "account" | "notifications" | "privacy" | "help" | "about";
 
@@ -517,6 +518,7 @@ function AccountSection() {
         )}
       </div>
       {error && <p role="alert" className="mt-3 text-sm text-rose-dust">{error}</p>}
+      {email && <DeveloperTools />}
       {email && (
         <section className="mt-10 border-t border-line pt-7" aria-labelledby="delete-account-title">
           <h3 id="delete-account-title" className="text-sm font-semibold text-ink">Delete account</h3>

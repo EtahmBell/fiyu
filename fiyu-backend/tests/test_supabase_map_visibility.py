@@ -3,6 +3,77 @@ from __future__ import annotations
 from fiyu import supabase_user_data
 
 
+def test_developer_settings_are_account_scoped_and_upserted(monkeypatch):
+    captured: dict[str, object] = {}
+
+    monkeypatch.setattr(
+        supabase_user_data,
+        "_rows",
+        lambda table, **filters: (
+            [{"location_mode": "area", "area_name": "Ginza"}]
+            if table == "fiyu_developer_settings" and filters == {"user_id": "user-a"}
+            else []
+        ),
+    )
+
+    def request(path, *, method, query, body, prefer):
+        captured.update({
+            "path": path,
+            "method": method,
+            "query": query,
+            "body": body,
+            "prefer": prefer,
+        })
+        return [body]
+
+    monkeypatch.setattr(supabase_user_data, "_request", request)
+    monkeypatch.setattr(supabase_user_data, "_now", lambda: "2026-08-29T00:00:00Z")
+
+    assert supabase_user_data.get_developer_settings(user_id="user-a") == {
+        "location_mode": "area",
+        "area_name": "Ginza",
+    }
+    assert supabase_user_data.get_developer_settings(user_id="user-b") == {
+        "location_mode": "real",
+        "area_name": None,
+    }
+    saved = supabase_user_data.set_developer_settings(
+        user_id="user-a", location_mode="outside_tokyo", area_name=None
+    )
+    assert saved["user_id"] == "user-a"
+    assert captured == {
+        "path": "fiyu_developer_settings",
+        "method": "POST",
+        "query": {"on_conflict": "user_id"},
+        "body": {
+            "user_id": "user-a",
+            "location_mode": "outside_tokyo",
+            "area_name": None,
+            "updated_at": "2026-08-29T00:00:00Z",
+        },
+        "prefer": "resolution=merge-duplicates,return=representation",
+    }
+
+
+def test_developer_reset_uses_narrow_service_role_rpc(monkeypatch):
+    captured: dict[str, object] = {}
+
+    def request(path, *, method, body):
+        captured.update({"path": path, "method": method, "body": body})
+        return {"deleted_rounds": 2, "deleted_seen": 6}
+
+    monkeypatch.setattr(supabase_user_data, "_request", request)
+
+    assert supabase_user_data.reset_daily_pick_test_state(
+        user_id="user-a", city_id="tokyo"
+    ) == {"deleted_rounds": 2, "deleted_seen": 6}
+    assert captured == {
+        "path": "rpc/reset_fiyu_daily_pick_test_state",
+        "method": "POST",
+        "body": {"p_user_id": "user-a", "p_city_id": "tokyo"},
+    }
+
+
 def test_visited_place_ids_are_unique_and_latest_first(monkeypatch):
     captured: dict[str, object] = {}
 

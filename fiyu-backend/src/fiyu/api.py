@@ -18,7 +18,7 @@ from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from . import supabase_user_data as shared_user_data
 from .account_deletion import delete_local_account_data
@@ -137,6 +137,22 @@ def _legacy_client_identity_allowed() -> bool:
     if configured is None:
         return True
     return configured.strip().casefold() in {"1", "true", "yes", "on"}
+
+
+def _developer_tools_enabled() -> bool:
+    return os.getenv("FIYU_ENABLE_DEV_TOOLS", "").strip().casefold() in {
+        "1", "true", "yes", "on",
+    }
+
+
+def _developer_user_ids() -> set[str]:
+    result: set[str] = set()
+    for value in os.getenv("FIYU_DEV_USER_IDS", "").split(","):
+        try:
+            result.add(str(UUID(value.strip())))
+        except ValueError:
+            continue
+    return result
 
 
 origins = _configured_cors_origins()
@@ -656,6 +672,58 @@ class DailyPickRevealResponse(BaseModel):
     pick_revealed_at: str
     revealed_place_ids: list[str]
     revealed_at: str | None = None
+
+
+DeveloperLocationMode = Literal["real", "area", "outside_tokyo"]
+
+
+class DeveloperLocationOption(BaseModel):
+    area_name: str
+    display_name: str
+
+
+class DeveloperStatusResponse(BaseModel):
+    enabled: Literal[True]
+    location_mode: DeveloperLocationMode
+    area_name: str | None = None
+    location_options: list[DeveloperLocationOption]
+
+
+class DeveloperLocationOverrideRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    location_mode: DeveloperLocationMode
+    area_name: str | None = None
+
+
+class DeveloperGeneratePicksRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    current_latitude: float | None = Field(default=None, ge=-90, le=90)
+    current_longitude: float | None = Field(default=None, ge=-180, le=180)
+    preview_area: str | None = None
+    seed: int | None = None
+
+
+class DeveloperPicksDiagnostics(BaseModel):
+    effective_location_source: Literal["LIVE_GPS", "DEV_OVERRIDE", "PREVIEW_AREA"]
+    effective_area: str
+    final_radius_km: float | None = None
+    selectable_candidate_count: int
+    affordable_eligible_count: int
+    affordable_slot_satisfied: bool
+    expired_round_count: int
+
+
+class DeveloperGeneratePicksResponse(BaseModel):
+    assignment: DailyPickAssignmentResponse
+    diagnostics: DeveloperPicksDiagnostics
+
+
+class DeveloperResetPicksResponse(BaseModel):
+    reset: Literal[True]
+    deleted_rounds: int
+    deleted_seen: int
 
 
 class SeenRestaurantsResponse(BaseModel):
@@ -1290,6 +1358,99 @@ def _recent_daily_pick_response(
     )
 
 
+def _plan_shared_daily_picks(
+    *,
+    owner_id: str,
+    city_id: str,
+    discovery_latitude: float,
+    discovery_longitude: float,
+    active_area: str | None,
+    discovery_mode: str,
+    seed: int | None,
+    now: datetime,
+    metadata_extra: dict[str, object] | None = None,
+) -> tuple[tuple[str, ...], dict[str, object]]:
+    """Run the canonical authenticated selector without changing account state."""
+    history = {
+        place_id: parsed
+        for place_id, value in shared_user_data.seen_history(user_id=owner_id).items()
+        if (parsed := _parse_pick_datetime(value)) is not None
+    }
+    with connect(DB_PATH) as connection:
+        place_ids, metadata = select_daily_pick_plan(
+            connection,
+            discovery_latitude=discovery_latitude,
+            discovery_longitude=discovery_longitude,
+            active_area=active_area,
+            saved_place_ids=shared_user_data.saved_place_ids(
+                user_id=owner_id, city_id=city_id
+            ),
+            served_history=history,
+            now=now,
+            requested_count=3,
+            seed=seed,
+        )
+    metadata.update(
+        {
+            "discovery_mode": discovery_mode,
+            "discovery_label": active_area,
+            "discovery_latitude": discovery_latitude,
+            "discovery_longitude": discovery_longitude,
+            **(metadata_extra or {}),
+        }
+    )
+    return place_ids, metadata
+
+
+def _persist_shared_daily_picks(
+    *, owner_id: str, city_id: str, place_ids: tuple[str, ...],
+    metadata: dict[str, object], now: datetime,
+) -> DailyPickAssignment:
+    return _shared_assignment(
+        shared_user_data.assign_or_get_active_daily_picks(
+            user_id=owner_id,
+            city_id=city_id,
+            place_ids=list(place_ids),
+            assigned_at=now.isoformat(),
+            expires_at=(now + ACTIVE_SNAPSHOT_DURATION).isoformat(),
+            selection_metadata=metadata,
+        )
+    )
+
+
+def _assign_shared_daily_picks(
+    *,
+    owner_id: str,
+    city_id: str,
+    discovery_latitude: float,
+    discovery_longitude: float,
+    active_area: str | None,
+    discovery_mode: str,
+    seed: int | None,
+    now: datetime,
+    metadata_extra: dict[str, object] | None = None,
+) -> DailyPickAssignment:
+    """Run the canonical selector and persist one authenticated account snapshot."""
+    place_ids, metadata = _plan_shared_daily_picks(
+        owner_id=owner_id,
+        city_id=city_id,
+        discovery_latitude=discovery_latitude,
+        discovery_longitude=discovery_longitude,
+        active_area=active_area,
+        discovery_mode=discovery_mode,
+        seed=seed,
+        now=now,
+        metadata_extra=metadata_extra,
+    )
+    return _persist_shared_daily_picks(
+        owner_id=owner_id,
+        city_id=city_id,
+        place_ids=place_ids,
+        metadata=metadata,
+        now=now,
+    )
+
+
 @app.post("/daily-picks/assign", response_model=DailyPickAssignmentResponse)
 def create_daily_pick_assignment(
     request: DailyPickAssignmentRequest,
@@ -1355,40 +1516,15 @@ def create_daily_pick_assignment(
     try:
         if authenticated_owner:
             now = datetime.now(UTC)
-            history = {
-                place_id: parsed
-                for place_id, value in shared_user_data.seen_history(
-                    user_id=str(owner_id)
-                ).items()
-                if (parsed := _parse_pick_datetime(value)) is not None
-            }
-            with connect(DB_PATH) as connection:
-                place_ids, metadata = select_daily_pick_plan(
-                    connection,
-                    discovery_latitude=discovery_latitude,
-                    discovery_longitude=discovery_longitude,
-                    active_area=active_area,
-                    saved_place_ids=shared_user_data.saved_place_ids(
-                        user_id=str(owner_id), city_id=city_id
-                    ),
-                    served_history=history,
-                    now=now,
-                    requested_count=request.requested_count,
-                    seed=request.seed,
-                )
-            metadata["discovery_mode"] = request.location_mode
-            metadata["discovery_label"] = active_area
-            metadata["discovery_latitude"] = discovery_latitude
-            metadata["discovery_longitude"] = discovery_longitude
-            assignment = _shared_assignment(
-                shared_user_data.assign_or_get_active_daily_picks(
-                    user_id=str(owner_id),
-                    city_id=city_id,
-                    place_ids=list(place_ids),
-                    assigned_at=now.isoformat(),
-                    expires_at=(now + ACTIVE_SNAPSHOT_DURATION).isoformat(),
-                    selection_metadata=metadata,
-                )
+            assignment = _assign_shared_daily_picks(
+                owner_id=str(owner_id),
+                city_id=city_id,
+                discovery_latitude=discovery_latitude,
+                discovery_longitude=discovery_longitude,
+                active_area=active_area,
+                discovery_mode=str(request.location_mode),
+                seed=request.seed,
+                now=now,
             )
             assignment = _repair_shared_active_assignment(
                 owner_id=str(owner_id),
@@ -1671,6 +1807,254 @@ def _authenticated_user_id(
     authorization: Annotated[str | None, Header()] = None,
 ) -> str:
     return str(_authenticated_user(authorization)["id"])
+
+
+def _developer_user(
+    user: Annotated[dict[str, object], Depends(_authenticated_user)],
+) -> str:
+    try:
+        user_id = str(UUID(str(user["id"])))
+    except (KeyError, ValueError):
+        raise HTTPException(status_code=401, detail="Invalid or expired session") from None
+    if not _developer_tools_enabled() or user_id not in _developer_user_ids():
+        raise HTTPException(status_code=404, detail="Not found")
+    if not shared_user_data.configured():
+        raise HTTPException(status_code=503, detail="Account data is unavailable")
+    return user_id
+
+
+def _developer_anchor(area_name: str | None) -> dict[str, object]:
+    normalized = (area_name or "").strip().casefold()
+    anchor = next(
+        (
+            item
+            for item in load_location_anchors()
+            if normalized in {
+                str(item["area_name"]).casefold(),
+                str(item["display_name"]).casefold(),
+            }
+        ),
+        None,
+    )
+    if anchor is None:
+        raise HTTPException(status_code=422, detail="Choose a supported Tokyo preview area")
+    return anchor
+
+
+def _developer_status(user_id: str) -> DeveloperStatusResponse:
+    settings = shared_user_data.get_developer_settings(user_id=user_id)
+    mode = str(settings.get("location_mode") or "real")
+    if mode not in {"real", "area", "outside_tokyo"}:
+        mode = "real"
+    return DeveloperStatusResponse(
+        enabled=True,
+        location_mode=mode,
+        area_name=(str(settings["area_name"]) if settings.get("area_name") else None),
+        location_options=[
+            DeveloperLocationOption(
+                area_name=str(item["area_name"]),
+                display_name=str(item["display_name"]),
+            )
+            for item in load_location_anchors()
+        ],
+    )
+
+
+@app.get("/developer/status", response_model=DeveloperStatusResponse)
+def get_developer_status(
+    user_id: Annotated[str, Depends(_developer_user)],
+) -> DeveloperStatusResponse:
+    return _developer_status(user_id)
+
+
+@app.post("/developer/location-override", response_model=DeveloperStatusResponse)
+def set_developer_location_override(
+    request: DeveloperLocationOverrideRequest,
+    user_id: Annotated[str, Depends(_developer_user)],
+) -> DeveloperStatusResponse:
+    area_name: str | None = None
+    if request.location_mode == "area":
+        area_name = str(_developer_anchor(request.area_name)["area_name"])
+    shared_user_data.set_developer_settings(
+        user_id=user_id,
+        location_mode=request.location_mode,
+        area_name=area_name,
+    )
+    logger.info(
+        "Developer location override updated: user_id=%s mode=%s area=%s",
+        user_id,
+        request.location_mode,
+        area_name,
+    )
+    return _developer_status(user_id)
+
+
+def _resolve_developer_generation_location(
+    settings: dict[str, object], request: DeveloperGeneratePicksRequest
+) -> tuple[float, float, str, str, str]:
+    mode = str(settings.get("location_mode") or "real")
+    if mode == "area":
+        anchor = _developer_anchor(str(settings.get("area_name") or ""))
+        return (
+            float(anchor["latitude"]),
+            float(anchor["longitude"]),
+            str(anchor["area_name"]),
+            "current",
+            "DEV_OVERRIDE",
+        )
+
+    if mode == "outside_tokyo":
+        if not request.preview_area:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": "location_outside_service_area",
+                    "message": "Choose a supported Tokyo preview area.",
+                },
+            )
+        anchor = _developer_anchor(request.preview_area)
+        return (
+            float(anchor["latitude"]),
+            float(anchor["longitude"]),
+            str(anchor["area_name"]),
+            "preview",
+            "PREVIEW_AREA",
+        )
+
+    if request.current_latitude is None or request.current_longitude is None:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "fresh_location_required",
+                "message": "Resolve a current location or choose a Tokyo preview area.",
+            },
+        )
+    if not TOKYO_SERVICE_AREA.contains(
+        request.current_latitude, request.current_longitude
+    ):
+        if not request.preview_area:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": "location_outside_service_area",
+                    "message": "Choose a supported Tokyo preview area.",
+                },
+            )
+        anchor = _developer_anchor(request.preview_area)
+        return (
+            float(anchor["latitude"]),
+            float(anchor["longitude"]),
+            str(anchor["area_name"]),
+            "preview",
+            "PREVIEW_AREA",
+        )
+    anchor = nearest_tokyo_anchor(request.current_latitude, request.current_longitude)
+    return (
+        request.current_latitude,
+        request.current_longitude,
+        str(anchor["area_name"]),
+        "current",
+        "LIVE_GPS",
+    )
+
+
+@app.post(
+    "/developer/daily-picks/generate",
+    response_model=DeveloperGeneratePicksResponse,
+)
+def generate_developer_daily_picks(
+    request: DeveloperGeneratePicksRequest,
+    user_id: Annotated[str, Depends(_developer_user)],
+) -> DeveloperGeneratePicksResponse:
+    _ensure_database()
+    ensure_public_schema(DB_PATH)
+    settings = shared_user_data.get_developer_settings(user_id=user_id)
+    latitude, longitude, area, discovery_mode, location_source = (
+        _resolve_developer_generation_location(settings, request)
+    )
+    now = datetime.now(UTC)
+    try:
+        place_ids, metadata = _plan_shared_daily_picks(
+            owner_id=user_id,
+            city_id="tokyo",
+            discovery_latitude=latitude,
+            discovery_longitude=longitude,
+            active_area=area,
+            discovery_mode=discovery_mode,
+            seed=request.seed,
+            now=now,
+            metadata_extra={
+                "is_dev_generated": True,
+                "effective_location_source": location_source,
+            },
+        )
+    except InsufficientUnseenPoolError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "insufficient_unseen_pool",
+                "message": "Not enough unseen restaurants are available for a new daily selection.",
+                "available_count": exc.available_count,
+                "required_count": exc.required_count,
+            },
+        ) from None
+
+    expired_count = shared_user_data.expire_active_daily_picks(
+        user_id=user_id, city_id="tokyo", expired_at=now.isoformat()
+    )
+    assignment = _persist_shared_daily_picks(
+        owner_id=user_id,
+        city_id="tokyo",
+        place_ids=place_ids,
+        metadata=metadata,
+        now=now,
+    )
+    logger.info(
+        "Developer Picks generated: user_id=%s round_id=%s area=%s radius_km=%s",
+        user_id,
+        assignment.round_id,
+        area,
+        metadata.get("final_radius_km"),
+    )
+    return DeveloperGeneratePicksResponse(
+        assignment=_daily_pick_response(assignment, "tokyo"),
+        diagnostics=DeveloperPicksDiagnostics(
+            effective_location_source=location_source,
+            effective_area=area,
+            final_radius_km=(
+                float(metadata["final_radius_km"])
+                if isinstance(metadata.get("final_radius_km"), (int, float))
+                else None
+            ),
+            selectable_candidate_count=int(metadata.get("selectable_candidate_count") or 0),
+            affordable_eligible_count=int(metadata.get("affordable_eligible_count") or 0),
+            affordable_slot_satisfied=bool(metadata.get("affordable_slot_applied")),
+            expired_round_count=expired_count,
+        ),
+    )
+
+
+@app.post(
+    "/developer/daily-picks/reset",
+    response_model=DeveloperResetPicksResponse,
+)
+def reset_developer_daily_picks(
+    user_id: Annotated[str, Depends(_developer_user)],
+) -> DeveloperResetPicksResponse:
+    result = shared_user_data.reset_daily_pick_test_state(
+        user_id=user_id, city_id="tokyo"
+    )
+    logger.info(
+        "Developer Picks state reset: user_id=%s rounds=%d seen=%d",
+        user_id,
+        result["deleted_rounds"],
+        result["deleted_seen"],
+    )
+    return DeveloperResetPicksResponse(
+        reset=True,
+        deleted_rounds=result["deleted_rounds"],
+        deleted_seen=result["deleted_seen"],
+    )
 
 
 @app.get("/profiles/me/map-restaurants", response_model=list[MapRestaurantSummary])

@@ -41,6 +41,10 @@ export const paths = {
   dailyPicksRecent: "/daily-picks/recent",
   dailyPicksReveal: (roundId: string) =>
     `/daily-picks/${encodeURIComponent(roundId)}/reveal`,
+  developerStatus: "/developer/status",
+  developerLocationOverride: "/developer/location-override",
+  developerDailyPicksGenerate: "/developer/daily-picks/generate",
+  developerDailyPicksReset: "/developer/daily-picks/reset",
   seenRestaurants: "/seen/restaurants",
   mapRestaurants: "/map/restaurants",
   authenticatedMapRestaurants: "/profiles/me/map-restaurants",
@@ -70,6 +74,22 @@ export function dailyPicksRecentUrl(cityId: string): string {
 
 export function dailyPicksRevealUrl(roundId: string): string {
   return `${getApiBaseUrl()}${paths.dailyPicksReveal(roundId)}`;
+}
+
+export function developerStatusUrl(): string {
+  return `${getApiBaseUrl()}${paths.developerStatus}`;
+}
+
+export function developerLocationOverrideUrl(): string {
+  return `${getApiBaseUrl()}${paths.developerLocationOverride}`;
+}
+
+export function developerDailyPicksGenerateUrl(): string {
+  return `${getApiBaseUrl()}${paths.developerDailyPicksGenerate}`;
+}
+
+export function developerDailyPicksResetUrl(): string {
+  return `${getApiBaseUrl()}${paths.developerDailyPicksReset}`;
 }
 
 export function seenRestaurantsUrl(): string {

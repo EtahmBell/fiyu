@@ -430,6 +430,67 @@ def seen_history(*, user_id: str) -> dict[str, str]:
     )
 
 
+def get_developer_settings(*, user_id: str) -> dict[str, Any]:
+    rows = _rows("fiyu_developer_settings", user_id=user_id)
+    if not rows:
+        return {"location_mode": "real", "area_name": None}
+    return {
+        "location_mode": str(rows[0].get("location_mode") or "real"),
+        "area_name": rows[0].get("area_name"),
+    }
+
+
+def set_developer_settings(
+    *, user_id: str, location_mode: str, area_name: str | None
+) -> dict[str, Any]:
+    result = _request(
+        "fiyu_developer_settings",
+        method="POST",
+        query={"on_conflict": "user_id"},
+        body={
+            "user_id": user_id,
+            "location_mode": location_mode,
+            "area_name": area_name,
+            "updated_at": _now(),
+        },
+        prefer="resolution=merge-duplicates,return=representation",
+    )
+    if not isinstance(result, list) or not result:
+        raise SharedUserDataError("Developer settings could not be saved")
+    return result[0]
+
+
+def expire_active_daily_picks(*, user_id: str, city_id: str, expired_at: str) -> int:
+    result = _request(
+        "fiyu_daily_pick_rounds",
+        method="PATCH",
+        query={
+            "user_id": f"eq.{user_id}",
+            "city_id": f"eq.{city_id}",
+            "expires_at": f"gt.{expired_at}",
+        },
+        body={"expires_at": expired_at},
+        prefer="return=representation",
+    )
+    return len(result) if isinstance(result, list) else 0
+
+
+def reset_daily_pick_test_state(*, user_id: str, city_id: str) -> dict[str, int]:
+    result = _request(
+        "rpc/reset_fiyu_daily_pick_test_state",
+        method="POST",
+        body={"p_user_id": user_id, "p_city_id": city_id},
+    )
+    if isinstance(result, list) and result:
+        result = result[0]
+    if not isinstance(result, dict):
+        raise SharedUserDataError("Developer Picks state could not be reset")
+    return {
+        "deleted_rounds": int(result.get("deleted_rounds") or 0),
+        "deleted_seen": int(result.get("deleted_seen") or 0),
+    }
+
+
 def saved_place_ids(*, user_id: str, city_id: str) -> set[str]:
     lists = _rows(
         "fiyu_restaurant_lists",

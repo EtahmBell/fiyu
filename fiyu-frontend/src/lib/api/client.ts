@@ -13,6 +13,10 @@ import {
   dailyPicksActiveUrl,
   dailyPicksRecentUrl,
   dailyPicksRevealUrl,
+  developerDailyPicksGenerateUrl,
+  developerDailyPicksResetUrl,
+  developerLocationOverrideUrl,
+  developerStatusUrl,
   discoveryLocationCheckUrl,
   discoveryLocationUrl,
   defaultListItemsUrl,
@@ -40,6 +44,9 @@ import {
   type DailyPickAssignmentResponse,
   type RecentDailyPickRound,
   type DiscoveryLocation,
+  type DeveloperGeneratePicksResponse,
+  type DeveloperResetPicksResponse,
+  type DeveloperStatus,
   type CurrentLocationCheck,
   type DefaultListMembershipResponse,
   type DefaultListMutationResponse,
@@ -58,6 +65,9 @@ import {
   defaultListMembershipResponseSchema,
   dailyPickAssignmentResponseSchema,
   dailyPickRevealResponseSchema,
+  developerGeneratePicksResponseSchema,
+  developerResetPicksResponseSchema,
+  developerStatusSchema,
   activeDailyPickAssignmentResponseSchema,
   recentDailyPickRoundListSchema,
   discoveryLocationSchema,
@@ -583,6 +593,56 @@ export function assignDailyPicks(
     body: request,
     headers: { ...listHeaders(identity), ...(options.headers ?? {}) },
   });
+}
+
+export function fetchDeveloperStatus(
+  options: RequestOptions = {},
+): Promise<DeveloperStatus> {
+  return requestJson(
+    developerStatusUrl(),
+    paths.developerStatus,
+    developerStatusSchema,
+    { ...options, cache: "no-store" },
+  );
+}
+
+export function updateDeveloperLocation(
+  request: { location_mode: DeveloperStatus["location_mode"]; area_name?: string | null },
+  options: RequestOptions = {},
+): Promise<DeveloperStatus> {
+  return requestJson(
+    developerLocationOverrideUrl(),
+    paths.developerLocationOverride,
+    developerStatusSchema,
+    { ...options, method: "POST", body: request },
+  );
+}
+
+export function generateDeveloperDailyPicks(
+  request: {
+    current_latitude?: number | null;
+    current_longitude?: number | null;
+    preview_area?: string | null;
+  },
+  options: RequestOptions = {},
+): Promise<DeveloperGeneratePicksResponse> {
+  return requestJson(
+    developerDailyPicksGenerateUrl(),
+    paths.developerDailyPicksGenerate,
+    developerGeneratePicksResponseSchema,
+    { ...options, method: "POST", body: request },
+  );
+}
+
+export function resetDeveloperDailyPicks(
+  options: RequestOptions = {},
+): Promise<DeveloperResetPicksResponse> {
+  return requestJson(
+    developerDailyPicksResetUrl(),
+    paths.developerDailyPicksReset,
+    developerResetPicksResponseSchema,
+    { ...options, method: "POST" },
+  );
 }
 
 export function fetchDefaultList(
