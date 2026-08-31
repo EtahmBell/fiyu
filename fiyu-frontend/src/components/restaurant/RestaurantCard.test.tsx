@@ -160,11 +160,18 @@ describe("category and neighborhood", () => {
     expect(screen.queryByText(/izakaya/i)).toBeNull();
   });
 
-  it("renders the neighborhood string verbatim", () => {
+  it("renders the canonical display area instead of a raw chome locality", () => {
     render(
-      <RestaurantCard restaurant={make({ place_id: "a", neighborhood: "3 Chome Hamadayama" })} />,
+      <RestaurantCard
+        restaurant={make({
+          place_id: "a",
+          neighborhood: "3 Chome Hamadayama",
+          display_area: "Hamadayama",
+        })}
+      />,
     );
-    expect(screen.getByText("3 Chome Hamadayama")).toBeTruthy();
+    expect(screen.getByText("Hamadayama")).toBeTruthy();
+    expect(screen.queryByText("3 Chome Hamadayama")).toBeNull();
   });
 });
 

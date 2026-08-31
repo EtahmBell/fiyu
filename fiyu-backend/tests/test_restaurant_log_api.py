@@ -173,6 +173,7 @@ def test_owner_can_create_visit_with_safe_defaults(log_db):
         "name_en": "Tokyo A",
         "primary_category": "sushi",
         "neighborhood": "Asakusa",
+        "display_area": "Asakusa",
         "fiyu_score": 91.0,
         "score_band": "excellent",
     }

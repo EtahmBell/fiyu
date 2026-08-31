@@ -10,6 +10,7 @@ import { distanceAccessibleLabel, formatDistance } from "@/lib/geo/distance";
 import { editorialLabel } from "@/lib/format/editorialLabels";
 import { detectTextLang, resolveNames } from "@/lib/format/language";
 import { type DiscoveryAnchor, anchorDistanceSuffix, restaurantDistance } from "@/lib/location/anchor";
+import { restaurantDisplayArea } from "@/lib/restaurant/displayArea";
 import { cn } from "@/lib/utils/cn";
 
 export interface RestaurantCardProps {
@@ -56,7 +57,7 @@ export function RestaurantCard({
   const label = editorialLabel(restaurant);
   const description = restaurant.description_en;
   const category = restaurant.category;
-  const neighborhood = restaurant.neighborhood;
+  const displayArea = restaurantDisplayArea(restaurant);
 
   /*
    * Distance needs an anchor and coordinates the backend has verified.
@@ -159,11 +160,11 @@ export function RestaurantCard({
         </p>
       )}
 
-      {(category || neighborhood || distance) && (
+      {(category || displayArea || distance) && (
         <p className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-faint">
           {category && <span lang={detectTextLang(category)}>{category}</span>}
-          {category && neighborhood && <span aria-hidden="true">·</span>}
-          {neighborhood && <span lang={detectTextLang(neighborhood)}>{neighborhood}</span>}
+          {category && displayArea && <span aria-hidden="true">·</span>}
+          {displayArea && <span lang={detectTextLang(displayArea)}>{displayArea}</span>}
           {distance && (
             <>
               <span aria-hidden="true">·</span>

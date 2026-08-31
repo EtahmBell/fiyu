@@ -22,6 +22,7 @@ import { readPicksReturnState } from "@/lib/navigation/restaurantDetail";
 import { useDefaultList } from "@/lib/lists/useDefaultList";
 import { classifyPracticalInfo, knownHours } from "@/lib/restaurant/detailEnrichment";
 import { formatRestaurantBudget } from "@/lib/restaurant/budget";
+import { restaurantDisplayArea } from "@/lib/restaurant/displayArea";
 import { cn } from "@/lib/utils/cn";
 
 const subscribeClock = (listener: () => void) => {
@@ -277,9 +278,7 @@ function RestaurantDetailContent({
     ?? formatReservationStatus(restaurant.practical_info?.reservation?.status);
   const bookingUrl = safeExternalUrl(restaurant.booking_url);
   const bookingMethods = formatBookingMethods(restaurant.booking_methods);
-  const locationSummary = restaurant.neighborhood?.trim()
-    || restaurant.discovery_area?.trim()
-    || null;
+  const locationSummary = restaurantDisplayArea(restaurant);
   const cuisineSummary = [restaurant.category, ...restaurant.cuisine_terms_en]
     .map((value) => value?.trim())
     .filter((value): value is string => Boolean(value))

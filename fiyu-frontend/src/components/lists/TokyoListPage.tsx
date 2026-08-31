@@ -16,6 +16,7 @@ import { useDefaultList } from "@/lib/lists/useDefaultList";
 import { getOrCreateAnonymousOwnerKey } from "@/lib/lists/identity";
 import { cn } from "@/lib/utils/cn";
 import { formatRestaurantBudget } from "@/lib/restaurant/budget";
+import { restaurantMetadataParts } from "@/lib/restaurant/displayArea";
 import { ListTabs } from "@/components/lists/ListTabs";
 import { SmartViewCard } from "@/components/lists/SmartViewCard";
 import { PremiumSmartCollectionCard } from "@/components/lists/PremiumSmartCollectionCard";
@@ -75,9 +76,10 @@ function SavedRow({
   const nameEn = item.restaurant.name_en?.trim() || null;
   const title = nameJa ?? nameEn ?? "Unnamed restaurant";
   const subtitle = nameEn && nameEn !== title ? nameEn : null;
-  const metadata = [item.restaurant.primary_category, item.restaurant.neighborhood]
-    .filter(Boolean)
-    .join(" · ");
+  const metadata = restaurantMetadataParts(
+    item.restaurant.primary_category,
+    item.restaurant,
+  ).join(" · ");
 
   return (
     <li className="min-w-0">

@@ -32,6 +32,7 @@ const restaurant = publicRestaurantDetailSchema.parse({
   verified_core_address: "東京都港区六本木1丁目",
   external_map_search_query: "東京都港区六本木1丁目",
   neighborhood: "Roppongi",
+  display_area: "Roppongi",
   fiyu_score: 94,
   food_tags: ["寿司", "おまかせ"],
   restaurant_type_en: "Counter sushi restaurant",
@@ -73,6 +74,7 @@ describe("restaurant detail view", () => {
 
     expect(screen.getByRole("heading", { level: 1, name: "鮨さいとう" })).toBeTruthy();
     expect(screen.getByText("Area").nextElementSibling?.textContent).toBe("Roppongi");
+    expect(screen.getByText("東京都港区六本木1丁目")).toBeTruthy();
     expect(screen.getByText("Cuisine").nextElementSibling?.textContent).toContain("Sushi");
     expect(screen.getByRole("heading", { level: 2, name: "Overview" })).toBeTruthy();
     expect(screen.getByRole("heading", { level: 2, name: "Signature dishes" })).toBeTruthy();

@@ -223,7 +223,8 @@ describe("lists page", () => {
             name_ja: "只",
             name_en: "Only",
             primary_category: "sushi",
-            neighborhood: "Asakusa",
+            neighborhood: "2 Chome Ikebukurohoncho",
+            display_area: "Ikebukuro",
             fiyu_score: 80,
             score_band: "strong",
           },
@@ -240,7 +241,8 @@ describe("lists page", () => {
           food_tags: [],
           signature_dishes: [],
           primary_category: "sushi",
-          neighborhood: "Asakusa",
+          neighborhood: "2 Chome Ikebukurohoncho",
+          display_area: "Ikebukuro",
           fiyu_score: 80,
           score_band: "strong",
           budget: {
@@ -261,7 +263,8 @@ describe("lists page", () => {
     expect(screen.getByText("1 saved place")).toBeTruthy();
     // Presentation-only title casing, straight from the stored tag value.
     expect(screen.getByText("Sushi")).toBeTruthy();
-    expect(screen.getByText("sushi · Asakusa")).toBeTruthy();
+    expect(screen.getByText("sushi · Ikebukuro")).toBeTruthy();
+    expect(screen.queryByText(/2 Chome Ikebukurohoncho/)).toBeNull();
     expect(await screen.findByText("¥2,000–¥3,000")).toBeTruthy();
     expect(screen.getByTestId("saved-restaurant-card").className).toContain("min-w-0");
     expect(screen.getByTestId("saved-card-layout").className).toContain(

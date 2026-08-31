@@ -241,6 +241,7 @@ export const publicRestaurantSchema = z.object({
   discovery_area_conflict: boolWithDefault(false),
 
   neighborhood: nullableString,
+  display_area: nullableString.optional(),
   fiyu_score: nullableNumber,
   score_band: nullableString,
   /** Provenance of the score, e.g. "editorial_research". */
@@ -352,6 +353,7 @@ const savedRestaurantSummarySchema = z.object({
   name_en: nullableString,
   primary_category: nullableString,
   neighborhood: nullableString,
+  display_area: nullableString.optional(),
   fiyu_score: nullableNumber,
   score_band: nullableString,
 });

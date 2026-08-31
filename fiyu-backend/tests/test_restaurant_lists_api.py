@@ -32,7 +32,9 @@ def test_human_area_label_uses_neighborhood_then_area_then_ward():
     ("neighborhood", "expected"),
     [
         ("Ikebukurohoncho", "Ikebukuro"),
+        ("2 Chome Ikebukurohoncho", "Ikebukuro"),
         ("Takamatsu", "Ikebukuro"),
+        ("2 Chome Takamatsu", "Ikebukuro"),
         ("3 Chome Sendagi", "Ueno"),
         ("千駄木三丁目", "Ueno"),
     ],
@@ -48,6 +50,7 @@ def test_human_area_label_maps_reviewed_microareas_deterministically(
 def test_human_area_label_uses_nearest_reviewed_anchor_and_sensible_fallback():
     assert human_area_label({"latitude": 35.7296, "longitude": 139.7110}) == "Ikebukuro"
     assert human_area_label({"neighborhood": "Kameari", "city": "Katsushika City"}) == "Kameari"
+    assert human_area_label({"neighborhood": "2 Chome Ginza"}) == "Ginza"
 
 
 def _enable_premium_for_owner(monkeypatch: pytest.MonkeyPatch, owner: str) -> None:

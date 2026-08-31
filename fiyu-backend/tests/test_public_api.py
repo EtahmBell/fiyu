@@ -135,6 +135,24 @@ def test_google_operational_fields_are_absent_publicly(public_db):
     assert TestClient(api.app).get("/public/restaurants/eligible/live-details").status_code == 404
 
 
+def test_public_display_area_is_canonical_without_overwriting_precise_location(public_db):
+    with connect(public_db) as connection:
+        connection.execute(
+            "UPDATE restaurants SET neighborhood = '2 Chome Ikebukurohoncho' WHERE place_id = 'eligible'"
+        )
+        connection.execute(
+            "UPDATE public_restaurants SET verified_core_address = '東京都豊島区池袋本町2丁目1-2' "
+            "WHERE place_id = 'eligible'"
+        )
+        connection.commit()
+
+    row = TestClient(api.app).get("/public/restaurants/eligible").json()
+
+    assert row["display_area"] == "Ikebukuro"
+    assert row["neighborhood"] == "2 Chome Ikebukurohoncho"
+    assert row["verified_core_address"] == "東京都豊島区池袋本町2丁目1-2"
+
+
 def test_public_core_only_location_omits_disputed_detail(public_db):
     with connect(public_db) as connection:
         connection.execute(

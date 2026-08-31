@@ -1,6 +1,7 @@
 "use client";
 
 import type { MapRestaurant, PublicRestaurant } from "@/lib/api/schemas";
+import { restaurantMetadataParts } from "@/lib/restaurant/displayArea";
 
 function stars(rating: number): string {
   const rounded = Math.max(0, Math.min(5, Math.round(rating)));
@@ -22,9 +23,7 @@ export function VisitedPickCard({
   const nameEn = restaurant.name_en?.trim() || null;
   const title = nameJa ?? nameEn ?? "Unnamed restaurant";
   const subtitle = nameEn && nameEn !== title ? nameEn : null;
-  const metadata = [restaurant.neighborhood, restaurant.category]
-    .filter(Boolean)
-    .join(" · ");
+  const metadata = restaurantMetadataParts(restaurant.category, restaurant).join(" · ");
 
   return (
     <article

@@ -7,6 +7,7 @@ import type { Point } from "@/lib/map/projection";
 import { VIEWBOX_HEIGHT, VIEWBOX_WIDTH } from "@/lib/map/projection";
 import type { MapView } from "@/lib/map/viewport";
 import { restaurantDetailHref } from "@/lib/navigation/restaurantDetail";
+import { restaurantMetadataParts } from "@/lib/restaurant/displayArea";
 import { cn } from "@/lib/utils/cn";
 
 const PREFERRED_WIDTH = 272;
@@ -69,13 +70,7 @@ export function MapRestaurantPopup({
   const englishName = restaurant.name_en && restaurant.name_en !== localName
     ? restaurant.name_en
     : null;
-  const metadata = [restaurant.category, restaurant.neighborhood ?? restaurant.discovery_area]
-    .map((value) => value?.trim())
-    .filter(
-      (value, index, values): value is string =>
-        Boolean(value) && values.indexOf(value) === index,
-    )
-    .join(" · ");
+  const metadata = restaurantMetadataParts(restaurant.category, restaurant).join(" · ");
   const score = restaurant.fiyu_score === null ? null : (restaurant.fiyu_score / 10).toFixed(1);
   /*
    * A visited pin, a champagne popup edge and a champagne caret are all colour.

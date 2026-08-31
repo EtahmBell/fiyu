@@ -34,6 +34,7 @@ import type {
 import { useIsDesktop } from "@/lib/hooks/useMediaQuery";
 import { getOrCreateAnonymousOwnerKey } from "@/lib/lists/identity";
 import { useProfileIdentity } from "@/lib/profile/profileIdentity";
+import { restaurantMetadataParts } from "@/lib/restaurant/displayArea";
 
 type LoadState = "loading" | "ready" | "error";
 
@@ -587,9 +588,10 @@ export function LogWorkspace({
                               const nameEn = restaurant.name_en?.trim() || null;
                               const title = nameJa ?? nameEn ?? restaurant.place_id;
                               const subtitle = nameEn && nameEn !== title ? nameEn : null;
-                              const metadata = [restaurant.neighborhood, restaurant.category]
-                                .filter(Boolean)
-                                .join(" · ");
+                              const metadata = restaurantMetadataParts(
+                                restaurant.category,
+                                restaurant,
+                              ).join(" · ");
                               return (
                                 <button
                                   key={restaurant.place_id}
@@ -929,9 +931,10 @@ function VisitEntry({
   const nameEn = visit.restaurant.name_en?.trim() || null;
   const title = nameJa ?? nameEn ?? "Unnamed restaurant";
   const subtitle = nameEn && nameEn !== title ? nameEn : null;
-  const metadata = [visit.restaurant.neighborhood, visit.restaurant.primary_category]
-    .filter(Boolean)
-    .join(" · ");
+  const metadata = restaurantMetadataParts(
+    visit.restaurant.primary_category,
+    visit.restaurant,
+  ).join(" · ");
 
   return (
     <li className="py-5 first:pt-4 last:pb-0 sm:py-6 sm:first:pt-5">

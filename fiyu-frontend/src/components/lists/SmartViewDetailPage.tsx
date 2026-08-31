@@ -21,6 +21,7 @@ import type {
 } from "@/lib/api/schemas";
 import { getOrCreateAnonymousOwnerKey } from "@/lib/lists/identity";
 import { formatRestaurantBudget } from "@/lib/restaurant/budget";
+import { restaurantMetadataParts } from "@/lib/restaurant/displayArea";
 import {
   buildListRestaurantLookup,
   buildListTagLookup,
@@ -50,9 +51,10 @@ function SmartViewItemRow({
   const nameEn = item.restaurant.name_en?.trim() || null;
   const title = nameJa ?? nameEn ?? "Unnamed restaurant";
   const subtitle = nameEn && nameEn !== title ? nameEn : null;
-  const metadata = [item.restaurant.primary_category, item.restaurant.neighborhood]
-    .filter(Boolean)
-    .join(" · ");
+  const metadata = restaurantMetadataParts(
+    item.restaurant.primary_category,
+    item.restaurant,
+  ).join(" · ");
 
   return (
     <li

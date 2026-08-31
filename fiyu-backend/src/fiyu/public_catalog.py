@@ -16,6 +16,7 @@ from .public_score import (
     InternalSignals,
     evaluate_fiyu_candidate,
 )
+from .smart_views import human_area_label
 
 PUBLIC_SCHEMA = """
 CREATE TABLE IF NOT EXISTS public_restaurants (
@@ -1724,7 +1725,7 @@ def _safe_public_rows(
         rows = connection.execute(
             f"""
             SELECT p.place_id, p.name_ja, p.name_en, p.primary_category,
-                   r.neighborhood, r.address AS canonical_address,
+                   r.neighborhood, r.city, r.address AS canonical_address,
                    p.fiyu_score, p.score_band, p.description_en,
                    p.card_description, p.review_themes_json,
                    p.practical_info_json, p.opening_hours_json,
@@ -1765,6 +1766,7 @@ def _safe_public_rows(
     for row in rows:
         item = dict(row)
         item["category"] = item.pop("primary_category")
+        item["display_area"] = human_area_label(item)
         eligible = bool(item.get("map_display_eligible"))
         item["map_display_eligible"] = eligible
         item["core_address_verified"] = bool(item.get("core_address_verified"))

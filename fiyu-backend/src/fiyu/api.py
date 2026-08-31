@@ -218,6 +218,7 @@ class PublicRestaurantSummary(BaseModel):
     latitude: float | None = None
     longitude: float | None = None
     neighborhood: str | None = None
+    display_area: str | None = None
     fiyu_score: float | None = None
     score_band: str | None = None
     score_type: str = "editorial_research"
@@ -326,6 +327,7 @@ class SavedRestaurantSummary(BaseModel):
     name_en: str | None = None
     primary_category: str | None = None
     neighborhood: str | None = None
+    display_area: str | None = None
     fiyu_score: float | None = None
     score_band: str | None = None
 
@@ -1024,7 +1026,10 @@ def _catalog_enriched(rows: list[dict[str, object]]) -> list[dict[str, object]]:
             place_ids,
         ).fetchall()
     catalog = {str(row["place_id"]): dict(row) for row in catalog_rows}
-    return [{**row, **catalog.get(str(row["place_id"]), {})} for row in rows]
+    enriched = [{**row, **catalog.get(str(row["place_id"]), {})} for row in rows]
+    for row in enriched:
+        row["display_area"] = human_area_label(row)
+    return enriched
 
 
 def _items_for_list(owner_id: str, list_id: int) -> list[dict[str, object]]:
@@ -1060,6 +1065,7 @@ def _default_list_response(owner_id: str, city_id: str) -> RestaurantListRespons
                     name_en=item.get("name_en"),
                     primary_category=item.get("primary_category"),
                     neighborhood=item.get("neighborhood"),
+                    display_area=human_area_label(item),
                     fiyu_score=item.get("fiyu_score"),
                     score_band=item.get("score_band"),
                 ),
@@ -1087,6 +1093,7 @@ def _visit_response_from_row(row: dict[str, object]) -> RestaurantVisitResponse:
             name_en=row.get("name_en"),
             primary_category=row.get("primary_category"),
             neighborhood=row.get("neighborhood"),
+            display_area=human_area_label(row),
             fiyu_score=row.get("fiyu_score"),
             score_band=row.get("score_band"),
         ),
@@ -1111,6 +1118,7 @@ def _list_response_from_row(owner_id: str, row: dict[str, object]) -> Restaurant
                     name_en=item.get("name_en"),
                     primary_category=item.get("primary_category"),
                     neighborhood=item.get("neighborhood"),
+                    display_area=human_area_label(item),
                     fiyu_score=item.get("fiyu_score"),
                     score_band=item.get("score_band"),
                 ),
