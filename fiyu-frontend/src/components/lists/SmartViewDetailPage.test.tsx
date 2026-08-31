@@ -18,8 +18,16 @@ vi.mock("@/lib/api/client", () => ({
 }));
 
 vi.mock("@/components/restaurant/RestaurantPhoto", () => ({
-  RestaurantPhoto: ({ restaurantName }: { restaurantName: string }) => (
-    <div data-testid="mock-photo">{restaurantName}</div>
+  RestaurantPhoto: ({
+    restaurantName,
+    className,
+  }: {
+    restaurantName: string;
+    className?: string;
+  }) => (
+    <div data-testid="mock-photo" className={className}>
+      {restaurantName}
+    </div>
   ),
 }));
 
@@ -46,7 +54,32 @@ beforeEach(() => {
 });
 
 describe("SmartViewDetailPage", () => {
-  it("renders the selected Smart View with Back to Smart Lists link", async () => {
+  it("renders the selected Smart View with a compact mobile card and wider layout preserved", async () => {
+    smartApi.fetchRestaurants.mockResolvedValueOnce({
+      restaurants: [
+        {
+          place_id: "one",
+          name_ja: "店一",
+          name_en: "Shop One",
+          category: "sushi",
+          food_tags: [],
+          signature_dishes: [],
+          primary_category: "sushi",
+          neighborhood: "Asakusa",
+          fiyu_score: 90,
+          score_band: "excellent",
+          budget: {
+            currency: "JPY",
+            minimum: 4000,
+            maximum: null,
+            band: "moderate",
+            source_type: "researched_source",
+            confidence: 0.85,
+          },
+        },
+      ],
+      rejected: [],
+    });
     smartApi.fetchDefaultListSmartView.mockResolvedValue({
       city_id: "tokyo",
       view_key: "recently_saved",
@@ -82,6 +115,21 @@ describe("SmartViewDetailPage", () => {
     );
     expect(screen.getByText("1 place")).toBeTruthy();
     expect(screen.getByRole("heading", { level: 2, name: "店一" })).toBeTruthy();
+    expect(screen.getByText("sushi · Asakusa")).toBeTruthy();
+    expect(await screen.findByText("¥4,000+")).toBeTruthy();
+    expect(screen.getByTestId("smart-list-restaurant-card").className).toContain("min-w-0");
+    expect(screen.getByTestId("smart-list-card-layout").className).toContain(
+      "grid-cols-[6.75rem_minmax(0,1fr)]",
+    );
+    expect(screen.getByTestId("smart-list-card-layout").className).toContain(
+      "min-[480px]:grid-cols-[minmax(8.5rem,30%)_minmax(0,1fr)]",
+    );
+    expect(screen.getByTestId("mock-photo").className).toContain("h-24");
+    expect(screen.getAllByRole("img", { name: "Fiyu score 9.0 out of 10" })).toHaveLength(2);
+    expect(screen.getByRole("link", { name: "View restaurant" }).getAttribute("href")).toBe(
+      "/restaurants/one",
+    );
+    expect(screen.queryByRole("button", { name: /saved/i })).toBeNull();
   });
 
   it("preserves backend neighborhood group labels and counts", async () => {

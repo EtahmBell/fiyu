@@ -2,6 +2,7 @@ import type { PublicRestaurant } from "@/lib/api/schemas";
 import { englishCardTags } from "@/lib/daily-picks/cardContent";
 
 export type ListTagLookup = Map<string, string[]>;
+export type ListRestaurantLookup = Map<string, PublicRestaurant>;
 
 export function buildListTagLookup(restaurants: PublicRestaurant[]): ListTagLookup {
   const lookup = new Map<string, string[]>();
@@ -10,6 +11,12 @@ export function buildListTagLookup(restaurants: PublicRestaurant[]): ListTagLook
     if (tags.length > 0) lookup.set(restaurant.place_id, tags);
   }
   return lookup;
+}
+
+export function buildListRestaurantLookup(
+  restaurants: PublicRestaurant[],
+): ListRestaurantLookup {
+  return new Map(restaurants.map((restaurant) => [restaurant.place_id, restaurant]));
 }
 
 export function resolveListTags(

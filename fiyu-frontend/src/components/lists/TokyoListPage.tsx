@@ -15,10 +15,17 @@ import type { DefaultListItem, SmartViewCatalogEntry } from "@/lib/api/schemas";
 import { useDefaultList } from "@/lib/lists/useDefaultList";
 import { getOrCreateAnonymousOwnerKey } from "@/lib/lists/identity";
 import { cn } from "@/lib/utils/cn";
+import { formatRestaurantBudget } from "@/lib/restaurant/budget";
 import { ListTabs } from "@/components/lists/ListTabs";
 import { SmartViewCard } from "@/components/lists/SmartViewCard";
 import { PremiumSmartCollectionCard } from "@/components/lists/PremiumSmartCollectionCard";
-import { buildListTagLookup, resolveListTags, type ListTagLookup } from "@/components/lists/listTags";
+import {
+  buildListRestaurantLookup,
+  buildListTagLookup,
+  resolveListTags,
+  type ListRestaurantLookup,
+  type ListTagLookup,
+} from "@/components/lists/listTags";
 import { isPremiumSmartView, sortSmartViews } from "@/components/lists/smartViewPresentation";
 
 function BookmarkIcon({ filled, className }: { filled: boolean; className?: string }) {
@@ -54,11 +61,13 @@ function newestFirst(items: DefaultListItem[]): DefaultListItem[] {
 function SavedRow({
   item,
   tags,
+  budget,
   pending,
   onRemove,
 }: {
   item: DefaultListItem;
   tags: string[];
+  budget: string | null;
   pending: boolean;
   onRemove(): void;
 }) {
@@ -66,19 +75,26 @@ function SavedRow({
   const nameEn = item.restaurant.name_en?.trim() || null;
   const title = nameJa ?? nameEn ?? "Unnamed restaurant";
   const subtitle = nameEn && nameEn !== title ? nameEn : null;
+  const metadata = [item.restaurant.primary_category, item.restaurant.neighborhood]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
     <li className="min-w-0">
       <article
-        className="min-w-0 overflow-hidden rounded-card border border-line bg-surface p-3 shadow-[0_6px_20px_-18px_rgba(49,40,61,0.35)] sm:p-3.5"
+        data-testid="saved-restaurant-card"
+        className="min-w-0 overflow-hidden rounded-card border border-line bg-surface p-2.5 shadow-[0_6px_20px_-18px_rgba(49,40,61,0.35)] min-[480px]:p-3.5"
         aria-labelledby={`saved-${item.place_id}`}
       >
-        <div className="grid min-w-0 grid-cols-1 items-stretch gap-3 min-[480px]:grid-cols-[minmax(8.5rem,30%)_minmax(0,1fr)] min-[480px]:gap-4">
+        <div
+          data-testid="saved-card-layout"
+          className="grid min-w-0 grid-cols-[6.75rem_minmax(0,1fr)] items-stretch gap-2.5 min-[480px]:grid-cols-[minmax(8.5rem,30%)_minmax(0,1fr)] min-[480px]:gap-4"
+        >
           <RestaurantPhoto
             placeId={item.place_id}
             restaurantName={title}
             fill
-            className="h-36 min-w-0 min-[480px]:h-full min-[480px]:min-h-36"
+            className="h-24 min-w-0 w-full min-[480px]:h-full min-[480px]:min-h-36"
           />
 
           <div className="flex min-w-0 flex-col">
@@ -91,38 +107,51 @@ function SavedRow({
                 <h2
                   id={`saved-${item.place_id}`}
                   lang={nameJa ? "ja" : "en"}
-                  className="truncate font-display text-xl leading-tight text-ink"
+                  className="line-clamp-2 font-display text-lg leading-tight text-ink min-[480px]:block min-[480px]:truncate min-[480px]:text-xl"
                 >
                   {title}
                 </h2>
                 {subtitle && (
-                  <p className="mt-1 line-clamp-2 text-[0.8125rem] leading-snug text-ink-muted">
+                  <p className="mt-0.5 line-clamp-1 text-xs leading-snug text-ink-muted min-[480px]:mt-1 min-[480px]:line-clamp-2 min-[480px]:text-[0.8125rem]">
                     {subtitle}
                   </p>
                 )}
               </div>
 
               <div className="flex shrink-0 items-start gap-1">
-                <ScoreMark score={item.restaurant.fiyu_score} size="md" />
+                <ScoreMark score={item.restaurant.fiyu_score} size="sm" className="min-[480px]:hidden" />
+                <ScoreMark score={item.restaurant.fiyu_score} size="md" className="hidden min-[480px]:flex" />
                 <button
                   type="button"
                   aria-label="Remove restaurant from saved"
                   aria-pressed={true}
                   disabled={pending}
                   onClick={onRemove}
-                  className="inline-flex size-11 shrink-0 items-center justify-center text-gold-700 transition-[background-color,color,transform] duration-[180ms] ease-(--ease-fiyu) hover:bg-gold-soft/55 hover:text-gold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+                  className="inline-flex size-9 shrink-0 items-center justify-center text-gold-700 transition-[background-color,color,transform] duration-[180ms] ease-(--ease-fiyu) hover:bg-gold-soft/55 hover:text-gold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 min-[480px]:size-11"
                 >
                   <BookmarkIcon filled={true} />
                 </button>
               </div>
             </div>
 
-            {tags.length > 0 && <TagList tags={tags} max={3} titleCaseEnglish className="mt-2.5" />}
+            {metadata && (
+              <p className="mt-1 line-clamp-1 text-[0.6875rem] leading-4 text-ink-faint min-[480px]:hidden">
+                {metadata}
+              </p>
+            )}
+            {budget && (
+              <p className="mt-1 text-[0.6875rem] font-medium leading-4 text-ink-muted min-[480px]:hidden">
+                {budget}
+              </p>
+            )}
+            {tags.length > 0 && (
+              <TagList tags={tags} max={3} titleCaseEnglish className="mt-2.5 hidden min-[480px]:flex" />
+            )}
 
-            <div className="mt-auto flex min-w-0 items-center gap-3 pt-3">
+            <div className="mt-auto flex min-w-0 items-center gap-3 pt-1 min-[480px]:pt-3">
               <Link
                 href={`/restaurants/${encodeURIComponent(item.place_id)}`}
-                className="inline-flex min-h-11 min-w-0 items-center gap-1.5 text-sm font-semibold text-plum underline decoration-transparent underline-offset-4 transition-colors hover:decoration-lavender-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600"
+                className="inline-flex min-h-9 min-w-0 items-center gap-1 text-xs font-semibold text-plum underline decoration-transparent underline-offset-4 transition-colors hover:decoration-lavender-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600 min-[480px]:min-h-11 min-[480px]:gap-1.5 min-[480px]:text-sm"
               >
                 <span>View restaurant</span>
                 <span aria-hidden="true">→</span>
@@ -195,11 +224,12 @@ export function TokyoListPage({ initialTab = "saved" }: { initialTab?: "saved" |
   const [smartViews, setSmartViews] = useState<SmartViewCatalogEntry[]>([]);
   const [lockedPremiumView, setLockedPremiumView] = useState<SmartViewCatalogEntry | null>(null);
   const [tagLookup, setTagLookup] = useState<ListTagLookup>(new Map());
+  const [restaurantLookup, setRestaurantLookup] = useState<ListRestaurantLookup>(new Map());
 
   useEffect(() => {
     if (list.status !== "ready") return;
     if ((list.list?.item_count ?? 0) === 0) return;
-    if (tagLookup.size > 0) return;
+    if (restaurantLookup.size > 0) return;
 
     let cancelled = false;
     const loadTags = async () => {
@@ -207,8 +237,12 @@ export function TokyoListPage({ initialTab = "saved" }: { initialTab?: "saved" |
         const catalog = await fetchRestaurants(100);
         if (cancelled) return;
         setTagLookup(buildListTagLookup(catalog.restaurants));
+        setRestaurantLookup(buildListRestaurantLookup(catalog.restaurants));
       } catch {
-        if (!cancelled) setTagLookup(new Map());
+        if (!cancelled) {
+          setTagLookup(new Map());
+          setRestaurantLookup(new Map());
+        }
       }
     };
 
@@ -216,7 +250,7 @@ export function TokyoListPage({ initialTab = "saved" }: { initialTab?: "saved" |
     return () => {
       cancelled = true;
     };
-  }, [list.list?.item_count, list.status, tagLookup.size]);
+  }, [list.list?.item_count, list.status, restaurantLookup.size]);
 
   useEffect(() => {
     if (activeTab !== "smart") return;
@@ -432,6 +466,7 @@ export function TokyoListPage({ initialTab = "saved" }: { initialTab?: "saved" |
                     key={item.place_id}
                     item={item}
                     tags={resolveListTags(tagLookup, item.place_id, item.restaurant.primary_category)}
+                    budget={formatRestaurantBudget(restaurantLookup.get(item.place_id)?.budget)}
                     pending={list.pendingPlaceIds.includes(item.place_id)}
                     onRemove={() => void list.toggle(item.place_id)}
                   />

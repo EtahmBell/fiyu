@@ -20,7 +20,14 @@ import type {
   SmartViewResponse,
 } from "@/lib/api/schemas";
 import { getOrCreateAnonymousOwnerKey } from "@/lib/lists/identity";
-import { buildListTagLookup, resolveListTags, type ListTagLookup } from "@/components/lists/listTags";
+import { formatRestaurantBudget } from "@/lib/restaurant/budget";
+import {
+  buildListRestaurantLookup,
+  buildListTagLookup,
+  resolveListTags,
+  type ListRestaurantLookup,
+  type ListTagLookup,
+} from "@/components/lists/listTags";
 import {
   isKnownSmartViewKey,
   isUnavailableForMissingArea,
@@ -30,43 +37,73 @@ import {
   smartViewTitleFromKey,
 } from "@/components/lists/smartViewPresentation";
 
-function SmartViewItemRow({ item, tags }: { item: SmartViewItem; tags: string[] }) {
+function SmartViewItemRow({
+  item,
+  tags,
+  budget,
+}: {
+  item: SmartViewItem;
+  tags: string[];
+  budget: string | null;
+}) {
   const nameJa = item.restaurant.name_ja?.trim() || null;
   const nameEn = item.restaurant.name_en?.trim() || null;
   const title = nameJa ?? nameEn ?? "Unnamed restaurant";
   const subtitle = nameEn && nameEn !== title ? nameEn : null;
+  const metadata = [item.restaurant.primary_category, item.restaurant.neighborhood]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
-    <li className="min-w-0 rounded-card border border-line bg-surface p-3 sm:p-3.5">
-      <article className="grid min-w-0 grid-cols-1 items-stretch gap-3 min-[480px]:grid-cols-[minmax(8.5rem,30%)_minmax(0,1fr)] min-[480px]:gap-4">
+    <li
+      data-testid="smart-list-restaurant-card"
+      className="min-w-0 rounded-card border border-line bg-surface p-2.5 min-[480px]:p-3.5"
+    >
+      <article
+        data-testid="smart-list-card-layout"
+        className="grid min-w-0 grid-cols-[6.75rem_minmax(0,1fr)] items-stretch gap-2.5 min-[480px]:grid-cols-[minmax(8.5rem,30%)_minmax(0,1fr)] min-[480px]:gap-4"
+      >
         <RestaurantPhoto
           placeId={item.place_id}
           restaurantName={title}
           fill
-          className="h-36 min-w-0 min-[480px]:h-full min-[480px]:min-h-36"
+          className="h-24 min-w-0 w-full min-[480px]:h-full min-[480px]:min-h-36"
         />
 
         <div className="flex min-w-0 flex-col">
           <div className="flex min-w-0 items-start justify-between gap-3">
             <div className="min-w-0 flex-1 pt-0.5">
-              <h2 lang={nameJa ? "ja" : "en"} className="truncate font-display text-xl leading-tight text-ink">
+              <h2 lang={nameJa ? "ja" : "en"} className="line-clamp-2 font-display text-lg leading-tight text-ink min-[480px]:block min-[480px]:truncate min-[480px]:text-xl">
                 {title}
               </h2>
               {subtitle && (
-                <p className="mt-1 line-clamp-2 text-[0.8125rem] leading-snug text-ink-muted">{subtitle}</p>
+                <p className="mt-0.5 line-clamp-1 text-xs leading-snug text-ink-muted min-[480px]:mt-1 min-[480px]:line-clamp-2 min-[480px]:text-[0.8125rem]">{subtitle}</p>
               )}
             </div>
             <div className="shrink-0">
-              <ScoreMark score={item.restaurant.fiyu_score} size="md" />
+              <ScoreMark score={item.restaurant.fiyu_score} size="sm" className="min-[480px]:hidden" />
+              <ScoreMark score={item.restaurant.fiyu_score} size="md" className="hidden min-[480px]:flex" />
             </div>
           </div>
 
-          {tags.length > 0 && <TagList tags={tags} max={3} titleCaseEnglish className="mt-2.5" />}
+          {metadata && (
+            <p className="mt-1 line-clamp-1 text-[0.6875rem] leading-4 text-ink-faint min-[480px]:hidden">
+              {metadata}
+            </p>
+          )}
+          {budget && (
+            <p className="mt-1 text-[0.6875rem] font-medium leading-4 text-ink-muted min-[480px]:hidden">
+              {budget}
+            </p>
+          )}
+          {tags.length > 0 && (
+            <TagList tags={tags} max={3} titleCaseEnglish className="mt-2.5 hidden min-[480px]:flex" />
+          )}
 
-          <div className="mt-auto pt-3">
+          <div className="mt-auto pt-1 min-[480px]:pt-3">
             <Link
               href={`/restaurants/${encodeURIComponent(item.place_id)}`}
-              className="inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold text-plum underline decoration-transparent underline-offset-4 transition-colors hover:decoration-lavender-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600"
+              className="inline-flex min-h-9 items-center gap-1 text-xs font-semibold text-plum underline decoration-transparent underline-offset-4 transition-colors hover:decoration-lavender-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600 min-[480px]:min-h-11 min-[480px]:gap-1.5 min-[480px]:text-sm"
             >
               <span>View restaurant</span>
               <span aria-hidden="true">→</span>
@@ -82,9 +119,9 @@ function SmartViewItemsSkeleton() {
   return (
     <ul aria-hidden="true" className="space-y-3">
       {Array.from({ length: 3 }).map((_, index) => (
-        <li key={index} className="min-w-0 rounded-card border border-line bg-surface p-3 sm:p-3.5">
-          <div className="grid min-w-0 grid-cols-1 items-stretch gap-3 min-[480px]:grid-cols-[minmax(8.5rem,30%)_minmax(0,1fr)] min-[480px]:gap-4">
-            <Skeleton className="h-36 w-full rounded-lg min-[480px]:h-full min-[480px]:min-h-36" />
+        <li key={index} className="min-w-0 rounded-card border border-line bg-surface p-2.5 min-[480px]:p-3.5">
+          <div className="grid min-w-0 grid-cols-[6.75rem_minmax(0,1fr)] items-stretch gap-2.5 min-[480px]:grid-cols-[minmax(8.5rem,30%)_minmax(0,1fr)] min-[480px]:gap-4">
+            <Skeleton className="h-24 w-full rounded-lg min-[480px]:h-full min-[480px]:min-h-36" />
             <div className="space-y-3">
               <Skeleton className="h-6 w-2/3" />
               <Skeleton className="h-4 w-1/2" />
@@ -105,6 +142,7 @@ export function SmartViewDetailPage({ viewKey }: { viewKey: string }) {
   const [catalogEntry, setCatalogEntry] = useState<SmartViewCatalogEntry | null>(null);
   const [view, setView] = useState<SmartViewResponse | null>(null);
   const [tagLookup, setTagLookup] = useState<ListTagLookup>(new Map());
+  const [restaurantLookup, setRestaurantLookup] = useState<ListRestaurantLookup>(new Map());
 
   const fallbackTitle = useMemo(() => smartViewTitleFromKey(viewKey), [viewKey]);
 
@@ -170,8 +208,12 @@ export function SmartViewDetailPage({ viewKey }: { viewKey: string }) {
         const catalog = await fetchRestaurants(100);
         if (cancelled) return;
         setTagLookup(buildListTagLookup(catalog.restaurants));
+        setRestaurantLookup(buildListRestaurantLookup(catalog.restaurants));
       } catch {
-        if (!cancelled) setTagLookup(new Map());
+        if (!cancelled) {
+          setTagLookup(new Map());
+          setRestaurantLookup(new Map());
+        }
       }
     };
 
@@ -267,6 +309,7 @@ export function SmartViewDetailPage({ viewKey }: { viewKey: string }) {
                         key={item.place_id}
                         item={item}
                         tags={resolveListTags(tagLookup, item.place_id, item.restaurant.primary_category)}
+                        budget={formatRestaurantBudget(restaurantLookup.get(item.place_id)?.budget)}
                       />
                     ))}
                   </ul>
@@ -298,6 +341,7 @@ export function SmartViewDetailPage({ viewKey }: { viewKey: string }) {
                       key={item.place_id}
                       item={item}
                       tags={resolveListTags(tagLookup, item.place_id, item.restaurant.primary_category)}
+                      budget={formatRestaurantBudget(restaurantLookup.get(item.place_id)?.budget)}
                     />
                   ))}
                 </ul>

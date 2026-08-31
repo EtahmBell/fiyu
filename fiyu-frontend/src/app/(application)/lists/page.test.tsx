@@ -62,8 +62,16 @@ vi.mock("@/lib/api/client", () => ({
 }));
 
 vi.mock("@/components/restaurant/RestaurantPhoto", () => ({
-  RestaurantPhoto: ({ restaurantName }: { restaurantName: string }) => (
-    <div data-testid="mock-photo">{restaurantName}</div>
+  RestaurantPhoto: ({
+    restaurantName,
+    className,
+  }: {
+    restaurantName: string;
+    className?: string;
+  }) => (
+    <div data-testid="mock-photo" className={className}>
+      {restaurantName}
+    </div>
   ),
 }));
 
@@ -202,7 +210,7 @@ describe("lists page", () => {
     expect(headings[1].textContent).toBe("古い");
   });
 
-  it("shows a saved-place count only once the list has loaded", () => {
+  it("renders a compact mobile Saved card while preserving its wider layout", async () => {
     defaultList.state.list = {
       ...defaultList.state.list,
       item_count: 1,
@@ -222,15 +230,79 @@ describe("lists page", () => {
         },
       ],
     };
+    smartApi.fetchRestaurants.mockResolvedValueOnce({
+      restaurants: [
+        {
+          place_id: "only",
+          name_ja: "只",
+          name_en: "Only",
+          category: "sushi",
+          food_tags: [],
+          signature_dishes: [],
+          primary_category: "sushi",
+          neighborhood: "Asakusa",
+          fiyu_score: 80,
+          score_band: "strong",
+          budget: {
+            currency: "JPY",
+            minimum: 2000,
+            maximum: 3000,
+            band: "budget",
+            source_type: "researched_source",
+            confidence: 0.9,
+          },
+        },
+      ],
+      rejected: [],
+    });
 
     render(<ListsPage />);
 
     expect(screen.getByText("1 saved place")).toBeTruthy();
     // Presentation-only title casing, straight from the stored tag value.
     expect(screen.getByText("Sushi")).toBeTruthy();
-    expect(screen.queryByText("Asakusa")).toBeNull();
+    expect(screen.getByText("sushi · Asakusa")).toBeTruthy();
+    expect(await screen.findByText("¥2,000–¥3,000")).toBeTruthy();
+    expect(screen.getByTestId("saved-restaurant-card").className).toContain("min-w-0");
+    expect(screen.getByTestId("saved-card-layout").className).toContain(
+      "grid-cols-[6.75rem_minmax(0,1fr)]",
+    );
+    expect(screen.getByTestId("saved-card-layout").className).toContain(
+      "min-[480px]:grid-cols-[minmax(8.5rem,30%)_minmax(0,1fr)]",
+    );
+    expect(screen.getByTestId("mock-photo").className).toContain("h-24");
+    expect(screen.getByTestId("mock-photo").className).toContain("min-[480px]:min-h-36");
+    expect(screen.getAllByRole("img", { name: "Fiyu score 8.0 out of 10" })).toHaveLength(2);
     expect(screen.getByRole("button", { name: "Remove restaurant from saved" })).toBeTruthy();
-    expect(screen.getByRole("link", { name: "View restaurant" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "View restaurant" }).getAttribute("href")).toBe(
+      "/restaurants/only",
+    );
+  });
+
+  it("omits budget metadata when the Saved restaurant budget is unknown", () => {
+    defaultList.state.list = {
+      ...defaultList.state.list,
+      item_count: 1,
+      items: [
+        {
+          place_id: "unknown-budget",
+          added_at: "2026-08-03T08:00:00Z",
+          restaurant: {
+            place_id: "unknown-budget",
+            name_ja: "予算不明",
+            name_en: "Unknown Budget",
+            primary_category: "sushi",
+            neighborhood: "Asakusa",
+            fiyu_score: 80,
+            score_band: "strong",
+          },
+        },
+      ],
+    };
+
+    render(<ListsPage />);
+
+    expect(screen.queryByText(/¥/)).toBeNull();
   });
 
   it("shows neutral Fiyu loading rather than the empty state", () => {
