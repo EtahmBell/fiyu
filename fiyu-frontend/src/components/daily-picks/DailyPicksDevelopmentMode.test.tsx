@@ -101,7 +101,7 @@ describe("unlimited Picks development mode", () => {
     render(<DailyPicksPanel restaurants={catalog} storage={storage} />);
 
     expect(screen.queryByTestId("unlimited-picks-dev-controls")).toBeNull();
-    expect(screen.getByText(/Next selection available in/)).toBeTruthy();
+    expect(screen.getByText("Next Picks in")).toBeTruthy();
   });
 
   it("stays unavailable in production even with flags in the environment and localStorage", async () => {
@@ -122,6 +122,6 @@ describe("unlimited Picks development mode", () => {
 
     expect(screen.queryByTestId("unlimited-picks-dev-controls")).toBeNull();
     expect(screen.queryByRole("button", { name: "Generate another test set" })).toBeNull();
-    expect(screen.getByText(/Next selection available in/)).toBeTruthy();
+    expect(screen.getByText("Next Picks in")).toBeTruthy();
   });
 });

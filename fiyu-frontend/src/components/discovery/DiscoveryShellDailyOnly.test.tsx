@@ -948,6 +948,34 @@ describe("daily-only discovery shell", () => {
     expect(dailyApi.assignDailyPicks).not.toHaveBeenCalled();
   });
 
+  it("reuses the cached active round on navigation return without a duplicate Picks request", async () => {
+    const now = Date.now();
+    dailyApi.fetchActiveDailyPicks.mockResolvedValue({
+      round_id: "cached-round",
+      city_id: "tokyo",
+      place_ids: ["one", "two", "three"],
+      restaurants: catalog.slice(0, 3),
+      assigned_at: new Date(now - 1_000).toISOString(),
+      expires_at: new Date(now + 60_000).toISOString(),
+      discovery_mode: "current",
+      discovery_label: "Ginza",
+    });
+    dailyApi.fetchRecentDailyPicks.mockResolvedValue([]);
+    locationApi.fetchDiscoveryLocation.mockResolvedValue(
+      configuredLocation("Ginza", "current"),
+    );
+    publishProfileIdentity(accountProfile("account-cache", "accountcache"));
+
+    const firstVisit = render(<DiscoveryShell restaurants={catalog} areaAnchors={[]} />);
+    await waitFor(() => expect(dailyApi.fetchActiveDailyPicks).toHaveBeenCalledOnce());
+    expect(await screen.findByTestId("daily-picks-countdown")).toBeTruthy();
+    firstVisit.unmount();
+
+    render(<DiscoveryShell restaurants={catalog} areaAnchors={[]} />);
+    expect(await screen.findByTestId("daily-picks-countdown")).toBeTruthy();
+    expect(dailyApi.fetchActiveDailyPicks).toHaveBeenCalledOnce();
+  });
+
   it("hydrates a live-GPS round without a redundant location prefix", async () => {
     const now = Date.now();
     dailyApi.fetchActiveDailyPicks.mockResolvedValueOnce({

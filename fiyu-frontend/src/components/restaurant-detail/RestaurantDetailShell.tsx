@@ -8,6 +8,7 @@ import { MapUnavailable } from "@/components/map/MapUnavailable";
 import { OutboundMapActions } from "@/components/restaurant/OutboundMapActions";
 import { TagList } from "@/components/restaurant/TagList";
 import { RestaurantPhotoGallery } from "@/components/restaurant-detail/RestaurantPhotoGallery";
+import { RestaurantShareAction } from "@/components/restaurant-detail/RestaurantShareAction";
 import { ScoreMark } from "@/components/ui/ScoreMark";
 import type { GooglePhoto, PublicRestaurant, PublicRestaurantDetail } from "@/lib/api/schemas";
 import { canonicalCardDescription } from "@/lib/daily-picks/cardContent";
@@ -375,6 +376,7 @@ function RestaurantDetailContent({
         )}
         <div className="flex flex-wrap items-center gap-3">
           <SaveButton saved={saved} onToggle={onToggleSaved} />
+          <RestaurantShareAction placeId={restaurant.place_id} restaurantName={title} />
           <OutboundMapActions restaurant={restaurant} />
           {bookingUrl && (
             <a

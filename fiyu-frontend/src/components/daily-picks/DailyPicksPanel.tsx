@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
 import { ConcealedRestaurantCard } from "@/components/daily-picks/ConcealedRestaurantCard";
+import { DailyPicksCountdown } from "@/components/daily-picks/DailyPicksCountdown";
 import { CityHeaderMark } from "@/components/city-signature/CitySignature";
 import {
   DailyCardFrame,
@@ -153,14 +154,6 @@ const subscribeClock = (listener: () => void) => {
 };
 const currentMinute = () => Math.floor(Date.now() / 60_000) * 60_000;
 const serverMinute = () => 0;
-
-function remainingLabel(milliseconds: number): string {
-  const minutes = Math.max(1, Math.ceil(milliseconds / 60_000));
-  const hours = Math.floor(minutes / 60);
-  const remainder = minutes % 60;
-  if (hours === 0) return `${minutes}m`;
-  return remainder === 0 ? `${hours}h` : `${hours}h ${remainder}m`;
-}
 
 /**
  * Discovery context beneath the mobile `Picks` heading.
@@ -785,13 +778,19 @@ export function DailyPicksPanel({
           className={
             phase === "finding"
               ? "sr-only"
-              : "border-b border-line pb-3 font-display text-2xl text-ink"
+              : selection && !UNLIMITED_PICKS_DEV_MODE
+                ? "pb-2 font-display text-2xl text-ink"
+                : "border-b border-line pb-3 font-display text-2xl text-ink"
           }
         >
           {phase === "finding"
             ? "Fresh Picks"
             : "Today’s Fiyu Picks"}
         </h2>
+
+        {phase === "idle" && selection && !UNLIMITED_PICKS_DEV_MODE && (
+          <DailyPicksCountdown expiresAt={selection.expiresAt} now={now} />
+        )}
 
         {phase === "finding" ? (
           <div
@@ -872,8 +871,7 @@ export function DailyPicksPanel({
               </div>
             )}
 
-            {hasActivePicks && currentSelection && (
-              UNLIMITED_PICKS_DEV_MODE ? (
+            {hasActivePicks && currentSelection && UNLIMITED_PICKS_DEV_MODE && (
                 <div
                   data-testid="unlimited-picks-dev-controls"
                   className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dashed border-lavender-100 bg-lavender-50/35 p-3"
@@ -883,14 +881,6 @@ export function DailyPicksPanel({
                     Generate another test set
                   </Button>
                 </div>
-              ) : (
-                <div className="flex flex-wrap items-center gap-3">
-                  <p className="text-xs text-ink-muted" aria-live="polite">
-                    Next selection available in{" "}
-                    {remainingLabel(Date.parse(currentSelection.expiresAt) - now)}
-                  </p>
-                </div>
-              )
             )}
 
             {inventoryMessage && (

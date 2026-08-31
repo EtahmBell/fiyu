@@ -45,6 +45,68 @@ afterEach(() => {
 });
 
 describe("Today’s Fiyu Picks panel", () => {
+  it("places the minute-level countdown above the cards and removes the old bottom copy", () => {
+    const now = Date.UTC(2026, 6, 29, 12);
+    vi.useFakeTimers();
+    vi.setSystemTime(now);
+    const storage = createDailyPicksStorage(window.localStorage);
+    storage.save({
+      version: 3,
+      preferences: { categories: [], nonJapanese: "occasionally" },
+      selection: createDailySelection(["one", "two", "three"], now),
+      discoveries: [],
+      savedRestaurantIds: [],
+    });
+
+    const { unmount } = render(<DailyPicksPanel restaurants={catalog} storage={storage} />);
+    const countdown = screen.getByTestId("daily-picks-countdown");
+    const firstCard = screen.getAllByTestId("concealed-restaurant-card")[0];
+
+    expect(screen.getByText("Next Picks in")).toBeTruthy();
+    expect(screen.getByText("24h")).toBeTruthy();
+    expect(countdown.compareDocumentPosition(firstCard) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.queryByText(/Next selection available in/)).toBeNull();
+    expect(screen.getAllByTestId("daily-picks-countdown")).toHaveLength(1);
+
+    unmount();
+  });
+
+  it("crosses into the ready state without generating another round", () => {
+    const now = Date.UTC(2026, 6, 29, 12);
+    vi.useFakeTimers();
+    vi.setSystemTime(now);
+    const storage = createDailyPicksStorage(window.localStorage);
+    const selection = {
+      ...createDailySelection(["one", "two", "three"], now),
+      expiresAt: new Date(now + 60_000).toISOString(),
+    };
+    storage.save({
+      version: 3,
+      preferences: { categories: [], nonJapanese: "occasionally" },
+      selection,
+      discoveries: [],
+      savedRestaurantIds: [],
+    });
+
+    render(<DailyPicksPanel restaurants={catalog} storage={storage} />);
+    expect(screen.getByText("1m")).toBeTruthy();
+
+    act(() => vi.advanceTimersByTime(60_000));
+
+    expect(screen.getByText("Your next Picks are ready")).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Find today's restaurants/i })).toBeTruthy();
+    expect(storage.getSnapshot()?.selection?.restaurantIds).toEqual(selection.restaurantIds);
+  });
+
+  it("cleans up its minute timer on unmount", () => {
+    const clearInterval = vi.spyOn(window, "clearInterval");
+    const storage = createDailyPicksStorage(window.localStorage);
+    const { unmount } = render(<DailyPicksPanel restaurants={catalog} storage={storage} />);
+
+    unmount();
+    expect(clearInterval).toHaveBeenCalled();
+  });
+
   it("persists card-by-card reveal progress and restores it across a reload", () => {
     const revealedAt = Date.UTC(2026, 6, 29, 12, 34, 56);
     vi.useFakeTimers();
@@ -62,7 +124,7 @@ describe("Today’s Fiyu Picks panel", () => {
     const picksSection = screen.getByTestId("daily-picks-section");
     expect(picksSection.className).not.toContain("rounded-card");
     expect(picksSection.className).not.toContain("border-line");
-    expect(screen.getByRole("heading", { level: 2 }).className).toContain("border-b");
+    expect(screen.getByTestId("daily-picks-countdown").className).toContain("border-b");
     expect(screen.getAllByTestId("concealed-restaurant-card")).toHaveLength(3);
     const selectedIds = firstStorage.getSnapshot()?.selection?.restaurantIds;
     expect(selectedIds).toHaveLength(3);

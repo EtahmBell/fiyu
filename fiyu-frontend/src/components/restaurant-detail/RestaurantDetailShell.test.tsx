@@ -82,6 +82,7 @@ describe("restaurant detail view", () => {
     expect(screen.getByText("Approximate area")).toBeTruthy();
     expect(screen.getAllByRole("link", { name: "Open in Google Maps" }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole("link", { name: "Open in Apple Maps" }).length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: "Share 鮨さいとう" })).toBeTruthy();
     expect(screen.getByTestId("desktop-detail-map")).toBeTruthy();
     expect(document.querySelectorAll('[data-place-id="detail-place"]')).toHaveLength(2);
 
