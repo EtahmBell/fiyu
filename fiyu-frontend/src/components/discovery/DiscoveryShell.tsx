@@ -20,7 +20,7 @@ import {
   fetchDiscoveryLocation,
 } from "@/lib/api/client";
 import { useAccountQuery } from "@/lib/accountQueryCache";
-import type { DiscoveryLocation, PublicRestaurant } from "@/lib/api/schemas";
+import type { DiscoveryLocation, MapRestaurant, PublicRestaurant } from "@/lib/api/schemas";
 import { mappableRestaurants } from "@/lib/geo/mappable";
 import { useGeolocation } from "@/lib/hooks/useGeolocation";
 import { useProfileIdentity } from "@/lib/profile/profileIdentity";
@@ -98,7 +98,7 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
     [restaurantOwnerKey, visibleRestaurantState],
   );
   const loadMapRestaurants = useCallback(() => fetchAuthenticatedMapRestaurants(), []);
-  const mapQuery = useAccountQuery<PublicRestaurant[]>({
+  const mapQuery = useAccountQuery<MapRestaurant[]>({
     resource: "map-restaurants",
     accountId: identity.status === "loading" || !authenticatedUserId
       ? undefined
@@ -278,7 +278,7 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
   const mappable = useMemo(() => {
     const mapRestaurants = identity.profile
       ? mapQuery.status === "ready"
-        ? [...new Map([...mapQuery.data, ...visibleRestaurants].map((restaurant) => [
+        ? [...new Map([...visibleRestaurants, ...mapQuery.data].map((restaurant) => [
             restaurant.place_id,
             restaurant,
           ])).values()]
@@ -478,6 +478,7 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
                 key={identity.profile?.user_id ?? "anonymous"}
                 restaurants={restaurants}
                 accountId={identity.profile?.user_id ?? null}
+                visitedRestaurants={mapQuery.status === "ready" ? mapQuery.data : []}
                 activeDiscoveryLocation={activeDiscoveryLocation}
                 resolveNewRoundLocation={identity.profile ? resolveNewRoundLocation : undefined}
                 onPreviewAreaRequired={identity.profile ? showPreviewAreaGate : undefined}

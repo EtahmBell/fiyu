@@ -7,6 +7,21 @@ type CacheEntry<T> = {
 };
 
 const entries = new Map<string, CacheEntry<unknown>>();
+const listeners = new Map<string, Set<() => void>>();
+
+function notify(key: string): void {
+  listeners.get(key)?.forEach((listener) => listener());
+}
+
+export function subscribeAccountQuery(key: string, listener: () => void): () => void {
+  const subscribers = listeners.get(key) ?? new Set<() => void>();
+  subscribers.add(listener);
+  listeners.set(key, subscribers);
+  return () => {
+    subscribers.delete(listener);
+    if (subscribers.size === 0) listeners.delete(key);
+  };
+}
 
 function entryFor<T>(key: string): CacheEntry<T> {
   const existing = entries.get(key) as CacheEntry<T> | undefined;
@@ -28,6 +43,7 @@ export function writeAccountQuery<T>(key: string, value: T): void {
   const entry = entryFor<T>(key);
   entry.value = value;
   entry.updatedAt = Date.now();
+  notify(key);
 }
 
 export function loadAccountQuery<T>(
@@ -45,6 +61,7 @@ export function loadAccountQuery<T>(
     .then((value) => {
       entry.value = value;
       entry.updatedAt = Date.now();
+      notify(key);
       return value;
     })
     .finally(() => {
@@ -116,6 +133,18 @@ export function useAccountQuery<T>({
     if (!key || !enabled) return;
     void refresh(false).catch(() => undefined);
   }, [enabled, key, refresh]);
+
+  useEffect(() => {
+    if (!key || !enabled) return;
+    return subscribeAccountQuery(key, () => {
+      const value = readAccountQuery<T>(key);
+      setState(
+        value === undefined
+          ? { key, status: "loading", data: undefined }
+          : { key, status: "ready", data: value },
+      );
+    });
+  }, [enabled, key]);
 
   const setData = useCallback(
     (next: T | ((current: T | undefined) => T)) => {

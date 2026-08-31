@@ -320,16 +320,17 @@ export function LogWorkspace({
         const mapKey = accountQueryKey("map-restaurants", accountId);
         const cached = readAccountQuery<MapRestaurant[]>(mapKey);
         const selectedRestaurant = catalog.find((restaurant) => restaurant.place_id === placeId);
-        if (cached) {
-          const next = cached.some((restaurant) => restaurant.place_id === placeId)
-            ? cached.map((restaurant) =>
+        {
+          const current = cached ?? [];
+          const next = current.some((restaurant) => restaurant.place_id === placeId)
+            ? current.map((restaurant) =>
                 restaurant.place_id === placeId
                   ? { ...restaurant, is_visited: true, user_rating: rating }
                   : restaurant,
               )
             : selectedRestaurant
-              ? [...cached, { ...selectedRestaurant, is_visited: true, user_rating: rating }]
-              : cached;
+              ? [...current, { ...selectedRestaurant, is_visited: true, user_rating: rating }]
+              : current;
           writeAccountQuery(mapKey, next);
         }
       }

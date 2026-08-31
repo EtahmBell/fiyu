@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -6,6 +7,8 @@ import {
   clearAccountQueries,
   loadAccountQuery,
   readAccountQuery,
+  useAccountQuery,
+  writeAccountQuery,
 } from "@/lib/accountQueryCache";
 
 describe("account query cache", () => {
@@ -52,5 +55,20 @@ describe("account query cache", () => {
     resolve?.("fresh");
     await expect(refreshing).resolves.toBe("fresh");
     expect(readAccountQuery(key)).toBe("fresh");
+  });
+
+  it("publishes incremental account cache writes to mounted consumers", async () => {
+    const loader = vi.fn(async () => ["one"]);
+    const { result } = renderHook(() => useAccountQuery({
+      resource: "map-restaurants",
+      accountId: "account-a",
+      loader,
+    }));
+    await waitFor(() => expect(result.current.status).toBe("ready"));
+
+    act(() => writeAccountQuery(accountQueryKey("map-restaurants", "account-a"), ["one", "two"]));
+
+    expect(result.current.status).toBe("ready");
+    if (result.current.status === "ready") expect(result.current.data).toEqual(["one", "two"]);
   });
 });

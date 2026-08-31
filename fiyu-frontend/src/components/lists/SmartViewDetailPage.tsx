@@ -214,7 +214,7 @@ export function SmartViewDetailPage({ viewKey }: { viewKey: string }) {
           className="inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold text-plum underline decoration-transparent underline-offset-4 transition-colors hover:decoration-lavender-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600"
         >
           <span aria-hidden="true">←</span>
-          <span>Back to Smart</span>
+          <span>Back to Smart Lists</span>
         </Link>
       </div>
 

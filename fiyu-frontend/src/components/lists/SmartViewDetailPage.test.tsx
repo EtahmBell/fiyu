@@ -46,7 +46,7 @@ beforeEach(() => {
 });
 
 describe("SmartViewDetailPage", () => {
-  it("renders the selected Smart View with Back to Smart link", async () => {
+  it("renders the selected Smart View with Back to Smart Lists link", async () => {
     smartApi.fetchDefaultListSmartView.mockResolvedValue({
       city_id: "tokyo",
       view_key: "recently_saved",
@@ -77,7 +77,7 @@ describe("SmartViewDetailPage", () => {
     render(<SmartViewDetailPage viewKey="recently_saved" />);
 
     expect(await screen.findByRole("heading", { name: "Recently saved" })).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Back to Smart" }).getAttribute("href")).toBe(
+    expect(screen.getByRole("link", { name: "Back to Smart Lists" }).getAttribute("href")).toBe(
       "/lists?tab=smart",
     );
     expect(screen.getByText("1 place")).toBeTruthy();
@@ -183,7 +183,7 @@ describe("SmartViewDetailPage", () => {
     render(<SmartViewDetailPage viewKey="worth_the_detour" />);
 
     expect(await screen.findByRole("heading", { name: "Worth the detour" })).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Back to Smart" }).getAttribute("href")).toBe(
+    expect(screen.getByRole("link", { name: "Back to Smart Lists" }).getAttribute("href")).toBe(
       "/lists?tab=smart",
     );
     expect(screen.getByRole("heading", { level: 2, name: "店一" })).toBeTruthy();

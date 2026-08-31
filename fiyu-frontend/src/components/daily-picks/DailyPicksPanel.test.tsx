@@ -6,7 +6,7 @@ import { cleanup, fireEvent, render, screen, within } from "@testing-library/rea
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DailyPicksPanel } from "@/components/daily-picks/DailyPicksPanel";
-import { publicRestaurantSchema, type PublicRestaurant } from "@/lib/api/schemas";
+import { mapRestaurantSchema, publicRestaurantSchema, type PublicRestaurant } from "@/lib/api/schemas";
 import { RECENT_DISCOVERY_DURATION_MS } from "@/lib/daily-picks/history";
 import { createDailyPicksStorage, createDailySelection } from "@/lib/daily-picks/storage";
 import { subscribeToNewlyRevealedMapPlaces } from "@/lib/map/revealEvents";
@@ -45,6 +45,36 @@ afterEach(() => {
 });
 
 describe("Today’s Fiyu Picks panel", () => {
+  it("replaces only a visited active Pick with the compact brass state", () => {
+    const now = Date.UTC(2026, 6, 29, 12);
+    vi.useFakeTimers();
+    vi.setSystemTime(now);
+    const storage = createDailyPicksStorage(window.localStorage);
+    storage.save({
+      version: 3,
+      preferences: { categories: [], nonJapanese: "occasionally" },
+      selection: {
+        ...createDailySelection(["one", "two", "three"], now),
+        revealedIds: ["one", "two", "three"],
+      },
+      discoveries: [],
+      savedRestaurantIds: [],
+    });
+    const visited = mapRestaurantSchema.parse({ ...catalog[0], is_visited: true, user_rating: 4 });
+
+    const view = render(<DailyPicksPanel restaurants={catalog} storage={storage} />);
+    expect(screen.getAllByTestId("revealed-restaurant-card")).toHaveLength(3);
+
+    act(() => view.rerender(
+      <DailyPicksPanel restaurants={catalog} storage={storage} visitedRestaurants={[visited]} />,
+    ));
+
+    const card = screen.getByTestId("visited-pick-card");
+    expect(within(card).getByText("Visited")).toBeTruthy();
+    expect(within(card).getByLabelText("4 out of 5 stars")).toBeTruthy();
+    expect(screen.getAllByTestId("revealed-restaurant-card")).toHaveLength(2);
+    expect(storage.getSnapshot()?.selection?.restaurantIds).toEqual(["one", "two", "three"]);
+  });
   it("places the minute-level countdown above the cards and removes the old bottom copy", () => {
     const now = Date.UTC(2026, 6, 29, 12);
     vi.useFakeTimers();

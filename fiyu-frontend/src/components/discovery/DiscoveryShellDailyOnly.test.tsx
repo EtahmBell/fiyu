@@ -651,25 +651,30 @@ describe("daily-only discovery shell", () => {
         longitude: 139.77404398220284,
         map_display_eligible: true,
       }),
-      mapRestaurantSchema.parse({
+      publicRestaurantSchema.parse({
         place_id: "ChIJe1D1MyeLGGARBHKRN0-hQUw",
         name_ja: "ワインと春巻き ROLLS",
         name_en: "ROLLS wine and springrolls",
         latitude: 35.657883468626316,
         longitude: 139.75669375698615,
         map_display_eligible: true,
-        is_visited: true,
       }),
-      mapRestaurantSchema.parse({
+      publicRestaurantSchema.parse({
         place_id: "ChIJF0XdG2CJGGARXPEmJ6ULqUA",
         name_ja: "幸田",
         name_en: "Koda",
         latitude: 35.66981542005488,
         longitude: 139.77259448466774,
         map_display_eligible: true,
-        is_visited: true,
       }),
     ];
+    const visitedRestaurants = assignmentRestaurants.slice(1).map((restaurant, index) =>
+      mapRestaurantSchema.parse({
+        ...restaurant,
+        is_visited: true,
+        user_rating: index === 0 ? 4 : 5,
+      }),
+    );
     const placeIds = assignmentRestaurants.map((restaurant) => restaurant.place_id);
     const now = Date.now();
     window.localStorage.setItem(
@@ -696,7 +701,7 @@ describe("daily-only discovery shell", () => {
       revealed_at: new Date(now - 500).toISOString(),
     });
     locationApi.fetchDiscoveryLocation.mockResolvedValueOnce(configuredLocation("Shinjuku"));
-    mapApi.fetchAuthenticatedMapRestaurants.mockResolvedValue(assignmentRestaurants);
+    mapApi.fetchAuthenticatedMapRestaurants.mockResolvedValue(visitedRestaurants);
     publishProfileIdentity(accountProfile(accountId, "assignmentmap"));
 
     render(<DiscoveryShell restaurants={[assignmentRestaurants[0]]} areaAnchors={[]} />);
@@ -716,6 +721,9 @@ describe("daily-only discovery shell", () => {
     expect(visitedMarker?.querySelectorAll("circle")[2]?.getAttribute("fill")).toBe(
       "var(--map-marker-visited)",
     );
+    expect(screen.getAllByTestId("visited-pick-card")).toHaveLength(2);
+    expect(screen.getByLabelText("4 out of 5 stars")).toBeTruthy();
+    expect(screen.getAllByTestId("revealed-restaurant-card")).toHaveLength(1);
 
     fireEvent.click(visitedMarker as Element);
     const visitedPopup = mapRegion.querySelector('[data-layer="restaurant-popup"]') as HTMLElement;
@@ -723,6 +731,7 @@ describe("daily-only discovery shell", () => {
     expect(visitedPopup.getAttribute("data-place-id")).toBe(assignmentRestaurants[1].place_id);
     expect(within(visitedPopup).getByText("ワインと春巻き ROLLS")).toBeTruthy();
     expect(within(visitedPopup).getByText("Visited")).toBeTruthy();
+    expect(within(visitedPopup).getByLabelText("Your rating: 4 out of 5 stars")).toBeTruthy();
     expect(within(visitedPopup).getByRole("link", { name: "View restaurant →" })
       .getAttribute("href")).toBe(`/restaurants/${assignmentRestaurants[1].place_id}`);
 
@@ -750,7 +759,7 @@ describe("daily-only discovery shell", () => {
     const rollsFrame = document.querySelector(
       '[data-daily-card-place-id="ChIJe1D1MyeLGGARBHKRN0-hQUw"]',
     ) as HTMLElement;
-    fireEvent.click(within(rollsFrame).getByTestId("compact-restaurant-card"));
+    fireEvent.click(within(rollsFrame).getByTestId("visited-pick-card"));
     expect(
       mapRegion.querySelector('[data-place-id="ChIJe1D1MyeLGGARBHKRN0-hQUw"]')
         ?.getAttribute("aria-pressed"),

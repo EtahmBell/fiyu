@@ -9,6 +9,7 @@ from typing import Literal
 
 from .database import connect
 from .entitlements import CAPABILITY_PREMIUM_SMART_VIEWS, Capability
+from .location_anchors import load_location_anchors
 from .restaurant_lists import get_or_create_default_list
 from .restaurant_visits import visited_place_ids
 from .utils import haversine_km
@@ -139,9 +140,70 @@ _ENGLISH_CHOME_PREFIX = re.compile(r"^\s*\d+\s*(?:chome|chōme)\s+", re.IGNORECA
 _ENGLISH_CHOME_SUFFIX = re.compile(r"\s+\d+\s*(?:chome|chōme)\s*$", re.IGNORECASE)
 _JAPANESE_CHOME_SUFFIX = re.compile(r"(?:[一二三四五六七八九十〇零]+|\d+)丁目\s*$")
 
+# Reviewed product areas are the vocabulary exposed by the location picker. These
+# aliases only cover well-established micro-localities whose parent is
+# unambiguous; coordinates handle the rest conservatively.
+_SMART_LIST_AREA_ALIASES: dict[str, str] = {
+    "ikebukuro": "Ikebukuro",
+    "ikebukurohoncho": "Ikebukuro",
+    "takamatsu": "Ikebukuro",
+    "池袋": "Ikebukuro",
+    "池袋本町": "Ikebukuro",
+    "高松": "Ikebukuro",
+    "sendagi": "Ueno",
+    "nippori": "Ueno",
+    "nezu": "Ueno",
+    "yanaka": "Ueno",
+    "千駄木": "Ueno",
+    "日暮里": "Ueno",
+    "根津": "Ueno",
+    "谷中": "Ueno",
+}
+_SMART_LIST_ANCHOR_MAX_DISTANCE_KM = 2.5
+_SMART_LIST_ANCHORS = tuple(load_location_anchors())
+
+
+def _locality_key(value: object) -> str:
+    text = str(value or "").strip()
+    text = _ENGLISH_CHOME_PREFIX.sub("", text)
+    text = _ENGLISH_CHOME_SUFFIX.sub("", text)
+    text = _JAPANESE_CHOME_SUFFIX.sub("", text).strip()
+    return re.sub(r"[^0-9a-z\u3040-\u30ff\u3400-\u9fff]", "", text.casefold())
+
 
 def human_area_label(row: dict[str, object]) -> str:
-    """Return the most specific human locality without exposing chome granularity."""
+    """Return a stable, recognizable Smart List area for a catalog row."""
+
+    reviewed_areas = {
+        _locality_key(anchor.get("area_name")): str(anchor["area_name"])
+        for anchor in _SMART_LIST_ANCHORS
+        if anchor.get("area_name")
+    }
+
+    for field in ("discovery_area", "neighborhood"):
+        locality_key = _locality_key(row.get(field))
+        if locality_key in _SMART_LIST_AREA_ALIASES:
+            return _SMART_LIST_AREA_ALIASES[locality_key]
+        if locality_key in reviewed_areas:
+            return reviewed_areas[locality_key]
+
+    latitude = _as_float(row.get("latitude"))
+    longitude = _as_float(row.get("longitude"))
+    if latitude is not None and longitude is not None:
+        nearest: tuple[float, str] | None = None
+        for anchor in _SMART_LIST_ANCHORS:
+            anchor_latitude = _as_float(anchor.get("latitude"))
+            anchor_longitude = _as_float(anchor.get("longitude"))
+            if anchor_latitude is None or anchor_longitude is None:
+                continue
+            distance = haversine_km(
+                latitude, longitude, anchor_latitude, anchor_longitude
+            )
+            candidate = (distance, str(anchor["area_name"]))
+            if nearest is None or candidate < nearest:
+                nearest = candidate
+        if nearest is not None and nearest[0] <= _SMART_LIST_ANCHOR_MAX_DISTANCE_KM:
+            return nearest[1]
 
     raw_neighborhood = str(row.get("neighborhood") or "").strip()
     neighborhood = _ENGLISH_CHOME_PREFIX.sub("", raw_neighborhood)

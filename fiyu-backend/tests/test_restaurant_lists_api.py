@@ -23,9 +23,31 @@ def _owner_id() -> str:
 
 
 def test_human_area_label_uses_neighborhood_then_area_then_ward():
-    assert human_area_label({"neighborhood": "千駄木三丁目"}) == "千駄木"
+    assert human_area_label({"neighborhood": "千駄木三丁目"}) == "Ueno"
     assert human_area_label({"discovery_area": "Asakusa", "city": "Taito City"}) == "Asakusa"
     assert human_area_label({"city": "Taito City"}) == "Taito"
+
+
+@pytest.mark.parametrize(
+    ("neighborhood", "expected"),
+    [
+        ("Ikebukurohoncho", "Ikebukuro"),
+        ("Takamatsu", "Ikebukuro"),
+        ("3 Chome Sendagi", "Ueno"),
+        ("千駄木三丁目", "Ueno"),
+    ],
+)
+def test_human_area_label_maps_reviewed_microareas_deterministically(
+    neighborhood: str, expected: str
+):
+    row = {"neighborhood": neighborhood}
+    assert human_area_label(row) == expected
+    assert human_area_label(row) == expected
+
+
+def test_human_area_label_uses_nearest_reviewed_anchor_and_sensible_fallback():
+    assert human_area_label({"latitude": 35.7296, "longitude": 139.7110}) == "Ikebukuro"
+    assert human_area_label({"neighborhood": "Kameari", "city": "Katsushika City"}) == "Kameari"
 
 
 def _enable_premium_for_owner(monkeypatch: pytest.MonkeyPatch, owner: str) -> None:
@@ -638,7 +660,37 @@ def test_by_neighborhood_view_removes_chome_granularity(lists_db):
     )
 
     assert response.status_code == 200
-    assert [group["title"] for group in response.json()["groups"]] == ["Sendagi"]
+    assert [group["title"] for group in response.json()["groups"]] == ["Ueno"]
+
+
+def test_by_neighborhood_view_combines_microareas_without_duplicate_items(lists_db):
+    with connect(lists_db) as connection:
+        connection.execute(
+            "UPDATE restaurants SET neighborhood = 'Ikebukurohoncho' WHERE place_id = 'tokyo-a'"
+        )
+        connection.execute(
+            "UPDATE restaurants SET neighborhood = 'Takamatsu' WHERE place_id = 'tokyo-b'"
+        )
+        connection.commit()
+    client = TestClient(api.app)
+    owner = _owner_id()
+    for place_id in ("tokyo-a", "tokyo-b"):
+        client.post(
+            "/lists/default/items",
+            headers={"X-Fiyu-Client-Id": owner},
+            json={"city_id": "tokyo", "place_id": place_id},
+        )
+
+    response = client.get(
+        "/lists/default/smart-views/by_neighborhood",
+        params={"city_id": "tokyo"},
+        headers={"X-Fiyu-Client-Id": owner},
+    )
+
+    assert response.status_code == 200
+    groups = response.json()["groups"]
+    assert [(group["title"], group["item_count"]) for group in groups] == [("Ikebukuro", 2)]
+    assert {item["place_id"] for item in groups[0]["items"]} == {"tokyo-a", "tokyo-b"}
 
 
 def test_nearby_view_requires_origin(lists_db):

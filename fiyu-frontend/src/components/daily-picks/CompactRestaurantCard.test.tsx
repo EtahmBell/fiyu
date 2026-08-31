@@ -203,7 +203,7 @@ describe("compact restaurant card content", () => {
     expect(photo.className).toContain("float-left");
     expect(photo.className).toContain("w-[6.75rem]");
     expect(description.className).not.toContain("line-clamp-2");
-    expect(screen.getByRole("button", { name: "Show less" }).getAttribute("aria-expanded")).toBe(
+    expect(screen.getByRole("button", { name: "Read less" }).getAttribute("aria-expanded")).toBe(
       "true",
     );
     expect(screen.getByLabelText("Fiyu score 8.7 out of 10")).toBeTruthy();
@@ -242,6 +242,36 @@ describe("compact restaurant card content", () => {
 
     setDescriptionLayout(36, 36);
     expect(screen.queryByRole("button", { name: "Read more" })).toBeNull();
+  });
+
+  it("keeps Read more with the description and separates budget below it", () => {
+    render(
+      <CompactRestaurantCard
+        restaurant={restaurant({
+          description_en: "A sufficiently long description to overflow the compact clamp. ".repeat(5),
+          budget: {
+            currency: "JPY",
+            minimum: 2000,
+            maximum: 3000,
+            band: "budget",
+            source_type: "researched_source",
+            confidence: 0.9,
+          },
+        })}
+        saved={false}
+        onToggleSaved={() => {}}
+      />,
+    );
+    setDescriptionLayout(72, 36);
+
+    const readMore = screen.getByRole("button", { name: "Read more" });
+    const budget = screen.getByTestId("compact-card-budget");
+    expect(readMore.compareDocumentPosition(budget) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(budget.className).toContain("border-t");
+
+    fireEvent.click(readMore);
+    const readLess = screen.getByRole("button", { name: "Read less" });
+    expect(readLess.compareDocumentPosition(budget) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("prefers the canonical enriched card description", () => {

@@ -988,6 +988,7 @@ def _catalog_enriched(rows: list[dict[str, object]]) -> list[dict[str, object]]:
             f"""
             SELECT p.place_id, p.name_ja, p.name_en, p.primary_category,
                    r.neighborhood, p.discovery_area, r.city,
+                   p.latitude, p.longitude,
                    p.fiyu_score, p.score_band
             FROM public_restaurants p
             LEFT JOIN restaurants r ON r.place_id = p.place_id

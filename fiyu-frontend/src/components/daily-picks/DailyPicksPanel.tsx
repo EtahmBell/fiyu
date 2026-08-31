@@ -10,6 +10,7 @@ import {
   type DailyCardRefRegistrar,
 } from "@/components/daily-picks/DailyCardFrame";
 import { RecentDiscoveries } from "@/components/daily-picks/RecentDiscoveries";
+import { VisitedPickCard } from "@/components/daily-picks/VisitedPickCard";
 import { FreeOriginOnboarding } from "@/components/location/FreeOriginOnboarding";
 import { FiyuLoadingScreen } from "@/components/states/FiyuLoadingScreen";
 import { Button } from "@/components/ui/Button";
@@ -26,7 +27,7 @@ import {
   writeAccountQuery,
 } from "@/lib/accountQueryCache";
 import { FiyuApiError } from "@/lib/api/errors";
-import type { PublicRestaurant } from "@/lib/api/schemas";
+import type { MapRestaurant, PublicRestaurant } from "@/lib/api/schemas";
 import { ACTIVE_FIYU_CITY } from "@/lib/city/editions";
 import {
   selectDailyRestaurants,
@@ -56,6 +57,8 @@ export interface DailyPicksPanelProps {
   restaurants: PublicRestaurant[];
   /** Authenticated UUID used only to isolate the browser cache by account. */
   accountId?: string | null;
+  /** Canonical account visit state; visited wins over active discovery styling. */
+  visitedRestaurants?: MapRestaurant[];
   activeDiscoveryLocation?: ActivePicksDiscoveryLocation | null;
   resolveNewRoundLocation?: () => Promise<NewRoundLocationResolution>;
   onPreviewAreaRequired?: () => void;
@@ -207,6 +210,7 @@ function PicksDiscoveryContext({
 export function DailyPicksPanel({
   restaurants,
   accountId = null,
+  visitedRestaurants = [],
   activeDiscoveryLocation = null,
   resolveNewRoundLocation,
   onPreviewAreaRequired,
@@ -220,6 +224,14 @@ export function DailyPicksPanel({
   scrollRequestKey = 0,
   originSetup,
 }: DailyPicksPanelProps) {
+  const visitsByPlaceId = useMemo(
+    () => new Map(
+      visitedRestaurants
+        .filter((restaurant) => restaurant.is_visited)
+        .map((restaurant) => [restaurant.place_id, restaurant]),
+    ),
+    [visitedRestaurants],
+  );
   const browserStorage = useMemo(() => browserDailyPicksStorage(accountId), [accountId]);
   const storage = injectedStorage ?? browserStorage;
   const snapshot = useSyncExternalStore(
@@ -816,13 +828,24 @@ export function DailyPicksPanel({
                 aria-label="Today’s restaurants"
                 style={{ animation: "fiyu-fade-in 260ms var(--ease-fiyu)" }}
               >
-                {selectedRestaurants.map((restaurant, index) => (
+                {selectedRestaurants.map((restaurant, index) => {
+                  const visit = visitsByPlaceId.get(restaurant.place_id);
+                  return (
                   <DailyCardFrame
                     key={restaurant.place_id}
                     placeId={restaurant.place_id}
                     selected={selectedPlaceId === restaurant.place_id}
+                    tone={visit ? "history" : "current"}
                     registerRef={registerCardRef}
                   >
+                    {visit ? (
+                      <VisitedPickCard
+                        restaurant={restaurant}
+                        visit={visit}
+                        onOpen={onOpenRestaurant}
+                        onViewDetails={onViewRestaurant}
+                      />
+                    ) : (
                     <ConcealedRestaurantCard
                       restaurant={restaurant}
                       position={index + 1}
@@ -834,8 +857,10 @@ export function DailyPicksPanel({
                       onOpen={onOpenRestaurant}
                       onViewDetails={onViewRestaurant}
                     />
+                    )}
                   </DailyCardFrame>
-                ))}
+                  );
+                })}
               </div>
             )}
 

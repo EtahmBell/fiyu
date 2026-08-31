@@ -268,39 +268,44 @@ export function CompactRestaurantCard({
                 : "w-full",
             )}
           />
-          <div className="min-w-0">
+          <div className={cn("flex min-w-0 flex-col", !descriptionExpanded && "min-h-20 lg:min-h-32")}>
             {description && (
-              <p
-                ref={descriptionRef}
-                id={descriptionId}
-                className={cn(
-                  "text-xs leading-[1.125rem] text-ink/75 lg:text-[0.8125rem] lg:leading-5",
-                  !descriptionExpanded && "line-clamp-2 lg:line-clamp-3",
+              <div>
+                <p
+                  ref={descriptionRef}
+                  id={descriptionId}
+                  className={cn(
+                    "text-xs leading-[1.125rem] text-ink/75 lg:text-[0.8125rem] lg:leading-5",
+                    !descriptionExpanded && "line-clamp-2 lg:line-clamp-3",
+                  )}
+                >
+                  {description}
+                </p>
+                {(descriptionExpanded || descriptionTruncated) && (
+                  <button
+                    type="button"
+                    data-no-card-navigation="true"
+                    aria-controls={descriptionId}
+                    aria-expanded={descriptionExpanded}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      setDescriptionExpanded((expanded) => !expanded);
+                    }}
+                    className="mt-0.5 inline-flex min-h-6 items-center text-[0.6875rem] font-medium text-ink-muted underline decoration-gold-line underline-offset-2 transition-colors hover:text-gold-700 hover:decoration-gold focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-gold"
+                  >
+                    {descriptionExpanded ? "Read less" : "Read more"}
+                  </button>
                 )}
-              >
-                {description}
-              </p>
+              </div>
             )}
             {budget && (
-              <p className="mt-1 text-[0.6875rem] font-medium leading-none text-ink-muted lg:text-xs">
+              <p
+                data-testid="compact-card-budget"
+                className="mt-auto border-t border-line/80 pt-1.5 text-[0.6875rem] font-medium leading-none text-ink-muted lg:pt-2 lg:text-xs"
+              >
                 {budget}
               </p>
-            )}
-            {description && (descriptionExpanded || descriptionTruncated) && (
-              <button
-                type="button"
-                data-no-card-navigation="true"
-                aria-controls={descriptionId}
-                aria-expanded={descriptionExpanded}
-                onClick={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  setDescriptionExpanded((expanded) => !expanded);
-                }}
-                className="mt-0.5 inline-flex min-h-6 items-center text-[0.6875rem] font-medium text-ink-muted underline decoration-gold-line underline-offset-2 transition-colors hover:text-gold-700 hover:decoration-gold focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-gold"
-              >
-                {descriptionExpanded ? "Show less" : "Read more"}
-              </button>
             )}
 
           {/*
