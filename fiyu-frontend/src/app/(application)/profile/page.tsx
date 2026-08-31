@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
 
-import { ProfileWorkspace } from "@/components/profile/ProfileWorkspace";
+import { YourFiyuPage } from "@/components/profile/YourFiyuPage";
 
 export const metadata: Metadata = {
-  title: "Profile",
+  title: "Your Fiyu",
 };
 
 export default function ProfilePage() {
-  return <ProfileWorkspace mobileHome />;
+  return <YourFiyuPage />;
 }

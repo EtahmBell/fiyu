@@ -1329,3 +1329,60 @@ def test_invalid_bearer_cannot_select_another_account(shared_account_api):
         },
     )
     assert response.status_code == 401
+
+
+def test_your_fiyu_summary_is_account_scoped(shared_account_api):
+    client, user_ids, _ = shared_account_api
+    state = client.fiyu_test_state
+    state["visits"][user_ids["token-a"]].append(
+        {
+            "id": str(uuid4()),
+            "place_id": "tokyo-0",
+            "visited_at": "2026-08-30T12:00:00+00:00",
+            "rating": 5,
+            "private_note": "Only User A can read this excerpt.",
+            "created_at": "2026-08-30T12:00:00+00:00",
+            "updated_at": "2026-08-30T12:00:00+00:00",
+        }
+    )
+    state["items"][user_ids["token-a"]].append(
+        {"place_id": "tokyo-1", "added_at": "2026-08-30T12:00:00+00:00"}
+    )
+
+    user_a = client.get("/profiles/me/fiyu-summary", headers=_auth("token-a"))
+    user_b = client.get("/profiles/me/fiyu-summary", headers=_auth("token-b"))
+    unauthenticated = client.get("/profiles/me/fiyu-summary")
+
+    assert user_a.status_code == user_b.status_code == 200
+    assert user_a.json()["visited_count"] == 1
+    assert user_a.json()["saved_count"] == 1
+    assert user_a.json()["recent_visits"][0]["private_note_excerpt"] == (
+        "Only User A can read this excerpt."
+    )
+    assert user_b.json()["visited_count"] == 0
+    assert user_b.json()["saved_count"] == 0
+    assert user_b.json()["recent_visits"] == []
+    assert unauthenticated.status_code == 401
+
+
+def test_your_fiyu_summary_uses_public_catalog_category_after_unlock(shared_account_api):
+    client, user_ids, _ = shared_account_api
+    state = client.fiyu_test_state
+    for index, rating in enumerate((5, 4, 5, 3, 4)):
+        state["visits"][user_ids["token-a"]].append(
+            {
+                "id": str(uuid4()),
+                "place_id": f"tokyo-{index % 2}",
+                "visited_at": f"2026-08-{20 + index:02d}T12:00:00+00:00",
+                "rating": rating,
+                "private_note": "Not an analytics input.",
+                "created_at": f"2026-08-{20 + index:02d}T12:00:00+00:00",
+                "updated_at": f"2026-08-{20 + index:02d}T12:00:00+00:00",
+            }
+        )
+
+    response = client.get("/profiles/me/fiyu-summary", headers=_auth("token-a"))
+
+    assert response.status_code == 200
+    assert response.json()["taste_unlocked"] is True
+    assert response.json()["top_cuisines"] == ["sushi"]

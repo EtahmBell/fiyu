@@ -466,6 +466,31 @@ export const restaurantVisitSchema = z.object({
 
 export const restaurantVisitListSchema = z.array(restaurantVisitSchema);
 
+export const userFiyuRecentVisitSchema = z.object({
+  id: z.string(),
+  place_id: z.string().min(1),
+  name_ja: nullableString,
+  name_en: nullableString,
+  area: nullableString,
+  visited_at: z.string().min(1),
+  rating: z.number().int().min(1).max(5).nullable(),
+  private_note_excerpt: nullableString,
+});
+
+export const userFiyuSummarySchema = z.object({
+  visited_count: z.number().int().nonnegative(),
+  saved_count: z.number().int().nonnegative(),
+  area_count: z.number().int().nonnegative(),
+  rated_visit_count: z.number().int().nonnegative(),
+  taste_unlock_threshold: z.number().int().positive(),
+  taste_unlocked: z.boolean(),
+  top_cuisines: z.array(z.string()),
+  usual_budget: nullableString,
+  top_areas: z.array(z.string()),
+  top_traits: z.array(z.string()),
+  recent_visits: z.array(userFiyuRecentVisitSchema).max(3),
+});
+
 export const seenRestaurantsResponseSchema = z.object({
   place_ids: z.array(z.string()),
 });
@@ -580,6 +605,7 @@ export type DeveloperResetPicksResponse = z.infer<typeof developerResetPicksResp
 export type DailyPickRevealResponse = z.infer<typeof dailyPickRevealResponseSchema>;
 export type RecentDailyPickRound = z.infer<typeof recentDailyPickRoundSchema>;
 export type RestaurantVisit = z.infer<typeof restaurantVisitSchema>;
+export type UserFiyuSummary = z.infer<typeof userFiyuSummarySchema>;
 export type VisitReaction = z.infer<typeof visitReactionSchema>;
 export type VisitRating = 1 | 2 | 3 | 4 | 5;
 export type DeleteRestaurantVisitResponse = z.infer<typeof deleteRestaurantVisitResponseSchema>;

@@ -56,7 +56,7 @@ describe("ProfileWorkspace", () => {
       </>,
     );
 
-    expect(screen.getByRole("heading", { name: "Profile" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Settings" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "Edit profile" }).getAttribute("href")).toBe(
       "/profile/edit",
     );
@@ -67,7 +67,7 @@ describe("ProfileWorkspace", () => {
     expect(screen.getByRole("link", { name: "Edit profile" }).className).toContain(
       "border-lavender-200",
     );
-    expect(screen.getByRole("heading", { name: "Settings" }).className).toContain(
+    expect(screen.getByRole("heading", { name: "Account settings" }).className).toContain(
       "text-lavender-700",
     );
     expect(screen.getByRole("link", { name: "Notifications" }).className).toContain(
@@ -103,7 +103,7 @@ describe("ProfileWorkspace", () => {
 
     resolveSession?.(null);
     await waitFor(() => expect(screen.queryByRole("status", { name: "Loading Fiyu" })).toBeNull());
-    expect(rendered.getByRole("heading", { name: "Profile" })).toBeTruthy();
+    expect(rendered.getByRole("heading", { name: "Settings" })).toBeTruthy();
   });
 
   it("loads authenticated fields and propagates saved identity to the header", async () => {

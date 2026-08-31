@@ -7,13 +7,14 @@ import {
 } from "@/components/profile/ProfileWorkspace";
 
 const PROFILE_ROUTES = {
+  settings: { section: "profile", title: "Settings", mobileHome: true },
   edit: { section: "profile", title: "Edit profile" },
   account: { section: "account", title: "Account" },
   notifications: { section: "notifications", title: "Notifications" },
   privacy: { section: "privacy", title: "Privacy" },
   help: { section: "help", title: "Help & support" },
   about: { section: "about", title: "About Fiyu" },
-} as const satisfies Record<string, { section: ProfileSection; title: string }>;
+} as const satisfies Record<string, { section: ProfileSection; title: string; mobileHome?: boolean }>;
 
 type ProfileRoute = keyof typeof PROFILE_ROUTES;
 
@@ -41,5 +42,11 @@ export default async function ProfileSectionPage({
 }) {
   const route = profileRoute((await params).section);
   if (!route) notFound();
-  return <ProfileWorkspace section={route.section} mobileTitle={route.title} />;
+  return (
+    <ProfileWorkspace
+      section={route.section}
+      mobileTitle={route.title}
+      mobileHome={"mobileHome" in route && route.mobileHome}
+    />
+  );
 }

@@ -39,6 +39,7 @@ import {
   restaurantUrl,
   restaurantsUrl,
   seenRestaurantsUrl,
+  userFiyuSummaryUrl,
 } from "@/lib/api/endpoints";
 import {
   type DailyPickAssignmentResponse,
@@ -62,6 +63,7 @@ import {
   type SmartViewCatalogResponse,
   type SmartViewResponse,
   type UserNotification,
+  type UserFiyuSummary,
   defaultListMembershipResponseSchema,
   dailyPickAssignmentResponseSchema,
   dailyPickRevealResponseSchema,
@@ -87,6 +89,7 @@ import {
   userNotificationSchema,
   restaurantVisitListSchema,
   restaurantVisitSchema,
+  userFiyuSummarySchema,
   seenRestaurantsResponseSchema,
   smartViewCatalogResponseSchema,
   smartViewResponseSchema,
@@ -475,6 +478,15 @@ export function fetchRestaurantLog(
     ...options,
     cache: options.cache ?? "no-store",
     headers: { ...listHeaders(identity), ...(options.headers ?? {}) },
+  });
+}
+
+export function fetchUserFiyuSummary(
+  options: RequestOptions = {},
+): Promise<UserFiyuSummary> {
+  return requestJson(userFiyuSummaryUrl(), paths.userFiyuSummary, userFiyuSummarySchema, {
+    ...options,
+    cache: options.cache ?? "no-store",
   });
 }
 

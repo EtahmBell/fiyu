@@ -91,6 +91,7 @@ from .restaurant_visits import (
 from .smart_views import (
     SMART_VIEW_KEYS,
     SMART_VIEW_META,
+    human_area_label,
     list_available_smart_view_keys,
     list_smart_view_counts,
     list_smart_view_entries,
@@ -109,6 +110,7 @@ from .user_accounts import (
     create_contact_submission,
     ensure_account_schema,
 )
+from .user_fiyu_summary import build_user_fiyu_summary
 from .utils import haversine_km
 
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
@@ -529,6 +531,31 @@ class UserProfileResponse(BaseModel):
     avatar_url: str | None = None
     created_at: str
     updated_at: str
+
+
+class UserFiyuRecentVisit(BaseModel):
+    id: str
+    place_id: str
+    name_ja: str | None = None
+    name_en: str | None = None
+    area: str | None = None
+    visited_at: str
+    rating: int | None = Field(default=None, ge=1, le=5)
+    private_note_excerpt: str | None = None
+
+
+class UserFiyuSummaryResponse(BaseModel):
+    visited_count: int = Field(ge=0)
+    saved_count: int = Field(ge=0)
+    area_count: int = Field(ge=0)
+    rated_visit_count: int = Field(ge=0)
+    taste_unlock_threshold: int = Field(ge=1)
+    taste_unlocked: bool
+    top_cuisines: list[str] = Field(default_factory=list)
+    usual_budget: str | None = None
+    top_areas: list[str] = Field(default_factory=list)
+    top_traits: list[str] = Field(default_factory=list)
+    recent_visits: list[UserFiyuRecentVisit] = Field(default_factory=list)
 
 
 class UpdateUserProfileRequest(BaseModel):
@@ -2174,6 +2201,24 @@ def _profile_response(row: dict[str, object]) -> UserProfileResponse:
     )
 
 
+def _user_fiyu_catalog(place_ids: set[str]) -> dict[str, dict[str, object]]:
+    if not place_ids:
+        return {}
+    current = {
+        str(row["place_id"]): dict(row)
+        for row in list_published_restaurants(DB_PATH, limit=10_000)
+        if str(row["place_id"]) in place_ids
+    }
+    missing = place_ids - current.keys()
+    if missing:
+        historical = _catalog_enriched([{"place_id": place_id} for place_id in missing])
+        current.update({str(row["place_id"]): dict(row) for row in historical})
+    for row in current.values():
+        row["primary_category"] = row.get("primary_category") or row.get("category")
+        row["area_label"] = human_area_label(row)
+    return current
+
+
 def _validated_avatar_url(*, user_id: str, avatar_url: str | None) -> str | None:
     if avatar_url is None:
         return None
@@ -2446,6 +2491,25 @@ def get_my_profile(
     _ensure_database()
     row = _ensure_authenticated_profile(auth_user)
     return _profile_response(row)
+
+
+@app.get("/profiles/me/fiyu-summary", response_model=UserFiyuSummaryResponse)
+def get_my_fiyu_summary(
+    user_id: Annotated[str, Depends(_authenticated_user_id)],
+) -> UserFiyuSummaryResponse:
+    """Return deterministic, account-private behavior insights for Your Fiyu."""
+
+    _ensure_database()
+    ensure_public_schema(DB_PATH)
+    visits = shared_user_data.list_visits(user_id=user_id)
+    saved = sorted(shared_user_data.saved_place_ids(user_id=user_id, city_id="tokyo"))
+    place_ids = {str(row["place_id"]) for row in visits} | set(saved)
+    summary = build_user_fiyu_summary(
+        visits=visits,
+        saved_place_ids=saved,
+        catalog=_user_fiyu_catalog(place_ids),
+    )
+    return UserFiyuSummaryResponse.model_validate(summary)
 
 
 @app.patch("/profiles/me", response_model=UserProfileResponse)

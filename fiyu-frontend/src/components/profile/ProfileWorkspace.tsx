@@ -26,7 +26,7 @@ import { DeveloperTools } from "@/components/profile/DeveloperTools";
 export type ProfileSection = "profile" | "account" | "notifications" | "privacy" | "help" | "about";
 
 const SECTIONS: { id: ProfileSection; label: string; href: string }[] = [
-  { id: "profile", label: "Profile", href: "/profile" },
+  { id: "profile", label: "Profile", href: "/profile/settings" },
   { id: "account", label: "Account", href: "/profile/account" },
   { id: "notifications", label: "Notifications", href: "/profile/notifications" },
   { id: "privacy", label: "Privacy", href: "/profile/privacy" },
@@ -59,7 +59,7 @@ function DesktopProfile({ section }: { section: ProfileSection }) {
   return (
     <main className="flex-1 px-6 py-10 pb-14 sm:px-8 lg:py-12">
       <div className="mx-auto w-full max-w-6xl">
-        <h1 className="font-display text-4xl leading-none text-ink">Profile</h1>
+        <h1 className="font-display text-4xl leading-none text-ink">Settings</h1>
         <div className="mt-8 grid items-start gap-8 lg:grid-cols-[14rem_minmax(0,1fr)]">
           <nav aria-label="Profile settings" className="space-y-1">
             {SECTIONS.map((item) => (
@@ -116,7 +116,7 @@ function MobileProfileHome() {
   return (
     <main className="flex-1 px-5 pt-8 pb-[calc(var(--spacing-mobile-nav)+2rem)]">
       <div className="mx-auto w-full max-w-xl">
-        <h1 className="text-xl font-semibold text-ink">Profile</h1>
+        <h1 className="text-xl font-semibold text-ink">Settings</h1>
         <div
           data-testid="mobile-profile-identity"
           className="mt-6 flex flex-col items-center px-4 pt-2 pb-7 text-center"
@@ -138,7 +138,7 @@ function MobileProfileHome() {
           </>
         </div>
 
-        <MobileGroup title="Settings">
+        <MobileGroup title="Account settings">
           <MobileNavigationRow href="/profile/edit" label="Profile" />
           <MobileNavigationRow href="/profile/account" label="Account" />
           <MobileNavigationRow href="/profile/notifications" label="Notifications" />

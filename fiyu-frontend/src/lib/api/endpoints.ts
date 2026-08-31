@@ -35,6 +35,7 @@ export const paths = {
   photos: (placeId: string) => `/public/restaurants/${encodeURIComponent(placeId)}/photos`,
   locationAnchors: "/public/location-anchors",
   discoveryLocation: "/profiles/me/discovery-location",
+  userFiyuSummary: "/profiles/me/fiyu-summary",
   discoveryLocationCheck: "/profiles/me/discovery-location/check-current",
   dailyPicksAssign: "/daily-picks/assign",
   dailyPicksActive: "/daily-picks/active",
@@ -153,6 +154,10 @@ export function locationAnchorsUrl(): string {
 
 export function discoveryLocationUrl(): string {
   return `${getApiBaseUrl()}${paths.discoveryLocation}`;
+}
+
+export function userFiyuSummaryUrl(): string {
+  return `${getApiBaseUrl()}${paths.userFiyuSummary}`;
 }
 
 export function discoveryLocationCheckUrl(): string {
