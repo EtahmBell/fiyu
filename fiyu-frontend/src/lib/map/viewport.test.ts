@@ -14,6 +14,8 @@ import {
   fitToPoints,
   normalizeView,
   panBy,
+  pointIsWithinPaddedView,
+  viewForSelectedPoint,
   viewBoxToContent,
   zoomAt,
   zoomByStep,
@@ -241,6 +243,58 @@ describe("fitPointsIfOutsideView", () => {
       expect(screen.y).toBeGreaterThanOrEqual(120 - 0.01);
       expect(screen.y).toBeLessThanOrEqual(VIEWBOX_HEIGHT - 120 + 0.01);
     }
+  });
+});
+
+describe("selected-point viewport adjustment", () => {
+  const insets = { top: 100, right: 100, bottom: 100, left: 100 };
+
+  it("returns the exact current view when the pin is already safely visible", () => {
+    const current = { x: -500, y: -500, k: 2 };
+    const point = { x: 500, y: 500 };
+
+    expect(pointIsWithinPaddedView(point, current, insets)).toBe(true);
+    expect(viewForSelectedPoint(point, current, { insets })).toBe(current);
+  });
+
+  it("pans a near-edge pin only as far as the safe area and preserves zoom", () => {
+    const current = { x: -500, y: -500, k: 2 };
+    const point = { x: 275, y: 500 }; // screen x = 50
+    const adjusted = viewForSelectedPoint(point, current, { insets });
+
+    expect(adjusted.k).toBe(current.k);
+    expect(screenOf(point, adjusted).x).toBeCloseTo(insets.left, 2);
+  });
+
+  it("preserves zoom for a nearby point just outside the viewport", () => {
+    const current = { x: -500, y: -500, k: 2 };
+    const point = { x: 240, y: 500 }; // screen x = -20
+    const adjusted = viewForSelectedPoint(point, current, { insets });
+
+    expect(adjusted.k).toBe(current.k);
+    expect(pointIsWithinPaddedView(point, adjusted, insets)).toBe(true);
+  });
+
+  it("zooms out while retaining the old centre when the target is substantially distant", () => {
+    const current = clampTranslate({ x: -3000, y: -1500, k: 4 });
+    const point = { x: 80, y: 200 };
+    const adjusted = viewForSelectedPoint(point, current, { insets });
+
+    expect(adjusted.k).toBeLessThan(current.k);
+    expect(adjusted.k).toBeGreaterThanOrEqual(MIN_SCALE);
+    expect(pointIsWithinPaddedView(point, adjusted, insets)).toBe(true);
+  });
+
+  it("honours asymmetric desktop-preview and mobile-chrome safe areas", () => {
+    const current = { x: -500, y: -500, k: 2 };
+    const point = { x: 500, y: 275 }; // screen y = 50
+    const desktop = { top: 220, right: 120, bottom: 40, left: 40 };
+    const mobile = { top: 180, right: 40, bottom: 240, left: 40 };
+
+    const desktopView = viewForSelectedPoint(point, current, { insets: desktop });
+    const mobileView = viewForSelectedPoint(point, current, { insets: mobile });
+    expect(pointIsWithinPaddedView(point, desktopView, desktop)).toBe(true);
+    expect(pointIsWithinPaddedView(point, mobileView, mobile)).toBe(true);
   });
 });
 

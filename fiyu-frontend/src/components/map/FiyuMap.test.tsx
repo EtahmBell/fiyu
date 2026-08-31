@@ -52,6 +52,8 @@ afterEach(() => {
   cleanup();
   clearMapViewportSessions();
   vi.useRealTimers();
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 describe("map surface", () => {
@@ -77,6 +79,14 @@ describe("map surface", () => {
 });
 
 describe("card and marker selection stay in sync", () => {
+  it("does not request viewport motion for an already-safe selected pin", () => {
+    const animation = vi.spyOn(window, "requestAnimationFrame");
+    render(
+      <FiyuMap restaurants={[SHIBUYA, UENO]} selectedPlaceId="shibuya" onSelect={() => {}} />,
+    );
+    expect(animation).not.toHaveBeenCalled();
+  });
+
   it("marks the selected restaurant's pin as pressed", () => {
     render(
       <FiyuMap restaurants={[SHIBUYA, UENO]} selectedPlaceId="shibuya" onSelect={() => {}} />,
@@ -117,6 +127,67 @@ describe("card and marker selection stay in sync", () => {
     render(<FiyuMap restaurants={[SHIBUYA, UENO]} selectedPlaceId={null} onSelect={onSelect} />);
     fireEvent.click(screen.getByLabelText("上野の店"));
     expect(onSelect).toHaveBeenCalledWith(UENO);
+  });
+
+  it("does not schedule the same automatic selection transition twice", async () => {
+    saveMapViewportSession("selection-repeat", {
+      resultKey: "west-tokyo|east-tokyo",
+      view: { x: -3000, y: -1500, k: 4 },
+    });
+    const animation = vi
+      .spyOn(window, "requestAnimationFrame")
+      .mockImplementation(() => 1);
+    const { rerender } = render(
+      <FiyuMap
+        restaurants={[WEST_TOKYO, EAST_TOKYO]}
+        selectedPlaceId="west-tokyo"
+        onSelect={() => {}}
+        viewportSessionKey="selection-repeat"
+      />,
+    );
+    await waitFor(() => expect(animation).toHaveBeenCalledTimes(1));
+
+    rerender(
+      <FiyuMap
+        restaurants={[WEST_TOKYO, EAST_TOKYO]}
+        selectedPlaceId="west-tokyo"
+        onSelect={() => {}}
+        viewportSessionKey="selection-repeat"
+      />,
+    );
+    expect(animation).toHaveBeenCalledTimes(1);
+  });
+
+  it("repositions without animation when reduced motion is requested", async () => {
+    vi.stubGlobal("matchMedia", vi.fn(() => ({
+      matches: true,
+      media: "(prefers-reduced-motion: reduce)",
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })));
+    saveMapViewportSession("selection-reduced-motion", {
+      resultKey: "west-tokyo|east-tokyo",
+      view: { x: -3000, y: -1500, k: 4 },
+    });
+    const animation = vi.spyOn(window, "requestAnimationFrame");
+    render(
+      <FiyuMap
+        restaurants={[WEST_TOKYO, EAST_TOKYO]}
+        selectedPlaceId="west-tokyo"
+        onSelect={() => {}}
+        viewportSessionKey="selection-reduced-motion"
+      />,
+    );
+
+    await waitFor(() => {
+      const transform = mapSurface().querySelector("g[transform]")?.getAttribute("transform") ?? "";
+      expect(transform).not.toBe("translate(-3000 -1500) scale(4)");
+    });
+    expect(animation).not.toHaveBeenCalled();
   });
 
   it("activates a pin from the keyboard", () => {
@@ -351,7 +422,16 @@ describe("clustering on the map", () => {
       />,
     );
 
+    const content = mapSurface().querySelector("g[transform]") as SVGGElement;
+    const before = content.getAttribute("transform");
+    const nativeAnimation = window.requestAnimationFrame.bind(window);
+    const animation = vi
+      .spyOn(window, "requestAnimationFrame")
+      .mockImplementation((callback) => nativeAnimation(callback));
     fireEvent.click(screen.getByRole("button", { name: /2 restaurants in this area/ }));
+
+    expect(content.getAttribute("transform")).toBe(before);
+    expect(animation).toHaveBeenCalled();
 
     await waitFor(() => {
       expect(container.querySelector('[data-marker-kind="restaurant-cluster"]')).toBeNull();

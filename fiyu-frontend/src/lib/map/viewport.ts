@@ -31,6 +31,13 @@ export interface MapView {
   k: number;
 }
 
+export interface ViewInsets {
+  top: number;
+  right: number;
+  bottom: number;
+  left: number;
+}
+
 /** k = 1 shows the whole of Tokyo; 4 is roughly neighbourhood level. */
 export const MIN_SCALE = 1;
 export const MAX_SCALE = 4;
@@ -201,6 +208,111 @@ export function pointIsVisible(point: Point, view: MapView): boolean {
   const x = point.x * view.k + view.x;
   const y = point.y * view.k + view.y;
   return x >= 0 && x <= VIEWBOX_WIDTH && y >= 0 && y <= VIEWBOX_HEIGHT;
+}
+
+function safeBounds(insets: ViewInsets) {
+  const left = Math.max(0, Math.min(VIEWBOX_WIDTH / 2 - 1, insets.left));
+  const right = Math.min(
+    VIEWBOX_WIDTH,
+    Math.max(VIEWBOX_WIDTH / 2 + 1, VIEWBOX_WIDTH - insets.right),
+  );
+  const top = Math.max(0, Math.min(VIEWBOX_HEIGHT / 2 - 1, insets.top));
+  const bottom = Math.min(
+    VIEWBOX_HEIGHT,
+    Math.max(VIEWBOX_HEIGHT / 2 + 1, VIEWBOX_HEIGHT - insets.bottom),
+  );
+  return { left, right, top, bottom };
+}
+
+/** Whether a projected point clears controls, previews and mobile chrome. */
+export function pointIsWithinPaddedView(
+  point: Point,
+  view: MapView,
+  insets: ViewInsets,
+): boolean {
+  const screenX = point.x * view.k + view.x;
+  const screenY = point.y * view.k + view.y;
+  const bounds = safeBounds(insets);
+  // View transforms are quantized for deterministic SVG output. Treat the
+  // resulting hundredth-of-a-unit boundary drift as inside the safe area.
+  const epsilon = 0.02;
+  return screenX >= bounds.left - epsilon && screenX <= bounds.right + epsilon &&
+    screenY >= bounds.top - epsilon && screenY <= bounds.bottom + epsilon;
+}
+
+export interface SelectionViewOptions {
+  insets: ViewInsets;
+  /** Screen-space distance beyond which preserving context requires a zoom-out. */
+  distantThreshold?: number;
+}
+
+/**
+ * Bring one selected point into the usable viewport with the least disruption.
+ *
+ * Safe points are a true no-op. Edge and nearby off-screen points preserve the
+ * current scale and pan only as far as needed. A genuinely distant point is fit
+ * together with the current geographic centre, which explains the move without
+ * discarding the user's context or ever zooming in.
+ */
+export function viewForSelectedPoint(
+  point: Point,
+  current: MapView,
+  { insets, distantThreshold = Math.hypot(VIEWBOX_WIDTH, VIEWBOX_HEIGHT) * 0.55 }:
+    SelectionViewOptions,
+): MapView {
+  if (pointIsWithinPaddedView(point, current, insets)) return current;
+
+  const bounds = safeBounds(insets);
+  const screenX = point.x * current.k + current.x;
+  const screenY = point.y * current.k + current.y;
+  const desiredX = Math.min(bounds.right, Math.max(bounds.left, screenX));
+  const desiredY = Math.min(bounds.bottom, Math.max(bounds.top, screenY));
+  const outsideDistance = Math.hypot(desiredX - screenX, desiredY - screenY);
+
+  if (outsideDistance <= distantThreshold) {
+    return panBy(current, desiredX - screenX, desiredY - screenY);
+  }
+
+  const currentCentre = viewBoxToContent(
+    { x: VIEWBOX_WIDTH / 2, y: VIEWBOX_HEIGHT / 2 },
+    current,
+  );
+  const symmetricPadding = Math.max(
+    DEFAULT_PADDING,
+    insets.top,
+    insets.right,
+    insets.bottom,
+    insets.left,
+  );
+  const fitted = fitToPoints([currentCentre, point], {
+    padding: symmetricPadding,
+    maxScale: current.k,
+  });
+  // Near the geographic edge, the translation clamp can consume fit padding.
+  // Keep just enough scale for that edge point to physically clear the inset;
+  // this is still a zoom-out from the current view, never a surprise zoom-in.
+  const edgeScale = Math.max(
+    point.x > 0 ? bounds.left / point.x : MIN_SCALE,
+    point.x < VIEWBOX_WIDTH
+      ? (VIEWBOX_WIDTH - bounds.right) / (VIEWBOX_WIDTH - point.x)
+      : MIN_SCALE,
+    point.y > 0 ? bounds.top / point.y : MIN_SCALE,
+    point.y < VIEWBOX_HEIGHT
+      ? (VIEWBOX_HEIGHT - bounds.bottom) / (VIEWBOX_HEIGHT - point.y)
+      : MIN_SCALE,
+  );
+  const contextual = edgeScale > fitted.k && edgeScale <= current.k
+    ? clampTranslate({
+        x: VIEWBOX_WIDTH / 2 - ((currentCentre.x + point.x) / 2) * edgeScale,
+        y: VIEWBOX_HEIGHT / 2 - ((currentCentre.y + point.y) / 2) * edgeScale,
+        k: edgeScale,
+      })
+    : fitted;
+  const fittedX = point.x * contextual.k + contextual.x;
+  const fittedY = point.y * contextual.k + contextual.y;
+  const finalX = Math.min(bounds.right, Math.max(bounds.left, fittedX));
+  const finalY = Math.min(bounds.bottom, Math.max(bounds.top, fittedY));
+  return panBy(contextual, finalX - fittedX, finalY - fittedY);
 }
 
 /**

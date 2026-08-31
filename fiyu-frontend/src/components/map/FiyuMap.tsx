@@ -35,9 +35,12 @@ import {
   clientToViewBox,
   fitPointsIfOutsideView,
   fitToPoints,
+  normalizeView,
   panBy,
   transformFor,
+  viewForSelectedPoint,
   viewBoxToContent,
+  viewsEqual,
   zoomAt,
   zoomByStep,
 } from "@/lib/map/viewport";
@@ -91,6 +94,13 @@ const TAP_SLOP = 6;
 const WHEEL_SENSITIVITY = 0.0015;
 const PIN_SPROUT_STATE_MS = 600;
 const REVEAL_FIT_PADDING = 120;
+const SELECTION_TRANSITION_MIN_MS = 520;
+const SELECTION_TRANSITION_MAX_MS = 840;
+const CLUSTER_TRANSITION_MS = 680;
+
+function easeOutCubic(progress: number): number {
+  return 1 - (1 - progress) ** 3;
+}
 
 function distanceBetween(a: PointerEvent, b: PointerEvent): number {
   return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
@@ -136,6 +146,9 @@ export function FiyuMap({
   const [view, setView] = useState<MapView>(
     () => initialViewportSession?.view ?? IDENTITY_VIEW,
   );
+  const viewRef = useRef(view);
+  const viewAnimation = useRef<number | null>(null);
+  const lastAutoSelection = useRef<string | null>(null);
   const [sproutingPlaceIds, setSproutingPlaceIds] = useState<ReadonlySet<string>>(
     () => new Set(),
   );
@@ -223,6 +236,53 @@ export function FiyuMap({
   const userHasInteracted = useRef(false);
 
   useEffect(() => {
+    viewRef.current = view;
+  }, [view]);
+
+  const cancelViewAnimation = useCallback(() => {
+    if (viewAnimation.current !== null) {
+      window.cancelAnimationFrame(viewAnimation.current);
+      viewAnimation.current = null;
+    }
+  }, []);
+
+  const animateToView = useCallback((target: MapView, duration: number) => {
+    cancelViewAnimation();
+    const start = viewRef.current;
+    if (viewsEqual(start, target)) return;
+    const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true;
+    if (reducedMotion || typeof window.requestAnimationFrame !== "function") {
+      viewRef.current = target;
+      setView(target);
+      return;
+    }
+
+    let startedAt: number | null = null;
+    const tick = (now: number) => {
+      startedAt ??= now;
+      const progress = Math.min(1, Math.max(0, (now - startedAt) / duration));
+      const eased = easeOutCubic(progress);
+      const next = normalizeView({
+        x: start.x + (target.x - start.x) * eased,
+        y: start.y + (target.y - start.y) * eased,
+        k: start.k + (target.k - start.k) * eased,
+      });
+      viewRef.current = next;
+      setView(next);
+      if (progress < 1) {
+        viewAnimation.current = window.requestAnimationFrame(tick);
+      } else {
+        viewAnimation.current = null;
+        viewRef.current = target;
+        setView(target);
+      }
+    };
+    viewAnimation.current = window.requestAnimationFrame(tick);
+  }, [cancelViewAnimation]);
+
+  useEffect(() => cancelViewAnimation, [cancelViewAnimation]);
+
+  useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
     const update = () => {
@@ -246,6 +306,8 @@ export function FiyuMap({
     lastFitKey.current = resultKey;
     userHasInteracted.current = false;
     const fitted = points.length > 0 ? fitToPoints(points) : IDENTITY_VIEW;
+    cancelViewAnimation();
+    viewRef.current = fitted;
     skipNextViewportSave.current = true;
     if (viewportSessionKey) {
       saveMapViewportSession(viewportSessionKey, { resultKey, view: fitted });
@@ -253,7 +315,63 @@ export function FiyuMap({
     setView(fitted);
     // `points` is derived from the same restaurants as resultKey.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resultKey, viewportSessionKey]);
+  }, [cancelViewAnimation, resultKey, viewportSessionKey]);
+
+  useEffect(() => {
+    if (!selectedPlaceId) {
+      lastAutoSelection.current = null;
+      return;
+    }
+    if (lastAutoSelection.current === selectedPlaceId) return;
+    const point = pointByPlaceId.get(selectedPlaceId);
+    const container = containerRef.current;
+    if (!point || !container) return;
+
+    const rect = container.getBoundingClientRect();
+    const width = rect.width > 0 ? rect.width : containerSize.width;
+    const height = rect.height > 0 ? rect.height : containerSize.height;
+    const renderedScale = Math.max(
+      0.001,
+      Math.min(width / VIEWBOX_WIDTH, height / VIEWBOX_HEIGHT),
+    );
+    const px = (value: number) => value / renderedScale;
+    const popupShown = showSelectedRestaurantPopup;
+    const insets = surfaceMode === "fullscreen"
+      ? {
+          top: px(popupShown ? 194 : 92),
+          right: px(22),
+          bottom: px(popupShown ? 104 : 88),
+          left: px(22),
+        }
+      : surfaceMode === "bounded"
+        ? {
+            top: px(popupShown ? 194 : 28),
+            right: px(82),
+            bottom: px(30),
+            left: px(28),
+          }
+        : { top: px(20), right: px(20), bottom: px(20), left: px(20) };
+    const current = viewRef.current;
+    const target = viewForSelectedPoint(point, current, { insets });
+    lastAutoSelection.current = selectedPlaceId;
+    if (viewsEqual(current, target)) return;
+
+    const panDistance = Math.hypot(target.x - current.x, target.y - current.y);
+    const zoomDistance = Math.abs(target.k - current.k) * 180;
+    const duration = Math.min(
+      SELECTION_TRANSITION_MAX_MS,
+      Math.max(SELECTION_TRANSITION_MIN_MS, 500 + (panDistance + zoomDistance) * 0.16),
+    );
+    animateToView(target, duration);
+  }, [
+    animateToView,
+    containerSize.height,
+    containerSize.width,
+    pointByPlaceId,
+    selectedPlaceId,
+    showSelectedRestaurantPopup,
+    surfaceMode,
+  ]);
 
   useEffect(() => {
     if (!visibleClusterPicker) return;
@@ -266,6 +384,10 @@ export function FiyuMap({
 
   useEffect(() => {
     if (!viewportSessionKey || lastFitKey.current !== resultKey) return;
+    // Persist the settled endpoint, not every animation frame. Synchronous
+    // storage writes during motion are exactly the kind of main-thread work
+    // that can turn a restrained transition into visible judder.
+    if (viewAnimation.current !== null) return;
     if (skipNextViewportSave.current) {
       skipNextViewportSave.current = false;
       return;
@@ -309,9 +431,10 @@ export function FiyuMap({
   }, [plottedPlaceIds, pointByPlaceId]);
 
   const markInteracted = useCallback(() => {
+    cancelViewAnimation();
     userHasInteracted.current = true;
     setSproutingPlaceIds((current) => (current.size === 0 ? current : new Set()));
-  }, []);
+  }, [cancelViewAnimation]);
 
   const toViewBox = useCallback((clientX: number, clientY: number) => {
     const rect = svgRef.current?.getBoundingClientRect();
@@ -346,6 +469,7 @@ export function FiyuMap({
       if ((event.target as Element).closest('[role="button"]')) return;
       if ((event.target as Element).closest('[data-layer="restaurant-popup"]')) return;
 
+      cancelViewAnimation();
       setClusterPicker(null);
       onMapBackgroundClick?.();
 
@@ -359,7 +483,7 @@ export function FiyuMap({
         gestureStart.current = null;
       }
     },
-    [interactive, onMapBackgroundClick],
+    [cancelViewAnimation, interactive, onMapBackgroundClick],
   );
 
   const handlePointerMove = useCallback(
@@ -447,14 +571,15 @@ export function FiyuMap({
         return;
       }
       setClusterPicker(null);
-      setView(
+      animateToView(
         fitToPoints(cluster.members.map((member) => member.point), {
           padding: 160,
           maxScale: separatingScale,
         }),
+        CLUSTER_TRANSITION_MS,
       );
     },
-    [markInteracted, onMapBackgroundClick, view.k],
+    [animateToView, markInteracted, onMapBackgroundClick, view.k],
   );
 
   const clusterButtonPosition = useCallback(
