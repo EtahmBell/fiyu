@@ -154,15 +154,6 @@ function TasteSection({
         {summary.taste_has_unseen_update ? "Your Taste just updated" : `Based on ${summary.rated_visit_count} rated visits`}
       </p>
       <h2 id="taste-title" className="mt-2 font-display text-3xl text-ink">Your taste</h2>
-      {summary.taste_tags.length > 0 ? (
-        <div className="mt-5 flex flex-wrap gap-2" aria-label="Your Taste right now">
-          {summary.taste_tags.map((tag) => (
-            <span key={tag.key} className="rounded-full border border-lavender-200 bg-lavender-50 px-3 py-1.5 text-xs font-medium text-plum">
-              {tag.label}
-            </span>
-          ))}
-        </div>
-      ) : null}
       {summary.taste_insights.length > 0 ? (
         <div className="mt-6 grid gap-3">
           {summary.taste_insights.map((insight, index) => {
@@ -175,10 +166,24 @@ function TasteSection({
               >
                 <p className="text-[0.625rem] font-semibold tracking-[0.14em] text-lavender-700 uppercase">{label}</p>
                 <h3 className="mt-1 font-display text-xl leading-snug text-ink">{insight.headline}</h3>
-                <p className="mt-1.5 text-sm leading-6 text-ink-muted">{insight.supporting_text}</p>
+                <p className="mt-1.5 text-sm leading-6 text-ink-muted">{insight.description}</p>
               </article>
             );
           })}
+        </div>
+      ) : null}
+      {summary.taste_tags.length > 0 ? (
+        <div className="mt-7 border-t border-line pt-5">
+          <p className="text-[0.625rem] font-semibold tracking-[0.14em] text-ink-faint uppercase">
+            Your taste right now
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2" aria-label="Your Taste right now">
+            {summary.taste_tags.map((tag) => (
+              <span key={tag.key} className="rounded-full border border-lavender-200 bg-lavender-50 px-3 py-1.5 text-xs font-medium text-plum">
+                {tag.label}
+              </span>
+            ))}
+          </div>
         </div>
       ) : null}
       <TasteUpdateProgress summary={summary} />

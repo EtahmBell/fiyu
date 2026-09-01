@@ -10,7 +10,7 @@ from datetime import UTC, date, datetime
 from hashlib import sha256
 from math import cos, isfinite, radians
 from pathlib import Path
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 from urllib.parse import urlsplit, urlunsplit
 from uuid import UUID
 
@@ -21,6 +21,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from . import supabase_user_data as shared_user_data
+from . import taste_phrasing
 from .account_deletion import delete_local_account_data
 from .daily_picks import (
     ACTIVE_SNAPSHOT_DURATION,
@@ -552,17 +553,31 @@ class UserTasteInsight(BaseModel):
         "strong_signal", "reliable_pattern", "contrast", "emerging", "early_signal"
     ]
     facet_key: str
+    confidence: Literal["early", "emerging", "strong", "reliable"]
+    direction: Literal["positive", "negative", "neutral"]
     headline: str
+    description: str
+    # Kept during the frontend transition; new snapshots mirror description here.
     supporting_text: str
     support_count: int = Field(ge=2)
     average_rating: float = Field(ge=1, le=5)
     delta_from_user_average: float
+    save_affinity: float = Field(ge=0, le=1)
+    visit_affinity: float = Field(ge=0, le=1)
+    evidence_summary: str
     change_status: Literal["new", "stronger", "still_true", "emerging"] | None = None
 
 
 class UserTasteTag(BaseModel):
     key: str
     label: str
+
+
+class UserTasteType(BaseModel):
+    name: str
+    description: str
+    unlocked_at_rating_count: int = Field(ge=20)
+    version: str
 
 
 class UserFiyuSummaryResponse(BaseModel):
@@ -582,6 +597,7 @@ class UserFiyuSummaryResponse(BaseModel):
     taste_tags: list[UserTasteTag] = Field(default_factory=list, max_length=8)
     taste_has_unseen_update: bool = False
     taste_uniqueness: None = None
+    taste_type: UserTasteType | None = None
     recent_visits: list[UserFiyuRecentVisit] = Field(default_factory=list)
 
 
@@ -2562,6 +2578,36 @@ def get_my_profile(
     return _profile_response(row)
 
 
+def _ensure_taste_snapshot_copy(
+    *,
+    user_id: str,
+    milestone: int,
+    generated_snapshot: dict[str, object],
+) -> dict[str, Any]:
+    """Persist one stable milestone and repair legacy copy at most once."""
+
+    stored = shared_user_data.get_taste_snapshot(user_id=user_id, milestone=milestone)
+    if stored is None:
+        phrased = taste_phrasing.phrase_taste_snapshot(generated_snapshot)
+        return shared_user_data.upsert_taste_snapshot(
+            user_id=user_id, milestone=milestone, snapshot=phrased
+        )
+    stored_snapshot = stored.get("snapshot")
+    if not isinstance(stored_snapshot, dict):
+        return stored
+    if not stored_snapshot.get("insights") and generated_snapshot.get("insights"):
+        phrased = taste_phrasing.phrase_taste_snapshot(generated_snapshot)
+        return shared_user_data.replace_taste_snapshot(
+            user_id=user_id, milestone=milestone, snapshot=phrased
+        )
+    if taste_phrasing.snapshot_needs_copy(stored_snapshot):
+        phrased = taste_phrasing.phrase_taste_snapshot(stored_snapshot)
+        return shared_user_data.replace_taste_snapshot(
+            user_id=user_id, milestone=milestone, snapshot=phrased
+        )
+    return stored
+
+
 @app.get("/profiles/me/fiyu-summary", response_model=UserFiyuSummaryResponse)
 def get_my_fiyu_summary(
     user_id: Annotated[str, Depends(_authenticated_user_id)],
@@ -2587,10 +2633,10 @@ def get_my_fiyu_summary(
             user_id=user_id, milestone=previous_milestone
         )
         if previous_stored is None:
-            previous_stored = shared_user_data.upsert_taste_snapshot(
+            previous_stored = _ensure_taste_snapshot_copy(
                 user_id=user_id,
                 milestone=previous_milestone,
-                snapshot=build_taste_snapshot(
+                generated_snapshot=build_taste_snapshot(
                     visits=visits,
                     catalog=catalog,
                     milestone=previous_milestone,
@@ -2609,29 +2655,14 @@ def get_my_fiyu_summary(
     )
     snapshot = summary.pop("_taste_snapshot", None)
     if isinstance(milestone, int) and isinstance(snapshot, dict):
-        stored = shared_user_data.get_taste_snapshot(user_id=user_id, milestone=milestone)
-        if stored is None:
-            stored = shared_user_data.upsert_taste_snapshot(
-                user_id=user_id,
-                milestone=milestone,
-                snapshot=snapshot,
-            )
-        elif (
-            isinstance(stored.get("snapshot"), dict)
-            and not stored["snapshot"].get("insights")
-            and snapshot.get("insights")
-        ):
-            # Repair snapshots created by the earlier all-or-nothing threshold
-            # logic. Valid non-empty milestone snapshots remain immutable.
-            stored = shared_user_data.replace_taste_snapshot(
-                user_id=user_id,
-                milestone=milestone,
-                snapshot=snapshot,
-            )
+        stored = _ensure_taste_snapshot_copy(
+            user_id=user_id, milestone=milestone, generated_snapshot=snapshot
+        )
         stored_snapshot = stored.get("snapshot")
         if isinstance(stored_snapshot, dict):
             summary["taste_insights"] = stored_snapshot.get("insights", [])
             summary["taste_tags"] = stored_snapshot.get("tags", [])
+            summary["taste_type"] = stored_snapshot.get("taste_type")
         summary["taste_has_unseen_update"] = stored.get("acknowledged_at") is None
     return UserFiyuSummaryResponse.model_validate(summary)
 

@@ -43,6 +43,7 @@ def test_new_user_has_separate_thresholds_and_no_fake_insights():
     assert summary["taste_insights"] == []
     assert summary["taste_tags"] == []
     assert summary["taste_next_milestone"] == 10
+    assert summary["taste_type"] is None
 
 
 def test_nine_ratings_stay_locked_and_ten_unlock_first_snapshot():
@@ -147,7 +148,8 @@ def test_diverse_high_ratings_can_surface_truthful_breadth():
 
     breadth = next(item for item in summary["taste_insights"] if item["facet_key"] == "taste_breadth")
     assert breadth["type"] == "early_signal"
-    assert "none dominates" in breadth["supporting_text"]
+    assert "exploring widely" in breadth["headline"].lower()
+    assert "none dominates" in breadth["evidence_summary"]
 
 
 def test_single_ignored_exposure_is_neutral_but_repeated_ignored_is_only_early():
@@ -172,7 +174,8 @@ def test_single_ignored_exposure_is_neutral_but_repeated_ignored_is_only_early()
     assert all(item["facet_key"] != "counter_seating" for item in single["taste_insights"])
     ignored = next(item for item in repeated["taste_insights"] if item["facet_key"] == "counter_seating")
     assert ignored["type"] == "early_signal"
-    assert "not acted" in ignored["supporting_text"]
+    assert "weak signal" in ignored["description"]
+    assert "not acted" in ignored["evidence_summary"]
 
 
 def test_saves_are_secondary_and_explicit_ratings_remain_dominant():
@@ -204,8 +207,11 @@ def test_exposure_adjusted_save_rate_can_create_an_emerging_affinity():
 
     counter = next(item for item in summary["taste_insights"] if item["facet_key"] == "counter_seating")
     assert counter["type"] == "emerging"
-    assert counter["supporting_text"] == (
+    assert counter["evidence_summary"] == (
         "You saved 3 of 5 surfaced restaurants with this quality."
+    )
+    assert counter["description"] == (
+        "Places with this quality are making your saved list more often."
     )
 
 
@@ -247,6 +253,30 @@ def test_twenty_rating_snapshot_compares_with_fifteen():
     assert summary["taste_current_milestone"] == 20
     assert summary["taste_previous_milestone"] == 15
     assert summary["taste_next_milestone"] == 25
+    assert summary["taste_type"] is None
+    assert summary["_taste_snapshot"]["taste_type_policy"] == {
+        "unlock_threshold": 20,
+        "review_interval": 10,
+    }
+
+
+def test_tags_are_human_facing_unique_and_weak_price_does_not_define_identity():
+    visits = [_visit(f"p-{index}", 4, index) for index in range(10)]
+    catalog = {
+        f"p-{index}": {
+            **_restaurant(counter=index < 4, category="Sushi"),
+            "budget": {"band": "moderate"},
+        }
+        for index in range(10)
+    }
+
+    summary = build_user_fiyu_summary(visits=visits, saved_place_ids=[], catalog=catalog)
+    tags = summary["taste_tags"]
+
+    assert len({tag["key"] for tag in tags}) == len(tags)
+    assert all("_" not in tag["label"] for tag in tags)
+    assert all("¥" not in tag["label"] for tag in tags)
+    assert all(tag["key"] != "moderate" for tag in tags)
 
 
 def test_later_low_ratings_do_not_keep_a_former_positive_pattern_strong():

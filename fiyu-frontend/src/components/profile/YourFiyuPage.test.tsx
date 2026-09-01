@@ -46,6 +46,7 @@ function summary(overrides: Partial<UserFiyuSummary> = {}): UserFiyuSummary {
     taste_tags: [],
     taste_has_unseen_update: false,
     taste_uniqueness: null,
+    taste_type: null,
     recent_visits: [],
     ...overrides,
   };
@@ -117,11 +118,17 @@ describe("YourFiyuPage", () => {
         id: "strong_signal:counter_seating",
         type: "strong_signal",
         facet_key: "counter_seating",
+        confidence: "strong",
+        direction: "positive",
         headline: "Counter spots keep landing well",
+        description: "Counter spots continue to turn up among your better restaurant experiences.",
         supporting_text: "You rate these 0.6★ above your 4.0★ average.",
         support_count: 4,
         average_rating: 4.6,
         delta_from_user_average: 0.6,
+        save_affinity: 0.25,
+        visit_affinity: 0.5,
+        evidence_summary: "You rate these 0.6★ above your 4.0★ average.",
         change_status: null,
       }],
       recent_visits: [{
@@ -139,8 +146,13 @@ describe("YourFiyuPage", () => {
     render(<YourFiyuPage />);
 
     expect(await screen.findByText("Counter spots keep landing well")).toBeTruthy();
+    expect(screen.getByText("Counter spots continue to turn up among your better restaurant experiences.")).toBeTruthy();
+    expect(screen.queryByText("You rate these 0.6★ above your 4.0★ average.")).toBeNull();
     expect(screen.getByText("Strong signal")).toBeTruthy();
     expect(screen.getByText("Counter spots")).toBeTruthy();
+    const insight = screen.getByText("Counter spots keep landing well");
+    const tags = screen.getByLabelText("Your Taste right now");
+    expect(insight.compareDocumentPosition(tags) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.getByText("3 more ratings until your next Taste update.")).toBeTruthy();
     expect(screen.getByText("12/15")).toBeTruthy();
     expect(screen.getByRole("link", { name: "鮨 海" }).getAttribute("href")).toBe("/restaurants/place-1");
@@ -163,11 +175,17 @@ describe("YourFiyuPage", () => {
         id: "early_signal:rating_balance",
         type: "early_signal",
         facet_key: "rating_balance",
+        confidence: "early",
+        direction: "neutral",
         headline: "Your first ratings are balanced",
+        description: "Positive, neutral, and lower reactions all appear in your first Taste snapshot.",
         supporting_text: "Your first 10 ratings mix positive, neutral, and lower reactions.",
         support_count: 10,
         average_rating: 3.2,
         delta_from_user_average: 0,
+        save_affinity: 0,
+        visit_affinity: 0,
+        evidence_summary: "Your first 10 ratings mix positive, neutral, and lower reactions.",
         change_status: null,
       }],
     }));
@@ -199,11 +217,17 @@ describe("YourFiyuPage", () => {
         id: "strong_signal:seasonal",
         type: "strong_signal",
         facet_key: "seasonal",
+        confidence: "strong",
+        direction: "positive",
         headline: "Seasonal cooking keeps landing well",
+        description: "Seasonal cooking continues to turn up among your better restaurant experiences.",
         supporting_text: "You rate these 0.5★ above your 4.0★ average.",
         support_count: 4,
         average_rating: 4.5,
         delta_from_user_average: 0.5,
+        save_affinity: 0,
+        visit_affinity: 0,
+        evidence_summary: "You rate these 0.5★ above your 4.0★ average.",
         change_status: "new",
       }],
     }));

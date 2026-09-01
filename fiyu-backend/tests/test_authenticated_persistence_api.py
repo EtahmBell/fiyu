@@ -1400,9 +1400,19 @@ def test_your_fiyu_summary_is_account_scoped(shared_account_api):
     assert unauthenticated.status_code == 401
 
 
-def test_your_fiyu_summary_uses_public_catalog_facets_after_ten_ratings(shared_account_api):
+def test_your_fiyu_summary_uses_public_catalog_facets_after_ten_ratings(
+    shared_account_api, monkeypatch
+):
     client, user_ids, _ = shared_account_api
     state = client.fiyu_test_state
+    phrase_calls: list[int] = []
+    original_phrase = api.taste_phrasing.phrase_taste_snapshot
+
+    def phrase_once(snapshot):
+        phrase_calls.append(int(snapshot["milestone"]))
+        return original_phrase(snapshot, enabled=False)
+
+    monkeypatch.setattr(api.taste_phrasing, "phrase_taste_snapshot", phrase_once)
     with connect(api.DB_PATH) as connection:
         connection.execute(
             "UPDATE public_restaurants SET primary_category = 'cafe' WHERE place_id = 'tokyo-3'"
@@ -1445,4 +1455,5 @@ def test_your_fiyu_summary_uses_public_catalog_facets_after_ten_ratings(shared_a
     assert acknowledged.status_code == 200
     assert restored.json()["taste_has_unseen_update"] is False
     assert other_account.status_code == 409
+    assert phrase_calls == [10]
     assert {user_id for user_id, _ in state["taste_snapshots"]} == {user_ids["token-a"]}

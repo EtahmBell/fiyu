@@ -11,6 +11,37 @@ TOGETHER_UNLOCK_THRESHOLD = 5
 TASTE_UNLOCK_THRESHOLD = 10
 TASTE_REFRESH_INTERVAL = 5
 MIN_STRONG_SUPPORT = 3
+TASTE_TYPE_UNLOCK_THRESHOLD = 20
+TASTE_TYPE_REVIEW_INTERVAL = 10
+
+_TAG_LABELS = {
+    "counter_seating": "Counter spots",
+    "small_capacity": "Small places",
+    "private_rooms": "Private rooms",
+    "table_dining": "Table dining",
+    "solo_friendly": "Solo-friendly",
+    "group_friendly": "Good for groups",
+    "date_friendly": "Date-friendly",
+    "reservation_heavy": "Reservation-led",
+    "seasonal": "Seasonal",
+    "intimate": "Intimate",
+    "lively": "Lively",
+    "quiet": "Quiet",
+    "casual": "Casual",
+    "refined": "Refined",
+    "special_occasion": "Special occasion",
+    "creative": "Creative",
+    "regional": "Regional",
+    "traditional": "Traditional",
+    "chef_led": "Chef-led",
+    "tasting_course": "Tasting menus",
+    "noodles": "Noodles",
+    "izakaya": "Izakaya",
+    "grilled": "Grilled",
+    "seafood": "Seafood",
+    "neighbourhood": "Neighbourhood",
+    "taste_breadth": "Exploring broadly",
+}
 
 
 @dataclass(frozen=True)
@@ -109,6 +140,114 @@ def _note_excerpt(value: object, *, limit: int = 120) -> str | None:
 
 def _rating(value: object) -> int | None:
     return value if isinstance(value, int) and 1 <= value <= 5 else None
+
+
+def _confidence_for_type(insight_type: str) -> str:
+    if insight_type == "strong_signal":
+        return "strong"
+    if insight_type == "reliable_pattern":
+        return "reliable"
+    if insight_type == "emerging":
+        return "emerging"
+    if insight_type == "contrast":
+        return "strong"
+    return "early"
+
+
+def _fallback_copy(
+    *,
+    facet: TasteFacet,
+    insight_type: str,
+    direction: str,
+    support: int,
+    save_rate: float,
+    visit_rate: float,
+) -> tuple[str, str]:
+    """Return varied editorial copy without changing the supported finding."""
+
+    if facet.key == "taste_breadth":
+        return (
+            "You're still exploring widely",
+            "Your strongest experiences are spread across several cuisines rather than clustering around one style.",
+        )
+    if facet.key == "rating_breadth":
+        return (
+            "You're using more of the rating scale",
+            "Your first reactions include clear highs and lows instead of gathering around one score.",
+        )
+    if facet.key == "rating_balance":
+        return (
+            "Your first reactions are balanced",
+            "Positive, neutral, and lower reactions all appear in your first Taste snapshot.",
+        )
+    if facet.key == "rating_baseline":
+        return (
+            "Your rating style is starting to show",
+            "A useful baseline is forming, giving future restaurant patterns something honest to compare against.",
+        )
+
+    label = facet.label
+    lower = label.lower()
+    if insight_type == "contrast" or direction == "negative":
+        headline = (
+            "Formal dining seems less convincing so far"
+            if facet.key in {"refined", "special_occasion", "reservation_heavy"}
+            else f"{label} seem less convincing so far"
+        )
+        return headline, "Restaurants with this quality have landed below your usual ratings so far."
+    if insight_type == "strong_signal":
+        return (
+            f"{label} keep landing well",
+            f"{label} are one of the clearest repeated patterns among the places you rate highly.",
+        )
+    if insight_type == "reliable_pattern":
+        return (
+            f"{label} keep making the cut",
+            "This quality continues to turn up among your better restaurant experiences.",
+        )
+    if insight_type == "emerging":
+        if facet.key == "creative":
+            headline = "Creative cooking is showing up more often"
+        elif facet.key == "seasonal":
+            headline = "Seasonal cooking is becoming a pattern"
+        elif facet.key == "counter_seating":
+            headline = "Counter spots keep making the cut"
+        elif facet.key == "small_capacity":
+            headline = "Small places are gaining ground"
+        else:
+            headline = f"{label} are showing up more often"
+        if visit_rate > 0:
+            description = (
+                "Places with this quality are turning into actual visits more often among the restaurants you see."
+            )
+        elif save_rate > 0:
+            description = "Places with this quality are making your saved list more often."
+        else:
+            description = "This quality is beginning to recur among the places that rate well for you."
+        return headline, description
+    if support == 0:
+        return (
+            f"No clear pattern around {lower} yet",
+            "You have seen this quality several times, but non-engagement alone is only a weak signal.",
+        )
+    return (
+        f"{label} are starting to stand out",
+        "A few of your rated visits share this quality, though the pattern is still young.",
+    )
+
+
+def _identity_tag(facet: TasteFacet, insight: dict[str, Any]) -> dict[str, str] | None:
+    if facet.key.startswith("rating_"):
+        return None
+    if facet.family == "price" and not (
+        insight["type"] in {"strong_signal", "reliable_pattern"}
+        and abs(float(insight["delta_from_user_average"])) >= 0.5
+    ):
+        return None
+    label = _TAG_LABELS.get(facet.key)
+    if label is None and facet.key.startswith("cuisine_"):
+        label = facet.label
+    return {"key": facet.key, "label": label or facet.label}
 
 
 def _boolean_path(value: object, *path: str) -> bool:
@@ -318,28 +457,37 @@ def _snapshot_insights(
         score = confidence_weight * 100 + (abs(delta) + save_rate + visit_rate) * math.sqrt(
             max(support, saved, visited, 1)
         )
-        headline = (
-            f"{facet.label} keep landing well"
-            if insight_type == "strong_signal"
-            else f"{facet.label} are a consistent favorite"
-            if insight_type == "reliable_pattern"
-            else f"{facet.label} land below your usual"
+        direction = (
+            "negative"
             if insight_type == "contrast"
-            else f"An early pull toward {facet.label.lower()}"
-            if insight_type == "emerging"
-            else f"No clear pull toward {facet.label.lower()} yet"
+            else "neutral"
             if support == 0
-            else f"An early read on {facet.label.lower()}"
+            else "positive"
+        )
+        headline, description = _fallback_copy(
+            facet=facet,
+            insight_type=insight_type,
+            direction=direction,
+            support=support,
+            save_rate=save_rate,
+            visit_rate=visit_rate,
         )
         candidates.append((score, facet, {
             "id": f"{insight_type}:{facet.key}",
             "type": insight_type,
             "facet_key": facet.key,
+            "facet_label": facet.label,
+            "confidence": _confidence_for_type(insight_type),
+            "direction": direction,
             "headline": headline,
-            "supporting_text": supporting,
+            "description": description,
+            "supporting_text": description,
             "support_count": max(support, saved, visited, exposed, 2),
             "average_rating": round(average, 2),
             "delta_from_user_average": round(delta, 2),
+            "save_affinity": round(save_rate, 3),
+            "visit_affinity": round(visit_rate, 3),
+            "evidence_summary": supporting,
             "change_status": None,
         }))
 
@@ -360,37 +508,45 @@ def _snapshot_insights(
                 "id": "early_signal:taste_breadth",
                 "type": "early_signal",
                 "facet_key": breadth.key,
-                "headline": "Still exploring broadly",
+                "facet_label": breadth.label,
+                "confidence": "early",
+                "direction": "neutral",
+                "headline": "You're still exploring widely",
+                "description": (
+                    "Your strongest experiences are spread across several cuisines rather than "
+                    "clustering around one style."
+                ),
                 "supporting_text": (
+                    "Your strongest experiences are spread across several cuisines rather than "
+                    "clustering around one style."
+                ),
+                "evidence_summary": (
                     f"Your higher ratings span {len(high_rated_cuisines)} cuisine families; none dominates yet."
                 ),
                 "support_count": high_rated_places,
                 "average_rating": round(baseline, 2),
                 "delta_from_user_average": 0.0,
+                "save_affinity": 0.0,
+                "visit_affinity": 0.0,
                 "change_status": None,
             }))
     candidates.sort(key=lambda item: (-item[0], -item[2]["support_count"], item[1].label))
 
     selected: list[dict[str, Any]] = []
-    selected_labels: dict[str, str] = {}
+    selected_facets: dict[str, TasteFacet] = {}
     family_counts: dict[str, int] = defaultdict(int)
     for _, facet, insight in candidates:
         if family_counts[facet.family] >= 2:
             continue
         selected.append(insight)
-        selected_labels[facet.key] = facet.label
+        selected_facets[facet.key] = facet
         family_counts[facet.family] += 1
         if len(selected) == 4:
             break
-    if len(rated_visits) >= TASTE_UNLOCK_THRESHOLD and "rating_breadth" not in selected_labels:
+    if len(rated_visits) >= TASTE_UNLOCK_THRESHOLD and "rating_breadth" not in selected_facets:
         unique_rating_count = len(latest_by_place)
         rating_values = [int(visit["rating"]) for visit in latest_by_place.values()]
         rating_range = max(rating_values) - min(rating_values) if rating_values else 0
-        headline = (
-            "Your first ratings use a broad range"
-            if rating_range >= 2
-            else "Your first ratings are closely grouped"
-        )
         supporting = (
             f"You used a {rating_range + 1}-point span across {len(rated_visits)} rated visits."
             if rating_range >= 2
@@ -401,26 +557,36 @@ def _snapshot_insights(
                 "id": "early_signal:rating_breadth",
                 "type": "early_signal",
                 "facet_key": "rating_breadth",
-                "headline": headline,
-                "supporting_text": supporting,
+                "facet_label": "Rating breadth",
+                "confidence": "early",
+                "direction": "neutral",
+                "headline": "You're using more of the rating scale",
+                "description": (
+                    "Your first reactions include clear highs and lows instead of gathering around one score."
+                ),
+                "supporting_text": (
+                    "Your first reactions include clear highs and lows instead of gathering around one score."
+                ),
+                "evidence_summary": supporting,
                 "support_count": max(unique_rating_count, len(rated_visits), 2),
                 "average_rating": round(baseline, 2),
                 "delta_from_user_average": 0.0,
+                "save_affinity": 0.0,
+                "visit_affinity": 0.0,
                 "change_status": None,
             })
-        selected_labels["rating_breadth"] = "Early Taste read"
+        selected_facets["rating_breadth"] = TasteFacet(
+            "rating_breadth", "Rating breadth", "rating"
+        )
 
     if len(rated_visits) >= TASTE_UNLOCK_THRESHOLD and len(selected) < 3:
         positive = sum(int(visit["rating"]) >= 4 for visit in rated_visits)
         low = sum(int(visit["rating"]) <= 2 for visit in rated_visits)
         if positive >= 6:
-            headline = "Your first ratings lean positive"
             supporting = f"{positive} of your first {len(rated_visits)} rated visits are 4★ or 5★."
         elif low >= 4:
-            headline = "You are rating selectively so far"
             supporting = f"{low} of your first {len(rated_visits)} rated visits are 1★ or 2★."
         else:
-            headline = "Your first ratings are balanced"
             supporting = (
                 f"Your first {len(rated_visits)} ratings mix positive, neutral, and lower reactions."
             )
@@ -428,40 +594,64 @@ def _snapshot_insights(
             "id": "early_signal:rating_balance",
             "type": "early_signal",
             "facet_key": "rating_balance",
-            "headline": headline,
-            "supporting_text": supporting,
+            "facet_label": "Rating balance",
+            "confidence": "early",
+            "direction": "neutral",
+            "headline": "Your first reactions are balanced",
+            "description": (
+                "Positive, neutral, and lower reactions all appear in your first Taste snapshot."
+            ),
+            "supporting_text": (
+                "Positive, neutral, and lower reactions all appear in your first Taste snapshot."
+            ),
+            "evidence_summary": supporting,
             "support_count": len(rated_visits),
             "average_rating": round(baseline, 2),
             "delta_from_user_average": 0.0,
+            "save_affinity": 0.0,
+            "visit_affinity": 0.0,
             "change_status": None,
         })
-        selected_labels["rating_balance"] = "Rating pattern"
+        selected_facets["rating_balance"] = TasteFacet(
+            "rating_balance", "Rating balance", "rating"
+        )
 
     if len(rated_visits) >= TASTE_UNLOCK_THRESHOLD and len(selected) < 3:
-        if baseline >= 4.0:
-            headline = "Your ratings trend positive so far"
-        elif baseline <= 2.5:
-            headline = "You are using the lower end of the scale"
-        else:
-            headline = "Your ratings center near the middle"
         selected.append({
             "id": "early_signal:rating_baseline",
             "type": "early_signal",
             "facet_key": "rating_baseline",
-            "headline": headline,
+            "facet_label": "Rating baseline",
+            "confidence": "early",
+            "direction": "neutral",
+            "headline": "Your rating style is starting to show",
+            "description": (
+                "A useful baseline is forming, giving future restaurant patterns something honest to compare against."
+            ),
             "supporting_text": (
+                "A useful baseline is forming, giving future restaurant patterns something honest to compare against."
+            ),
+            "evidence_summary": (
                 f"Your average across the first {len(rated_visits)} rated visits is {baseline:.1f}★."
             ),
             "support_count": len(rated_visits),
             "average_rating": round(baseline, 2),
             "delta_from_user_average": 0.0,
+            "save_affinity": 0.0,
+            "visit_affinity": 0.0,
             "change_status": None,
         })
-        selected_labels["rating_baseline"] = "Rating baseline"
-    tags = [
-        {"key": item["facet_key"], "label": selected_labels[item["facet_key"]]}
-        for item in selected
-    ]
+        selected_facets["rating_baseline"] = TasteFacet(
+            "rating_baseline", "Rating baseline", "rating"
+        )
+    tags: list[dict[str, str]] = []
+    seen_tag_keys: set[str] = set()
+    for item in selected:
+        facet = selected_facets[item["facet_key"]]
+        tag = _identity_tag(facet, item)
+        if tag is not None and tag["key"] not in seen_tag_keys:
+            tags.append(tag)
+            seen_tag_keys.add(tag["key"])
     return selected, tags[:8], round(baseline, 2)
 
 
@@ -506,6 +696,11 @@ def build_taste_snapshot(
         "insights": insights,
         "tags": tags,
         "uniqueness": None,
+        "taste_type": None,
+        "taste_type_policy": {
+            "unlock_threshold": TASTE_TYPE_UNLOCK_THRESHOLD,
+            "review_interval": TASTE_TYPE_REVIEW_INTERVAL,
+        },
     }
 
 
@@ -596,6 +791,7 @@ def build_user_fiyu_summary(
         "taste_tags": current_snapshot["tags"] if current_snapshot else [],
         "taste_has_unseen_update": False,
         "taste_uniqueness": None,
+        "taste_type": None,
         "recent_visits": recent_visits,
         "_taste_snapshot": current_snapshot,
     }
