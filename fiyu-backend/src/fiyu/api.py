@@ -110,7 +110,7 @@ from .user_accounts import (
     create_contact_submission,
     ensure_account_schema,
 )
-from .user_fiyu_summary import build_user_fiyu_summary
+from .user_fiyu_summary import build_taste_snapshot, build_user_fiyu_summary
 from .utils import haversine_km
 
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
@@ -546,18 +546,50 @@ class UserFiyuRecentVisit(BaseModel):
     private_note_excerpt: str | None = None
 
 
+class UserTasteInsight(BaseModel):
+    id: str
+    type: Literal["strong_signal", "reliable_pattern", "contrast", "emerging"]
+    facet_key: str
+    headline: str
+    supporting_text: str
+    support_count: int = Field(ge=2)
+    average_rating: float = Field(ge=1, le=5)
+    delta_from_user_average: float
+    change_status: Literal["new", "stronger", "still_true", "emerging"] | None = None
+
+
+class UserTasteTag(BaseModel):
+    key: str
+    label: str
+
+
 class UserFiyuSummaryResponse(BaseModel):
     visited_count: int = Field(ge=0)
     saved_count: int = Field(ge=0)
     area_count: int = Field(ge=0)
     rated_visit_count: int = Field(ge=0)
+    together_unlock_threshold: int = Field(ge=1)
+    together_unlocked: bool
     taste_unlock_threshold: int = Field(ge=1)
     taste_unlocked: bool
-    top_cuisines: list[str] = Field(default_factory=list)
-    usual_budget: str | None = None
-    top_areas: list[str] = Field(default_factory=list)
-    top_traits: list[str] = Field(default_factory=list)
+    taste_current_milestone: int | None = None
+    taste_previous_milestone: int | None = None
+    taste_next_milestone: int = Field(ge=10)
+    ratings_until_next_taste_update: int = Field(ge=0)
+    taste_insights: list[UserTasteInsight] = Field(default_factory=list, max_length=4)
+    taste_tags: list[UserTasteTag] = Field(default_factory=list, max_length=8)
+    taste_has_unseen_update: bool = False
+    taste_uniqueness: None = None
     recent_visits: list[UserFiyuRecentVisit] = Field(default_factory=list)
+
+
+class AcknowledgeTasteRequest(BaseModel):
+    milestone: int = Field(ge=10, multiple_of=5)
+
+
+class AcknowledgeTasteResponse(BaseModel):
+    acknowledged: Literal[True]
+    milestone: int
 
 
 class UpdateUserProfileRequest(BaseModel):
@@ -2512,12 +2544,74 @@ def get_my_fiyu_summary(
     visits = shared_user_data.list_visits(user_id=user_id)
     saved = sorted(shared_user_data.saved_place_ids(user_id=user_id, city_id="tokyo"))
     place_ids = {str(row["place_id"]) for row in visits} | set(saved)
+    catalog = _user_fiyu_catalog(place_ids)
+    rated_count = sum(
+        isinstance(visit.get("rating"), int) and 1 <= int(visit["rating"]) <= 5
+        for visit in visits
+    )
+    milestone = (rated_count // 5) * 5 if rated_count >= 10 else None
+    previous_snapshot = None
+    if isinstance(milestone, int) and milestone > 10:
+        previous_milestone = milestone - 5
+        previous_stored = shared_user_data.get_taste_snapshot(
+            user_id=user_id, milestone=previous_milestone
+        )
+        if previous_stored is None:
+            previous_stored = shared_user_data.upsert_taste_snapshot(
+                user_id=user_id,
+                milestone=previous_milestone,
+                snapshot=build_taste_snapshot(
+                    visits=visits,
+                    catalog=catalog,
+                    milestone=previous_milestone,
+                ),
+            )
+        if isinstance(previous_stored.get("snapshot"), dict):
+            previous_snapshot = previous_stored["snapshot"]
     summary = build_user_fiyu_summary(
         visits=visits,
         saved_place_ids=saved,
-        catalog=_user_fiyu_catalog(place_ids),
+        catalog=catalog,
+        previous_taste_snapshot=previous_snapshot,
     )
+    snapshot = summary.pop("_taste_snapshot", None)
+    if isinstance(milestone, int) and isinstance(snapshot, dict):
+        stored = shared_user_data.get_taste_snapshot(user_id=user_id, milestone=milestone)
+        if stored is None:
+            stored = shared_user_data.upsert_taste_snapshot(
+                user_id=user_id,
+                milestone=milestone,
+                snapshot=snapshot,
+            )
+        stored_snapshot = stored.get("snapshot")
+        if isinstance(stored_snapshot, dict):
+            summary["taste_insights"] = stored_snapshot.get("insights", [])
+            summary["taste_tags"] = stored_snapshot.get("tags", [])
+        summary["taste_has_unseen_update"] = stored.get("acknowledged_at") is None
     return UserFiyuSummaryResponse.model_validate(summary)
+
+
+@app.post(
+    "/profiles/me/fiyu-summary/taste-acknowledge",
+    response_model=AcknowledgeTasteResponse,
+)
+def acknowledge_my_taste_update(
+    payload: AcknowledgeTasteRequest,
+    user_id: Annotated[str, Depends(_authenticated_user_id)],
+) -> AcknowledgeTasteResponse:
+    visits = shared_user_data.list_visits(user_id=user_id)
+    rated_count = sum(
+        isinstance(visit.get("rating"), int) and 1 <= int(visit["rating"]) <= 5
+        for visit in visits
+    )
+    current_milestone = (rated_count // 5) * 5 if rated_count >= 10 else None
+    if current_milestone != payload.milestone:
+        raise HTTPException(status_code=409, detail="Taste milestone is no longer current")
+    if not shared_user_data.acknowledge_taste_snapshot(
+        user_id=user_id, milestone=payload.milestone
+    ):
+        raise HTTPException(status_code=404, detail="Taste snapshot not found")
+    return AcknowledgeTasteResponse(acknowledged=True, milestone=payload.milestone)
 
 
 @app.patch("/profiles/me", response_model=UserProfileResponse)

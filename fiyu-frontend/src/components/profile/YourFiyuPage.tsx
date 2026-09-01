@@ -1,12 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { ProfileIdentityAvatar, profileIdentityPresentation } from "@/components/profile/ProfileIdentityAvatar";
 import { FiyuLoadingScreen } from "@/components/states/FiyuLoadingScreen";
 import { useAccountQuery } from "@/lib/accountQueryCache";
-import { fetchUserFiyuSummary } from "@/lib/api/client";
+import { acknowledgeTasteUpdate, fetchUserFiyuSummary } from "@/lib/api/client";
 import type { UserFiyuSummary } from "@/lib/api/schemas";
 import { useProfileIdentity } from "@/lib/profile/profileIdentity";
 
@@ -35,15 +35,18 @@ function Progress({
   summary: UserFiyuSummary;
   context?: "taste" | "together";
 }) {
-  const completed = Math.min(summary.rated_visit_count, summary.taste_unlock_threshold);
-  const percentage = (completed / summary.taste_unlock_threshold) * 100;
-  const remaining = Math.max(summary.taste_unlock_threshold - completed, 0);
+  const threshold = context === "together"
+    ? summary.together_unlock_threshold
+    : summary.taste_unlock_threshold;
+  const completed = Math.min(summary.rated_visit_count, threshold);
+  const percentage = (completed / threshold) * 100;
+  const remaining = Math.max(threshold - completed, 0);
   const copy = context === "together"
     ? completed === 0
-      ? `Rate your first ${summary.taste_unlock_threshold} visits to unlock Fiyu Together.`
+      ? `Rate your first ${threshold} visits to unlock Fiyu Together.`
       : `Rate ${remaining} more visit${remaining === 1 ? "" : "s"} to unlock Fiyu Together.`
     : completed === 0
-      ? `Rate your first ${summary.taste_unlock_threshold} visits to unlock personalized insights.`
+      ? `Rate your first ${threshold} visits to unlock your first taste insights.`
       : `Rate ${remaining} more visit${remaining === 1 ? "" : "s"} to unlock your first taste insights.`;
 
   return (
@@ -57,14 +60,71 @@ function Progress({
       <div className="mt-3 flex items-start justify-between gap-5 text-sm text-ink-muted">
         <p className="max-w-lg leading-6">{copy}</p>
         <p className="shrink-0 font-medium text-ink">
-          {completed}/{summary.taste_unlock_threshold}
+          {completed}/{threshold}
         </p>
       </div>
     </div>
   );
 }
 
-function TasteSection({ summary }: { summary: UserFiyuSummary }) {
+function TasteUpdateProgress({ summary }: { summary: UserFiyuSummary }) {
+  const currentFloor = summary.taste_current_milestone ?? summary.taste_unlock_threshold;
+  const span = summary.taste_next_milestone - currentFloor;
+  const completed = Math.max(summary.rated_visit_count - currentFloor, 0);
+  const percentage = span > 0 ? Math.min((completed / span) * 100, 100) : 0;
+  const remaining = summary.ratings_until_next_taste_update;
+  return (
+    <div className="mt-7 border-t border-line pt-5">
+      <div className="flex items-end justify-between gap-4">
+        <div>
+          <p className="text-[0.625rem] font-semibold tracking-[0.14em] text-ink-faint uppercase">Next Taste update</p>
+          <p className="mt-1 text-sm text-ink-muted">
+            {remaining} more rating{remaining === 1 ? "" : "s"} until your next Taste update.
+          </p>
+        </div>
+        <p className="shrink-0 text-sm font-medium text-ink">
+          {summary.rated_visit_count}/{summary.taste_next_milestone}
+        </p>
+      </div>
+      <div className="mt-3 h-1 overflow-hidden rounded-full bg-line" aria-hidden="true">
+        <div className="h-full rounded-full bg-lavender-500 transition-[width] duration-300" style={{ width: `${percentage}%` }} />
+      </div>
+      <p className="mt-3 text-xs text-ink-faint">Your Taste updates as you rate more places.</p>
+    </div>
+  );
+}
+
+function changeLabel(value: UserFiyuSummary["taste_insights"][number]["change_status"]): string | null {
+  if (value === "new") return "New";
+  if (value === "stronger") return "Getting stronger";
+  if (value === "still_true") return "Still true";
+  if (value === "emerging") return "Emerging";
+  return null;
+}
+
+function TasteSection({
+  summary,
+  onAcknowledge,
+}: {
+  summary: UserFiyuSummary;
+  onAcknowledge: (milestone: number) => Promise<void>;
+}) {
+  const [revealed, setRevealed] = useState(!summary.taste_has_unseen_update);
+  useEffect(() => {
+    if (!summary.taste_has_unseen_update || summary.taste_current_milestone === null) return;
+    const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+    let frame: number | null = null;
+    if (reduced) {
+      queueMicrotask(() => setRevealed(true));
+    } else {
+      frame = window.requestAnimationFrame(() => setRevealed(true));
+    }
+    void onAcknowledge(summary.taste_current_milestone).catch(() => undefined);
+    return () => {
+      if (frame !== null) window.cancelAnimationFrame(frame);
+    };
+  }, [onAcknowledge, summary.taste_current_milestone, summary.taste_has_unseen_update]);
+
   if (!summary.taste_unlocked) {
     return (
       <section className="rounded-card border border-line bg-surface p-5 sm:p-7" aria-labelledby="taste-title">
@@ -78,39 +138,44 @@ function TasteSection({ summary }: { summary: UserFiyuSummary }) {
     );
   }
 
-  const insights = [
-    summary.top_cuisines.length > 0
-      ? { label: "You rate highest", value: summary.top_cuisines.join(" · ") }
-      : null,
-    summary.usual_budget
-      ? { label: "Your usual restaurant range", value: summary.usual_budget }
-      : null,
-    summary.top_areas.length > 0
-      ? { label: "Most explored", value: summary.top_areas.join(" · ") }
-      : null,
-    summary.top_traits.length > 0
-      ? { label: "You often choose", value: summary.top_traits.join(" · ") }
-      : null,
-  ].filter((value): value is { label: string; value: string } => value !== null);
-
   return (
     <section className="rounded-card border border-line bg-surface p-5 sm:p-7" aria-labelledby="taste-title">
-      <p className="text-[0.6875rem] font-semibold tracking-[0.16em] text-lavender-700 uppercase">Based on your ratings</p>
+      <p className="text-[0.6875rem] font-semibold tracking-[0.16em] text-lavender-700 uppercase">
+        {summary.taste_has_unseen_update ? "Your Taste just updated" : `Based on ${summary.rated_visit_count} rated visits`}
+      </p>
       <h2 id="taste-title" className="mt-2 font-display text-3xl text-ink">Your taste</h2>
-      {insights.length > 0 ? (
-        <dl className="mt-6 grid gap-x-8 gap-y-6 sm:grid-cols-2">
-          {insights.map((insight) => (
-            <div key={insight.label} className="border-t border-line pt-4">
-              <dt className="text-[0.6875rem] font-semibold tracking-[0.13em] text-ink-faint uppercase">{insight.label}</dt>
-              <dd className="mt-2 font-display text-xl leading-snug text-ink">{insight.value}</dd>
-            </div>
+      {summary.taste_tags.length > 0 ? (
+        <div className="mt-5 flex flex-wrap gap-2" aria-label="Your Taste right now">
+          {summary.taste_tags.map((tag) => (
+            <span key={tag.key} className="rounded-full border border-lavender-200 bg-lavender-50 px-3 py-1.5 text-xs font-medium text-plum">
+              {tag.label}
+            </span>
           ))}
-        </dl>
+        </div>
+      ) : null}
+      {summary.taste_insights.length > 0 ? (
+        <div className="mt-6 grid gap-3">
+          {summary.taste_insights.map((insight, index) => {
+            const change = changeLabel(insight.change_status);
+            return (
+              <article
+                key={insight.id}
+                className={`border-t border-line pt-4 transition duration-500 motion-reduce:translate-y-0 motion-reduce:opacity-100 ${revealed || !summary.taste_has_unseen_update ? "translate-y-0 opacity-100" : "translate-y-1 opacity-0"}`}
+                style={{ transitionDelay: `${index * 90}ms` }}
+              >
+                {change ? <p className="text-[0.625rem] font-semibold tracking-[0.14em] text-lavender-700 uppercase">{change}</p> : null}
+                <h3 className="mt-1 font-display text-xl leading-snug text-ink">{insight.headline}</h3>
+                <p className="mt-1.5 text-sm leading-6 text-ink-muted">{insight.supporting_text}</p>
+              </article>
+            );
+          })}
+        </div>
       ) : (
         <p className="mt-5 text-sm leading-6 text-ink-body">
-          Keep rating visits and Fiyu will surface patterns once the evidence is consistent.
+          Your first patterns are still taking shape. Keep rating places and they’ll appear here.
         </p>
       )}
+      <TasteUpdateProgress summary={summary} />
     </section>
   );
 }
@@ -170,14 +235,14 @@ function Together({ summary }: { summary: UserFiyuSummary }) {
       <div className="flex items-center justify-between gap-4">
         <p className="text-[0.6875rem] font-semibold tracking-[0.16em] text-gold-700 uppercase">Fiyu Together</p>
         <span className="rounded-full border border-gold-line bg-gold-soft px-2.5 py-1 text-[0.625rem] font-semibold tracking-[0.1em] text-gold-700 uppercase">
-          {summary.taste_unlocked ? "Coming soon" : "Locked"}
+          {summary.together_unlocked ? "Coming soon" : "Locked"}
         </span>
       </div>
       <h2 id="together-title" className="mt-3 font-display text-2xl text-ink">Taste is better shared.</h2>
       <p className="mt-3 text-sm leading-6 text-ink-body">
         Three extra Picks, chosen for you and someone else.
       </p>
-      {!summary.taste_unlocked ? <div className="mt-5"><Progress summary={summary} context="together" /></div> : null}
+      {!summary.together_unlocked ? <div className="mt-5"><Progress summary={summary} context="together" /></div> : null}
     </section>
   );
 }
@@ -193,6 +258,11 @@ export function YourFiyuPage() {
     enabled: Boolean(accountId),
     maxAgeMs: 60_000,
   });
+  const setSummary = summary.setData;
+  const acknowledgeTaste = useCallback(async (milestone: number) => {
+    await acknowledgeTasteUpdate(milestone);
+    setSummary((current) => ({ ...current!, taste_has_unseen_update: false }));
+  }, [setSummary]);
 
   if (identity.status === "loading" || (accountId && summary.status === "loading")) {
     return <main className="flex-1"><FiyuLoadingScreen contained className="min-h-[60dvh]" /></main>;
@@ -224,7 +294,7 @@ export function YourFiyuPage() {
   return (
     <main className="flex-1 px-5 pt-8 pb-[calc(var(--spacing-mobile-nav)+2rem)] sm:px-8 lg:py-12 lg:pb-16">
       <div className="mx-auto w-full max-w-6xl">
-        <header className="border-b border-line pb-8">
+        <header className="pb-8">
           <div className="flex items-start justify-between gap-5">
             <div className="flex min-w-0 items-center gap-4 sm:gap-5">
               <ProfileIdentityAvatar identity={identity} className="h-20 w-20 text-2xl sm:h-24 sm:w-24 sm:text-3xl" />
@@ -255,7 +325,7 @@ export function YourFiyuPage() {
         </header>
 
         <div className="mt-8 grid items-start gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(18rem,0.8fr)]">
-          <div className="space-y-6"><TasteSection summary={summary.data} /><RecentVisits summary={summary.data} /></div>
+          <div className="space-y-6"><TasteSection key={summary.data.taste_current_milestone ?? "locked"} summary={summary.data} onAcknowledge={acknowledgeTaste} /><RecentVisits summary={summary.data} /></div>
           <div className="space-y-6 lg:sticky lg:top-[calc(var(--spacing-header)+1.5rem)]"><Together summary={summary.data} /></div>
         </div>
       </div>

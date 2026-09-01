@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { RestaurantPhoto } from "@/components/restaurant/RestaurantPhoto";
 import { StarRatingInput } from "@/components/log/StarRatingInput";
@@ -15,10 +15,12 @@ import {
   fetchRestaurantLog,
   fetchRestaurant,
   fetchSeenRestaurantIds,
+  fetchUserFiyuSummary,
   updateRestaurantVisit,
 } from "@/lib/api/client";
 import {
   accountQueryKey,
+  loadAccountQuery,
   readAccountQuery,
   useAccountQuery,
   writeAccountQuery,
@@ -33,6 +35,7 @@ import type {
 } from "@/lib/api/schemas";
 import { useIsDesktop } from "@/lib/hooks/useMediaQuery";
 import { getOrCreateAnonymousOwnerKey } from "@/lib/lists/identity";
+import { useDefaultList } from "@/lib/lists/useDefaultList";
 import { useProfileIdentity } from "@/lib/profile/profileIdentity";
 import { restaurantMetadataParts } from "@/lib/restaurant/displayArea";
 
@@ -168,9 +171,13 @@ export function LogWorkspace({
     loader: requestVisits,
   });
   const loadState: LoadState = visitsQuery.status ?? "loading";
-  const visits = visitsQuery.data ?? [];
+  const visits = useMemo(() => visitsQuery.data ?? [], [visitsQuery.data]);
   const refreshVisits = visitsQuery.refresh;
   const setVisits = visitsQuery.setData;
+  const defaultList = useDefaultList("tokyo", {
+    accountId: accountId ?? null,
+    enabled: accountId !== undefined,
+  });
   const [loadError, setLoadError] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editingVisit, setEditingVisit] = useState<RestaurantVisit | null>(null);
@@ -189,7 +196,15 @@ export function LogWorkspace({
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [saveConfirmation, setSaveConfirmation] = useState(false);
   const [validationAttempted, setValidationAttempted] = useState(false);
-  const catalogRequested = useRef(false);
+  const savedPlaceIds = defaultList.savedPlaceIds;
+  const loggedPlaceIdKey = useMemo(
+    () => [...new Set(visits.map((visit) => visit.place_id))].sort().join("\u0000"),
+    [visits],
+  );
+  const savedPlaceIdKey = useMemo(
+    () => [...new Set(savedPlaceIds)].sort().join("\u0000"),
+    [savedPlaceIds],
+  );
   const matchingRestaurants = useMemo(
     () =>
       restaurantQuery.trim()
@@ -211,31 +226,38 @@ export function LogWorkspace({
   }, [refreshVisits]);
 
   useEffect(() => {
-    if ((isDesktop && !sheetOpen) || editingVisit || catalog.length > 0 || catalogRequested.current) {
+    if ((isDesktop && !sheetOpen) || editingVisit) {
       return;
     }
     let cancelled = false;
-    catalogRequested.current = true;
-    setCatalogLoading(true);
-    setCatalogError(null);
-    const identity = { clientId: getOrCreateAnonymousOwnerKey() };
-    fetchSeenRestaurantIds(identity)
-      .then((seenPlaceIds) =>
-        Promise.allSettled(seenPlaceIds.map((seenPlaceId) => fetchRestaurant(seenPlaceId)))
-          .then((results) => ({ results, seenPlaceIds })),
-      )
-      .then(({ results, seenPlaceIds }) => {
+    const loggedPlaceIds = new Set(loggedPlaceIdKey ? loggedPlaceIdKey.split("\u0000") : []);
+    const stableSavedPlaceIds = savedPlaceIdKey ? savedPlaceIdKey.split("\u0000") : [];
+    Promise.resolve()
+      .then(() => {
+        if (cancelled) return [];
+        setCatalogLoading(true);
+        setCatalogError(null);
+        return fetchSeenRestaurantIds({ clientId: getOrCreateAnonymousOwnerKey() });
+      })
+      .then((seenPlaceIds) => {
+        const eligiblePlaceIds = [
+          ...new Set([...seenPlaceIds, ...stableSavedPlaceIds]),
+        ].filter((candidate) => !loggedPlaceIds.has(candidate));
+        return Promise.allSettled(
+          eligiblePlaceIds.map((eligiblePlaceId) => fetchRestaurant(eligiblePlaceId)),
+        ).then((results) => ({ results, eligiblePlaceIds }));
+      })
+      .then(({ results, eligiblePlaceIds }) => {
         if (cancelled) return;
         const loaded = results.flatMap((result) =>
           result.status === "fulfilled" ? [result.value] : [],
         );
         setCatalog(loaded);
-        if (seenPlaceIds.length > 0 && loaded.length === 0) {
-          setCatalogError("We couldn’t load your previously seen restaurants.");
+        if (eligiblePlaceIds.length > 0 && loaded.length === 0) {
+          setCatalogError("We couldn’t load your available restaurants.");
         }
       })
       .catch(() => {
-        catalogRequested.current = false;
         if (!cancelled) setCatalogError("We couldn’t load the restaurant list.");
       })
       .finally(() => {
@@ -243,9 +265,23 @@ export function LogWorkspace({
       });
     return () => {
       cancelled = true;
-      catalogRequested.current = false;
     };
-  }, [catalog.length, editingVisit, isDesktop, sheetOpen]);
+  }, [
+    editingVisit,
+    isDesktop,
+    loggedPlaceIdKey,
+    savedPlaceIdKey,
+    sheetOpen,
+  ]);
+
+  const refreshYourFiyu = useCallback(async () => {
+    if (!accountId) return;
+    await loadAccountQuery(
+      accountQueryKey("user-fiyu-summary", accountId),
+      () => fetchUserFiyuSummary(),
+      { force: true },
+    ).catch(() => undefined);
+  }, [accountId]);
 
   const openCreate = () => {
     setEditingVisit(null);
@@ -316,6 +352,7 @@ export function LogWorkspace({
           { clientId: getOrCreateAnonymousOwnerKey() },
         );
         setVisits((current = []) => newestFirst([created, ...current]));
+        setCatalog((current) => current.filter((restaurant) => restaurant.place_id !== placeId));
       }
       if (accountId && rating !== null) {
         const mapKey = accountQueryKey("map-restaurants", accountId);
@@ -335,6 +372,7 @@ export function LogWorkspace({
           writeAccountQuery(mapKey, next);
         }
       }
+      await refreshYourFiyu();
       if (isDesktop) {
         setSheetOpen(false);
         setEditingVisit(null);
@@ -369,6 +407,7 @@ export function LogWorkspace({
       setVisits((current = []) =>
         current.filter((candidate) => candidate.id !== visit.id),
       );
+      await refreshYourFiyu();
     } catch (cause) {
       const message = cause instanceof FiyuApiError ? cause.detail : null;
       setLoadError(message ?? "We couldn’t delete this visit.");

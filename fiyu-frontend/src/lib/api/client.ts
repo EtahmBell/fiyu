@@ -40,6 +40,7 @@ import {
   restaurantsUrl,
   seenRestaurantsUrl,
   userFiyuSummaryUrl,
+  userFiyuTasteAcknowledgeUrl,
 } from "@/lib/api/endpoints";
 import {
   type DailyPickAssignmentResponse,
@@ -90,6 +91,7 @@ import {
   restaurantVisitListSchema,
   restaurantVisitSchema,
   userFiyuSummarySchema,
+  acknowledgeTasteResponseSchema,
   seenRestaurantsResponseSchema,
   smartViewCatalogResponseSchema,
   smartViewResponseSchema,
@@ -488,6 +490,18 @@ export function fetchUserFiyuSummary(
     ...options,
     cache: options.cache ?? "no-store",
   });
+}
+
+export function acknowledgeTasteUpdate(
+  milestone: number,
+  options: RequestOptions = {},
+): Promise<number> {
+  return requestJson(
+    userFiyuTasteAcknowledgeUrl(),
+    paths.userFiyuTasteAcknowledge,
+    acknowledgeTasteResponseSchema,
+    { ...options, method: "POST", body: { milestone } },
+  ).then((response) => response.milestone);
 }
 
 export function fetchSeenRestaurantIds(

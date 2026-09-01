@@ -370,6 +370,40 @@ def list_visits(*, user_id: str) -> list[dict[str, Any]]:
     return result if isinstance(result, list) else []
 
 
+def get_taste_snapshot(*, user_id: str, milestone: int) -> dict[str, Any] | None:
+    rows = _rows("fiyu_user_taste_snapshots", user_id=user_id, milestone=milestone)
+    return rows[0] if rows else None
+
+
+def upsert_taste_snapshot(
+    *, user_id: str, milestone: int, snapshot: dict[str, object]
+) -> dict[str, Any]:
+    result = _request(
+        "fiyu_user_taste_snapshots",
+        method="POST",
+        query={"on_conflict": "user_id,milestone"},
+        body={"user_id": user_id, "milestone": milestone, "snapshot": snapshot},
+        prefer="resolution=ignore-duplicates,return=representation",
+    )
+    if isinstance(result, list) and result:
+        return result[0]
+    existing = get_taste_snapshot(user_id=user_id, milestone=milestone)
+    if existing is None:
+        raise SharedUserDataError("Taste snapshot could not be saved")
+    return existing
+
+
+def acknowledge_taste_snapshot(*, user_id: str, milestone: int) -> bool:
+    result = _request(
+        "fiyu_user_taste_snapshots",
+        method="PATCH",
+        query={"user_id": f"eq.{user_id}", "milestone": f"eq.{milestone}"},
+        body={"acknowledged_at": _now()},
+        prefer="return=representation",
+    )
+    return isinstance(result, list) and bool(result)
+
+
 def visited_place_ids(*, user_id: str) -> list[str]:
     """Return unique visited restaurants, ordered by the owner's latest visit."""
     result = _request(

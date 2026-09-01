@@ -12,8 +12,10 @@ import {
   fetchRestaurantLog,
   fetchRestaurant,
   fetchSeenRestaurantIds,
+  fetchUserFiyuSummary,
   updateRestaurantVisit,
 } from "@/lib/api/client";
+import { clearProfileIdentity, publishProfileIdentity } from "@/lib/profile/profileIdentity";
 
 vi.mock("@/lib/api/client", () => ({
   createRestaurantVisit: vi.fn(),
@@ -21,7 +23,17 @@ vi.mock("@/lib/api/client", () => ({
   fetchRestaurantLog: vi.fn(),
   fetchRestaurant: vi.fn(),
   fetchSeenRestaurantIds: vi.fn(),
+  fetchUserFiyuSummary: vi.fn(),
   updateRestaurantVisit: vi.fn(),
+}));
+
+const defaultList = vi.hoisted(() => ({ savedPlaceIds: [] as string[] }));
+vi.mock("@/lib/lists/useDefaultList", () => ({
+  useDefaultList: () => ({
+    status: "ready",
+    savedPlaceIds: defaultList.savedPlaceIds,
+    ensureLoaded: vi.fn().mockResolvedValue(undefined),
+  }),
 }));
 
 vi.mock("@/lib/lists/identity", () => ({
@@ -134,10 +146,12 @@ beforeEach(() => {
   vi.mocked(fetchRestaurantLog).mockReset();
   vi.mocked(fetchRestaurant).mockReset();
   vi.mocked(fetchSeenRestaurantIds).mockReset();
+  vi.mocked(fetchUserFiyuSummary).mockReset();
   vi.mocked(createRestaurantVisit).mockReset();
   vi.mocked(updateRestaurantVisit).mockReset();
   vi.mocked(deleteRestaurantVisit).mockReset();
   seedSeenRestaurants(["tokyo-a"]);
+  defaultList.savedPlaceIds = [];
   vi.mocked(fetchRestaurant).mockResolvedValue(catalogRestaurant);
   Object.defineProperty(HTMLDialogElement.prototype, "showModal", {
     configurable: true,
@@ -155,6 +169,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  clearProfileIdentity();
   vi.restoreAllMocks();
 });
 
@@ -224,6 +239,27 @@ describe("LogWorkspace", () => {
     ).toBeTruthy();
   });
 
+  it("includes saved unseen restaurants but excludes already logged restaurants", async () => {
+    seedSeenRestaurants(["tokyo-a"]);
+    defaultList.savedPlaceIds = ["saved-only"];
+    vi.mocked(fetchRestaurantLog).mockResolvedValue([visit()]);
+    vi.mocked(fetchRestaurant).mockImplementation(async (placeId) => ({
+      ...catalogRestaurant,
+      place_id: placeId,
+      name_en: placeId === "saved-only" ? "Saved Only" : "Tokyo Sushi",
+    }));
+
+    render(<LogWorkspace />);
+    fireEvent.click(await screen.findByRole("button", { name: "Log a visit" }));
+    const dialog = await screen.findByRole("dialog", { name: "Log a visit" });
+    fireEvent.focus(within(dialog).getByRole("combobox", { name: "Restaurant" }));
+
+    expect(await within(dialog).findByRole("option", { name: /Saved Only/ })).toBeTruthy();
+    expect(within(dialog).queryByRole("option", { name: /Tokyo Sushi/ })).toBeNull();
+    expect(fetchRestaurant).toHaveBeenCalledWith("saved-only");
+    expect(fetchRestaurant).not.toHaveBeenCalledWith("tokyo-a");
+  });
+
   it("limits bilingual search results and supports arrow-key selection", async () => {
     vi.mocked(fetchRestaurantLog).mockResolvedValue([]);
     const seenRestaurants = Array.from({ length: 10 }, (_, index) => ({
@@ -269,6 +305,8 @@ describe("LogWorkspace", () => {
     expect(screen.queryByText("No visits logged yet")).toBeNull();
 
     const restaurant = await screen.findByRole("combobox", { name: "Restaurant" });
+    fireEvent.focus(restaurant);
+    expect(await screen.findByRole("option", { name: /Tokyo Sushi/ })).toBeTruthy();
     fireEvent.change(restaurant, { target: { value: "Tokyo Sushi" } });
     fireEvent.keyDown(restaurant, { key: "Enter" });
     fireEvent.click(screen.getByRole("radio", { name: "4 out of 5 stars" }));
@@ -279,6 +317,35 @@ describe("LogWorkspace", () => {
     expect(screen.getByRole("link", { name: "View in history" }).getAttribute("href")).toBe(
       "/log/history",
     );
+    fireEvent.focus(screen.getByRole("combobox", { name: "Restaurant" }));
+    expect(screen.queryByRole("option", { name: /Tokyo Sushi/ })).toBeNull();
+  });
+
+  it("refreshes the authenticated Your Fiyu cache immediately after a rating", async () => {
+    desktopViewport = false;
+    publishProfileIdentity({
+      user_id: "account-a",
+      username: "tester",
+      display_name: "Tester",
+      bio: null,
+      avatar_url: null,
+      created_at: "2026-08-01T00:00:00Z",
+      updated_at: "2026-08-01T00:00:00Z",
+    });
+    vi.mocked(fetchRestaurantLog).mockResolvedValue([]);
+    vi.mocked(createRestaurantVisit).mockResolvedValue(visit());
+    vi.mocked(fetchUserFiyuSummary).mockResolvedValue({} as never);
+    render(<LogWorkspace />);
+
+    const restaurant = await screen.findByRole("combobox", { name: "Restaurant" });
+    fireEvent.focus(restaurant);
+    expect(await screen.findByRole("option", { name: /Tokyo Sushi/ })).toBeTruthy();
+    fireEvent.change(restaurant, { target: { value: "Tokyo Sushi" } });
+    fireEvent.keyDown(restaurant, { key: "Enter" });
+    fireEvent.click(screen.getByRole("radio", { name: "4 out of 5 stars" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save visit" }));
+
+    await waitFor(() => expect(fetchUserFiyuSummary).toHaveBeenCalledTimes(1));
   });
 
   it("renders mobile history as a normal page view with route-based back navigation", async () => {

@@ -75,6 +75,7 @@ def test_authenticated_account_deletion_removes_all_owned_stores_and_isolates_ot
             "fiyu_restaurant_visits",
             "fiyu_restaurant_seen",
             "fiyu_user_discovery_locations",
+            "fiyu_user_taste_snapshots",
         )
     }
     avatars = {deleted_user, other_user}

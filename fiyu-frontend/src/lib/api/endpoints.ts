@@ -36,6 +36,7 @@ export const paths = {
   locationAnchors: "/public/location-anchors",
   discoveryLocation: "/profiles/me/discovery-location",
   userFiyuSummary: "/profiles/me/fiyu-summary",
+  userFiyuTasteAcknowledge: "/profiles/me/fiyu-summary/taste-acknowledge",
   discoveryLocationCheck: "/profiles/me/discovery-location/check-current",
   dailyPicksAssign: "/daily-picks/assign",
   dailyPicksActive: "/daily-picks/active",
@@ -158,6 +159,10 @@ export function discoveryLocationUrl(): string {
 
 export function userFiyuSummaryUrl(): string {
   return `${getApiBaseUrl()}${paths.userFiyuSummary}`;
+}
+
+export function userFiyuTasteAcknowledgeUrl(): string {
+  return `${getApiBaseUrl()}${paths.userFiyuTasteAcknowledge}`;
 }
 
 export function discoveryLocationCheckUrl(): string {

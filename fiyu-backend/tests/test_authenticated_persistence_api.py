@@ -56,6 +56,7 @@ def shared_account_api(tmp_path, monkeypatch):
     seen: dict[str, list[str]] = defaultdict(list)
     snapshots: dict[tuple[str, str], dict[str, object]] = {}
     recent_rounds: dict[tuple[str, str], list[dict[str, object]]] = defaultdict(list)
+    taste_snapshots: dict[tuple[str, int], dict[str, object]] = {}
     clock: dict[str, datetime | None] = {"now": None}
 
     def current_user(header):
@@ -160,6 +161,31 @@ def shared_account_api(tmp_path, monkeypatch):
         lambda *, user_id, city_id: {
             str(item["place_id"]) for item in items[user_id]
         },
+    )
+
+    def get_taste_snapshot(*, user_id, milestone):
+        return taste_snapshots.get((user_id, milestone))
+
+    def upsert_taste_snapshot(*, user_id, milestone, snapshot):
+        row = taste_snapshots.setdefault((user_id, milestone), {
+            "user_id": user_id,
+            "milestone": milestone,
+            "snapshot": snapshot,
+            "acknowledged_at": None,
+        })
+        return row
+
+    def acknowledge_taste_snapshot(*, user_id, milestone):
+        row = taste_snapshots.get((user_id, milestone))
+        if row is None:
+            return False
+        row["acknowledged_at"] = datetime.now(UTC).isoformat()
+        return True
+
+    monkeypatch.setattr(api.shared_user_data, "get_taste_snapshot", get_taste_snapshot)
+    monkeypatch.setattr(api.shared_user_data, "upsert_taste_snapshot", upsert_taste_snapshot)
+    monkeypatch.setattr(
+        api.shared_user_data, "acknowledge_taste_snapshot", acknowledge_taste_snapshot
     )
 
     def active_snapshot(*, user_id, city_id):
@@ -278,6 +304,7 @@ def shared_account_api(tmp_path, monkeypatch):
         "snapshots": snapshots,
         "clock": clock,
         "recent_rounds": recent_rounds,
+        "taste_snapshots": taste_snapshots,
     }
     return client, user_ids, seen
 
@@ -1365,16 +1392,22 @@ def test_your_fiyu_summary_is_account_scoped(shared_account_api):
     assert unauthenticated.status_code == 401
 
 
-def test_your_fiyu_summary_uses_public_catalog_category_after_unlock(shared_account_api):
+def test_your_fiyu_summary_uses_public_catalog_facets_after_ten_ratings(shared_account_api):
     client, user_ids, _ = shared_account_api
     state = client.fiyu_test_state
-    for index, rating in enumerate((5, 4, 5, 3, 4)):
+    with connect(api.DB_PATH) as connection:
+        connection.execute(
+            "UPDATE public_restaurants SET primary_category = 'cafe' WHERE place_id = 'tokyo-3'"
+        )
+        connection.commit()
+    for index in range(10):
+        place_index = index % 4
         state["visits"][user_ids["token-a"]].append(
             {
                 "id": str(uuid4()),
-                "place_id": f"tokyo-{index % 2}",
+                "place_id": f"tokyo-{place_index}",
                 "visited_at": f"2026-08-{20 + index:02d}T12:00:00+00:00",
-                "rating": rating,
+                "rating": 2 if place_index == 3 else 5,
                 "private_note": "Not an analytics input.",
                 "created_at": f"2026-08-{20 + index:02d}T12:00:00+00:00",
                 "updated_at": f"2026-08-{20 + index:02d}T12:00:00+00:00",
@@ -1385,4 +1418,23 @@ def test_your_fiyu_summary_uses_public_catalog_category_after_unlock(shared_acco
 
     assert response.status_code == 200
     assert response.json()["taste_unlocked"] is True
-    assert response.json()["top_cuisines"] == ["sushi"]
+    assert response.json()["taste_current_milestone"] == 10
+    assert any(tag["label"] == "Sushi" for tag in response.json()["taste_tags"]), response.json()
+    assert response.json()["taste_has_unseen_update"] is True
+
+    acknowledged = client.post(
+        "/profiles/me/fiyu-summary/taste-acknowledge",
+        headers=_auth("token-a"),
+        json={"milestone": 10},
+    )
+    restored = client.get("/profiles/me/fiyu-summary", headers=_auth("token-a"))
+    other_account = client.post(
+        "/profiles/me/fiyu-summary/taste-acknowledge",
+        headers=_auth("token-b"),
+        json={"milestone": 10},
+    )
+
+    assert acknowledged.status_code == 200
+    assert restored.json()["taste_has_unseen_update"] is False
+    assert other_account.status_code == 409
+    assert {user_id for user_id, _ in state["taste_snapshots"]} == {user_ids["token-a"]}

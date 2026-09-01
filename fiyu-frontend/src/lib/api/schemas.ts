@@ -484,13 +484,34 @@ export const userFiyuSummarySchema = z.object({
   saved_count: z.number().int().nonnegative(),
   area_count: z.number().int().nonnegative(),
   rated_visit_count: z.number().int().nonnegative(),
+  together_unlock_threshold: z.number().int().positive(),
+  together_unlocked: z.boolean(),
   taste_unlock_threshold: z.number().int().positive(),
   taste_unlocked: z.boolean(),
-  top_cuisines: z.array(z.string()),
-  usual_budget: nullableString,
-  top_areas: z.array(z.string()),
-  top_traits: z.array(z.string()),
+  taste_current_milestone: z.number().int().nullable(),
+  taste_previous_milestone: z.number().int().nullable(),
+  taste_next_milestone: z.number().int().min(10),
+  ratings_until_next_taste_update: z.number().int().nonnegative(),
+  taste_insights: z.array(z.object({
+    id: z.string(),
+    type: z.enum(["strong_signal", "reliable_pattern", "contrast", "emerging"]),
+    facet_key: z.string(),
+    headline: z.string(),
+    supporting_text: z.string(),
+    support_count: z.number().int().min(2),
+    average_rating: z.number().min(1).max(5),
+    delta_from_user_average: z.number(),
+    change_status: z.enum(["new", "stronger", "still_true", "emerging"]).nullable(),
+  })).max(4),
+  taste_tags: z.array(z.object({ key: z.string(), label: z.string() })).max(8),
+  taste_has_unseen_update: z.boolean(),
+  taste_uniqueness: z.null(),
   recent_visits: z.array(userFiyuRecentVisitSchema).max(3),
+});
+
+export const acknowledgeTasteResponseSchema = z.object({
+  acknowledged: z.literal(true),
+  milestone: z.number().int().min(10),
 });
 
 export const seenRestaurantsResponseSchema = z.object({
