@@ -548,7 +548,9 @@ class UserFiyuRecentVisit(BaseModel):
 
 class UserTasteInsight(BaseModel):
     id: str
-    type: Literal["strong_signal", "reliable_pattern", "contrast", "emerging"]
+    type: Literal[
+        "strong_signal", "reliable_pattern", "contrast", "emerging", "early_signal"
+    ]
     facet_key: str
     headline: str
     supporting_text: str
@@ -793,6 +795,12 @@ class DeveloperResetPicksResponse(BaseModel):
     reset: Literal[True]
     deleted_rounds: int
     deleted_seen: int
+
+
+class DeveloperResetVisitTasteResponse(BaseModel):
+    reset: Literal[True]
+    deleted_visits: int
+    deleted_taste_snapshots: int
 
 
 class SeenRestaurantsResponse(BaseModel):
@@ -2178,6 +2186,27 @@ def reset_developer_daily_picks(
     )
 
 
+@app.post(
+    "/developer/visit-taste/reset",
+    response_model=DeveloperResetVisitTasteResponse,
+)
+def reset_developer_visit_taste_data(
+    user_id: Annotated[str, Depends(_developer_user)],
+) -> DeveloperResetVisitTasteResponse:
+    result = shared_user_data.reset_visit_taste_test_data(user_id=user_id)
+    logger.info(
+        "Developer visit and Taste state reset: user_id=%s visits=%d snapshots=%d",
+        user_id,
+        result["deleted_visits"],
+        result["deleted_taste_snapshots"],
+    )
+    return DeveloperResetVisitTasteResponse(
+        reset=True,
+        deleted_visits=result["deleted_visits"],
+        deleted_taste_snapshots=result["deleted_taste_snapshots"],
+    )
+
+
 @app.get("/profiles/me/map-restaurants", response_model=list[MapRestaurantSummary])
 def get_authenticated_map_restaurants(
     user_id: Annotated[str, Depends(_authenticated_user_id)],
@@ -2543,7 +2572,8 @@ def get_my_fiyu_summary(
     ensure_public_schema(DB_PATH)
     visits = shared_user_data.list_visits(user_id=user_id)
     saved = sorted(shared_user_data.saved_place_ids(user_id=user_id, city_id="tokyo"))
-    place_ids = {str(row["place_id"]) for row in visits} | set(saved)
+    exposed = set(shared_user_data.seen_place_ids(user_id=user_id))
+    place_ids = {str(row["place_id"]) for row in visits} | set(saved) | exposed
     catalog = _user_fiyu_catalog(place_ids)
     rated_count = sum(
         isinstance(visit.get("rating"), int) and 1 <= int(visit["rating"]) <= 5
@@ -2564,6 +2594,8 @@ def get_my_fiyu_summary(
                     visits=visits,
                     catalog=catalog,
                     milestone=previous_milestone,
+                    saved_place_ids=saved,
+                    exposed_place_ids=exposed,
                 ),
             )
         if isinstance(previous_stored.get("snapshot"), dict):
@@ -2573,12 +2605,25 @@ def get_my_fiyu_summary(
         saved_place_ids=saved,
         catalog=catalog,
         previous_taste_snapshot=previous_snapshot,
+        exposed_place_ids=exposed,
     )
     snapshot = summary.pop("_taste_snapshot", None)
     if isinstance(milestone, int) and isinstance(snapshot, dict):
         stored = shared_user_data.get_taste_snapshot(user_id=user_id, milestone=milestone)
         if stored is None:
             stored = shared_user_data.upsert_taste_snapshot(
+                user_id=user_id,
+                milestone=milestone,
+                snapshot=snapshot,
+            )
+        elif (
+            isinstance(stored.get("snapshot"), dict)
+            and not stored["snapshot"].get("insights")
+            and snapshot.get("insights")
+        ):
+            # Repair snapshots created by the earlier all-or-nothing threshold
+            # logic. Valid non-empty milestone snapshots remain immutable.
+            stored = shared_user_data.replace_taste_snapshot(
                 user_id=user_id,
                 milestone=milestone,
                 snapshot=snapshot,

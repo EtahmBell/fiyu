@@ -404,6 +404,21 @@ def acknowledge_taste_snapshot(*, user_id: str, milestone: int) -> bool:
     return isinstance(result, list) and bool(result)
 
 
+def replace_taste_snapshot(
+    *, user_id: str, milestone: int, snapshot: dict[str, object]
+) -> dict[str, Any]:
+    result = _request(
+        "fiyu_user_taste_snapshots",
+        method="PATCH",
+        query={"user_id": f"eq.{user_id}", "milestone": f"eq.{milestone}"},
+        body={"snapshot": snapshot},
+        prefer="return=representation",
+    )
+    if not isinstance(result, list) or not result:
+        raise SharedUserDataError("Taste snapshot could not be repaired")
+    return result[0]
+
+
 def visited_place_ids(*, user_id: str) -> list[str]:
     """Return unique visited restaurants, ordered by the owner's latest visit."""
     result = _request(
@@ -552,6 +567,22 @@ def reset_daily_pick_test_state(*, user_id: str, city_id: str) -> dict[str, int]
     return {
         "deleted_rounds": int(result.get("deleted_rounds") or 0),
         "deleted_seen": int(result.get("deleted_seen") or 0),
+    }
+
+
+def reset_visit_taste_test_data(*, user_id: str) -> dict[str, int]:
+    result = _request(
+        "rpc/reset_fiyu_visit_taste_test_data",
+        method="POST",
+        body={"p_user_id": user_id},
+    )
+    if isinstance(result, list) and result:
+        result = result[0]
+    if not isinstance(result, dict):
+        raise SharedUserDataError("Developer visit and Taste data could not be reset")
+    return {
+        "deleted_visits": int(result.get("deleted_visits") or 0),
+        "deleted_taste_snapshots": int(result.get("deleted_taste_snapshots") or 0),
     }
 
 

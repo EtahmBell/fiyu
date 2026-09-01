@@ -74,6 +74,11 @@ export function clearAccountQueries(): void {
   entries.clear();
 }
 
+export function clearAccountQuery(key: string): void {
+  entries.delete(key);
+  notify(key);
+}
+
 type AccountQueryState<T> =
   | { key: string; status: "loading"; data: undefined }
   | { key: string; status: "ready"; data: T }

@@ -2,19 +2,31 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 
 import { Button } from "@/components/ui/Button";
 import {
   fetchDeveloperStatus,
+  fetchAuthenticatedMapRestaurants,
+  fetchUserFiyuSummary,
   generateDeveloperDailyPicks,
   resetDeveloperDailyPicks,
+  resetDeveloperVisitTaste,
   updateDeveloperLocation,
 } from "@/lib/api/client";
 import type {
   DeveloperGeneratePicksResponse,
   DeveloperStatus,
+  MapRestaurant,
+  RestaurantVisit,
+  UserFiyuSummary,
 } from "@/lib/api/schemas";
-import { clearAccountQueries } from "@/lib/accountQueryCache";
+import {
+  accountQueryKey,
+  clearAccountQuery,
+  clearAccountQueries,
+  writeAccountQuery,
+} from "@/lib/accountQueryCache";
 import { authService } from "@/lib/auth/authService";
 import { dailyPicksStorageKey } from "@/lib/daily-picks/storage";
 
@@ -41,6 +53,64 @@ async function clearPicksBrowserState(): Promise<void> {
   if (session) window.localStorage.removeItem(dailyPicksStorageKey(session.userId));
 }
 
+function ResetVisitTasteDialog({
+  open,
+  busy,
+  onClose,
+  onConfirm,
+}: {
+  open: boolean;
+  busy: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  useEffect(() => {
+    if (!open) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !busy) onClose();
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [busy, onClose, open]);
+
+  if (!open) return null;
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[100] grid place-items-center bg-ink/25 p-5"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget && !busy) onClose();
+      }}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="reset-visit-taste-title"
+        aria-describedby="reset-visit-taste-description"
+        className="w-full max-w-md rounded-card border border-line bg-surface p-6 shadow-sm sm:p-7"
+      >
+        <h4 id="reset-visit-taste-title" className="font-display text-2xl text-ink">
+          Reset visit &amp; Taste test data?
+        </h4>
+        <p id="reset-visit-taste-description" className="mt-3 text-sm leading-6 text-ink-muted">
+          This removes your developer account&apos;s logged visits, ratings, private notes, and Taste snapshots. Saves and Picks will remain.
+        </p>
+        <div className="mt-6 flex justify-end gap-3">
+          <Button type="button" variant="secondary" disabled={busy} onClick={onClose}>Cancel</Button>
+          <Button type="button" variant="primary" disabled={busy} onClick={onConfirm}>
+            {busy ? "Resetting…" : "Reset test data"}
+          </Button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
 export function DeveloperTools() {
   const [status, setStatus] = useState<DeveloperStatus | null>(null);
   const [previewArea, setPreviewArea] = useState("");
@@ -48,6 +118,7 @@ export function DeveloperTools() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [generation, setGeneration] = useState<DeveloperGeneratePicksResponse | null>(null);
+  const [visitTasteResetOpen, setVisitTasteResetOpen] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -127,6 +198,40 @@ export function DeveloperTools() {
     }
   };
 
+  const resetVisitTaste = async () => {
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    setGeneration(null);
+    try {
+      const result = await resetDeveloperVisitTaste();
+      const session = await authService.getSession();
+      if (session) {
+        const logKey = accountQueryKey("restaurant-log", session.userId);
+        const summaryKey = accountQueryKey("user-fiyu-summary", session.userId);
+        const mapKey = accountQueryKey("map-restaurants", session.userId);
+        clearAccountQuery(logKey);
+        clearAccountQuery(summaryKey);
+        clearAccountQuery(mapKey);
+        writeAccountQuery<RestaurantVisit[]>(logKey, []);
+        const [summary, mapRestaurants] = await Promise.all([
+          fetchUserFiyuSummary(),
+          fetchAuthenticatedMapRestaurants(),
+        ]);
+        writeAccountQuery<UserFiyuSummary>(summaryKey, summary);
+        writeAccountQuery<MapRestaurant[]>(mapKey, mapRestaurants);
+      }
+      setVisitTasteResetOpen(false);
+      setMessage(
+        `Visit & Taste test data reset (${result.deleted_visits} visits, ${result.deleted_taste_snapshots} Taste snapshots).`,
+      );
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to reset visit and Taste test data.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const activeLabel = status.location_mode === "area"
     ? status.area_name
     : status.location_mode === "outside_tokyo" ? "Outside Tokyo" : "Real device location";
@@ -188,6 +293,9 @@ export function DeveloperTools() {
         <Button type="button" variant="secondary" disabled={busy} onClick={() => void reset()}>
           Reset Picks test state
         </Button>
+        <Button type="button" variant="secondary" disabled={busy} onClick={() => setVisitTasteResetOpen(true)}>
+          Reset visit &amp; Taste test data
+        </Button>
       </div>
 
       {error && <p role="alert" className="mt-4 text-sm text-rose-dust">{error}</p>}
@@ -205,6 +313,12 @@ export function DeveloperTools() {
           </Link>
         </div>
       )}
+      <ResetVisitTasteDialog
+        open={visitTasteResetOpen}
+        busy={busy}
+        onClose={() => setVisitTasteResetOpen(false)}
+        onConfirm={() => void resetVisitTaste()}
+      />
     </section>
   );
 }

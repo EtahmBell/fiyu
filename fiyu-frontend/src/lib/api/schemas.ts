@@ -433,6 +433,12 @@ export const developerResetPicksResponseSchema = z.object({
   deleted_seen: z.number().int().nonnegative(),
 });
 
+export const developerResetVisitTasteResponseSchema = z.object({
+  reset: z.literal(true),
+  deleted_visits: z.number().int().nonnegative(),
+  deleted_taste_snapshots: z.number().int().nonnegative(),
+});
+
 export const dailyPickRevealResponseSchema = z.object({
   round_id: z.string().min(1),
   place_id: z.string().min(1),
@@ -494,7 +500,7 @@ export const userFiyuSummarySchema = z.object({
   ratings_until_next_taste_update: z.number().int().nonnegative(),
   taste_insights: z.array(z.object({
     id: z.string(),
-    type: z.enum(["strong_signal", "reliable_pattern", "contrast", "emerging"]),
+    type: z.enum(["strong_signal", "reliable_pattern", "contrast", "emerging", "early_signal"]),
     facet_key: z.string(),
     headline: z.string(),
     supporting_text: z.string(),
@@ -625,6 +631,7 @@ export type DailyPickAssignmentResponse = z.infer<typeof dailyPickAssignmentResp
 export type DeveloperStatus = z.infer<typeof developerStatusSchema>;
 export type DeveloperGeneratePicksResponse = z.infer<typeof developerGeneratePicksResponseSchema>;
 export type DeveloperResetPicksResponse = z.infer<typeof developerResetPicksResponseSchema>;
+export type DeveloperResetVisitTasteResponse = z.infer<typeof developerResetVisitTasteResponseSchema>;
 export type DailyPickRevealResponse = z.infer<typeof dailyPickRevealResponseSchema>;
 export type RecentDailyPickRound = z.infer<typeof recentDailyPickRoundSchema>;
 export type RestaurantVisit = z.infer<typeof restaurantVisitSchema>;

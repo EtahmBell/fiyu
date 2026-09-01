@@ -78,7 +78,7 @@ describe("YourFiyuPage", () => {
     expect(screen.getByRole("link", { name: "Edit profile" }).getAttribute("href")).toBe("/profile/edit");
     expect(screen.getByRole("link", { name: "Settings" }).getAttribute("href")).toBe("/profile/settings");
     expect(screen.getAllByText("0")).toHaveLength(3);
-    expect(screen.getByText("Rate your first 10 visits to unlock your first taste insights.")).toBeTruthy();
+    expect(screen.getByText("Rate your first 10 visits to unlock your first Taste.")).toBeTruthy();
     expect(screen.getByText("Rate your first 5 visits to unlock Fiyu Together.")).toBeTruthy();
     expect(screen.getByText("Locked")).toBeTruthy();
     expect(screen.getByText("No visits logged yet")).toBeTruthy();
@@ -95,7 +95,7 @@ describe("YourFiyuPage", () => {
 
     render(<YourFiyuPage />);
 
-    expect(await screen.findByText("Rate 6 more visits to unlock your first taste insights.")).toBeTruthy();
+    expect(await screen.findByText("Rate 6 more visits to unlock your first Taste.")).toBeTruthy();
     expect(screen.getByText("Rate 1 more visit to unlock Fiyu Together.")).toBeTruthy();
     expect(screen.getByText("4/10")).toBeTruthy();
     expect(screen.getByText("4/5")).toBeTruthy();
@@ -139,6 +139,7 @@ describe("YourFiyuPage", () => {
     render(<YourFiyuPage />);
 
     expect(await screen.findByText("Counter spots keep landing well")).toBeTruthy();
+    expect(screen.getByText("Strong signal")).toBeTruthy();
     expect(screen.getByText("Counter spots")).toBeTruthy();
     expect(screen.getByText("3 more ratings until your next Taste update.")).toBeTruthy();
     expect(screen.getByText("12/15")).toBeTruthy();
@@ -148,6 +149,35 @@ describe("YourFiyuPage", () => {
     expect(screen.getByRole("link", { name: "View all →" }).getAttribute("href")).toBe("/log/history");
     expect(screen.getByText("Coming soon")).toBeTruthy();
     expect(screen.queryByText("Locked")).toBeNull();
+  });
+
+  it("labels limited first-snapshot evidence as an early signal", async () => {
+    api.fetchUserFiyuSummary.mockResolvedValue(summary({
+      rated_visit_count: 10,
+      together_unlocked: true,
+      taste_unlocked: true,
+      taste_current_milestone: 10,
+      taste_next_milestone: 15,
+      ratings_until_next_taste_update: 5,
+      taste_insights: [{
+        id: "early_signal:rating_balance",
+        type: "early_signal",
+        facet_key: "rating_balance",
+        headline: "Your first ratings are balanced",
+        supporting_text: "Your first 10 ratings mix positive, neutral, and lower reactions.",
+        support_count: 10,
+        average_rating: 3.2,
+        delta_from_user_average: 0,
+        change_status: null,
+      }],
+    }));
+
+    render(<YourFiyuPage />);
+
+    expect(await screen.findByText("Early signal")).toBeTruthy();
+    expect(screen.getByText("Based on 10 rated visits")).toBeTruthy();
+    expect(screen.queryByText(/still taking shape/i)).toBeNull();
+    expect(screen.getByText("Every rating helps Fiyu understand your taste.")).toBeTruthy();
   });
 
   it("acknowledges a new milestone once and presents change labels", async () => {

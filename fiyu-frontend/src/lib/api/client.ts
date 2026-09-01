@@ -15,6 +15,7 @@ import {
   dailyPicksRevealUrl,
   developerDailyPicksGenerateUrl,
   developerDailyPicksResetUrl,
+  developerVisitTasteResetUrl,
   developerLocationOverrideUrl,
   developerStatusUrl,
   discoveryLocationCheckUrl,
@@ -48,6 +49,7 @@ import {
   type DiscoveryLocation,
   type DeveloperGeneratePicksResponse,
   type DeveloperResetPicksResponse,
+  type DeveloperResetVisitTasteResponse,
   type DeveloperStatus,
   type CurrentLocationCheck,
   type DefaultListMembershipResponse,
@@ -70,6 +72,7 @@ import {
   dailyPickRevealResponseSchema,
   developerGeneratePicksResponseSchema,
   developerResetPicksResponseSchema,
+  developerResetVisitTasteResponseSchema,
   developerStatusSchema,
   activeDailyPickAssignmentResponseSchema,
   recentDailyPickRoundListSchema,
@@ -673,6 +676,17 @@ export function resetDeveloperDailyPicks(
     developerDailyPicksResetUrl(),
     paths.developerDailyPicksReset,
     developerResetPicksResponseSchema,
+    { ...options, method: "POST" },
+  );
+}
+
+export function resetDeveloperVisitTaste(
+  options: RequestOptions = {},
+): Promise<DeveloperResetVisitTasteResponse> {
+  return requestJson(
+    developerVisitTasteResetUrl(),
+    paths.developerVisitTasteReset,
+    developerResetVisitTasteResponseSchema,
     { ...options, method: "POST" },
   );
 }

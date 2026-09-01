@@ -209,7 +209,11 @@ def _rated_visits_oldest_first(visits: Iterable[dict[str, Any]]) -> list[dict[st
 
 
 def _snapshot_insights(
-    rated_visits: list[dict[str, Any]], catalog: dict[str, dict[str, Any]]
+    rated_visits: list[dict[str, Any]],
+    behavioral_visits: list[dict[str, Any]],
+    catalog: dict[str, dict[str, Any]],
+    saved_place_ids: set[str],
+    exposed_place_ids: set[str],
 ) -> tuple[list[dict[str, Any]], list[dict[str, str]], float | None]:
     if not rated_visits:
         return [], [], None
@@ -228,34 +232,104 @@ def _snapshot_insights(
         for facet in restaurant_taste_facets(catalog.get(place_id, {})):
             observations[facet].append(rating)
 
+    visited_place_ids = {
+        str(visit.get("place_id") or "") for visit in behavioral_visits if visit.get("place_id")
+    }
+    exposed_by_facet: dict[TasteFacet, set[str]] = defaultdict(set)
+    saved_by_facet: dict[TasteFacet, set[str]] = defaultdict(set)
+    visited_by_facet: dict[TasteFacet, set[str]] = defaultdict(set)
+    for place_id in exposed_place_ids:
+        for facet in restaurant_taste_facets(catalog.get(place_id, {})):
+            exposed_by_facet[facet].add(place_id)
+    for place_id in saved_place_ids | visited_place_ids:
+        for facet in restaurant_taste_facets(catalog.get(place_id, {})):
+            if place_id in saved_place_ids:
+                saved_by_facet[facet].add(place_id)
+            if place_id in visited_place_ids:
+                visited_by_facet[facet].add(place_id)
+
     candidates: list[tuple[float, TasteFacet, dict[str, Any]]] = []
-    for facet, ratings in observations.items():
+    all_facets = set(observations) | set(exposed_by_facet)
+    for facet in all_facets:
+        ratings = observations.get(facet, [])
         support = len(ratings)
-        if support < MIN_STRONG_SUPPORT:
-            continue
-        average = sum(ratings) / support
-        delta = average - baseline
-        high_frequency = sum(rating >= 4 for rating in ratings) / support
-        low_frequency = sum(rating <= 2 for rating in ratings) / support
+        average = sum(ratings) / support if ratings else baseline
+        delta = average - baseline if ratings else 0.0
+        high_frequency = sum(rating >= 4 for rating in ratings) / support if support else 0.0
+        low_frequency = sum(rating <= 2 for rating in ratings) / support if support else 0.0
+        exposed = len(exposed_by_facet.get(facet, set()))
+        saved = len(saved_by_facet.get(facet, set()))
+        visited = len(visited_by_facet.get(facet, set()))
+        # Rates are meaningful only relative to restaurants this account was
+        # actually shown. Saves/visits outside that exposure set remain useful
+        # positive actions, but never manufacture an exposure-adjusted rate.
+        exposed_saved = len(saved_by_facet.get(facet, set()) & exposed_by_facet.get(facet, set()))
+        exposed_visited = len(
+            visited_by_facet.get(facet, set()) & exposed_by_facet.get(facet, set())
+        )
+        save_rate = exposed_saved / exposed if exposed else 0.0
+        visit_rate = exposed_visited / exposed if exposed else 0.0
         insight_type: str | None = None
-        if delta >= 0.35 and average >= 4.0:
+        confidence_weight = 0.0
+        if support >= MIN_STRONG_SUPPORT and delta >= 0.35 and average >= 4.0:
             insight_type = "strong_signal"
             supporting = f"You rate these {delta:.1f}★ above your {baseline:.1f}★ average."
-        elif delta <= -0.35 and (average <= 3.0 or low_frequency >= 0.5):
+            confidence_weight = 4.0
+        elif support >= MIN_STRONG_SUPPORT and delta <= -0.35 and (
+            average <= 3.0 or low_frequency >= 0.5
+        ):
             insight_type = "contrast"
             supporting = f"You rate these {abs(delta):.1f}★ below your {baseline:.1f}★ average."
-        elif average >= 4.25 and high_frequency >= 0.75:
+            confidence_weight = 4.0
+        elif support >= MIN_STRONG_SUPPORT and average >= 4.25 and high_frequency >= 0.75:
             insight_type = "reliable_pattern"
             supporting = f"{average:.1f}★ across {support} rated visits."
+            confidence_weight = 3.5
+        elif support >= 2 and average >= 3.75 and delta >= 0.15:
+            insight_type = "emerging"
+            supporting = (
+                f"An early pattern: {average:.1f}★ across {support} rated restaurants."
+            )
+            confidence_weight = 2.5
+        elif exposed >= 3 and exposed_saved >= 2 and save_rate >= 0.4:
+            insight_type = "emerging"
+            supporting = (
+                f"You saved {exposed_saved} of {exposed} surfaced restaurants with this quality."
+            )
+            confidence_weight = 2.0
+        elif exposed >= 3 and exposed_visited >= 2 and visit_rate >= 0.3:
+            insight_type = "emerging"
+            supporting = (
+                f"You visited {exposed_visited} of {exposed} surfaced restaurants with this quality."
+            )
+            confidence_weight = 1.8
+        elif support >= 2 and average >= 3.5:
+            insight_type = "early_signal"
+            supporting = f"A limited early read: {average:.1f}★ across {support} rated restaurants."
+            confidence_weight = 1.2
+        elif exposed >= 5 and exposed_saved == 0 and exposed_visited == 0 and support == 0:
+            insight_type = "early_signal"
+            supporting = (
+                f"You were shown {exposed} restaurants with this quality and have not acted on them yet."
+            )
+            confidence_weight = 0.4
         else:
             continue
-        score = (abs(delta) + (0.3 if insight_type == "reliable_pattern" else 0)) * math.sqrt(support)
+        score = confidence_weight * 100 + (abs(delta) + save_rate + visit_rate) * math.sqrt(
+            max(support, saved, visited, 1)
+        )
         headline = (
             f"{facet.label} keep landing well"
             if insight_type == "strong_signal"
             else f"{facet.label} are a consistent favorite"
             if insight_type == "reliable_pattern"
             else f"{facet.label} land below your usual"
+            if insight_type == "contrast"
+            else f"An early pull toward {facet.label.lower()}"
+            if insight_type == "emerging"
+            else f"No clear pull toward {facet.label.lower()} yet"
+            if support == 0
+            else f"An early read on {facet.label.lower()}"
         )
         candidates.append((score, facet, {
             "id": f"{insight_type}:{facet.key}",
@@ -263,11 +337,38 @@ def _snapshot_insights(
             "facet_key": facet.key,
             "headline": headline,
             "supporting_text": supporting,
-            "support_count": support,
+            "support_count": max(support, saved, visited, exposed, 2),
             "average_rating": round(average, 2),
             "delta_from_user_average": round(delta, 2),
             "change_status": None,
         }))
+
+    high_rated_cuisines: dict[str, int] = defaultdict(int)
+    high_rated_places = 0
+    for place_id, visit in latest_by_place.items():
+        if int(visit["rating"]) < 4:
+            continue
+        high_rated_places += 1
+        for facet in restaurant_taste_facets(catalog.get(place_id, {})):
+            if facet.family == "cuisine":
+                high_rated_cuisines[facet.key] += 1
+    if high_rated_places >= 4 and len(high_rated_cuisines) >= 4:
+        dominant = max(high_rated_cuisines.values(), default=0)
+        if dominant / high_rated_places <= 0.4:
+            breadth = TasteFacet("taste_breadth", "Broad exploration", "breadth")
+            candidates.append((90.0, breadth, {
+                "id": "early_signal:taste_breadth",
+                "type": "early_signal",
+                "facet_key": breadth.key,
+                "headline": "Still exploring broadly",
+                "supporting_text": (
+                    f"Your higher ratings span {len(high_rated_cuisines)} cuisine families; none dominates yet."
+                ),
+                "support_count": high_rated_places,
+                "average_rating": round(baseline, 2),
+                "delta_from_user_average": 0.0,
+                "change_status": None,
+            }))
     candidates.sort(key=lambda item: (-item[0], -item[2]["support_count"], item[1].label))
 
     selected: list[dict[str, Any]] = []
@@ -281,6 +382,82 @@ def _snapshot_insights(
         family_counts[facet.family] += 1
         if len(selected) == 4:
             break
+    if len(rated_visits) >= TASTE_UNLOCK_THRESHOLD and "rating_breadth" not in selected_labels:
+        unique_rating_count = len(latest_by_place)
+        rating_values = [int(visit["rating"]) for visit in latest_by_place.values()]
+        rating_range = max(rating_values) - min(rating_values) if rating_values else 0
+        headline = (
+            "Your first ratings use a broad range"
+            if rating_range >= 2
+            else "Your first ratings are closely grouped"
+        )
+        supporting = (
+            f"You used a {rating_range + 1}-point span across {len(rated_visits)} rated visits."
+            if rating_range >= 2
+            else f"Your first {len(rated_visits)} ratings sit within a narrow {rating_range + 1}-point span."
+        )
+        if len(selected) < 3:
+            selected.append({
+                "id": "early_signal:rating_breadth",
+                "type": "early_signal",
+                "facet_key": "rating_breadth",
+                "headline": headline,
+                "supporting_text": supporting,
+                "support_count": max(unique_rating_count, len(rated_visits), 2),
+                "average_rating": round(baseline, 2),
+                "delta_from_user_average": 0.0,
+                "change_status": None,
+            })
+        selected_labels["rating_breadth"] = "Early Taste read"
+
+    if len(rated_visits) >= TASTE_UNLOCK_THRESHOLD and len(selected) < 3:
+        positive = sum(int(visit["rating"]) >= 4 for visit in rated_visits)
+        low = sum(int(visit["rating"]) <= 2 for visit in rated_visits)
+        if positive >= 6:
+            headline = "Your first ratings lean positive"
+            supporting = f"{positive} of your first {len(rated_visits)} rated visits are 4★ or 5★."
+        elif low >= 4:
+            headline = "You are rating selectively so far"
+            supporting = f"{low} of your first {len(rated_visits)} rated visits are 1★ or 2★."
+        else:
+            headline = "Your first ratings are balanced"
+            supporting = (
+                f"Your first {len(rated_visits)} ratings mix positive, neutral, and lower reactions."
+            )
+        selected.append({
+            "id": "early_signal:rating_balance",
+            "type": "early_signal",
+            "facet_key": "rating_balance",
+            "headline": headline,
+            "supporting_text": supporting,
+            "support_count": len(rated_visits),
+            "average_rating": round(baseline, 2),
+            "delta_from_user_average": 0.0,
+            "change_status": None,
+        })
+        selected_labels["rating_balance"] = "Rating pattern"
+
+    if len(rated_visits) >= TASTE_UNLOCK_THRESHOLD and len(selected) < 3:
+        if baseline >= 4.0:
+            headline = "Your ratings trend positive so far"
+        elif baseline <= 2.5:
+            headline = "You are using the lower end of the scale"
+        else:
+            headline = "Your ratings center near the middle"
+        selected.append({
+            "id": "early_signal:rating_baseline",
+            "type": "early_signal",
+            "facet_key": "rating_baseline",
+            "headline": headline,
+            "supporting_text": (
+                f"Your average across the first {len(rated_visits)} rated visits is {baseline:.1f}★."
+            ),
+            "support_count": len(rated_visits),
+            "average_rating": round(baseline, 2),
+            "delta_from_user_average": 0.0,
+            "change_status": None,
+        })
+        selected_labels["rating_baseline"] = "Rating baseline"
     tags = [
         {"key": item["facet_key"], "label": selected_labels[item["facet_key"]]}
         for item in selected
@@ -294,9 +471,21 @@ def build_taste_snapshot(
     catalog: dict[str, dict[str, Any]],
     milestone: int,
     previous_snapshot: dict[str, Any] | None = None,
+    saved_place_ids: Iterable[str] = (),
+    exposed_place_ids: Iterable[str] = (),
 ) -> dict[str, Any]:
     rated = _rated_visits_oldest_first(visits)[:milestone]
-    insights, tags, baseline = _snapshot_insights(rated, catalog)
+    cutoff = str(rated[-1].get("visited_at") or "") if rated else ""
+    behavioral_visits = [
+        visit for visit in visits if not cutoff or str(visit.get("visited_at") or "") <= cutoff
+    ]
+    insights, tags, baseline = _snapshot_insights(
+        rated,
+        behavioral_visits,
+        catalog,
+        set(saved_place_ids),
+        set(exposed_place_ids),
+    )
     previous_by_facet = {
         str(insight.get("facet_key")): insight
         for insight in (previous_snapshot or {}).get("insights", [])
@@ -326,6 +515,7 @@ def build_user_fiyu_summary(
     saved_place_ids: list[str],
     catalog: dict[str, dict[str, Any]],
     previous_taste_snapshot: dict[str, Any] | None = None,
+    exposed_place_ids: Iterable[str] = (),
 ) -> dict[str, Any]:
     """Build account-private Taste analytics without reading private-note text."""
 
@@ -342,7 +532,13 @@ def build_user_fiyu_summary(
     )
     previous_snapshot = (
         previous_taste_snapshot
-        or build_taste_snapshot(visits=visits, catalog=catalog, milestone=previous_milestone)
+        or build_taste_snapshot(
+            visits=visits,
+            catalog=catalog,
+            milestone=previous_milestone,
+            saved_place_ids=saved_place_ids,
+            exposed_place_ids=exposed_place_ids,
+        )
         if previous_milestone is not None else None
     )
     current_snapshot = (
@@ -351,6 +547,8 @@ def build_user_fiyu_summary(
             catalog=catalog,
             milestone=current_milestone,
             previous_snapshot=previous_snapshot,
+            saved_place_ids=saved_place_ids,
+            exposed_place_ids=exposed_place_ids,
         ) if current_milestone is not None else None
     )
     next_milestone = (

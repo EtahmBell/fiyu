@@ -182,10 +182,18 @@ def shared_account_api(tmp_path, monkeypatch):
         row["acknowledged_at"] = datetime.now(UTC).isoformat()
         return True
 
+    def replace_taste_snapshot(*, user_id, milestone, snapshot):
+        row = taste_snapshots[(user_id, milestone)]
+        row["snapshot"] = snapshot
+        return row
+
     monkeypatch.setattr(api.shared_user_data, "get_taste_snapshot", get_taste_snapshot)
     monkeypatch.setattr(api.shared_user_data, "upsert_taste_snapshot", upsert_taste_snapshot)
     monkeypatch.setattr(
         api.shared_user_data, "acknowledge_taste_snapshot", acknowledge_taste_snapshot
+    )
+    monkeypatch.setattr(
+        api.shared_user_data, "replace_taste_snapshot", replace_taste_snapshot
     )
 
     def active_snapshot(*, user_id, city_id):

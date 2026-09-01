@@ -74,6 +74,56 @@ def test_developer_reset_uses_narrow_service_role_rpc(monkeypatch):
     }
 
 
+def test_visit_taste_reset_uses_narrow_service_role_rpc(monkeypatch):
+    captured: dict[str, object] = {}
+
+    def request(path, *, method, body):
+        captured.update({"path": path, "method": method, "body": body})
+        return {"deleted_visits": 4, "deleted_taste_snapshots": 2}
+
+    monkeypatch.setattr(supabase_user_data, "_request", request)
+
+    assert supabase_user_data.reset_visit_taste_test_data(user_id="user-a") == {
+        "deleted_visits": 4,
+        "deleted_taste_snapshots": 2,
+    }
+    assert captured == {
+        "path": "rpc/reset_fiyu_visit_taste_test_data",
+        "method": "POST",
+        "body": {"p_user_id": "user-a"},
+    }
+
+
+def test_empty_legacy_taste_snapshot_can_be_repaired_without_touching_acknowledgement(monkeypatch):
+    captured: dict[str, object] = {}
+
+    def request(path, *, method, query, body, prefer):
+        captured.update({
+            "path": path,
+            "method": method,
+            "query": query,
+            "body": body,
+            "prefer": prefer,
+        })
+        return [{"snapshot": body["snapshot"], "acknowledged_at": None}]
+
+    monkeypatch.setattr(supabase_user_data, "_request", request)
+    snapshot = {"milestone": 10, "insights": [{"id": "early"}]}
+
+    result = supabase_user_data.replace_taste_snapshot(
+        user_id="user-a", milestone=10, snapshot=snapshot
+    )
+
+    assert result["snapshot"] == snapshot
+    assert captured == {
+        "path": "fiyu_user_taste_snapshots",
+        "method": "PATCH",
+        "query": {"user_id": "eq.user-a", "milestone": "eq.10"},
+        "body": {"snapshot": snapshot},
+        "prefer": "return=representation",
+    }
+
+
 def test_visited_place_ids_are_unique_and_latest_first(monkeypatch):
     captured: dict[str, object] = {}
 

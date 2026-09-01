@@ -65,6 +65,8 @@ def test_nine_ratings_stay_locked_and_ten_unlock_first_snapshot():
     assert ten["taste_current_milestone"] == 10
     assert ten["taste_next_milestone"] == 15
     assert ten["ratings_until_next_taste_update"] == 5
+    assert len(ten["taste_insights"]) >= 1
+    assert all(item["type"] in {"emerging", "early_signal", "reliable_pattern"} for item in ten["taste_insights"])
 
 
 def test_one_five_star_occurrence_is_not_a_supported_insight():
@@ -115,8 +117,96 @@ def test_unknown_budget_is_ignored_and_private_notes_never_change_taste():
     first = build_user_fiyu_summary(visits=visits_a, saved_place_ids=[], catalog=catalog)
     second = build_user_fiyu_summary(visits=visits_b, saved_place_ids=[], catalog=catalog)
 
-    assert first["taste_insights"] == second["taste_insights"] == []
-    assert first["taste_tags"] == second["taste_tags"] == []
+    assert first["taste_insights"] == second["taste_insights"]
+    assert first["taste_tags"] == second["taste_tags"]
+    assert all(item["facet_key"] not in {"budget", "private_rooms", "tasting_course"} for item in first["taste_insights"])
+
+
+def test_mixed_weak_ratings_still_create_explicitly_early_snapshot():
+    ratings = [1, 2, 3, 4, 5, 3, 4, 2, 5, 3]
+    visits = [_visit(f"p-{index}", rating, index) for index, rating in enumerate(ratings)]
+    catalog = {f"p-{index}": _restaurant() for index in range(10)}
+
+    summary = build_user_fiyu_summary(visits=visits, saved_place_ids=[], catalog=catalog)
+
+    assert summary["taste_unlocked"] is True
+    assert len(summary["taste_insights"]) == 3
+    assert {item["type"] for item in summary["taste_insights"]} == {"early_signal"}
+    assert any("balanced" in item["headline"].lower() for item in summary["taste_insights"])
+
+
+def test_diverse_high_ratings_can_surface_truthful_breadth():
+    cuisines = ["Sushi", "French", "Italian", "Chinese", "Indian"]
+    visits = [_visit(f"p-{index}", 5 if index < 5 else 3, index) for index in range(10)]
+    catalog = {
+        f"p-{index}": _restaurant(category=cuisines[index] if index < 5 else "Japanese")
+        for index in range(10)
+    }
+
+    summary = build_user_fiyu_summary(visits=visits, saved_place_ids=[], catalog=catalog)
+
+    breadth = next(item for item in summary["taste_insights"] if item["facet_key"] == "taste_breadth")
+    assert breadth["type"] == "early_signal"
+    assert "none dominates" in breadth["supporting_text"]
+
+
+def test_single_ignored_exposure_is_neutral_but_repeated_ignored_is_only_early():
+    visits = [_visit(f"rated-{index}", 4, index) for index in range(10)]
+    catalog = {
+        **{f"rated-{index}": _restaurant() for index in range(10)},
+        **{f"shown-{index}": _restaurant(counter=True) for index in range(5)},
+    }
+    single = build_user_fiyu_summary(
+        visits=visits,
+        saved_place_ids=[],
+        exposed_place_ids=["shown-0"],
+        catalog=catalog,
+    )
+    repeated = build_user_fiyu_summary(
+        visits=visits,
+        saved_place_ids=[],
+        exposed_place_ids=[f"shown-{index}" for index in range(5)],
+        catalog=catalog,
+    )
+
+    assert all(item["facet_key"] != "counter_seating" for item in single["taste_insights"])
+    ignored = next(item for item in repeated["taste_insights"] if item["facet_key"] == "counter_seating")
+    assert ignored["type"] == "early_signal"
+    assert "not acted" in ignored["supporting_text"]
+
+
+def test_saves_are_secondary_and_explicit_ratings_remain_dominant():
+    visits = [_visit(f"p-{index}", 1 if index < 3 else 4, index) for index in range(10)]
+    catalog = {f"p-{index}": _restaurant(counter=index < 5) for index in range(10)}
+    summary = build_user_fiyu_summary(
+        visits=visits,
+        saved_place_ids=[f"p-{index}" for index in range(5)],
+        exposed_place_ids=[f"p-{index}" for index in range(5)],
+        catalog=catalog,
+    )
+
+    counter = next(item for item in summary["taste_insights"] if item["facet_key"] == "counter_seating")
+    assert counter["type"] == "contrast"
+
+
+def test_exposure_adjusted_save_rate_can_create_an_emerging_affinity():
+    visits = [_visit(f"rated-{index}", 3, index) for index in range(10)]
+    catalog = {
+        **{f"rated-{index}": _restaurant() for index in range(10)},
+        **{f"shown-{index}": _restaurant(counter=True) for index in range(5)},
+    }
+    summary = build_user_fiyu_summary(
+        visits=visits,
+        saved_place_ids=["shown-0", "shown-1", "shown-2"],
+        exposed_place_ids=[f"shown-{index}" for index in range(5)],
+        catalog=catalog,
+    )
+
+    counter = next(item for item in summary["taste_insights"] if item["facet_key"] == "counter_seating")
+    assert counter["type"] == "emerging"
+    assert counter["supporting_text"] == (
+        "You saved 3 of 5 surfaced restaurants with this quality."
+    )
 
 
 def test_milestones_remain_stable_between_refreshes_and_compare_at_fifteen():

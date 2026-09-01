@@ -46,8 +46,8 @@ function Progress({
       ? `Rate your first ${threshold} visits to unlock Fiyu Together.`
       : `Rate ${remaining} more visit${remaining === 1 ? "" : "s"} to unlock Fiyu Together.`
     : completed === 0
-      ? `Rate your first ${threshold} visits to unlock your first taste insights.`
-      : `Rate ${remaining} more visit${remaining === 1 ? "" : "s"} to unlock your first taste insights.`;
+      ? `Rate your first ${threshold} visits to unlock your first Taste.`
+      : `Rate ${remaining} more visit${remaining === 1 ? "" : "s"} to unlock your first Taste.`;
 
   return (
     <div>
@@ -89,7 +89,7 @@ function TasteUpdateProgress({ summary }: { summary: UserFiyuSummary }) {
       <div className="mt-3 h-1 overflow-hidden rounded-full bg-line" aria-hidden="true">
         <div className="h-full rounded-full bg-lavender-500 transition-[width] duration-300" style={{ width: `${percentage}%` }} />
       </div>
-      <p className="mt-3 text-xs text-ink-faint">Your Taste updates as you rate more places.</p>
+      <p className="mt-3 text-xs text-ink-faint">Every rating helps Fiyu understand your taste.</p>
     </div>
   );
 }
@@ -100,6 +100,16 @@ function changeLabel(value: UserFiyuSummary["taste_insights"][number]["change_st
   if (value === "still_true") return "Still true";
   if (value === "emerging") return "Emerging";
   return null;
+}
+
+function confidenceLabel(insight: UserFiyuSummary["taste_insights"][number]): string {
+  const change = changeLabel(insight.change_status);
+  if (change) return change;
+  if (insight.type === "strong_signal") return "Strong signal";
+  if (insight.type === "reliable_pattern") return "Reliable pattern";
+  if (insight.type === "contrast") return "Supported contrast";
+  if (insight.type === "emerging") return "Emerging";
+  return "Early signal";
 }
 
 function TasteSection({
@@ -156,25 +166,21 @@ function TasteSection({
       {summary.taste_insights.length > 0 ? (
         <div className="mt-6 grid gap-3">
           {summary.taste_insights.map((insight, index) => {
-            const change = changeLabel(insight.change_status);
+            const label = confidenceLabel(insight);
             return (
               <article
                 key={insight.id}
                 className={`border-t border-line pt-4 transition duration-500 motion-reduce:translate-y-0 motion-reduce:opacity-100 ${revealed || !summary.taste_has_unseen_update ? "translate-y-0 opacity-100" : "translate-y-1 opacity-0"}`}
                 style={{ transitionDelay: `${index * 90}ms` }}
               >
-                {change ? <p className="text-[0.625rem] font-semibold tracking-[0.14em] text-lavender-700 uppercase">{change}</p> : null}
+                <p className="text-[0.625rem] font-semibold tracking-[0.14em] text-lavender-700 uppercase">{label}</p>
                 <h3 className="mt-1 font-display text-xl leading-snug text-ink">{insight.headline}</h3>
                 <p className="mt-1.5 text-sm leading-6 text-ink-muted">{insight.supporting_text}</p>
               </article>
             );
           })}
         </div>
-      ) : (
-        <p className="mt-5 text-sm leading-6 text-ink-body">
-          Your first patterns are still taking shape. Keep rating places and they’ll appear here.
-        </p>
-      )}
+      ) : null}
       <TasteUpdateProgress summary={summary} />
     </section>
   );

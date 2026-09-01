@@ -47,6 +47,7 @@ export const paths = {
   developerLocationOverride: "/developer/location-override",
   developerDailyPicksGenerate: "/developer/daily-picks/generate",
   developerDailyPicksReset: "/developer/daily-picks/reset",
+  developerVisitTasteReset: "/developer/visit-taste/reset",
   seenRestaurants: "/seen/restaurants",
   mapRestaurants: "/map/restaurants",
   authenticatedMapRestaurants: "/profiles/me/map-restaurants",
@@ -92,6 +93,10 @@ export function developerDailyPicksGenerateUrl(): string {
 
 export function developerDailyPicksResetUrl(): string {
   return `${getApiBaseUrl()}${paths.developerDailyPicksReset}`;
+}
+
+export function developerVisitTasteResetUrl(): string {
+  return `${getApiBaseUrl()}${paths.developerVisitTasteReset}`;
 }
 
 export function seenRestaurantsUrl(): string {

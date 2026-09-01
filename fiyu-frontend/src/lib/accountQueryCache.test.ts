@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   accountQueryKey,
+  clearAccountQuery,
   clearAccountQueries,
   loadAccountQuery,
   readAccountQuery,
@@ -38,6 +39,18 @@ describe("account query cache", () => {
 
     expect(readAccountQuery(accountA)).toEqual(["visit-a"]);
     expect(readAccountQuery(accountB)).toEqual(["visit-b"]);
+  });
+
+  it("invalidates one account resource without clearing unrelated cached data", () => {
+    const log = accountQueryKey("restaurant-log", "account-a");
+    const picks = accountQueryKey("daily-picks", "account-a");
+    writeAccountQuery(log, ["visit"]);
+    writeAccountQuery(picks, ["pick"]);
+
+    clearAccountQuery(log);
+
+    expect(readAccountQuery(log)).toBeUndefined();
+    expect(readAccountQuery(picks)).toEqual(["pick"]);
   });
 
   it("keeps a cached value available while a forced revalidation is in flight", async () => {

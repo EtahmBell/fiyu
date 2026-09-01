@@ -61,6 +61,14 @@ def developer_api(tmp_path, monkeypatch):
         "active": {DEV_USER: None, NORMAL_USER: {"round_id": "normal-round"}},
         "expired": [],
         "reset": [],
+        "visits": {
+            DEV_USER: [{"id": "dev-visit", "rating": 5, "private_note": "private"}],
+            NORMAL_USER: [{"id": "normal-visit", "rating": 2, "private_note": "other"}],
+        },
+        "taste": {DEV_USER: [{"milestone": 10}], NORMAL_USER: [{"milestone": 10}]},
+        "saved": {DEV_USER: {"saved-place"}, NORMAL_USER: {"other-saved"}},
+        "profiles": {DEV_USER: {"username": "dev"}, NORMAL_USER: {"username": "normal"}},
+        "visit_taste_reset": [],
     }
 
     def authenticate(authorization):
@@ -134,6 +142,21 @@ def developer_api(tmp_path, monkeypatch):
         return {"deleted_rounds": deleted_rounds, "deleted_seen": deleted_seen}
 
     monkeypatch.setattr(api.shared_user_data, "reset_daily_pick_test_state", reset)
+
+    def reset_visit_taste(*, user_id):
+        state["visit_taste_reset"].append(user_id)
+        deleted_visits = len(state["visits"].get(user_id, []))
+        deleted_taste_snapshots = len(state["taste"].get(user_id, []))
+        state["visits"][user_id] = []
+        state["taste"][user_id] = []
+        return {
+            "deleted_visits": deleted_visits,
+            "deleted_taste_snapshots": deleted_taste_snapshots,
+        }
+
+    monkeypatch.setattr(
+        api.shared_user_data, "reset_visit_taste_test_data", reset_visit_taste
+    )
     return TestClient(api.app), state
 
 
@@ -282,3 +305,64 @@ def test_reset_is_minimal_and_cannot_touch_another_account(developer_api):
     assert state["seen"][DEV_USER] == {}
     assert (state["active"][NORMAL_USER], state["seen"][NORMAL_USER]) == normal_before
     assert state["reset"] == [(DEV_USER, "tokyo")]
+
+
+def test_visit_taste_reset_is_account_owned_and_preserves_other_state(developer_api):
+    client, state = developer_api
+    preserved = {
+        "saved": {key: set(value) for key, value in state["saved"].items()},
+        "active": {key: value.copy() if value else None for key, value in state["active"].items()},
+        "seen": {key: value.copy() for key, value in state["seen"].items()},
+        "profiles": {key: value.copy() for key, value in state["profiles"].items()},
+        "normal_visits": list(state["visits"][NORMAL_USER]),
+        "normal_taste": list(state["taste"][NORMAL_USER]),
+    }
+
+    response = client.post(
+        "/developer/visit-taste/reset",
+        headers={"Authorization": "Bearer dev"},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "reset": True,
+        "deleted_visits": 1,
+        "deleted_taste_snapshots": 1,
+    }
+    assert state["visits"][DEV_USER] == []
+    assert state["taste"][DEV_USER] == []
+    assert state["visits"][NORMAL_USER] == preserved["normal_visits"]
+    assert state["taste"][NORMAL_USER] == preserved["normal_taste"]
+    assert state["saved"] == preserved["saved"]
+    assert state["active"] == preserved["active"]
+    assert state["seen"] == preserved["seen"]
+    assert state["profiles"] == preserved["profiles"]
+    assert state["visit_taste_reset"] == [DEV_USER]
+
+
+def test_visit_taste_reset_reuses_developer_authorization(developer_api, monkeypatch):
+    client, _state = developer_api
+    endpoint = "/developer/visit-taste/reset"
+
+    assert client.post(endpoint).status_code == 401
+    assert client.post(endpoint, headers={"Authorization": "Bearer normal"}).status_code == 404
+    monkeypatch.setenv("FIYU_ENABLE_DEV_TOOLS", "false")
+    assert client.post(endpoint, headers={"Authorization": "Bearer dev"}).status_code == 404
+
+
+def test_visit_taste_reset_migration_is_service_role_only():
+    migration = (
+        api.BACKEND_ROOT
+        / "supabase"
+        / "migrations"
+        / "202608310002_reset_visit_taste_test_data.sql"
+    ).read_text(encoding="utf-8")
+
+    assert "security definer" in migration
+    assert "delete from public.fiyu_restaurant_visits where user_id = p_user_id" in migration
+    assert "delete from public.fiyu_user_taste_snapshots where user_id = p_user_id" in migration
+    assert "from public, anon, authenticated" in migration
+    assert "to service_role" in migration
+    assert "fiyu_restaurant_lists" not in migration
+    assert "fiyu_daily_pick_rounds" not in migration
+    assert "fiyu_restaurant_seen" not in migration

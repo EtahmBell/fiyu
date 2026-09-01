@@ -4,14 +4,24 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const api = vi.hoisted(() => ({
+  fetchAuthenticatedMapRestaurants: vi.fn(),
   fetchDeveloperStatus: vi.fn(),
+  fetchUserFiyuSummary: vi.fn(),
   generateDeveloperDailyPicks: vi.fn(),
   resetDeveloperDailyPicks: vi.fn(),
+  resetDeveloperVisitTaste: vi.fn(),
   updateDeveloperLocation: vi.fn(),
 }));
 
+const cache = vi.hoisted(() => ({
+  accountQueryKey: vi.fn((resource: string, accountId: string) => `${resource}:${accountId}`),
+  clearAccountQuery: vi.fn(),
+  clearAccountQueries: vi.fn(),
+  writeAccountQuery: vi.fn(),
+}));
+
 vi.mock("@/lib/api/client", () => api);
-vi.mock("@/lib/accountQueryCache", () => ({ clearAccountQueries: vi.fn() }));
+vi.mock("@/lib/accountQueryCache", () => cache);
 vi.mock("@/lib/auth/authService", () => ({
   authService: {
     getSession: vi.fn(async () => ({ userId: "developer-user" })),
@@ -33,9 +43,16 @@ const status = {
 beforeEach(() => {
   window.localStorage.clear();
   api.fetchDeveloperStatus.mockReset();
+  api.fetchAuthenticatedMapRestaurants.mockReset();
+  api.fetchUserFiyuSummary.mockReset();
   api.generateDeveloperDailyPicks.mockReset();
   api.resetDeveloperDailyPicks.mockReset();
+  api.resetDeveloperVisitTaste.mockReset();
   api.updateDeveloperLocation.mockReset();
+  cache.accountQueryKey.mockClear();
+  cache.clearAccountQuery.mockClear();
+  cache.clearAccountQueries.mockClear();
+  cache.writeAccountQuery.mockClear();
 });
 
 afterEach(() => {
@@ -154,5 +171,53 @@ describe("DeveloperTools", () => {
 
     await waitFor(() => expect(api.resetDeveloperDailyPicks).toHaveBeenCalledOnce());
     expect(await screen.findByText(/2 rounds, 6 seen rows/)).toBeTruthy();
+  });
+
+  it("confirms visit and Taste reset in an app dialog and refreshes account caches", async () => {
+    const lockedSummary = {
+      visited_count: 0,
+      saved_count: 1,
+      area_count: 0,
+      rated_visit_count: 0,
+      taste_unlocked: false,
+    };
+    api.fetchDeveloperStatus.mockResolvedValue(status);
+    api.resetDeveloperVisitTaste.mockResolvedValue({
+      reset: true,
+      deleted_visits: 3,
+      deleted_taste_snapshots: 1,
+    });
+    api.fetchUserFiyuSummary.mockResolvedValue(lockedSummary);
+    api.fetchAuthenticatedMapRestaurants.mockResolvedValue([]);
+
+    render(<DeveloperTools />);
+    fireEvent.click(await screen.findByRole("button", { name: "Reset visit & Taste test data" }));
+
+    expect(screen.getByRole("dialog", { name: "Reset visit & Taste test data?" })).toBeTruthy();
+    expect(api.resetDeveloperVisitTaste).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Reset test data" }));
+
+    await waitFor(() => expect(api.resetDeveloperVisitTaste).toHaveBeenCalledOnce());
+    expect(cache.writeAccountQuery).toHaveBeenCalledWith("restaurant-log:developer-user", []);
+    expect(cache.clearAccountQuery).toHaveBeenCalledWith("restaurant-log:developer-user");
+    expect(cache.clearAccountQuery).toHaveBeenCalledWith("user-fiyu-summary:developer-user");
+    expect(cache.clearAccountQuery).toHaveBeenCalledWith("map-restaurants:developer-user");
+    expect(cache.writeAccountQuery).toHaveBeenCalledWith(
+      "user-fiyu-summary:developer-user",
+      lockedSummary,
+    );
+    expect(cache.writeAccountQuery).toHaveBeenCalledWith("map-restaurants:developer-user", []);
+    expect(await screen.findByText(/3 visits, 1 Taste snapshots/)).toBeTruthy();
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("can cancel the visit and Taste reset without calling the API", async () => {
+    api.fetchDeveloperStatus.mockResolvedValue(status);
+    render(<DeveloperTools />);
+    fireEvent.click(await screen.findByRole("button", { name: "Reset visit & Taste test data" }));
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(api.resetDeveloperVisitTaste).not.toHaveBeenCalled();
   });
 });
