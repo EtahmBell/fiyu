@@ -165,6 +165,65 @@ describe("YourFiyuPage", () => {
     expect(screen.queryByText("Locked")).toBeNull();
   });
 
+  it("features the leading observation and compresses the rest on mobile", async () => {
+    const insight = (key: string, headline: string, label: UserFiyuSummary["taste_insights"][number]["type"]) => ({
+      id: `${label}:${key}`,
+      type: label,
+      facet_key: key,
+      confidence: "strong" as const,
+      direction: "positive" as const,
+      headline,
+      description: `${headline}, according to your ratings so far.`,
+      supporting_text: "Evidence stays out of the UI.",
+      support_count: 4,
+      average_rating: 4.4,
+      delta_from_user_average: 0.4,
+      save_affinity: 0,
+      visit_affinity: 0,
+      evidence_summary: "Evidence stays out of the UI.",
+      change_status: null,
+    });
+    api.fetchUserFiyuSummary.mockResolvedValue(summary({
+      rated_visit_count: 15,
+      together_unlocked: true,
+      taste_unlocked: true,
+      taste_current_milestone: 15,
+      taste_next_milestone: 20,
+      ratings_until_next_taste_update: 5,
+      taste_insights: [
+        insight("counter_seating", "Counter spots keep landing well", "strong_signal"),
+        insight("affordable", "Affordable picks", "emerging"),
+        insight("seasonal", "Seasonal cooking", "reliable_pattern"),
+      ],
+    }));
+
+    render(<YourFiyuPage />);
+
+    const featured = (await screen.findByText("Counter spots keep landing well")).closest("li")!;
+    const second = screen.getByText("Affordable picks").closest("li")!;
+    const third = screen.getByText("Seasonal cooking").closest("li")!;
+
+    // The lead observation keeps the editorial block: no row grid, larger headline.
+    expect(featured.className).not.toContain("grid-cols-[minmax(0,1fr)_auto]");
+    expect(screen.getByText("Counter spots keep landing well").className).toContain("text-[1.5rem]");
+
+    // The rest become two-line rows with the status hung beside the headline.
+    for (const row of [second, third]) {
+      expect(row.className).toContain("grid-cols-[minmax(0,1fr)_auto]");
+    }
+    expect(screen.getByText("Emerging").className).toContain("col-start-2");
+    expect(screen.getByText("Affordable picks").className).toContain("text-[1.0625rem]");
+
+    // One stronger hairline marks the change of register, then it lightens again.
+    expect(second.className).toContain("border-line-strong");
+    expect(third.className).not.toContain("border-line-strong");
+
+    // Desktop keeps a single rhythm for every observation.
+    for (const row of [featured, second, third]) {
+      expect(row.className).toContain("sm:grid-cols-[8.5rem_minmax(0,1fr)]");
+    }
+  });
+
   it("labels limited first-snapshot evidence as an early signal", async () => {
     api.fetchUserFiyuSummary.mockResolvedValue(summary({
       rated_visit_count: 10,

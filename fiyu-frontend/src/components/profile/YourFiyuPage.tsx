@@ -24,6 +24,14 @@ import { cn } from "@/lib/utils/cn";
  * sits on plain canvas and earns its structure from rules, gutters and
  * whitespace. Champagne appears once, at the foot, as two hairlines and a chip
  * around Fiyu Together -- past/future warmth, never a fill.
+ *
+ * Below `sm` that band is composed differently, because at 390px the same
+ * treatment stopped working: a wash covering 1100px of scroll is not a tint, it
+ * is a screen, and four observations at one size is a list rather than a
+ * hierarchy. So on a phone the tint contracts to a plate under the masthead, the
+ * rest of the section returns to canvas, and the first observation is featured
+ * while the others compress into rows. Every one of those rules is a base
+ * utility restored at `sm:`, so from 640px up nothing is changed at all.
  */
 
 /** One measure for every band, so the bleeding backgrounds never break the column. */
@@ -33,13 +41,30 @@ const MEASURE = "mx-auto w-full max-w-[74rem] px-5 sm:px-8 lg:px-12";
 const MICRO_CAPS = "text-[0.625rem] font-semibold tracking-[0.16em] uppercase";
 
 /**
- * The Taste reveal step.
+ * The Taste masthead plate, on a phone only.
  *
- * A new snapshot arrives one observation at a time. 140ms is far enough apart to
- * be read as separate arrivals and close enough that four of them are finished
- * inside 700ms -- the page should feel composed, not narrated.
+ * The lavender bleeds to both edges behind the eyebrow, the heading and the
+ * dateline, and stops. What follows is canvas, which is what lets the featured
+ * observation read as the first thing in the section rather than as more of the
+ * same field. `sm:` returns the block to a plain run inside the tinted band.
  */
-const REVEAL_STEP_MS = 140;
+const TASTE_PLATE =
+  "-mx-5 border-b border-line bg-lavender-50/60 px-5 pt-7 pb-5 sm:mx-0 sm:border-b-0 sm:bg-transparent sm:px-0 sm:pt-0 sm:pb-0";
+
+/**
+ * The Taste reveal steps.
+ *
+ * The lead observation arrives first and alone, then the secondary rows follow
+ * at a quicker beat, then the tags and the milestone. Four insights now finish
+ * inside 500ms rather than the 700ms a flat stagger took, so the hierarchy is
+ * expressed in the timing without the reveal running any longer.
+ */
+const FEATURED_STEP_MS = 140;
+const SECONDARY_STEP_MS = 90;
+
+function insightDelay(index: number): number {
+  return index === 0 ? 0 : FEATURED_STEP_MS + (index - 1) * SECONDARY_STEP_MS;
+}
 
 const REVEAL_BASE =
   "transition duration-500 ease-(--ease-fiyu) motion-reduce:translate-y-0 motion-reduce:opacity-100";
@@ -161,7 +186,7 @@ function TasteUpdateProgress({
   return (
     <div
       {...motion}
-      className={cn(separated && "mt-9 border-t border-line pt-6 lg:mt-10", motion.className)}
+      className={cn(separated && "mt-6 border-t border-line pt-4 sm:mt-9 sm:pt-6 lg:mt-10", motion.className)}
     >
       <div className="flex items-baseline justify-between gap-4">
         <p className={cn(MICRO_CAPS, "text-ink-faint")}>Next Taste update</p>
@@ -171,15 +196,15 @@ function TasteUpdateProgress({
           {`${summary.rated_visit_count} → ${summary.taste_next_milestone}`}
         </p>
       </div>
-      <p className="mt-2 font-display text-2xl leading-tight text-ink">
+      <p className="mt-1.5 font-display text-xl leading-tight text-ink sm:mt-2 sm:text-2xl">
         {remaining > 0
           ? `${remaining} more rating${remaining === 1 ? "" : "s"}`
           : "Your next update is ready"}
       </p>
-      <div className="mt-4 h-0.5 overflow-hidden rounded-full bg-line" aria-hidden="true">
+      <div className="mt-3 h-0.5 overflow-hidden rounded-full bg-line sm:mt-4" aria-hidden="true">
         <div className="h-full rounded-full bg-lavender-500 transition-[width] duration-300" style={{ width: `${percentage}%` }} />
       </div>
-      <p className="mt-3 text-xs leading-5 text-ink-faint">Every rating helps Fiyu understand your taste.</p>
+      <p className="mt-2.5 text-xs leading-5 text-ink-faint sm:mt-3">Every rating helps Fiyu understand your taste.</p>
     </div>
   );
 }
@@ -203,19 +228,34 @@ function confidenceLabel(insight: UserFiyuSummary["taste_insights"][number]): st
 }
 
 /**
- * One observation, set as an editorial column.
+ * One observation.
  *
- * From `sm` the status label hangs in a left gutter and every headline starts on
- * the same axis, which is what stops four of these reading as four widgets. A
- * lavender dot marks the two statuses that mean something actually moved in this
- * snapshot; the label itself stays ink, because it is context rather than the
- * point.
+ * From `sm` this is an editorial column: the status label hangs in a left gutter
+ * and every headline starts on the same axis, which is what stops four of these
+ * reading as four widgets. A lavender dot marks the two statuses that mean
+ * something actually moved in this snapshot; the label itself stays ink, because
+ * it is context rather than the point.
+ *
+ * On a phone that even rhythm is the problem rather than the solution -- four
+ * blocks of label, serif headline and paragraph is a page of prose with no way
+ * in. So the lead observation keeps the block, at a size above everything under
+ * it and with the status in lavender, and the rest become two-line rows: the
+ * headline with its status hung to the right of it, then one tighter line of
+ * supporting copy. Same three fields, same order, a third of the height.
+ *
+ * Every mobile rule here is a base utility with an `sm:` counterpart restoring
+ * the column, so the desktop composition is untouched.
  */
 function TasteInsight({
   insight,
+  featured,
+  secondaryLead,
   ...motion
 }: {
   insight: UserFiyuSummary["taste_insights"][number];
+  featured: boolean;
+  /** The first secondary row, which carries the one stronger hairline. */
+  secondaryLead: boolean;
 } & ReturnType<typeof reveal>) {
   const label = confidenceLabel(insight);
   const marked = insight.change_status === "new" || insight.change_status === "stronger";
@@ -223,20 +263,51 @@ function TasteInsight({
     <li
       {...motion}
       className={cn(
-        "border-t border-line py-6 first:border-t-0 first:pt-0 sm:grid sm:grid-cols-[8.5rem_minmax(0,1fr)] sm:gap-8",
+        featured
+          ? "pb-5"
+          : cn(
+              "grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-3 border-t py-4",
+              /* One rule carries the change of register from featured to
+                 secondary; the rows below it stay on the lighter hairline. */
+              secondaryLead ? "border-line-strong" : "border-line",
+            ),
+        "sm:grid sm:grid-cols-[8.5rem_minmax(0,1fr)] sm:gap-x-8 sm:gap-y-0 sm:border-t sm:border-line sm:py-6 sm:first:border-t-0 sm:first:pt-0",
         motion.className,
       )}
     >
-      <p className={cn("flex items-center gap-2", MICRO_CAPS, "text-plum sm:pt-1.5")}>
+      <p
+        className={cn(
+          "flex items-center gap-2",
+          MICRO_CAPS,
+          featured ? "text-lavender-700" : "col-start-2 row-start-1 justify-self-end text-ink-muted",
+          "sm:col-start-1 sm:row-start-1 sm:justify-self-start sm:pt-1.5 sm:text-plum",
+        )}
+      >
         {marked ? <span aria-hidden="true" className="h-1 w-1 shrink-0 rounded-full bg-lavender-500" /> : null}
         {label}
       </p>
-      <div className="mt-2 sm:mt-0">
-        <h3 className="max-w-[30ch] font-display text-[1.375rem] leading-[1.22] tracking-[-0.01em] text-ink sm:text-2xl">
-          {insight.headline}
-        </h3>
-        <p className="mt-2 max-w-[52ch] text-sm leading-6 text-ink-body">{insight.description}</p>
-      </div>
+      <h3
+        className={cn(
+          "max-w-[30ch] font-display tracking-[-0.01em] text-ink",
+          featured
+            ? "mt-1.5 text-[1.5rem] leading-[1.15]"
+            : "col-start-1 row-start-1 text-[1.0625rem] leading-[1.25]",
+          "sm:col-start-2 sm:row-start-1 sm:mt-0 sm:text-2xl sm:leading-[1.22]",
+        )}
+      >
+        {insight.headline}
+      </h3>
+      <p
+        className={cn(
+          "max-w-[52ch]",
+          featured
+            ? "mt-2 text-sm leading-6 text-ink-body"
+            : "col-span-2 col-start-1 row-start-2 mt-1 text-[0.8125rem] leading-[1.45] text-ink-muted",
+          "sm:col-span-1 sm:col-start-2 sm:row-start-2 sm:mt-2 sm:text-sm sm:leading-6 sm:text-ink-body",
+        )}
+      >
+        {insight.description}
+      </p>
     </li>
   );
 }
@@ -272,26 +343,38 @@ function TasteSection({
     };
   }, [onAcknowledge, summary.taste_current_milestone, summary.taste_has_unseen_update]);
 
-  const band = "border-y border-line bg-lavender-50/50";
+  /*
+   * The band.
+   *
+   * Tinted from `sm` and canvas below it, with the closing hairline stepped up
+   * to `line-strong` on a phone: once the section is no longer a coloured field,
+   * that rule is the whole boundary between Taste and Recent visits, so it does
+   * the work the background used to do. The two edges are coloured separately
+   * rather than through `border-line`, so nothing depends on which of two
+   * unprefixed border-colour utilities Tailwind happens to emit first.
+   */
+  const band = "border-y border-t-line border-b-line-strong sm:border-b-line sm:bg-lavender-50/50";
 
   if (!summary.taste_unlocked) {
     return (
       <section className={band} aria-labelledby="taste-title">
-        <div className={cn(MEASURE, "py-11 sm:py-14 lg:py-16")}>
+        <div className={cn(MEASURE, "pt-0 pb-10 sm:py-14 lg:py-16")}>
           <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_20rem] lg:gap-14">
-            <div>
+            <div className={TASTE_PLATE}>
               <Eyebrow>Your Taste</Eyebrow>
               <h2
                 id="taste-title"
-                className="mt-4 max-w-[24ch] font-display text-[clamp(2.125rem,8vw,3.25rem)] leading-[1.02] tracking-[-0.02em] text-ink"
+                className="mt-3 max-w-[24ch] font-display text-[clamp(2.125rem,8vw,3.25rem)] leading-[1.02] tracking-[-0.02em] text-ink sm:mt-4"
               >
                 Your taste is taking shape.
               </h2>
-              <p className="mt-4 max-w-[52ch] text-sm leading-6 text-ink-body">
+              <p className="mt-3 max-w-[52ch] text-sm leading-6 text-ink-body sm:mt-4">
                 Your ratings help Fiyu recognize patterns without turning a single meal into a verdict.
               </p>
             </div>
-            <div className="mt-9 border-t border-line pt-6 lg:mt-0 lg:border-t-0 lg:border-l lg:pt-2 lg:pl-12">
+            {/* The plate's own bottom edge separates this on a phone, so the rule
+                and the wider gap above it only come back at `sm`. */}
+            <div className="mt-6 sm:mt-9 sm:border-t sm:border-line sm:pt-6 lg:mt-0 lg:border-t-0 lg:pt-2 lg:pl-12 lg:border-l">
               <Progress summary={summary} />
             </div>
           </div>
@@ -301,49 +384,54 @@ function TasteSection({
   }
 
   const pending = summary.taste_has_unseen_update && !revealed;
-  const tagsDelay = summary.taste_insights.length * REVEAL_STEP_MS;
+  const insightCount = summary.taste_insights.length;
+  const tagsDelay = insightCount > 0 ? insightDelay(insightCount - 1) + SECONDARY_STEP_MS : 0;
 
   return (
     <section className={band} aria-labelledby="taste-title">
-      <div className={cn(MEASURE, "py-11 sm:py-14 lg:py-16")}>
+      <div className={cn(MEASURE, "pt-0 pb-10 sm:py-14 lg:py-16")}>
         <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_20rem] lg:gap-14">
           <div>
-            {summary.taste_has_unseen_update ? (
-              <Eyebrow className="mb-4">Your Taste just updated</Eyebrow>
-            ) : null}
-            <h2
-              id="taste-title"
-              className="font-display text-[clamp(2.375rem,9vw,3.75rem)] leading-[0.98] tracking-[-0.025em] text-ink"
-            >
-              Your taste
-            </h2>
-            <p className="mt-4 flex items-center gap-3 text-sm text-ink-muted">
-              <span aria-hidden="true" className="h-px w-6 shrink-0 bg-line-strong" />
-              Based on {summary.rated_visit_count} rated visit{summary.rated_visit_count === 1 ? "" : "s"}
-            </p>
+            <div className={TASTE_PLATE}>
+              {summary.taste_has_unseen_update ? (
+                <Eyebrow className="mb-3 sm:mb-4">Your Taste just updated</Eyebrow>
+              ) : null}
+              <h2
+                id="taste-title"
+                className="font-display text-[clamp(2.375rem,9vw,3.75rem)] leading-[0.98] tracking-[-0.025em] text-ink"
+              >
+                Your taste
+              </h2>
+              <p className="mt-3 flex items-center gap-3 text-sm text-ink-muted sm:mt-4">
+                <span aria-hidden="true" className="h-px w-6 shrink-0 bg-line-strong" />
+                Based on {summary.rated_visit_count} rated visit{summary.rated_visit_count === 1 ? "" : "s"}
+              </p>
+            </div>
 
             {summary.taste_type ? (
-              <div className="mt-8 border-l border-gold-line pl-5">
+              <div className="mt-6 border-l border-gold-line pl-5 sm:mt-8">
                 <p className={cn(MICRO_CAPS, "text-gold-700")}>Your Fiyu type</p>
                 <p className="mt-1.5 font-display text-2xl leading-tight text-ink">{summary.taste_type.name}</p>
                 <p className="mt-2 max-w-[52ch] text-sm leading-6 text-ink-body">{summary.taste_type.description}</p>
               </div>
             ) : null}
 
-            {summary.taste_insights.length > 0 ? (
-              <ol className="mt-9">
+            {insightCount > 0 ? (
+              <ol className="mt-5 sm:mt-9">
                 {summary.taste_insights.map((insight, index) => (
                   <TasteInsight
                     key={insight.id}
                     insight={insight}
-                    {...reveal(pending, index * REVEAL_STEP_MS)}
+                    featured={index === 0}
+                    secondaryLead={index === 1}
+                    {...reveal(pending, insightDelay(index))}
                   />
                 ))}
               </ol>
             ) : null}
           </div>
 
-          <div className="mt-10 border-t border-line pt-7 lg:mt-0 lg:border-t-0 lg:border-l lg:pt-2 lg:pl-12">
+          <div className="mt-7 border-t border-line pt-5 sm:mt-10 sm:pt-7 lg:mt-0 lg:border-t-0 lg:border-l lg:pt-2 lg:pl-12">
             {summary.taste_tags.length > 0 ? (
               <div {...reveal(pending, tagsDelay)}>
                 <p className={cn(MICRO_CAPS, "text-ink-faint")}>Your taste right now</p>
@@ -354,13 +442,13 @@ function TasteSection({
                  */}
                 <ul
                   aria-label="Your Taste right now"
-                  className="mt-3 flex flex-wrap items-baseline font-display text-xl leading-[1.6] text-plum"
+                  className="mt-2.5 flex flex-wrap items-baseline font-display text-lg leading-[1.55] text-plum sm:mt-3 sm:text-xl sm:leading-[1.6]"
                 >
                   {summary.taste_tags.map((tag, index) => (
                     <li key={tag.key} className="flex items-baseline">
                       <span>{tag.label}</span>
                       {index < summary.taste_tags.length - 1 ? (
-                        <span aria-hidden="true" className="px-2.5 text-lavender-600">·</span>
+                        <span aria-hidden="true" className="px-2 text-lavender-600 sm:px-2.5">·</span>
                       ) : null}
                     </li>
                   ))}
@@ -370,7 +458,7 @@ function TasteSection({
             <TasteUpdateProgress
               summary={summary}
               separated={summary.taste_tags.length > 0}
-              {...reveal(pending, tagsDelay + REVEAL_STEP_MS)}
+              {...reveal(pending, tagsDelay + SECONDARY_STEP_MS)}
             />
           </div>
         </div>
