@@ -122,6 +122,38 @@ describe("ProfileWorkspace", () => {
     expect(navigation.back).not.toHaveBeenCalled();
   });
 
+  it("returns the deeper settings screens to Settings rather than skipping a level", () => {
+    for (const [section, title, standfirst] of [
+      ["account", "Account", "Manage your Fiyu account session."],
+      ["notifications", "Notifications", "Choose how Fiyu keeps you updated."],
+      ["privacy", "Privacy", "How Fiyu handles your location and private Log."],
+      ["help", "Help & support", "Support options for using Fiyu."],
+      ["about", "About Fiyu", "Product and legal information."],
+    ] as const) {
+      pathname.current = `/profile/${section}`;
+      const rendered = render(<ProfileWorkspace section={section} mobileTitle={title} />);
+
+      const back = screen.getByRole("link", { name: "Back to Settings" });
+      expect(back.getAttribute("href")).toBe("/profile/settings");
+      expect(back.textContent).toContain("Settings");
+      expect(back.className).toContain("min-h-11");
+
+      // Exactly one visible page title, and it is the subpage header's h1.
+      const titles = screen.getAllByRole("heading", { name: title });
+      expect(titles).toHaveLength(1);
+      expect(titles[0].tagName).toBe("H1");
+      expect(titles[0]).toBe(screen.getByRole("heading", { name: title, level: 1 }));
+      // The section's standfirst is copy, not a repeat of the title, so it stays.
+      expect(screen.getByText(standfirst)).toBeTruthy();
+
+      fireEvent.click(back);
+      expect(navigation.push).toHaveBeenLastCalledWith("/profile/settings");
+      rendered.unmount();
+    }
+
+    expect(screen.queryByRole("link", { name: "Back to Your Fiyu" })).toBeNull();
+  });
+
   it("pops history only where Your Fiyu is provably the entry behind the subpage", () => {
     vi.spyOn(window.performance, "getEntriesByType").mockReturnValue([
       { name: "http://localhost:3000/profile" } as unknown as PerformanceEntry,

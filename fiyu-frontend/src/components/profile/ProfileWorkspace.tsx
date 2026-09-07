@@ -22,7 +22,8 @@ import {
 import { prepareAvatarImage } from "@/lib/profile/avatarImage";
 import {
   PROFILE_HOME,
-  canPopToProfileHome,
+  PROFILE_SETTINGS,
+  canPopToProfileParent,
   noteProfileSubpage,
 } from "@/lib/navigation/profileSubpage";
 import { cn } from "@/lib/utils/cn";
@@ -54,6 +55,20 @@ const LABEL_CLASS =
 const MICRO_CAPS = "text-[0.625rem] font-semibold tracking-[0.16em] uppercase";
 
 /**
+ * The one step up from a Profile subpage.
+ *
+ * Edit profile and Settings answer to Your Fiyu. Everything under Settings
+ * answers to Settings, so its Back names and reaches the screen it was actually
+ * opened from rather than skipping a level.
+ */
+const PROFILE_PARENTS = {
+  home: { href: PROFILE_HOME, label: "Your Fiyu" },
+  settings: { href: PROFILE_SETTINGS, label: "Settings" },
+} as const;
+
+type ProfileParent = keyof typeof PROFILE_PARENTS;
+
+/**
  * A Profile subpage masthead.
  *
  * A micro-caps Back over a display-serif title: the same two type treatments
@@ -61,14 +76,24 @@ const MICRO_CAPS = "text-[0.625rem] font-semibold tracking-[0.16em] uppercase";
  * and Edit profile read as parts of that page rather than as a settings app
  * that happens to live at the same URL prefix.
  *
- * A real link, not a button. Back always resolves to `/profile`, so the href is
- * honest, the label matches where it lands, and cmd- or middle-clicking still
- * opens Your Fiyu in a new tab. The click handler only upgrades a plain click
- * to a history pop where that provably returns to the same place.
+ * A real link, not a button. Back always resolves to the subpage's parent, so
+ * the href is honest, the label matches where it lands, and cmd- or
+ * middle-clicking still opens that parent in a new tab. The click handler only
+ * upgrades a plain click to a history pop where that provably returns to the
+ * same place.
  */
-function ProfileSubpageHeader({ title, large = false }: { title: string; large?: boolean }) {
+function ProfileSubpageHeader({
+  title,
+  parent = "home",
+  large = false,
+}: {
+  title: string;
+  parent?: ProfileParent;
+  large?: boolean;
+}) {
   const router = useRouter();
   const pathname = usePathname();
+  const { href, label } = PROFILE_PARENTS[parent];
 
   useEffect(() => {
     noteProfileSubpage(pathname);
@@ -79,16 +104,16 @@ function ProfileSubpageHeader({ title, large = false }: { title: string; large?:
       event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0;
     if (event.defaultPrevented || modified) return;
     event.preventDefault();
-    if (canPopToProfileHome(pathname)) router.back();
-    else router.push(PROFILE_HOME);
+    if (canPopToProfileParent(pathname, href)) router.back();
+    else router.push(href);
   };
 
   return (
     <header>
       <Link
-        href={PROFILE_HOME}
+        href={href}
         onClick={back}
-        aria-label="Back to Your Fiyu"
+        aria-label={`Back to ${label}`}
         className={cn(
           "-ml-2 inline-flex min-h-11 items-center gap-2 px-2 transition-colors",
           MICRO_CAPS,
@@ -96,7 +121,7 @@ function ProfileSubpageHeader({ title, large = false }: { title: string; large?:
         )}
       >
         <span aria-hidden="true" className="text-sm leading-none">←</span>
-        Your Fiyu
+        {label}
       </Link>
       <h1
         className={cn(
@@ -229,10 +254,16 @@ function MobileProfileHome() {
 
 function MobileProfileDetail({ section, title }: { section: ProfileSection; title?: string }) {
   const heading = title ?? SECTIONS.find((item) => item.id === section)?.label ?? "Profile";
+  /*
+   * `profile` is the Edit profile route, which is opened from the Your Fiyu
+   * masthead and belongs to it. Every other section is opened from the Settings
+   * list, so Settings is the screen its Back names and returns to.
+   */
+  const parent = section === "profile" ? "home" : "settings";
   return (
     <main className="flex-1 px-5 pt-5 pb-[calc(var(--spacing-mobile-nav)+2rem)]">
       <div className="mx-auto w-full max-w-xl">
-        <ProfileSubpageHeader title={heading} />
+        <ProfileSubpageHeader title={heading} parent={parent} />
         <div className="mt-7">
           <SectionContent section={section} mobile />
         </div>
@@ -246,23 +277,47 @@ function SectionContent({ section, mobile = false }: { section: ProfileSection; 
     case "profile":
       return <ProfileForm mobile={mobile} />;
     case "account":
-      return <AccountSection />;
+      return <AccountSection mobile={mobile} />;
     case "notifications":
-      return <NotificationsSection />;
+      return <NotificationsSection mobile={mobile} />;
     case "privacy":
-      return <PrivacySection />;
+      return <PrivacySection mobile={mobile} />;
     case "help":
-      return <HelpSection />;
+      return <HelpSection mobile={mobile} />;
     case "about":
-      return <AboutSection />;
+      return <AboutSection mobile={mobile} />;
   }
 }
 
-function SectionHeading({ title, description }: { title: string; description: string }) {
+/**
+ * A section's own title and standfirst.
+ *
+ * On a mobile subpage the title is already the page's `h1`, in
+ * ProfileSubpageHeader, so only the standfirst renders. The standfirst is real
+ * copy rather than a repeat of the title, so dropping it with the heading would
+ * lose information. Headings deeper inside a section -- Delete account, Legal --
+ * name different content and are untouched.
+ *
+ * Desktop shows both, and there they say different things: `Settings` above,
+ * the section's own name here.
+ */
+function SectionHeading({
+  title,
+  description,
+  mobile = false,
+}: {
+  title: string;
+  description: string;
+  mobile?: boolean;
+}) {
   return (
     <header>
-      <h2 className="font-display text-3xl leading-tight text-ink">{title}</h2>
-      <p className="mt-2 max-w-xl text-sm leading-6 text-ink-muted">{description}</p>
+      {mobile ? null : (
+        <h2 className="font-display text-3xl leading-tight text-ink">{title}</h2>
+      )}
+      <p className={cn("max-w-xl text-sm leading-6 text-ink-muted", !mobile && "mt-2")}>
+        {description}
+      </p>
     </header>
   );
 }
@@ -510,7 +565,7 @@ function ProfileForm({ mobile }: { mobile: boolean }) {
   );
 }
 
-function AccountSection() {
+function AccountSection({ mobile }: { mobile: boolean }) {
   const router = useRouter();
   const [email, setEmail] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -565,7 +620,7 @@ function AccountSection() {
 
   return (
     <div className="max-w-xl">
-      <SectionHeading title="Account" description="Manage your Fiyu account session." />
+      <SectionHeading title="Account" description="Manage your Fiyu account session." mobile={mobile} />
       <div className="mt-8 border-y border-line py-5">
         {loading ? (
           <p className="text-sm text-ink-muted">Loading account…</p>
@@ -657,10 +712,10 @@ function AccountSection() {
   );
 }
 
-function NotificationsSection() {
+function NotificationsSection({ mobile }: { mobile: boolean }) {
   return (
     <div className="max-w-xl">
-      <SectionHeading title="Notifications" description="Choose how Fiyu keeps you updated." />
+      <SectionHeading title="Notifications" description="Choose how Fiyu keeps you updated." mobile={mobile} />
       <div className="mt-8 border-y border-line py-5">
         <div className="flex items-start justify-between gap-5">
           <div>
@@ -702,7 +757,7 @@ function useLocationPermission(): LocationPermission {
   return permission;
 }
 
-function PrivacySection() {
+function PrivacySection({ mobile }: { mobile: boolean }) {
   const permission = useLocationPermission();
   const permissionLabel = {
     allowed: "Allowed",
@@ -712,7 +767,7 @@ function PrivacySection() {
   }[permission];
   return (
     <div className="max-w-xl">
-      <SectionHeading title="Privacy" description="How Fiyu handles your location and private Log." />
+      <SectionHeading title="Privacy" description="How Fiyu handles your location and private Log." mobile={mobile} />
       <div className="mt-8 divide-y divide-line border-y border-line">
         <SettingBlock title="Location" value={permissionLabel}>
           Fiyu uses your location only when you ask it to help find restaurants nearby. Fiyu does not continuously track your location in the background. For signed-in users, your active Tokyo discovery location may be saved to your account so your Picks work across devices.
@@ -726,10 +781,10 @@ function PrivacySection() {
   );
 }
 
-function HelpSection() {
+function HelpSection({ mobile }: { mobile: boolean }) {
   return (
     <div className="max-w-xl">
-      <SectionHeading title="Help & support" description="Support options for using Fiyu." />
+      <SectionHeading title="Help & support" description="Support options for using Fiyu." mobile={mobile} />
       <div className="mt-8 divide-y divide-line border-y border-line">
         <UnavailableRow label="Help / FAQ" />
         <UnavailableRow label="Contact support" />
@@ -739,10 +794,10 @@ function HelpSection() {
   );
 }
 
-function AboutSection() {
+function AboutSection({ mobile }: { mobile: boolean }) {
   return (
     <div className="max-w-xl">
-      <SectionHeading title="About Fiyu" description="Product and legal information." />
+      <SectionHeading title="About Fiyu" description="Product and legal information." mobile={mobile} />
       <div className="mt-8 divide-y divide-line border-y border-line">
         <div className="py-5">
           <p className="text-sm font-semibold text-ink">About Fiyu</p>
