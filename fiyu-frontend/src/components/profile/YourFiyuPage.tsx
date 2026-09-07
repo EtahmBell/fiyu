@@ -563,18 +563,12 @@ export function YourFiyuPage() {
           <Eyebrow className="whitespace-nowrap">Your Fiyu</Eyebrow>
           <span aria-hidden="true" className="h-px min-w-6 flex-1 bg-line" />
           <div className="ml-auto flex shrink-0 items-center gap-1">
-            {/*
-             * "Edit" alone on a phone, "Edit profile" from `sm`. The label carries
-             * the full name at every width, so the shortened form is purely
-             * typographic -- and the masthead rule keeps a real length at 390px
-             * instead of collapsing or wrapping the row.
-             */}
+            {/* Keep one literal label so its visible and accessible names agree. */}
             <Link
               href="/profile/edit"
-              aria-label="Edit profile"
               className={cn("inline-flex min-h-11 items-center px-2", MICRO_CAPS, "text-plum hover:text-lavender-700")}
             >
-              Edit<span className="hidden sm:inline"> profile</span>
+              Edit profile
             </Link>
             <span aria-hidden="true" className="h-3 w-px bg-line" />
             <Link
