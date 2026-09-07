@@ -3,10 +3,15 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const navigation = vi.hoisted(() => ({ replace: vi.fn() }));
+const navigation = vi.hoisted(() => ({
+  replace: vi.fn(),
+  push: vi.fn(),
+  back: vi.fn(),
+}));
+const pathname = vi.hoisted(() => ({ current: "/profile" }));
 
 vi.mock("next/navigation", () => ({
-  usePathname: () => "/profile",
+  usePathname: () => pathname.current,
   useRouter: () => navigation,
 }));
 
@@ -19,6 +24,7 @@ import {
   publishProfileIdentity,
 } from "@/lib/profile/profileIdentity";
 import { PROFILE_STORAGE_KEY } from "@/lib/profile/profileStorage";
+import { resetProfileSubpageHistory } from "@/lib/navigation/profileSubpage";
 
 vi.mock("@/lib/profile/avatarImage", () => ({
   prepareAvatarImage: vi.fn(async () => new Blob(["avatar"], { type: "image/webp" })),
@@ -28,7 +34,11 @@ let desktopViewport = false;
 
 beforeEach(() => {
   desktopViewport = false;
+  pathname.current = "/profile";
   navigation.replace.mockReset();
+  navigation.push.mockReset();
+  navigation.back.mockReset();
+  resetProfileSubpageHistory();
   window.localStorage.clear();
   window.sessionStorage.clear();
   clearProfileIdentity();
@@ -64,8 +74,9 @@ describe("ProfileWorkspace", () => {
       "/profile/notifications",
     );
     expect(screen.getByRole("link", { name: "Account" }).getAttribute("href")).toBe("/profile/account");
+    // Edit profile is a settings row now, not a duplicate hero button above them.
     expect(screen.getByRole("link", { name: "Edit profile" }).className).toContain(
-      "border-lavender-200",
+      "hover:bg-lavender-50/55",
     );
     expect(screen.getByRole("heading", { name: "Account settings" }).className).toContain(
       "text-lavender-700",
@@ -77,13 +88,59 @@ describe("ProfileWorkspace", () => {
     expect(identity.className).not.toContain("rounded-2xl");
     expect(identity.className).not.toContain("border-lavender");
     expect(identity.className).not.toContain("bg-lavender");
+    // A compact ruled row rather than a centred block, so settings start sooner.
+    expect(identity.className).toContain("flex items-center");
+    expect(identity.className).not.toContain("text-center");
     expect(screen.getByLabelText("Default profile avatar").parentElement?.className).toContain(
-      "bg-lavender-100/70",
+      "size-12",
     );
     expect(screen.getByRole("navigation", { name: "Mobile primary" }).className).toContain(
       "fixed",
     );
     expect(screen.queryByText(/Account features are intentionally absent/)).toBeNull();
+  });
+
+  it("offers a labelled way back to Your Fiyu from Settings and Edit profile", () => {
+    pathname.current = "/profile/settings";
+    const settings = render(<ProfileWorkspace mobileHome />);
+    const settingsBack = screen.getByRole("link", { name: "Back to Your Fiyu" });
+    expect(settingsBack.getAttribute("href")).toBe("/profile");
+    expect(settingsBack.textContent).toContain("Your Fiyu");
+    expect(settingsBack.className).toContain("min-h-11");
+    settings.unmount();
+
+    pathname.current = "/profile/edit";
+    render(<ProfileWorkspace section="profile" mobileTitle="Edit profile" />);
+    const editBack = screen.getByRole("link", { name: "Back to Your Fiyu" });
+    expect(editBack.getAttribute("href")).toBe("/profile");
+    expect(screen.getByRole("heading", { name: "Edit profile" })).toBeTruthy();
+
+    // No provable Your Fiyu entry behind this one, so Back pushes the reliable
+    // destination rather than popping into whatever preceded it.
+    fireEvent.click(editBack);
+    expect(navigation.push).toHaveBeenCalledWith("/profile");
+    expect(navigation.back).not.toHaveBeenCalled();
+  });
+
+  it("pops history only where Your Fiyu is provably the entry behind the subpage", () => {
+    vi.spyOn(window.performance, "getEntriesByType").mockReturnValue([
+      { name: "http://localhost:3000/profile" } as unknown as PerformanceEntry,
+    ]);
+
+    pathname.current = "/profile/settings";
+    const settings = render(<ProfileWorkspace mobileHome />);
+    fireEvent.click(screen.getByRole("link", { name: "Back to Your Fiyu" }));
+    expect(navigation.back).toHaveBeenCalledOnce();
+    expect(navigation.push).not.toHaveBeenCalled();
+    settings.unmount();
+
+    // A second subpage in the same document has Settings behind it, not Your
+    // Fiyu, so Back pushes the destination its label promises.
+    pathname.current = "/profile/edit";
+    render(<ProfileWorkspace section="profile" mobileTitle="Edit profile" />);
+    fireEvent.click(screen.getByRole("link", { name: "Back to Your Fiyu" }));
+    expect(navigation.push).toHaveBeenCalledWith("/profile");
+    expect(navigation.back).toHaveBeenCalledOnce();
   });
 
   it("shows neutral loading instead of a default identity while profile state hydrates", async () => {

@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
 import packageJson from "../../../package.json";
@@ -20,6 +20,11 @@ import {
   useProfileIdentity,
 } from "@/lib/profile/profileIdentity";
 import { prepareAvatarImage } from "@/lib/profile/avatarImage";
+import {
+  PROFILE_HOME,
+  canPopToProfileHome,
+  noteProfileSubpage,
+} from "@/lib/navigation/profileSubpage";
 import { cn } from "@/lib/utils/cn";
 import { DeveloperTools } from "@/components/profile/DeveloperTools";
 
@@ -38,6 +43,72 @@ const INPUT_CLASS =
   "mt-2 min-h-11 w-full rounded-lg border border-line bg-canvas px-3 text-sm text-ink placeholder:text-ink-faint focus:border-lavender-500";
 const LABEL_CLASS =
   "text-[0.6875rem] font-semibold tracking-[0.12em] text-ink-faint uppercase";
+
+/**
+ * Your Fiyu's micro-caps metrics, restated here rather than imported.
+ *
+ * The subpage chrome has to match that page's masthead, and repeating one class
+ * string is cheaper than coupling the settings tree to the profile landing
+ * component for it.
+ */
+const MICRO_CAPS = "text-[0.625rem] font-semibold tracking-[0.16em] uppercase";
+
+/**
+ * A Profile subpage masthead.
+ *
+ * A micro-caps Back over a display-serif title: the same two type treatments
+ * Your Fiyu uses for its account links and for the reader's name, so Settings
+ * and Edit profile read as parts of that page rather than as a settings app
+ * that happens to live at the same URL prefix.
+ *
+ * A real link, not a button. Back always resolves to `/profile`, so the href is
+ * honest, the label matches where it lands, and cmd- or middle-clicking still
+ * opens Your Fiyu in a new tab. The click handler only upgrades a plain click
+ * to a history pop where that provably returns to the same place.
+ */
+function ProfileSubpageHeader({ title, large = false }: { title: string; large?: boolean }) {
+  const router = useRouter();
+  const pathname = usePathname();
+
+  useEffect(() => {
+    noteProfileSubpage(pathname);
+  }, [pathname]);
+
+  const back = (event: React.MouseEvent<HTMLAnchorElement>) => {
+    const modified =
+      event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0;
+    if (event.defaultPrevented || modified) return;
+    event.preventDefault();
+    if (canPopToProfileHome(pathname)) router.back();
+    else router.push(PROFILE_HOME);
+  };
+
+  return (
+    <header>
+      <Link
+        href={PROFILE_HOME}
+        onClick={back}
+        aria-label="Back to Your Fiyu"
+        className={cn(
+          "-ml-2 inline-flex min-h-11 items-center gap-2 px-2 transition-colors",
+          MICRO_CAPS,
+          "text-plum hover:text-lavender-700",
+        )}
+      >
+        <span aria-hidden="true" className="text-sm leading-none">←</span>
+        Your Fiyu
+      </Link>
+      <h1
+        className={cn(
+          "mt-1 font-display text-ink",
+          large ? "text-4xl leading-none" : "text-3xl leading-tight",
+        )}
+      >
+        {title}
+      </h1>
+    </header>
+  );
+}
 
 export function ProfileWorkspace({
   section = "profile",
@@ -59,7 +130,7 @@ function DesktopProfile({ section }: { section: ProfileSection }) {
   return (
     <main className="flex-1 px-6 py-10 pb-14 sm:px-8 lg:py-12">
       <div className="mx-auto w-full max-w-6xl">
-        <h1 className="font-display text-4xl leading-none text-ink">Settings</h1>
+        <ProfileSubpageHeader title="Settings" large />
         <div className="mt-8 grid items-start gap-8 lg:grid-cols-[14rem_minmax(0,1fr)]">
           <nav aria-label="Profile settings" className="space-y-1">
             {SECTIONS.map((item) => (
@@ -114,32 +185,35 @@ function MobileProfileHome() {
   }
 
   return (
-    <main className="flex-1 px-5 pt-8 pb-[calc(var(--spacing-mobile-nav)+2rem)]">
+    <main className="flex-1 px-5 pt-5 pb-[calc(var(--spacing-mobile-nav)+2rem)]">
       <div className="mx-auto w-full max-w-xl">
-        <h1 className="text-xl font-semibold text-ink">Settings</h1>
+        <ProfileSubpageHeader title="Settings" />
+        {/*
+         * Identity as context, not as a hero.
+         *
+         * This was a centred 96px avatar, the reader's name at 24px, their
+         * handle and an Edit profile button -- about 250px of a phone screen
+         * spent restating what Your Fiyu says one tap away, with a second link
+         * to the destination that already has its own row below. One ruled row
+         * confirms whose settings these are and lets the settings start.
+         */}
         <div
           data-testid="mobile-profile-identity"
-          className="mt-6 flex flex-col items-center px-4 pt-2 pb-7 text-center"
+          className="mt-5 flex items-center gap-3.5 border-b border-line pb-5"
         >
-          <>
-          <ProfileAvatar profile={displayedProfile} size="large" branded />
-          <p className="mt-4 font-display text-2xl leading-tight text-ink">
-            {displayedProfile.display_name || displayedProfile.username || "Your profile"}
-          </p>
-          <p className="mt-1 text-sm text-ink-muted">
-            {displayedProfile.username ? `@${displayedProfile.username}` : "Add a username"}
-          </p>
-          <Link
-            href="/profile/edit"
-            className="mt-4 inline-flex min-h-11 items-center rounded-lg border border-lavender-200 bg-white/60 px-4 text-sm font-medium text-plum transition-colors hover:bg-lavender-100/60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600"
-          >
-            Edit profile
-          </Link>
-          </>
+          <ProfileAvatar profile={displayedProfile} size="row" />
+          <div className="min-w-0">
+            <p className="truncate font-display text-lg leading-tight text-ink">
+              {displayedProfile.display_name || displayedProfile.username || "Your profile"}
+            </p>
+            <p className="mt-0.5 truncate text-sm text-ink-muted">
+              {displayedProfile.username ? `@${displayedProfile.username}` : "Add a username"}
+            </p>
+          </div>
         </div>
 
-        <MobileGroup title="Account settings">
-          <MobileNavigationRow href="/profile/edit" label="Profile" />
+        <MobileGroup title="Account settings" className="mt-7">
+          <MobileNavigationRow href="/profile/edit" label="Edit profile" />
           <MobileNavigationRow href="/profile/account" label="Account" />
           <MobileNavigationRow href="/profile/notifications" label="Notifications" />
           <MobileNavigationRow href="/profile/privacy" label="Privacy" id="privacy" />
@@ -158,14 +232,7 @@ function MobileProfileDetail({ section, title }: { section: ProfileSection; titl
   return (
     <main className="flex-1 px-5 pt-5 pb-[calc(var(--spacing-mobile-nav)+2rem)]">
       <div className="mx-auto w-full max-w-xl">
-        <Link
-          href="/profile"
-          className="inline-flex min-h-11 items-center gap-1.5 text-sm font-medium text-plum"
-        >
-          <span aria-hidden="true">←</span>
-          <span>Profile</span>
-        </Link>
-        <h1 className="mt-3 font-display text-3xl leading-tight text-ink">{heading}</h1>
+        <ProfileSubpageHeader title={heading} />
         <div className="mt-7">
           <SectionContent section={section} mobile />
         </div>
@@ -733,21 +800,25 @@ function UnavailableRow({ label, status = "Not available", href }: { label: stri
   );
 }
 
+/**
+ * `row` is the Settings identity line, `default` the Edit profile form.
+ *
+ * The 96px branded hero this component used to carry went with the centred
+ * identity block it existed for; a 4px lavender ring reads as a halo at 48px,
+ * so the row uses the plain treatment.
+ */
 function ProfileAvatar({
   profile,
   size = "default",
-  branded = false,
 }: {
   profile: FiyuProfile;
-  size?: "default" | "large";
-  branded?: boolean;
+  size?: "default" | "row";
 }) {
   const initials = (profile.username.trim()[0] || profile.display_name.trim()[0] || "F").toUpperCase();
-  const sizeClass = size === "large" ? "size-24 text-2xl" : "size-20 text-xl";
+  const sizeClass = size === "row" ? "size-12 text-base" : "size-20 text-xl";
   return (
     <div className={cn(
       "relative shrink-0 overflow-hidden rounded-full border border-line bg-lavender-50 text-lavender-700",
-      branded && "border-lavender-200 bg-lavender-100/70 text-plum shadow-[0_0_0_4px_rgba(226,218,239,0.55)]",
       sizeClass,
     )}>
       {profile.profile_image ? (
