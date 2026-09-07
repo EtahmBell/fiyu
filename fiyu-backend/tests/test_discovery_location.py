@@ -62,6 +62,54 @@ def test_outside_tokyo_check_does_not_persist_device_coordinates(monkeypatch):
     assert store[current[0]]["last_location_check_at"]
 
 
+def test_outside_tokyo_check_preserves_an_existing_account_preview(monkeypatch):
+    store = _setup_store(monkeypatch)
+    current[0] = str(uuid4())
+    store[current[0]] = {
+        "user_id": current[0],
+        "location_mode": "preview",
+        "discovery_label": "Shibuya",
+        "discovery_latitude": 35.658,
+        "discovery_longitude": 139.7016,
+    }
+
+    response = TestClient(api.app).post(
+        "/profiles/me/discovery-location/check-current",
+        headers={"Authorization": "Bearer valid"},
+        json={"latitude": 42.8746, "longitude": 74.5698},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["inside_service_area"] is False
+    assert response.json()["location"]["location_mode"] == "preview"
+    assert response.json()["location"]["discovery_label"] == "Shibuya"
+    assert store[current[0]]["discovery_latitude"] == 35.658
+
+
+def test_entering_tokyo_replaces_and_invalidates_an_outside_preview(monkeypatch):
+    store = _setup_store(monkeypatch)
+    current[0] = str(uuid4())
+    store[current[0]] = {
+        "user_id": current[0],
+        "location_mode": "preview",
+        "discovery_label": "Ikebukuro",
+        "discovery_latitude": 35.7295,
+        "discovery_longitude": 139.7109,
+    }
+
+    response = TestClient(api.app).post(
+        "/profiles/me/discovery-location/check-current",
+        headers={"Authorization": "Bearer valid"},
+        json={"latitude": 35.658, "longitude": 139.7016},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["inside_service_area"] is True
+    assert response.json()["location"]["location_mode"] == "current"
+    assert store[current[0]]["discovery_label"] == "Shibuya"
+    assert store[current[0]]["arrival_date"] is None
+
+
 def test_manual_location_is_canonical_optional_arrival_and_owner_isolated(monkeypatch):
     store = _setup_store(monkeypatch)
     first, second = str(uuid4()), str(uuid4())

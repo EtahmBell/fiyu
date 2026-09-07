@@ -116,14 +116,6 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
     ((resolution: NewRoundLocationResolution) => void) | null
   >(null);
   const pendingLocationOwnerRef = useRef<string | null>(null);
-  // A preview is valid for fresh outside-Tokyo generation only after the user
-  // explicitly chooses it during this mounted account session. Persisted
-  // discovery locations are presentation/history state, not proof of consent
-  // to reuse an old preview for a new round.
-  const outsidePreviewRef = useRef<{
-    ownerId: string;
-    location: ActivePicksDiscoveryLocation;
-  } | null>(null);
   const scrollRegionRef = useRef<HTMLDivElement>(null);
 
   const geolocation = useGeolocation();
@@ -140,9 +132,6 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
   );
 
   useEffect(() => {
-    if (outsidePreviewRef.current?.ownerId !== authenticatedUserId) {
-      outsidePreviewRef.current = null;
-    }
     if (
       !pendingLocationOwnerRef.current ||
       pendingLocationOwnerRef.current === authenticatedUserId
@@ -158,6 +147,16 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
     setNewRoundLocationGate(null);
   }, [authenticatedUserId]);
 
+  const persistedOutsidePreview = useMemo<ActivePicksDiscoveryLocation | null>(() => {
+    if (!accountLocation || accountLocation.location_mode !== "preview") return null;
+    return {
+      mode: "preview",
+      label: accountLocation.discovery_label,
+      latitude: accountLocation.discovery_latitude,
+      longitude: accountLocation.discovery_longitude,
+    };
+  }, [accountLocation]);
+
   const resolveNewRoundLocation = useCallback(async (): Promise<NewRoundLocationResolution> => {
     const requestUserId = authenticatedUserId;
     if (!requestUserId) {
@@ -168,6 +167,12 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
       return { status: "location_unavailable", location: null };
     }
     if (fresh.status !== "granted") {
+      if (persistedOutsidePreview) {
+        return {
+          status: "outside_tokyo_with_preview_area",
+          location: persistedOutsidePreview,
+        };
+      }
       return waitForTokyoArea("location_unavailable", requestUserId);
     }
     try {
@@ -176,7 +181,6 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
         return { status: "location_unavailable", location: null };
       }
       if (result.inside_service_area) {
-        outsidePreviewRef.current = null;
         setDiscoveryLocation(result.location);
         return {
           status: "in_tokyo_live_gps",
@@ -188,12 +192,17 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
           },
         };
       }
-      const sessionPreview = outsidePreviewRef.current;
-      if (sessionPreview?.ownerId === requestUserId) {
+      if (result.location.location_mode === "preview" && result.location.configured) {
+        const previewLocation: ActivePicksDiscoveryLocation = {
+          mode: "preview",
+          label: result.location.discovery_label,
+          latitude: result.location.discovery_latitude,
+          longitude: result.location.discovery_longitude,
+        };
         setDiscoveryLocation(result.location);
         return {
           status: "outside_tokyo_with_preview_area",
-          location: sessionPreview.location,
+          location: previewLocation,
         };
       }
       return waitForTokyoArea("outside_tokyo_needs_preview_area", requestUserId);
@@ -202,22 +211,19 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
     }
   }, [
     authenticatedUserId,
+    persistedOutsidePreview,
     requestFreshGeolocation,
     setDiscoveryLocation,
     waitForTokyoArea,
   ]);
 
   const finishNewRoundLocationGate = useCallback((location: DiscoveryLocation) => {
-    const ownerId = pendingLocationOwnerRef.current;
     const previewLocation: ActivePicksDiscoveryLocation = {
       mode: location.location_mode,
       label: location.discovery_label,
       latitude: location.discovery_latitude,
       longitude: location.discovery_longitude,
     };
-    if (ownerId && location.location_mode !== "current") {
-      outsidePreviewRef.current = { ownerId, location: previewLocation };
-    }
     setDiscoveryLocation(location);
     setNewRoundLocationGate(null);
     const resolve = pendingLocationResolutionRef.current;

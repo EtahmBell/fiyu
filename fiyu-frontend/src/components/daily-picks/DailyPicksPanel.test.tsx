@@ -93,7 +93,7 @@ describe("Today’s Fiyu Picks panel", () => {
     const firstCard = screen.getAllByTestId("concealed-restaurant-card")[0];
 
     expect(screen.getByText("Next Picks in")).toBeTruthy();
-    expect(screen.getByText("24h")).toBeTruthy();
+    expect(screen.getByText("23h 59m")).toBeTruthy();
     expect(countdown.compareDocumentPosition(firstCard) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.queryByText(/Next selection available in/)).toBeNull();
     expect(screen.getAllByTestId("daily-picks-countdown")).toHaveLength(1);

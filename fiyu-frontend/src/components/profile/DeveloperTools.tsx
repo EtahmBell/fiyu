@@ -151,6 +151,7 @@ export function DeveloperTools() {
         area_name: area,
       });
       setStatus(next);
+      setPreviewArea("");
       setMessage("Developer location updated.");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unable to update developer location.");

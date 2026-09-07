@@ -868,7 +868,7 @@ describe("daily-only discovery shell", () => {
     ));
   });
 
-  it("does not silently reuse a persisted preview when live GPS is outside", async () => {
+  it("reuses the account-backed preview when fresh GPS confirms the user remains outside Tokyo", async () => {
     const gps = installControlledGeolocation();
     const preview = {
       ...configuredLocation("Ginza", "preview"),
@@ -892,8 +892,17 @@ describe("daily-only discovery shell", () => {
         135.5023,
       ),
     );
-    expect(await screen.findByRole("heading", { name: "Heading to Tokyo?" })).toBeTruthy();
-    expect(dailyApi.assignDailyPicks).not.toHaveBeenCalled();
+    await waitFor(() => expect(dailyApi.assignDailyPicks).toHaveBeenCalledWith(
+      expect.objectContaining({
+        active_area: "Ginza",
+        location_mode: "preview",
+        location_state: "outside_tokyo_with_preview_area",
+        discovery_latitude: 35.6717,
+        discovery_longitude: 139.765,
+      }),
+      expect.anything(),
+    ));
+    expect(screen.queryByRole("heading", { name: "Heading to Tokyo?" })).toBeNull();
   });
 
   it("promotes confirmed in-Tokyo GPS over a persisted preview for the next round", async () => {
@@ -1071,10 +1080,11 @@ describe("daily-only discovery shell", () => {
     expect(screen.getAllByTestId("concealed-restaurant-card")).toHaveLength(2);
   });
 
-  it("requires manual area selection when fresh geolocation permission is denied", async () => {
+  it("does not transition location state when fresh geolocation permission is denied", async () => {
     const gps = installControlledGeolocation();
-    const preview = configuredLocation("Ginza", "preview");
-    locationApi.fetchDiscoveryLocation.mockResolvedValueOnce(preview);
+    locationApi.fetchDiscoveryLocation.mockResolvedValueOnce(
+      configuredLocation("Ginza", "current"),
+    );
     publishProfileIdentity(accountProfile("account-a", "accounta"));
     render(<DiscoveryShell restaurants={catalog} areaAnchors={[shinjukuAnchor]} />);
 
@@ -1087,7 +1097,34 @@ describe("daily-only discovery shell", () => {
     expect(dailyApi.assignDailyPicks).not.toHaveBeenCalled();
   });
 
-  it("requires a current-session preview even when a saved manual area exists", async () => {
+  it("safely reuses an existing outside preview when location is temporarily unavailable", async () => {
+    const gps = installControlledGeolocation();
+    const preview = {
+      ...configuredLocation("Shibuya", "preview"),
+      discovery_latitude: 35.658,
+      discovery_longitude: 139.7016,
+    };
+    locationApi.fetchDiscoveryLocation.mockResolvedValueOnce(preview);
+    publishProfileIdentity(accountProfile("account-a", "accounta"));
+    render(<DiscoveryShell restaurants={catalog} areaAnchors={[]} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /Find today's restaurants/i }));
+    await waitFor(() => expect(gps.getCurrentPosition).toHaveBeenCalledOnce());
+    act(() => gps.deny());
+
+    expect(locationApi.checkCurrentDiscoveryLocation).not.toHaveBeenCalled();
+    await waitFor(() => expect(dailyApi.assignDailyPicks).toHaveBeenCalledWith(
+      expect.objectContaining({
+        active_area: "Shibuya",
+        location_mode: "preview",
+        location_state: "outside_tokyo_with_preview_area",
+      }),
+      expect.anything(),
+    ));
+    expect(screen.queryByRole("heading", { name: "Heading to Tokyo?" })).toBeNull();
+  });
+
+  it("does not treat a saved manual area as an outside-Tokyo preview", async () => {
     const gps = installControlledGeolocation();
     locationApi.fetchDiscoveryLocation.mockResolvedValueOnce(configuredLocation("Shibuya"));
     locationApi.checkCurrentDiscoveryLocation.mockResolvedValueOnce({
@@ -1095,6 +1132,32 @@ describe("daily-only discovery shell", () => {
       location: configuredLocation("Shibuya"),
     });
     publishProfileIdentity(accountProfile("account-a", "accounta"));
+    render(<DiscoveryShell restaurants={catalog} areaAnchors={[shinjukuAnchor]} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /Find today's restaurants/i }));
+    await waitFor(() => expect(gps.getCurrentPosition).toHaveBeenCalledOnce());
+    act(() => gps.grant(34.6937, 135.5023));
+
+    expect(await screen.findByRole("heading", { name: "Heading to Tokyo?" })).toBeTruthy();
+    expect(dailyApi.assignDailyPicks).not.toHaveBeenCalled();
+  });
+
+  it("never reuses another account's persisted outside preview", async () => {
+    const previewA = configuredLocation("Ginza", "preview");
+    locationApi.fetchDiscoveryLocation
+      .mockResolvedValueOnce(previewA)
+      .mockResolvedValueOnce(configuredLocation("Shibuya", "current"));
+    publishProfileIdentity(accountProfile("account-a", "accounta"));
+    const accountA = render(<DiscoveryShell restaurants={catalog} areaAnchors={[shinjukuAnchor]} />);
+    await screen.findByTestId("discovery-layout");
+    accountA.unmount();
+
+    const gps = installControlledGeolocation();
+    locationApi.checkCurrentDiscoveryLocation.mockResolvedValueOnce({
+      inside_service_area: false,
+      location: configuredLocation("Shibuya", "current"),
+    });
+    publishProfileIdentity(accountProfile("account-b", "accountb"));
     render(<DiscoveryShell restaurants={catalog} areaAnchors={[shinjukuAnchor]} />);
 
     fireEvent.click(await screen.findByRole("button", { name: /Find today's restaurants/i }));

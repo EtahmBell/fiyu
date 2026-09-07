@@ -14,7 +14,14 @@ describe("Daily Picks countdown", () => {
     expect(formatPicksCountdown((21 * 60 + 34) * 60_000)).toBe("21h 34m");
     expect(formatPicksCountdown(42 * 60_000)).toBe("42m");
     expect(formatPicksCountdown(60 * 60_000)).toBe("1h");
-    expect(formatPicksCountdown(61_000)).toBe("2m");
+    expect(formatPicksCountdown(61_000)).toBe("1m");
+    expect(formatPicksCountdown(59_000)).toBe("1m");
+  });
+
+  it("floors a fresh daily round and only clamps the narrow clock-skew window", () => {
+    expect(formatPicksCountdown(24 * 60 * 60_000)).toBe("23h 59m");
+    expect(formatPicksCountdown(24 * 60 * 60_000 + 60_000)).toBe("23h 59m");
+    expect(formatPicksCountdown(24 * 60 * 60_000 + 3 * 60_000)).toBe("24h 3m");
   });
 
   it("shows the ready state at the eligibility boundary", () => {

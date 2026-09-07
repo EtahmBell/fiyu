@@ -4,7 +4,17 @@ interface DailyPicksCountdownProps {
 }
 
 export function formatPicksCountdown(milliseconds: number): string {
-  const minutes = Math.max(1, Math.ceil(milliseconds / 60_000));
+  const wholeMinutes = Math.floor(milliseconds / 60_000);
+  // The canonical cycle is exactly 24 hours. Around assignment, a client clock
+  // may trail the server very slightly; keep that narrow skew window from
+  // presenting a fresh daily round as 24h or 24h 1m. Longer durations remain
+  // visible so a real backend eligibility error is never masked.
+  const minutes = Math.max(
+    1,
+    wholeMinutes >= 24 * 60 && milliseconds <= 24 * 60 * 60_000 + 2 * 60_000
+      ? 24 * 60 - 1
+      : wholeMinutes,
+  );
   const hours = Math.floor(minutes / 60);
   const remainder = minutes % 60;
   if (hours === 0) return `${minutes}m`;

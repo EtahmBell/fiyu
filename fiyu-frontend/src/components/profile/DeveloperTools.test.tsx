@@ -155,6 +155,39 @@ describe("DeveloperTools", () => {
       current_longitude: undefined,
       preview_area: "Ginza",
     }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Generate test Picks" }));
+    await waitFor(() => expect(api.generateDeveloperDailyPicks).toHaveBeenCalledTimes(2));
+    expect(api.generateDeveloperDailyPicks).toHaveBeenLastCalledWith({
+      current_latitude: undefined,
+      current_longitude: undefined,
+      preview_area: "Ginza",
+    });
+  });
+
+  it("requires a fresh preview after simulating entry into Tokyo and leaving again", async () => {
+    api.fetchDeveloperStatus.mockResolvedValue({
+      ...status,
+      location_mode: "outside_tokyo",
+      area_name: null,
+    });
+    api.updateDeveloperLocation
+      .mockResolvedValueOnce({ ...status, location_mode: "real", area_name: null })
+      .mockResolvedValueOnce({ ...status, location_mode: "outside_tokyo", area_name: null });
+
+    render(<DeveloperTools />);
+    const preview = await screen.findByLabelText("TOKYO PREVIEW AREA") as HTMLSelectElement;
+    fireEvent.change(preview, { target: { value: "Ginza" } });
+    fireEvent.change(screen.getByLabelText("SIMULATED LOCATION"), {
+      target: { value: "real" },
+    });
+    await waitFor(() => expect(api.updateDeveloperLocation).toHaveBeenCalledTimes(1));
+    fireEvent.change(screen.getByLabelText("SIMULATED LOCATION"), {
+      target: { value: "outside_tokyo" },
+    });
+    await waitFor(() => expect(api.updateDeveloperLocation).toHaveBeenCalledTimes(2));
+
+    expect((screen.getByLabelText("TOKYO PREVIEW AREA") as HTMLSelectElement).value).toBe("");
   });
 
   it("requires confirmation before resetting only Picks test state", async () => {
