@@ -21,8 +21,12 @@ const SECTIONS = [
   },
   {
     title: "Why only a few",
-    copy: "Fiyu reveals only a few places at a time. Each selection feels more personal, while attention is shared across a broader pool instead of concentrating on the same restaurants.",
-    points: ["Small, personal selections", "A broader pool of strong places", "Attention shared gradually"],
+    copy: "Some of the places Fiyu finds are small enough that a sudden wave of attention can change the experience that made them worth finding in the first place. Fiyu reveals only a few restaurants to each person, spreading discovery across a broader pool so great local places can retain their character. The result is also a more personal experience: different people uncover different corners of a city.",
+    points: [
+      "Attention spread across more places",
+      "Less pressure on small restaurants",
+      "A different discovery for each person",
+    ],
   },
   {
     title: "Discovery without the popularity contest",
@@ -81,24 +85,33 @@ export default function AboutPage() {
             </p>
           </div>
 
-          <div className="mt-7 grid gap-5 lg:grid-cols-3 lg:gap-6">
+          <div
+            data-testid="about-principles-grid"
+            className="mt-7 grid gap-5 lg:grid-cols-3 lg:gap-x-6 lg:gap-y-6"
+          >
             {SECTIONS.map((section, index) => (
               <article
                 key={section.title}
                 data-testid="about-principle"
-                className="relative overflow-hidden rounded-card border border-line bg-surface px-6 pt-7 pb-8 sm:px-8 sm:pt-8 lg:px-7"
+                className="relative overflow-hidden rounded-card border border-line bg-surface px-6 pt-7 pb-8 sm:px-8 sm:pt-8 lg:row-span-4 lg:grid lg:grid-rows-subgrid lg:px-7"
               >
                 <span aria-hidden="true" className="absolute inset-x-0 top-0 h-px bg-lavender-500" />
-                <span className="text-[0.6875rem] font-semibold tracking-[0.18em] text-lavender-700 uppercase">
+                <span
+                  aria-hidden="true"
+                  className="pointer-events-none absolute top-4 right-5 font-display text-7xl leading-none text-lavender-100/70 sm:right-7"
+                >
                   0{index + 1}
                 </span>
-                <h3 className="mt-6 max-w-[15ch] font-display text-[1.75rem] leading-[1.05] text-ink sm:text-3xl">
+                <span className="relative z-10 text-[0.6875rem] font-semibold tracking-[0.18em] text-lavender-700 uppercase">
+                  0{index + 1}
+                </span>
+                <h3 className="relative z-10 mt-6 max-w-[15ch] font-display text-[1.75rem] leading-[1.05] text-ink sm:text-3xl lg:mt-0">
                   {section.title}
                 </h3>
-                <p className="mt-5 text-sm leading-7 text-ink-body sm:text-[0.9375rem]">
+                <p className="relative z-10 mt-5 text-sm leading-7 text-ink-body sm:text-[0.9375rem] lg:mt-0">
                   {section.copy}
                 </p>
-                <ul className="mt-7 space-y-3 border-t border-line pt-5 text-sm leading-6 text-ink-body">
+                <ul className="relative mt-7 space-y-3 border-t border-line pt-5 text-sm leading-6 text-ink-body before:absolute before:-top-px before:left-0 before:h-px before:w-12 before:bg-lavender-400 before:content-[''] lg:mt-0">
                   {section.points.map((point) => (
                     <li key={point} className="grid grid-cols-[0.75rem_minmax(0,1fr)] gap-2.5">
                       <span aria-hidden="true" className="mt-[0.65rem] h-px w-3 bg-rose-dust" />

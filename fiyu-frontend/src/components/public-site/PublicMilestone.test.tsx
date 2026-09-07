@@ -53,9 +53,15 @@ describe("public account milestone", () => {
     ).toBeTruthy();
     expect(screen.getByText(/local-language research and deliberately small selections/i)).toBeTruthy();
     expect(screen.getByTestId("about-tabletop")).toBeTruthy();
-    expect(screen.getAllByTestId("about-principle")).toHaveLength(3);
+    const principles = screen.getAllByTestId("about-principle");
+    expect(principles).toHaveLength(3);
+    expect(screen.getByTestId("about-principles-grid").className).toContain("lg:grid-cols-3");
+    expect(principles.every((card) => card.className.includes("lg:grid-rows-subgrid"))).toBe(true);
     expect(screen.getByText("Quality beyond visibility")).toBeTruthy();
-    expect(screen.getByText("Attention shared gradually")).toBeTruthy();
+    expect(screen.getByText("Attention spread across more places")).toBeTruthy();
+    expect(screen.getByText("Less pressure on small restaurants")).toBeTruthy();
+    expect(screen.getByText("A different discovery for each person")).toBeTruthy();
+    expect(screen.getByText(/a sudden wave of attention can change the experience/i)).toBeTruthy();
     expect(screen.getByText("No public leaderboard")).toBeTruthy();
   });
 

@@ -79,6 +79,7 @@ describe("YourFiyuPage", () => {
     expect(screen.getByRole("link", { name: "Edit profile" }).getAttribute("href")).toBe("/profile/edit");
     expect(screen.getByRole("link", { name: "Settings" }).getAttribute("href")).toBe("/profile/settings");
     expect(screen.getAllByText("0")).toHaveLength(3);
+    expect(screen.getByRole("heading", { name: "Your taste is taking shape." })).toBeTruthy();
     expect(screen.getByText("Rate your first 10 visits to unlock your first Taste.")).toBeTruthy();
     expect(screen.getByText("Rate your first 5 visits to unlock Fiyu Together.")).toBeTruthy();
     expect(screen.getByText("Locked")).toBeTruthy();
@@ -153,8 +154,9 @@ describe("YourFiyuPage", () => {
     const insight = screen.getByText("Counter spots keep landing well");
     const tags = screen.getByLabelText("Your Taste right now");
     expect(insight.compareDocumentPosition(tags) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(screen.getByText("3 more ratings until your next Taste update.")).toBeTruthy();
-    expect(screen.getByText("12/15")).toBeTruthy();
+    expect(screen.getByText("3 more ratings")).toBeTruthy();
+    expect(screen.getByText("12 → 15")).toBeTruthy();
+    expect(screen.queryByText("Your Fiyu type")).toBeNull();
     expect(screen.getByRole("link", { name: "鮨 海" }).getAttribute("href")).toBe("/restaurants/place-1");
     expect(screen.getByLabelText("5 out of 5 stars")).toBeTruthy();
     expect(screen.getByText("Order the seasonal nigiri again.")).toBeTruthy();
@@ -238,6 +240,66 @@ describe("YourFiyuPage", () => {
     expect(screen.getByText("New")).toBeTruthy();
     await waitFor(() => expect(api.acknowledgeTasteUpdate).toHaveBeenCalledWith(15));
     expect(api.acknowledgeTasteUpdate).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders an acknowledged Taste statically, without replaying the reveal", async () => {
+    api.fetchUserFiyuSummary.mockResolvedValue(summary({
+      rated_visit_count: 15,
+      together_unlocked: true,
+      taste_unlocked: true,
+      taste_current_milestone: 15,
+      taste_previous_milestone: 10,
+      taste_next_milestone: 20,
+      ratings_until_next_taste_update: 5,
+      taste_has_unseen_update: false,
+      taste_tags: [{ key: "seasonal", label: "Seasonal cooking" }],
+      taste_insights: [{
+        id: "strong_signal:seasonal",
+        type: "strong_signal",
+        facet_key: "seasonal",
+        confidence: "strong",
+        direction: "positive",
+        headline: "Seasonal cooking keeps landing well",
+        description: "Seasonal cooking continues to turn up among your better restaurant experiences.",
+        supporting_text: "You rate these 0.5★ above your 4.0★ average.",
+        support_count: 4,
+        average_rating: 4.5,
+        delta_from_user_average: 0.5,
+        save_affinity: 0,
+        visit_affinity: 0,
+        evidence_summary: "You rate these 0.5★ above your 4.0★ average.",
+        change_status: "still_true",
+      }],
+    }));
+
+    render(<YourFiyuPage />);
+
+    const headline = await screen.findByText("Seasonal cooking keeps landing well");
+    expect(headline.closest("li")?.className).toContain("opacity-100");
+    expect(screen.queryByText("Your Taste just updated")).toBeNull();
+    expect(api.acknowledgeTasteUpdate).not.toHaveBeenCalled();
+  });
+
+  it("shows a Fiyu type only once the API supplies one", async () => {
+    api.fetchUserFiyuSummary.mockResolvedValue(summary({
+      rated_visit_count: 20,
+      together_unlocked: true,
+      taste_unlocked: true,
+      taste_current_milestone: 20,
+      taste_next_milestone: 25,
+      ratings_until_next_taste_update: 5,
+      taste_type: {
+        name: "The Neighbourhood Explorer",
+        description: "You keep finding the good table two streets off the main run.",
+        unlocked_at_rating_count: 20,
+        version: "v1",
+      },
+    }));
+
+    render(<YourFiyuPage />);
+
+    expect(await screen.findByText("Your Fiyu type")).toBeTruthy();
+    expect(screen.getByText("The Neighbourhood Explorer")).toBeTruthy();
   });
 
   it("replaces one account summary with another without exposing cached private data", async () => {
