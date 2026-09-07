@@ -19,19 +19,22 @@ import { cn } from "@/lib/utils/cn";
  * lives inside them, so a band can tint or rule edge to edge while the type
  * stays on one shared column.
  *
- * Only one band is tinted. Your Taste is the reason to reopen this page, so it
- * gets the pale lavender wash and the largest display type, and everything else
- * sits on plain canvas and earns its structure from rules, gutters and
- * whitespace. Champagne appears once, at the foot, as two hairlines and a chip
- * around Fiyu Together -- past/future warmth, never a fill.
+ * Tone carries the chapters. Identity sits on plain canvas, Taste on a pale
+ * lavender wash, history back on canvas, Fiyu Together on a pale champagne wash
+ * -- four fields, each running the full width of the screen, so a reader can see
+ * where one chapter ends before reading a word of it. Inside a band the
+ * structure is type, gutters and a small number of hairlines; the tone change is
+ * the only boundary that needs to be visible from a scroll's distance.
  *
- * Below `sm` that band is composed differently, because at 390px the same
- * treatment stopped working: a wash covering 1100px of scroll is not a tint, it
- * is a screen, and four observations at one size is a list rather than a
- * hierarchy. So on a phone the tint contracts to a plate under the masthead, the
- * rest of the section returns to canvas, and the first observation is featured
- * while the others compress into rows. Every one of those rules is a base
- * utility restored at `sm:`, so from 640px up nothing is changed at all.
+ * A note against `globals.css`: the champagne rules there say no fill larger
+ * than a chip. This page is the deliberate exception, and only at the lowest
+ * step of the ramp -- `gold-soft` at 40% over canvas, which is a tone rather
+ * than a colour, and never behind a control.
+ *
+ * Below `sm` the bands are identical but their contents are not: at 390px four
+ * observations at one size is a list rather than a hierarchy, so the first is
+ * featured and the rest compress into rows. Every mobile rule is a base utility
+ * restored at `sm:`, so from 640px up the composition is unchanged.
  */
 
 /** One measure for every band, so the bleeding backgrounds never break the column. */
@@ -39,17 +42,6 @@ const MEASURE = "mx-auto w-full max-w-[74rem] px-5 sm:px-8 lg:px-12";
 
 /** The recurring micro-caps mark. Colour is left to the caller. */
 const MICRO_CAPS = "text-[0.625rem] font-semibold tracking-[0.16em] uppercase";
-
-/**
- * The Taste masthead plate, on a phone only.
- *
- * The lavender bleeds to both edges behind the eyebrow, the heading and the
- * dateline, and stops. What follows is canvas, which is what lets the featured
- * observation read as the first thing in the section rather than as more of the
- * same field. `sm:` returns the block to a plain run inside the tinted band.
- */
-const TASTE_PLATE =
-  "-mx-5 border-b border-line bg-lavender-50/60 px-5 pt-7 pb-5 sm:mx-0 sm:border-b-0 sm:bg-transparent sm:px-0 sm:pt-0 sm:pb-0";
 
 /**
  * The Taste reveal steps.
@@ -186,7 +178,7 @@ function TasteUpdateProgress({
   return (
     <div
       {...motion}
-      className={cn(separated && "mt-6 border-t border-line pt-4 sm:mt-9 sm:pt-6 lg:mt-10", motion.className)}
+      className={cn(separated && "mt-7 border-t border-line pt-5 sm:mt-9 sm:pt-6 lg:mt-10", motion.className)}
     >
       <div className="flex items-baseline justify-between gap-4">
         <p className={cn(MICRO_CAPS, "text-ink-faint")}>Next Taste update</p>
@@ -243,6 +235,12 @@ function confidenceLabel(insight: UserFiyuSummary["taste_insights"][number]): st
  * headline with its status hung to the right of it, then one tighter line of
  * supporting copy. Same three fields, same order, a third of the height.
  *
+ * There is exactly one rule in the run, under the featured observation, and it
+ * is the heavier `line-strong`. The secondary rows are grouped by spacing alone
+ * -- a rule between each of them said "these four things are peers", which is
+ * the opposite of what the run is for, and on a tinted field four evenly spaced
+ * hairlines read as ruled paper.
+ *
  * Every mobile rule here is a base utility with an `sm:` counterpart restoring
  * the column, so the desktop composition is untouched.
  */
@@ -264,12 +262,14 @@ function TasteInsight({
       {...motion}
       className={cn(
         featured
-          ? "pb-5"
+          ? "pb-4"
           : cn(
-              "grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-3 border-t py-4",
-              /* One rule carries the change of register from featured to
-                 secondary; the rows below it stay on the lighter hairline. */
-              secondaryLead ? "border-line-strong" : "border-line",
+              "grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-3",
+              /* The one rule in the run marks the change of register. Below it
+                 the rows are grouped by space: a little less of it than the gap
+                 the rule occupies, so the group reads as tighter than the break
+                 above it. */
+              secondaryLead ? "border-t border-line-strong pt-4" : "pt-5",
             ),
         "sm:grid sm:grid-cols-[8.5rem_minmax(0,1fr)] sm:gap-x-8 sm:gap-y-0 sm:border-t sm:border-line sm:py-6 sm:first:border-t-0 sm:first:pt-0",
         motion.className,
@@ -344,23 +344,25 @@ function TasteSection({
   }, [onAcknowledge, summary.taste_current_milestone, summary.taste_has_unseen_update]);
 
   /*
-   * The band.
+   * The Taste chapter, tinted end to end.
    *
-   * Tinted from `sm` and canvas below it, with the closing hairline stepped up
-   * to `line-strong` on a phone: once the section is no longer a coloured field,
-   * that rule is the whole boundary between Taste and Recent visits, so it does
-   * the work the background used to do. The two edges are coloured separately
-   * rather than through `border-line`, so nothing depends on which of two
-   * unprefixed border-colour utilities Tailwind happens to emit first.
+   * One wash from the heading to the last line of the milestone footer, at the
+   * same strength on a phone as on a desktop. An earlier pass contracted it to a
+   * plate behind the masthead so a long mobile section would not read as a
+   * coloured screen; that fixed the field and broke the chapter, because the
+   * title then belonged to the tint and the observations belonged to the page.
+   * The answer was the strength of the tone, not its extent: lavender-50 at half
+   * opacity over canvas is about two percent of colour -- enough to say "this is
+   * all one thing" and too little to read as a panel.
    */
-  const band = "border-y border-t-line border-b-line-strong sm:border-b-line sm:bg-lavender-50/50";
+  const band = "border-y border-line bg-lavender-50/50";
 
   if (!summary.taste_unlocked) {
     return (
       <section className={band} aria-labelledby="taste-title">
-        <div className={cn(MEASURE, "pt-0 pb-10 sm:py-14 lg:py-16")}>
+        <div className={cn(MEASURE, "py-9 sm:py-14 lg:py-16")}>
           <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_20rem] lg:gap-14">
-            <div className={TASTE_PLATE}>
+            <div>
               <Eyebrow>Your Taste</Eyebrow>
               <h2
                 id="taste-title"
@@ -372,9 +374,7 @@ function TasteSection({
                 Your ratings help Fiyu recognize patterns without turning a single meal into a verdict.
               </p>
             </div>
-            {/* The plate's own bottom edge separates this on a phone, so the rule
-                and the wider gap above it only come back at `sm`. */}
-            <div className="mt-6 sm:mt-9 sm:border-t sm:border-line sm:pt-6 lg:mt-0 lg:border-t-0 lg:pt-2 lg:pl-12 lg:border-l">
+            <div className="mt-7 border-t border-line pt-5 sm:mt-9 sm:pt-6 lg:mt-0 lg:border-t-0 lg:pt-2 lg:pl-12 lg:border-l">
               <Progress summary={summary} />
             </div>
           </div>
@@ -389,24 +389,22 @@ function TasteSection({
 
   return (
     <section className={band} aria-labelledby="taste-title">
-      <div className={cn(MEASURE, "pt-0 pb-10 sm:py-14 lg:py-16")}>
+      <div className={cn(MEASURE, "py-9 sm:py-14 lg:py-16")}>
         <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_20rem] lg:gap-14">
           <div>
-            <div className={TASTE_PLATE}>
-              {summary.taste_has_unseen_update ? (
-                <Eyebrow className="mb-3 sm:mb-4">Your Taste just updated</Eyebrow>
-              ) : null}
-              <h2
-                id="taste-title"
-                className="font-display text-[clamp(2.375rem,9vw,3.75rem)] leading-[0.98] tracking-[-0.025em] text-ink"
-              >
-                Your taste
-              </h2>
-              <p className="mt-3 flex items-center gap-3 text-sm text-ink-muted sm:mt-4">
-                <span aria-hidden="true" className="h-px w-6 shrink-0 bg-line-strong" />
-                Based on {summary.rated_visit_count} rated visit{summary.rated_visit_count === 1 ? "" : "s"}
-              </p>
-            </div>
+            {summary.taste_has_unseen_update ? (
+              <Eyebrow className="mb-3 sm:mb-4">Your Taste just updated</Eyebrow>
+            ) : null}
+            <h2
+              id="taste-title"
+              className="font-display text-[clamp(2.375rem,9vw,3.75rem)] leading-[0.98] tracking-[-0.025em] text-ink"
+            >
+              Your taste
+            </h2>
+            <p className="mt-3 flex items-center gap-3 text-sm text-ink-muted sm:mt-4">
+              <span aria-hidden="true" className="h-px w-6 shrink-0 bg-line-strong" />
+              Based on {summary.rated_visit_count} rated visit{summary.rated_visit_count === 1 ? "" : "s"}
+            </p>
 
             {summary.taste_type ? (
               <div className="mt-6 border-l border-gold-line pl-5 sm:mt-8">
@@ -417,7 +415,7 @@ function TasteSection({
             ) : null}
 
             {insightCount > 0 ? (
-              <ol className="mt-5 sm:mt-9">
+              <ol className="mt-6 sm:mt-9">
                 {summary.taste_insights.map((insight, index) => (
                   <TasteInsight
                     key={insight.id}
@@ -431,7 +429,10 @@ function TasteSection({
             ) : null}
           </div>
 
-          <div className="mt-7 border-t border-line pt-5 sm:mt-10 sm:pt-7 lg:mt-0 lg:border-t-0 lg:border-l lg:pt-2 lg:pl-12">
+          {/* The two boundaries that remain inside the chapter -- summary, then
+              footer -- are lighter rules than the one in the observation run,
+              and carry more space above them instead. */}
+          <div className="mt-8 border-t border-line pt-5 sm:mt-10 sm:pt-7 lg:mt-0 lg:border-t-0 lg:border-l lg:pt-2 lg:pl-12">
             {summary.taste_tags.length > 0 ? (
               <div {...reveal(pending, tagsDelay)}>
                 <p className={cn(MICRO_CAPS, "text-ink-faint")}>Your taste right now</p>
@@ -560,13 +561,15 @@ function RecentVisits({ summary }: { summary: UserFiyuSummary }) {
 /**
  * Fiyu Together.
  *
- * The one champagne moment on the page: two warm hairlines and a chip. Every
- * other rule here is neutral, so the change of tone is enough to set the band
- * apart without a fill, a card or a disabled grey.
+ * The warm chapter, and the last one: champagne hairlines top and bottom over a
+ * pale champagne field. A feature that does not exist yet is easy to render as
+ * grey and disabled; the warmth is what makes it read as something coming
+ * rather than something switched off. The chip is the only saturated champagne
+ * on the page, so it still reads as a chip against the wash behind it.
  */
 function Together({ summary }: { summary: UserFiyuSummary }) {
   return (
-    <section className="border-y border-gold-line" aria-labelledby="together-title">
+    <section className="border-y border-gold-line bg-gold-soft/40" aria-labelledby="together-title">
       <div className={cn(MEASURE, "py-9 sm:py-11")}>
         <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-end lg:gap-14">
           <div>

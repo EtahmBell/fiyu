@@ -18,6 +18,11 @@ vi.mock("@/lib/api/client", () => ({
   acknowledgeTasteUpdate: api.acknowledgeTasteUpdate,
 }));
 
+/** Class tokens, so a check for `border-t` cannot be satisfied by `sm:border-t`. */
+function classNames(element: Element): string[] {
+  return element.className.split(/\s+/).filter(Boolean);
+}
+
 const profile = {
   user_id: "account-a",
   username: "ethan",
@@ -214,14 +219,38 @@ describe("YourFiyuPage", () => {
     expect(screen.getByText("Emerging").className).toContain("col-start-2");
     expect(screen.getByText("Affordable picks").className).toContain("text-[1.0625rem]");
 
-    // One stronger hairline marks the change of register, then it lightens again.
-    expect(second.className).toContain("border-line-strong");
-    expect(third.className).not.toContain("border-line-strong");
+    // Exactly one rule in the run, under the featured observation. The rows
+    // below it are grouped by spacing, not by a hairline each.
+    expect(classNames(second)).toContain("border-line-strong");
+    expect(classNames(third)).not.toContain("border-t");
+    expect(classNames(third)).not.toContain("border-line-strong");
 
     // Desktop keeps a single rhythm for every observation.
     for (const row of [featured, second, third]) {
       expect(row.className).toContain("sm:grid-cols-[8.5rem_minmax(0,1fr)]");
     }
+  });
+
+  it("bands the page into four chapters by tone", async () => {
+    api.fetchUserFiyuSummary.mockResolvedValue(summary({
+      rated_visit_count: 15,
+      together_unlocked: true,
+      taste_unlocked: true,
+      taste_current_milestone: 15,
+      taste_next_milestone: 20,
+      ratings_until_next_taste_update: 5,
+    }));
+
+    render(<YourFiyuPage />);
+
+    const taste = await screen.findByRole("region", { name: "Your taste" });
+    const history = screen.getByRole("region", { name: "Recent visits" });
+    const together = screen.getByRole("region", { name: "Taste is better shared." });
+
+    const tint = (element: Element) => classNames(element).find((name) => name.startsWith("bg-"));
+    expect(tint(taste)).toMatch(/^bg-lavender-/);
+    expect(tint(history)).toBeUndefined();
+    expect(tint(together)).toMatch(/^bg-gold-/);
   });
 
   it("labels limited first-snapshot evidence as an early signal", async () => {
