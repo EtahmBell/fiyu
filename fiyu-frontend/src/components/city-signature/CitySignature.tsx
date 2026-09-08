@@ -141,18 +141,26 @@ export function CityEmptyState({
     <div
       data-city-empty-state={kind}
       className={cn(
-        "rounded-card border border-line bg-lavender-50/25 text-center",
-        compact ? "mt-3 px-4 py-4" : "px-5 py-6 sm:px-7",
+        "text-center",
+        /*
+         * `compact` is the empty shelf under Recent Discoveries. It drops the
+         * panel entirely: a page whose job is to show restaurants should not
+         * spend a boxed third of a phone screen saying it has none yet. The
+         * mark, the line and the explanation stay, at about 130px.
+         */
+        compact
+          ? "mt-3 px-4 py-3"
+          : "rounded-card border border-line bg-lavender-50/25 px-5 py-6 sm:px-7",
         className,
       )}
     >
       {Illustration && (
         <Illustration
           aria-hidden="true"
-          className={cn("mx-auto text-plum", compact ? "h-18 w-24" : "h-24 w-32")}
+          className={cn("mx-auto text-plum", compact ? "h-14 w-20" : "h-24 w-32")}
         />
       )}
-      <p className={cn("font-display text-ink", compact ? "mt-1 text-lg" : "mt-2 text-xl")}>
+      <p className={cn("font-display text-ink", compact ? "mt-1 text-base" : "mt-2 text-xl")}>
         {title}
       </p>
       <p className="mx-auto mt-1 max-w-sm text-xs leading-5 text-ink-muted">{description}</p>

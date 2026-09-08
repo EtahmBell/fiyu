@@ -159,7 +159,9 @@ describe("compact restaurant card content", () => {
     );
     expect(screen.getByLabelText("Fiyu score 8.7 out of 10")).toBeTruthy();
     expect(screen.getByText("8.7").textContent).toContain("/10");
-    expect(screen.getByText("8.7").className).toContain("text-[2rem]");
+    // Present and unmistakable, but no longer taller than the restaurant's name.
+    expect(screen.getByText("8.7").className).toContain("text-[1.75rem]");
+    expect(screen.getByRole("heading", { level: 3 }).className).toContain("text-xl");
     expect(screen.getByText("Fiyu Score").className).toContain("text-[0.5rem]");
     expect(screen.getByText("Fiyu Score")).toBeTruthy();
     expect(screen.queryByText("Approximate area")).toBeNull();
@@ -191,7 +193,7 @@ describe("compact restaurant card content", () => {
     expect(englishName.className).toContain("line-clamp-2");
     expect(englishName.className).toContain("break-words");
     const photo = screen.getByTestId("restaurant-photo-region");
-    expect(photo.className).toContain("h-20");
+    expect(photo.className).toContain("h-24");
     expect(photo.className).toContain("w-full");
     const description = screen.getByText(/A long discovery-card description/);
     expect(description.className).toContain("line-clamp-2");
@@ -314,7 +316,7 @@ describe("compact restaurant card content", () => {
     expect(image.className).toContain("object-center");
     expect(image.style.objectPosition).toBe("50% 58%");
     const photoRegion = screen.getByTestId("restaurant-photo-region");
-    expect(photoRegion.className).toContain("h-20");
+    expect(photoRegion.className).toContain("h-24");
     expect(photoRegion.firstElementChild?.className).toContain("h-full");
     expect(photoRegion.firstElementChild?.className).not.toContain("min-h-44");
     expect(image.getAttribute("width")).toBe(String(photoFixture.width));
@@ -576,6 +578,17 @@ describe("compact card interaction", () => {
     expect(viewRestaurant.textContent).toContain("→");
     expect(viewRestaurant.className).toContain("text-plum");
     expect(viewRestaurant.className).not.toContain("rounded-chip");
+    // Hierarchy: the primary action leads the footer in the DOM, at a larger
+    // size than the two map hand-offs that follow it, which stay muted. `lg:order`
+    // reverses the two rows for desktop without changing this order.
+    expect(
+      viewRestaurant.compareDocumentPosition(googleMaps) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(viewRestaurant.className).toContain("text-sm");
+    expect(viewRestaurant.className).toContain("font-semibold");
+    expect(googleMaps.className).toContain("text-[0.6875rem]");
+    expect(googleMaps.className).toContain("text-ink-muted");
+    expect(appleMaps.closest("li")?.textContent).toContain("·");
     expect(saveRestaurant.className).toContain("size-11");
     expect(saveRestaurant.className).toContain("size-9");
     expect(saveRestaurant.className).not.toContain("rounded-chip");

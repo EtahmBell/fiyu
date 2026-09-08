@@ -235,7 +235,10 @@ export function CompactRestaurantCard({
           <div className="min-w-0 flex-1 pt-0.5">
             <h3
               lang={restaurant.name_ja?.trim() ? "ja" : "en"}
-              className="line-clamp-2 break-words font-display text-lg leading-tight text-ink lg:text-xl"
+              // 20px on a phone, matching desktop: the restaurant's name is the
+              // reason the card exists and was previously two points smaller
+              // than the score beside it was tall.
+              className="line-clamp-2 break-words font-display text-xl leading-tight text-ink"
             >
               {title}
             </h3>
@@ -261,14 +264,18 @@ export function CompactRestaurantCard({
             placeId={restaurant.place_id}
             restaurantName={title}
             fill
+            // 96px rather than 80 on a phone, which is also the height the
+            // saved-list card uses. A little more of the restaurant and a
+            // squarer frame; the column width and the corner treatment are
+            // untouched, so this is richer without becoming image-led.
             className={cn(
-              "h-20 min-w-0 lg:h-32",
+              "h-24 min-w-0 lg:h-32",
               descriptionExpanded
                 ? "float-left mr-1.5 mb-0.5 w-[6.75rem] lg:mr-2.5 lg:w-[34%]"
                 : "w-full",
             )}
           />
-          <div className={cn("flex min-w-0 flex-col", !descriptionExpanded && "min-h-20 lg:min-h-32")}>
+          <div className={cn("flex min-w-0 flex-col", !descriptionExpanded && "min-h-24 lg:min-h-32")}>
             {description && (
               <div>
                 <p
@@ -336,11 +343,16 @@ export function CompactRestaurantCard({
         data-testid="compact-card-footer"
         className="relative z-10 mt-1.5 min-w-0 border-t border-line pt-1 lg:mt-2 lg:pt-2"
       >
-        <div className="flex min-w-0 items-center gap-1 lg:block" onClick={(event) => event.stopPropagation()}>
-          <div className="min-w-0 flex-1 lg:max-w-full">
-            <OutboundMapActions restaurant={restaurant} variant="footer" />
-          </div>
-          <div className="flex min-w-0 shrink-0 items-center gap-1 lg:mt-0.5 lg:w-full lg:gap-3">
+        {/*
+          Four controls on one line gave the primary action, two hand-offs to
+          other apps and the bookmark the same weight. On a phone the primary
+          action now takes its own line with the bookmark, and the map links sit
+          quieter beneath it. `lg:order` restores the desktop arrangement --
+          links above, actions below -- from the same DOM, so the reading order
+          for assistive technology follows the mobile priority either way.
+        */}
+        <div className="flex min-w-0 flex-col gap-0.5 lg:gap-0" onClick={(event) => event.stopPropagation()}>
+          <div className="flex min-w-0 items-center gap-2 lg:order-2 lg:mt-0.5 lg:gap-3">
             {onViewDetails && (
             <button
               type="button"
@@ -348,7 +360,7 @@ export function CompactRestaurantCard({
                 event.stopPropagation();
                 onViewDetails(restaurant);
               }}
-              className="relative z-10 inline-flex min-h-9 min-w-0 items-center gap-1 py-0.5 pr-1 text-left text-xs font-semibold whitespace-nowrap text-plum underline decoration-transparent underline-offset-4 transition-colors hover:decoration-lavender-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600 lg:min-h-11 lg:gap-1.5 lg:py-2 lg:pr-3 lg:text-sm"
+              className="relative z-10 inline-flex min-h-9 min-w-0 items-center gap-1 py-0.5 pr-1 text-left text-sm font-semibold whitespace-nowrap text-plum underline decoration-transparent underline-offset-4 transition-colors hover:decoration-lavender-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600 lg:min-h-11 lg:gap-1.5 lg:py-2 lg:pr-3"
             >
               <span>View restaurant</span>
               <span aria-hidden="true">→</span>
@@ -371,7 +383,7 @@ export function CompactRestaurantCard({
               event.stopPropagation();
             }}
             className={cn(
-              "relative z-10 inline-flex size-9 shrink-0 items-center justify-center lg:ml-auto lg:size-11",
+              "relative z-10 ml-auto inline-flex size-9 shrink-0 items-center justify-center lg:size-11",
               "transition-[color,transform] duration-[180ms]",
               "ease-(--ease-fiyu) active:scale-[0.98]",
               "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600",
@@ -383,6 +395,9 @@ export function CompactRestaurantCard({
           >
             <BookmarkIcon filled={saved} />
             </button>
+          </div>
+          <div className="min-w-0 lg:order-1 lg:max-w-full">
+            <OutboundMapActions restaurant={restaurant} variant="footer" />
           </div>
         </div>
       </div>

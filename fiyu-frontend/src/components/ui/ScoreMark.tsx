@@ -7,10 +7,18 @@ const SIZES: Record<ScoreMarkSize, { numeral: string; label: string; rule: strin
   sm: { numeral: "text-xl", label: "text-[0.5625rem]", rule: "w-5" },
   md: { numeral: "text-[1.75rem]", label: "text-[0.625rem]", rule: "w-7" },
   lg: { numeral: "text-[2.5rem]", label: "text-[0.6875rem]", rule: "w-9" },
+  /*
+   * The discovery card.
+   *
+   * 28px on a phone rather than 32: at 32 the numeral was taller than the
+   * restaurant's name and won the card. An eighth off is enough to put the name
+   * first while the mark keeps its wordmark, its rule and its full legibility.
+   * Desktop, where the card is wider and the name larger, is unchanged.
+   */
   card: {
-    numeral: "text-[2rem] lg:text-[2.5rem]",
+    numeral: "text-[1.75rem] lg:text-[2.5rem]",
     label: "text-[0.5rem] lg:text-[0.6875rem]",
-    rule: "w-6 lg:w-9",
+    rule: "w-5 lg:w-9",
   },
 };
 

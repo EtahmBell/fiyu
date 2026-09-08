@@ -63,12 +63,21 @@ export function OutboundMapActions({
     <ul
       className={cn(
         "flex min-w-0 max-w-full flex-wrap",
-        footer ? "flex-nowrap gap-x-1 gap-y-0 lg:flex-wrap lg:gap-x-3" : "gap-x-4 gap-y-1",
+        footer ? "flex-nowrap gap-x-2 gap-y-0 lg:flex-wrap lg:gap-x-3" : "gap-x-4 gap-y-1",
         className,
       )}
     >
-      {links.map((link) => (
-        <li key={link.id} className="min-w-0 max-w-full">
+      {links.map((link, index) => (
+        <li key={link.id} className={cn("min-w-0 max-w-full", footer && "flex items-center")}>
+          {/*
+            On a card footer the pair sits on its own line under the primary
+            action, so a point between them makes it read as one secondary
+            aside rather than as two more buttons. The desktop footer keeps its
+            wider gap and no separator.
+          */}
+          {footer && index > 0 && (
+            <span aria-hidden="true" className="mr-2 text-ink-faint lg:hidden">·</span>
+          )}
           <a
             href={link.href}
             target="_blank"

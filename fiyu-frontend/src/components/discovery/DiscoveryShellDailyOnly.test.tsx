@@ -1015,8 +1015,12 @@ describe("daily-only discovery shell", () => {
 
     await waitFor(() => expect(dailyApi.fetchActiveDailyPicks).toHaveBeenCalledOnce());
     await waitFor(() => expect(locationApi.fetchDiscoveryLocation).toHaveBeenCalledOnce());
-    expect(await screen.findByText("3 picks selected")).toBeTruthy();
-    expect(screen.queryByText(/Near (you|Ginza)/)).toBeNull();
+    // The invariant is that a live-GPS round never claims a stored area name.
+    // The context line itself now carries the count and "you" together, so
+    // there is no longer a prefix to be redundant with.
+    const context = await screen.findByTestId("picks-discovery-context");
+    expect(context.textContent).toContain("3 Picks near you");
+    expect(context.textContent).not.toContain("Ginza");
   });
 
   it("restores an account-backed revealed round without asking for another reveal", async () => {

@@ -21,6 +21,19 @@ export function formatPicksCountdown(milliseconds: number): string {
   return remainder === 0 ? `${hours}h` : `${hours}h ${remainder}m`;
 }
 
+/**
+ * When the next round arrives, set as a dateline.
+ *
+ * One line rather than a row of its own. This used to be a full-width band with
+ * a tracked label at one end, a bold figure at the other and its own rule
+ * underneath -- roughly forty pixels of page telling the reader something they
+ * are not waiting for, directly above the restaurants they are. It now sits on
+ * the baseline of the section heading and shares that heading's rule, so the
+ * information survives at a fraction of the weight.
+ *
+ * The element keeps its own live region: the caller lays it out, but the
+ * announcement belongs to the value.
+ */
 export function DailyPicksCountdown({ expiresAt, now }: DailyPicksCountdownProps) {
   const expiresAtMs = Date.parse(expiresAt);
   if (!Number.isFinite(expiresAtMs)) return null;
@@ -29,27 +42,22 @@ export function DailyPicksCountdown({ expiresAt, now }: DailyPicksCountdownProps
   const ready = remaining <= 0;
 
   return (
-    <div
+    <p
       data-testid="daily-picks-countdown"
       aria-live="polite"
       aria-atomic="true"
-      className="flex min-h-10 items-baseline justify-between gap-3 border-b border-line pb-3"
+      className="shrink-0 text-[0.8125rem] leading-5 text-ink-muted"
     >
       {ready ? (
-        <p className="text-sm font-medium text-lavender-700">Your next Picks are ready</p>
+        <span className="font-medium text-lavender-700">Your next Picks are ready</span>
       ) : (
         <>
-          <p className="text-[0.6875rem] font-semibold tracking-[0.12em] text-ink-muted uppercase">
-            Next Picks in
-          </p>
-          <time
-            dateTime={expiresAt}
-            className="shrink-0 text-base font-semibold text-plum tabular-nums"
-          >
+          Next Picks in{" "}
+          <time dateTime={expiresAt} className="font-semibold text-plum tabular-nums">
             {formatPicksCountdown(remaining)}
           </time>
         </>
       )}
-    </div>
+    </p>
   );
 }

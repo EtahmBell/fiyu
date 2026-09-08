@@ -166,8 +166,18 @@ const serverMinute = () => 0;
  * Neither is invented -- with no active selection the count line is omitted
  * entirely, and with no resolved origin the area prefix simply disappears.
  *
- * A lightly tinted, compact context strip keeps this distinct from the heavier
- * restaurant cards.
+ * One line, on the page background.
+ *
+ * This was a tinted panel carrying `Near Ikebukuro · 3 picks selected` above
+ * `Selected near Ikebukuro` -- the area named twice, the count phrased once as a
+ * status and once as a sentence, inside a box with the visual weight of a
+ * feature. The two facts are the same two facts; stated once they fit on a
+ * single muted line under the heading, which is what context is supposed to
+ * look like on a page whose subject is restaurants.
+ *
+ * Both inputs are unchanged: the count is still the current selection's length
+ * and the area still the resolved discovery origin, with `you` and an
+ * unresolved origin reading the same way they did before.
  */
 function PicksDiscoveryContext({
   areaLabel,
@@ -176,34 +186,19 @@ function PicksDiscoveryContext({
   areaLabel: string | null;
   pickCount: number;
 }) {
-  const countLabel = pickCount > 0 ? `${pickCount} picks selected` : null;
   const namedAreaLabel = areaLabel === "you" ? null : areaLabel;
-  const headline =
-    countLabel && namedAreaLabel
-      ? `Near ${namedAreaLabel} · ${countLabel}`
-      : (countLabel ?? (namedAreaLabel ? `Near ${namedAreaLabel}` : null));
-  const contextLabel = namedAreaLabel
-    ? `Selected near ${namedAreaLabel}`
-    : "Selected near your current location";
+  const nearLabel = namedAreaLabel ?? "you";
+  const line =
+    pickCount > 0 ? `${pickCount} Picks near ${nearLabel}` : `Near ${nearLabel}`;
 
   return (
-    <div
+    <p
       data-testid="picks-discovery-context"
-      className="flex min-w-0 items-start justify-between gap-3 rounded-xl bg-lavender-50/55 px-3 py-3 lg:hidden"
+      className="flex min-w-0 items-center gap-1.5 pb-0.5 text-[0.8125rem] leading-5 text-ink-muted lg:hidden"
     >
-      <div className="min-w-0">
-        {headline && (
-          <p className="flex min-w-0 items-center gap-1.5 text-sm leading-5 font-semibold text-plum">
-            <CityHeaderMark cityId={ACTIVE_FIYU_CITY.id} />
-            <span className="min-w-0">{headline}</span>
-          </p>
-        )}
-        <p className="mt-1 text-xs leading-5 text-ink-muted">
-          {contextLabel}
-        </p>
-      </div>
-
-    </div>
+      <CityHeaderMark cityId={ACTIVE_FIYU_CITY.id} className="size-[0.9375rem]" />
+      <span className="min-w-0">{line}</span>
+    </p>
   );
 }
 
@@ -785,23 +780,24 @@ export function DailyPicksPanel({
         data-testid="daily-picks-section"
         className="my-5 min-w-0 w-full"
       >
-        <h2
-          id="daily-picks-heading"
-          className={
-            phase === "finding"
-              ? "sr-only"
-              : selection && !UNLIMITED_PICKS_DEV_MODE
-                ? "pb-2 font-display text-2xl text-ink"
-                : "border-b border-line pb-3 font-display text-2xl text-ink"
-          }
-        >
-          {phase === "finding"
-            ? "Fresh Picks"
-            : "Today’s Fiyu Picks"}
-        </h2>
-
-        {phase === "idle" && selection && !UNLIMITED_PICKS_DEV_MODE && (
-          <DailyPicksCountdown expiresAt={selection.expiresAt} now={now} />
+        {phase === "finding" ? (
+          <h2 id="daily-picks-heading" className="sr-only">
+            Fresh Picks
+          </h2>
+        ) : (
+          /*
+           * Heading and countdown on one baseline, over one rule. Two stacked
+           * rows of chrome above the first restaurant was the single biggest
+           * reason the page read as UI-first.
+           */
+          <div className="flex items-baseline justify-between gap-3 border-b border-line pb-2.5">
+            <h2 id="daily-picks-heading" className="min-w-0 font-display text-2xl text-ink">
+              Today’s Fiyu Picks
+            </h2>
+            {phase === "idle" && selection && !UNLIMITED_PICKS_DEV_MODE && (
+              <DailyPicksCountdown expiresAt={selection.expiresAt} now={now} />
+            )}
+          </div>
         )}
 
         {phase === "finding" ? (
@@ -824,7 +820,9 @@ export function DailyPicksPanel({
           <div className="mt-4 space-y-4">
             {hasActivePicks && currentSelection && (
               <div
-                className="space-y-4"
+                // Slightly closer together than the surrounding blocks, so the
+                // three read as one curated set rather than three panels.
+                className="space-y-3 sm:space-y-4"
                 aria-label="Today’s restaurants"
                 style={{ animation: "fiyu-fade-in 260ms var(--ease-fiyu)" }}
               >

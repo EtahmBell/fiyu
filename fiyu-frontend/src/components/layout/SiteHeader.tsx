@@ -20,9 +20,22 @@ export function PageIntro() {
   );
 }
 
+/**
+ * The score provenance note.
+ *
+ * Both sentences are load-bearing -- one says whose judgement the number is,
+ * the other says when Google is contacted -- so the wording and the size are
+ * untouched. What went is the space around it: a quieter footer is one that
+ * occupies less of the page, not one set in smaller or fainter type.
+ *
+ * `ink-muted` rather than `ink-faint` for exactly that reason. At 12px this
+ * needs 4.5:1 to meet AA, and faint resolves to about 2.9:1 on canvas against
+ * muted's 4.76:1. A provenance note is the last piece of copy on the page that
+ * should be hard to read.
+ */
 export function SiteFooter() {
   return (
-    <div className="mt-10 border-t border-line px-1 py-6 text-xs leading-relaxed text-ink-faint">
+    <div className="mt-8 max-w-prose border-t border-line px-1 pt-4 pb-2 text-xs leading-5 text-ink-muted">
       Fiyu scores are Fiyu&apos;s own editorial signal, not a Google rating. Live Google
       information is fetched only when a restaurant is opened.
     </div>
