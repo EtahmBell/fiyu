@@ -170,6 +170,9 @@ export function FiyuMap({
   const [spiderfiedPlaceIds, setSpiderfiedPlaceIds] = useState<ReadonlySet<string>>(
     () => new Set(),
   );
+  const [appearingPlaceIds, setAppearingPlaceIds] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
   const [clusterInteractionResultKey, setClusterInteractionResultKey] = useState<string | null>(
     null,
   );
@@ -217,13 +220,11 @@ export function FiyuMap({
       return clusterMarkers(inputs, { scale: view.k });
     }
 
-    const expanding = inputs.filter((input) => expandingPlaceIds.has(input.id));
     const spiderfied = inputs.filter((input) => spiderfiedPlaceIds.has(input.id));
     const overridden = new Set([...expandingPlaceIds, ...spiderfiedPlaceIds]);
     const remaining = inputs.filter((input) => !overridden.has(input.id));
     return [
       ...clusterMarkers(remaining, { scale: view.k }),
-      ...individualMarkers(expanding, { scale: view.k }),
       ...spiderfyMarkers(spiderfied, { scale: view.k }),
     ];
   }, [clusterNearbyRestaurants, expandingPlaceIds, plotted, points, spiderfiedPlaceIds, view.k]);
@@ -246,6 +247,7 @@ export function FiyuMap({
     setClusterInteractionResultKey(null);
     setExpandingPlaceIds(new Set());
     setSpiderfiedPlaceIds(new Set());
+    setAppearingPlaceIds(new Set());
   }
   const plottedPlaceIds = useMemo(
     () => new Set(plotted.map((restaurant) => restaurant.place_id)),
@@ -484,6 +486,7 @@ export function FiyuMap({
     if (clearSpiderfy) {
       setSpiderfiedPlaceIds((current) => (current.size === 0 ? current : new Set()));
     }
+    setAppearingPlaceIds((current) => (current.size === 0 ? current : new Set()));
     setSproutingPlaceIds((current) => (current.size === 0 ? current : new Set()));
   }, [cancelViewAnimation]);
 
@@ -614,6 +617,7 @@ export function FiyuMap({
       markInteracted();
       onMapBackgroundClick?.();
       setSpiderfiedPlaceIds(new Set());
+      setAppearingPlaceIds(new Set());
       const currentScale = viewRef.current.k;
       const minimumScale = Math.min(
         MAX_SCALE,
@@ -641,8 +645,10 @@ export function FiyuMap({
         (settled) => {
           clusterExpansionInFlight.current = false;
           setExpandingPlaceIds(new Set());
-          if (settled && needsSpiderfy) {
-            setSpiderfiedPlaceIds(new Set(cluster.members.map((member) => member.id)));
+          if (settled) {
+            const memberIds = new Set(cluster.members.map((member) => member.id));
+            setAppearingPlaceIds(memberIds);
+            if (needsSpiderfy) setSpiderfiedPlaceIds(memberIds);
           }
         },
       );
@@ -715,6 +721,7 @@ export function FiyuMap({
             clusters={clusters}
             selectedPlaceId={selectedPlaceId}
             newlyRevealedPlaceIds={sproutingPlaceIds}
+            appearingPlaceIds={appearingPlaceIds}
             scale={view.k}
             onSelect={onSelect}
           />

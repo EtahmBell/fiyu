@@ -470,6 +470,13 @@ describe("clustering on the map", () => {
     expect(container.querySelectorAll('[data-marker-kind="restaurant"]')).toHaveLength(2);
     expect(screen.queryByTestId("map-cluster-picker")).toBeNull();
     expect(onMapBackgroundClick).toHaveBeenCalledTimes(1);
+    for (const marker of container.querySelectorAll('[data-marker-kind="restaurant"]')) {
+      expect(marker.getAttribute("class") ?? "").not.toMatch(/transition-(all|transform)/);
+      const primary = marker.querySelector("circle:nth-of-type(3)");
+      expect(primary?.getAttribute("class") ?? "").not.toMatch(
+        /transition-(all|transform)/,
+      );
+    }
   });
 
   it("ignores repeated activation while one cluster expansion is in flight", () => {
@@ -526,16 +533,75 @@ describe("clustering on the map", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /3 restaurants in this area/ }));
     expect(container.querySelector('[data-marker-kind="restaurant-cluster"]')).toBeNull();
-    expect(container.querySelectorAll('[data-marker-kind="restaurant"]')).toHaveLength(3);
+    expect(container.querySelectorAll('[data-marker-kind="restaurant"]')).toHaveLength(0);
     expect(frames).toHaveLength(1);
 
     act(() => frames.shift()?.(0));
     expect(container.querySelector('[data-marker-kind="restaurant-cluster"]')).toBeNull();
-    expect(container.querySelectorAll('[data-marker-kind="restaurant"]')).toHaveLength(3);
+    expect(container.querySelectorAll('[data-marker-kind="restaurant"]')).toHaveLength(0);
 
     act(() => frames.shift()?.(1_000));
     expect(container.querySelector('[data-marker-kind="restaurant-cluster"]')).toBeNull();
     expect(container.querySelectorAll('[data-marker-kind="restaurant"]')).toHaveLength(3);
+    expect(container.querySelectorAll('[data-cluster-appearing="true"]')).toHaveLength(3);
+    expect(screen.queryByText("Restaurants here")).toBeNull();
+  });
+
+  it("restores normal clustering when camera expansion is cancelled", () => {
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation(() => 99);
+    const a = mappable("a", 35.6978436, 139.7741913);
+    const b = mappable("b", 35.69797502625716, 139.77817065934673);
+    saveMapViewportSession("cancelled-cluster-interaction", {
+      resultKey: "a|b",
+      view: { x: 0, y: 0, k: 1 },
+    });
+    const { container } = render(
+      <FiyuMap
+        restaurants={[a, b]}
+        selectedPlaceId={null}
+        onSelect={() => {}}
+        viewportSessionKey="cancelled-cluster-interaction"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /2 restaurants in this area/ }));
+    expect(container.querySelector('[data-marker-kind="restaurant-cluster"]')).toBeNull();
+    expect(container.querySelectorAll('[data-marker-kind="restaurant"]')).toHaveLength(0);
+
+    fireEvent.click(screen.getByRole("button", { name: "Reset to the whole map" }));
+    expect(screen.getByRole("button", { name: /2 restaurants in this area/ })).toBeTruthy();
+    expect(container.querySelectorAll('[data-cluster-appearing="true"]')).toHaveLength(0);
+  });
+
+  it("waits for camera settlement before rendering spiderfied markers", () => {
+    const frames: FrameRequestCallback[] = [];
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+    const a = mappable("a", 35.658, 139.7016, { name_en: "Restaurant A" });
+    const b = mappable("b", 35.658, 139.7016, { name_en: "Restaurant B" });
+    saveMapViewportSession("spiderfy-lifecycle", {
+      resultKey: "a|b",
+      view: { x: 0, y: 0, k: 1 },
+    });
+    const { container } = render(
+      <FiyuMap
+        restaurants={[a, b]}
+        selectedPlaceId={null}
+        onSelect={() => {}}
+        viewportSessionKey="spiderfy-lifecycle"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /2 restaurants in this area/ }));
+    expect(container.querySelectorAll('[data-marker-kind="restaurant"]')).toHaveLength(0);
+    act(() => frames.shift()?.(0));
+    expect(container.querySelectorAll('[data-marker-kind="restaurant"]')).toHaveLength(0);
+
+    act(() => frames.shift()?.(1_000));
+    expect(container.querySelectorAll('[data-marker-kind="restaurant"]')).toHaveLength(2);
+    expect(container.querySelectorAll('[data-cluster-appearing="true"]')).toHaveLength(2);
     expect(screen.queryByText("Restaurants here")).toBeNull();
   });
 

@@ -17,6 +17,8 @@ export interface MapMarkersProps {
   clusters: MarkerCluster<MappableRestaurant>[];
   selectedPlaceId: string | null;
   newlyRevealedPlaceIds: ReadonlySet<string>;
+  /** Cluster leaves that should only fade in after camera settlement. */
+  appearingPlaceIds: ReadonlySet<string>;
   scale: number;
   onSelect: (restaurant: MappableRestaurant) => void;
 }
@@ -33,6 +35,7 @@ export function MapMarkers({
   clusters,
   selectedPlaceId,
   newlyRevealedPlaceIds,
+  appearingPlaceIds,
   scale,
   onSelect,
 }: MapMarkersProps) {
@@ -85,6 +88,7 @@ export function MapMarkers({
         const savedOnly = markerState === "saved";
         const marker = visited ? "var(--map-marker-visited)" : "var(--map-marker)";
         const label = resolveNames(restaurant).primary?.text ?? "Unnamed restaurant";
+        const appearing = appearingPlaceIds.has(restaurant.place_id);
 
         return (
           <g
@@ -101,11 +105,12 @@ export function MapMarkers({
             data-saved={restaurant.is_saved ? "true" : "false"}
             data-marker-state={markerState}
             data-newly-revealed={newlyRevealed ? "true" : undefined}
+            data-cluster-appearing={appearing ? "true" : undefined}
             className={cn(
               "cursor-pointer focus:outline-none",
               "[&:focus-visible>circle:first-child]:opacity-100",
               "[&:hover>circle:first-child]:opacity-60",
-              newlyRevealed && "fiyu-map-pin-sprout",
+              appearing ? "fiyu-map-pin-fade" : newlyRevealed && "fiyu-map-pin-sprout",
             )}
             onClick={() => onSelect(restaurant)}
             onKeyDown={(event) => {
@@ -131,7 +136,7 @@ export function MapMarkers({
               fill={savedOnly ? "var(--map-bg)" : marker}
               stroke={savedOnly ? "var(--map-marker)" : "var(--map-marker-center)"}
               strokeWidth={size(selected ? 3 : savedOnly ? 3 : 2.5)}
-              className="transition-all duration-[180ms] ease-(--ease-fiyu)"
+              className="transition-[fill,stroke,stroke-width] duration-[180ms] ease-(--ease-fiyu)"
             />
             <title>{label}</title>
           </g>
