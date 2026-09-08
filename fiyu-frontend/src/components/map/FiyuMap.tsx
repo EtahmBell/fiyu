@@ -37,6 +37,7 @@ import {
   MAX_SCALE,
   MIN_SCALE,
   type MapView,
+  centerPointsAtScale,
   clientToViewBox,
   fitPointsIfOutsideView,
   fitToPoints,
@@ -104,6 +105,8 @@ const REVEAL_FIT_PADDING = 120;
 const SELECTION_TRANSITION_MIN_MS = 520;
 const SELECTION_TRANSITION_MAX_MS = 840;
 const CLUSTER_TRANSITION_MS = 680;
+const CLUSTER_MIN_ZOOM_FACTOR = 1.35;
+const CLUSTER_MIN_ZOOM_STEP = 0.5;
 
 function easeOutCubic(progress: number): number {
   return 1 - (1 - progress) ** 3;
@@ -156,11 +159,16 @@ export function FiyuMap({
   );
   const viewRef = useRef(view);
   const viewAnimation = useRef<number | null>(null);
+  const viewAnimationCompletion = useRef<(() => void) | null>(null);
   const lastAutoSelection = useRef<string | null>(null);
   const [sproutingPlaceIds, setSproutingPlaceIds] = useState<ReadonlySet<string>>(
     () => new Set(),
   );
   const [clusterPicker, setClusterPicker] = useState<MarkerCluster<MappableRestaurant> | null>(null);
+  const [expandingPlaceIds, setExpandingPlaceIds] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
+  const clusterExpansionInFlight = useRef(false);
   const seenRevealEventIds = useRef(new Set<string>());
   const sproutTimers = useRef<number[]>([]);
 
@@ -199,10 +207,16 @@ export function FiyuMap({
       point: points[index],
       item: restaurant,
     }));
-    return clusterNearbyRestaurants
-      ? clusterMarkers(inputs, { scale: view.k })
-      : individualMarkers(inputs, { scale: view.k });
-  }, [clusterNearbyRestaurants, plotted, points, view.k]);
+    if (!clusterNearbyRestaurants) return individualMarkers(inputs, { scale: view.k });
+    if (expandingPlaceIds.size === 0) return clusterMarkers(inputs, { scale: view.k });
+
+    const expanding = inputs.filter((input) => expandingPlaceIds.has(input.id));
+    const remaining = inputs.filter((input) => !expandingPlaceIds.has(input.id));
+    return [
+      ...clusterMarkers(remaining, { scale: view.k }),
+      ...individualMarkers(expanding, { scale: view.k }),
+    ];
+  }, [clusterNearbyRestaurants, expandingPlaceIds, plotted, points, view.k]);
 
   /*
    * Detail level, bucketed from the scale.
@@ -250,24 +264,36 @@ export function FiyuMap({
     viewRef.current = view;
   }, [view]);
 
-  const cancelViewAnimation = useCallback(() => {
+  const cancelViewAnimation = useCallback((complete = true) => {
     if (viewAnimation.current !== null) {
       window.cancelAnimationFrame(viewAnimation.current);
       viewAnimation.current = null;
     }
+    const completion = viewAnimationCompletion.current;
+    viewAnimationCompletion.current = null;
+    if (complete) completion?.();
   }, []);
 
-  const animateToView = useCallback((target: MapView, duration: number) => {
+  const animateToView = useCallback((
+    target: MapView,
+    duration: number,
+    onComplete?: () => void,
+  ) => {
     cancelViewAnimation();
     const start = viewRef.current;
-    if (viewsEqual(start, target)) return;
+    if (viewsEqual(start, target)) {
+      onComplete?.();
+      return;
+    }
     const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true;
     if (reducedMotion || typeof window.requestAnimationFrame !== "function") {
       viewRef.current = target;
       setView(target);
+      onComplete?.();
       return;
     }
 
+    viewAnimationCompletion.current = onComplete ?? null;
     let startedAt: number | null = null;
     const tick = (now: number) => {
       startedAt ??= now;
@@ -286,12 +312,15 @@ export function FiyuMap({
         viewAnimation.current = null;
         viewRef.current = target;
         setView(target);
+        const completion = viewAnimationCompletion.current;
+        viewAnimationCompletion.current = null;
+        completion?.();
       }
     };
     viewAnimation.current = window.requestAnimationFrame(tick);
   }, [cancelViewAnimation]);
 
-  useEffect(() => cancelViewAnimation, [cancelViewAnimation]);
+  useEffect(() => () => cancelViewAnimation(false), [cancelViewAnimation]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -569,26 +598,43 @@ export function FiyuMap({
 
   const expandCluster = useCallback(
     (cluster: MarkerCluster<MappableRestaurant>) => {
+      if (clusterExpansionInFlight.current) return;
       markInteracted();
       onMapBackgroundClick?.();
+      setClusterPicker(null);
+      const currentScale = viewRef.current.k;
+      const minimumScale = Math.min(
+        MAX_SCALE,
+        Math.max(
+          currentScale * CLUSTER_MIN_ZOOM_FACTOR,
+          currentScale + CLUSTER_MIN_ZOOM_STEP,
+        ),
+      );
       const separatingScale = clusterExpansionScale(cluster.members, {
-        currentScale: view.k,
+        currentScale,
         maxScale: MAX_SCALE,
+        minimumScale,
       });
       if (separatingScale === null) {
         setClusterPicker(cluster);
         return;
       }
-      setClusterPicker(null);
+
+      clusterExpansionInFlight.current = true;
+      setExpandingPlaceIds(new Set(cluster.members.map((member) => member.id)));
       animateToView(
-        fitToPoints(cluster.members.map((member) => member.point), {
-          padding: 160,
-          maxScale: separatingScale,
-        }),
+        centerPointsAtScale(
+          cluster.members.map((member) => member.point),
+          separatingScale,
+        ),
         CLUSTER_TRANSITION_MS,
+        () => {
+          clusterExpansionInFlight.current = false;
+          setExpandingPlaceIds(new Set());
+        },
       );
     },
-    [animateToView, markInteracted, onMapBackgroundClick, view.k],
+    [animateToView, markInteracted, onMapBackgroundClick],
   );
 
   const clusterButtonPosition = useCallback(

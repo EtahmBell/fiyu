@@ -432,11 +432,72 @@ describe("clustering on the map", () => {
 
     expect(content.getAttribute("transform")).toBe(before);
     expect(animation).toHaveBeenCalled();
+    expect(screen.queryByTestId("map-cluster-picker")).toBeNull();
 
     await waitFor(() => {
       expect(container.querySelector('[data-marker-kind="restaurant-cluster"]')).toBeNull();
       expect(container.querySelectorAll('[data-marker-kind="restaurant"]')).toHaveLength(2);
     });
+  });
+
+  it("uses one meaningful, stable expansion for an ordinary cluster", () => {
+    const onMapBackgroundClick = vi.fn();
+    const a = mappable("a", 35.6978436, 139.7741913, { name_en: "Restaurant A" });
+    const b = mappable("b", 35.69797502625716, 139.77817065934673, {
+      name_en: "Restaurant B",
+    });
+    saveMapViewportSession("stable-cluster-interaction", {
+      resultKey: "a|b",
+      view: { x: 0, y: 0, k: 1 },
+    });
+    vi.stubGlobal("matchMedia", () => ({ matches: true }));
+    const { container } = render(
+      <FiyuMap
+        restaurants={[a, b]}
+        selectedPlaceId={null}
+        onSelect={() => {}}
+        onMapBackgroundClick={onMapBackgroundClick}
+        viewportSessionKey="stable-cluster-interaction"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /2 restaurants in this area/ }));
+
+    const transform = mapSurface().querySelector("g[transform]")?.getAttribute("transform") ?? "";
+    const scale = Number(transform.match(/scale\(([\d.]+)\)/)?.[1]);
+    expect(scale).toBeGreaterThanOrEqual(1.5);
+    expect(container.querySelector('[data-marker-kind="restaurant-cluster"]')).toBeNull();
+    expect(container.querySelectorAll('[data-marker-kind="restaurant"]')).toHaveLength(2);
+    expect(screen.queryByTestId("map-cluster-picker")).toBeNull();
+    expect(onMapBackgroundClick).toHaveBeenCalledTimes(1);
+  });
+
+  it("ignores repeated activation while one cluster expansion is in flight", () => {
+    const onMapBackgroundClick = vi.fn();
+    const animation = vi.spyOn(window, "requestAnimationFrame").mockImplementation(() => 99);
+    const a = mappable("a", 35.6978436, 139.7741913);
+    const b = mappable("b", 35.69797502625716, 139.77817065934673);
+    saveMapViewportSession("single-cluster-interaction", {
+      resultKey: "a|b",
+      view: { x: 0, y: 0, k: 1 },
+    });
+    render(
+      <FiyuMap
+        restaurants={[a, b]}
+        selectedPlaceId={null}
+        onSelect={() => {}}
+        onMapBackgroundClick={onMapBackgroundClick}
+        viewportSessionKey="single-cluster-interaction"
+      />,
+    );
+    const clusterButton = screen.getByRole("button", { name: /2 restaurants in this area/ });
+
+    fireEvent.click(clusterButton);
+    fireEvent.click(clusterButton);
+
+    expect(animation).toHaveBeenCalledTimes(1);
+    expect(onMapBackgroundClick).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId("map-cluster-picker")).toBeNull();
   });
 
   it("lists every restaurant when coincident markers cannot separate at maximum zoom", () => {

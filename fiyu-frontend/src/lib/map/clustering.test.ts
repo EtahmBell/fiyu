@@ -131,6 +131,19 @@ describe("clusterExpansionScale", () => {
     const members = [input("a", 100, 100), input("b", 100, 100)];
     expect(clusterExpansionScale(members, { currentScale: 1, maxScale: 4 })).toBeNull();
   });
+
+  it("skips weak structural splits below the requested meaningful scale", () => {
+    const members = [input("a", 100, 100), input("b", 120, 100)];
+    const target = clusterExpansionScale(members, {
+      currentScale: 1,
+      maxScale: 4,
+      minimumScale: 2,
+    });
+
+    expect(target).not.toBeNull();
+    expect(target as number).toBeGreaterThanOrEqual(2);
+    expect(clusterMarkers(members, { scale: target as number })).toHaveLength(2);
+  });
 });
 
 describe("cluster counts are not a popularity signal", () => {

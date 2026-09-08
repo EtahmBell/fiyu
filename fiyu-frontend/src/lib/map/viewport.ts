@@ -203,6 +203,35 @@ export function fitToPoints(points: readonly Point[], options: FitOptions = {}):
   });
 }
 
+/**
+ * Centre a set of points at an exact scale.
+ *
+ * Cluster expansion uses this instead of `fitToPoints`: there the requested
+ * scale is the minimum known to separate the leaves, not merely a ceiling that
+ * the fitting calculation may choose not to reach.
+ */
+export function centerPointsAtScale(points: readonly Point[], scale: number): MapView {
+  if (points.length === 0) return IDENTITY_VIEW;
+
+  let minX = points[0].x;
+  let maxX = points[0].x;
+  let minY = points[0].y;
+  let maxY = points[0].y;
+  for (const { x, y } of points) {
+    if (x < minX) minX = x;
+    if (x > maxX) maxX = x;
+    if (y < minY) minY = y;
+    if (y > maxY) maxY = y;
+  }
+
+  const k = clampScale(scale);
+  return clampTranslate({
+    x: VIEWBOX_WIDTH / 2 - ((minX + maxX) / 2) * k,
+    y: VIEWBOX_HEIGHT / 2 - ((minY + maxY) / 2) * k,
+    k,
+  });
+}
+
 /** Whether a projected map point is inside the currently visible map area. */
 export function pointIsVisible(point: Point, view: MapView): boolean {
   const x = point.x * view.k + view.x;

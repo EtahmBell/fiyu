@@ -6,6 +6,7 @@ import {
   MAX_SCALE,
   MIN_SCALE,
   type MapView,
+  centerPointsAtScale,
   clampScale,
   clampTranslate,
   clientToViewBox,
@@ -211,6 +212,28 @@ describe("fitToPoints", () => {
       { x: 900, y: 900 },
     ]);
     expect(clampTranslate(view)).toEqual(view);
+  });
+});
+
+describe("centerPointsAtScale", () => {
+  it("uses the requested cluster-expansion scale rather than treating it as a ceiling", () => {
+    const points = [
+      { x: 480, y: 490 },
+      { x: 520, y: 510 },
+    ];
+    const view = centerPointsAtScale(points, 2.5);
+
+    expect(view.k).toBe(2.5);
+    const midpoint = {
+      x: (screenOf(points[0], view).x + screenOf(points[1], view).x) / 2,
+      y: (screenOf(points[0], view).y + screenOf(points[1], view).y) / 2,
+    };
+    expect(midpoint.x).toBeCloseTo(VIEWBOX_WIDTH / 2, 2);
+    expect(midpoint.y).toBeCloseTo(VIEWBOX_HEIGHT / 2, 2);
+  });
+
+  it("clamps an excessive requested scale to the map maximum", () => {
+    expect(centerPointsAtScale([{ x: 500, y: 500 }], 99).k).toBe(MAX_SCALE);
   });
 });
 

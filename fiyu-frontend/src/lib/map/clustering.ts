@@ -38,6 +38,8 @@ export interface ClusterOptions {
 export interface ClusterExpansionOptions {
   currentScale: number;
   maxScale: number;
+  /** Do not return a technically split but visually negligible zoom target. */
+  minimumScale?: number;
   /** Minimum centre-to-centre distance needed for two full-size pins to read separately. */
   minimumSeparation?: number;
   step?: number;
@@ -156,7 +158,10 @@ export function clusterExpansionScale<T>(
   if (members.length < 2) return null;
   const step = Math.max(0.05, options.step ?? 0.25);
   const minimumSeparation = Math.max(1, options.minimumSeparation ?? BASE_CELL_SIZE * 0.375);
-  const start = Math.min(options.maxScale, Math.max(1, options.currentScale + step));
+  const start = Math.min(
+    options.maxScale,
+    Math.max(1, options.currentScale + step, options.minimumScale ?? 1),
+  );
 
   for (let scale = start; scale <= options.maxScale + 1e-9; scale += step) {
     const candidateScale = Math.min(options.maxScale, scale);
