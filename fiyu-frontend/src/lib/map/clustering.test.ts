@@ -118,10 +118,10 @@ describe("individualMarkers", () => {
 });
 
 describe("clusterExpansionScale", () => {
-  it("skips an early grid-boundary split that would leave pins overlapping", () => {
+  it("keeps distinct points canonical even when max zoom cannot fully separate their visuals", () => {
     const members = [input("a", 63, 100), input("b", 65, 100)];
     expect(clusterMarkers(members, { scale: 1 })).toHaveLength(2);
-    expect(clusterExpansionScale(members, { currentScale: 1, maxScale: 4 })).toBeNull();
+    expect(clusterExpansionScale(members, { currentScale: 1, maxScale: 4 })).toBe(4);
   });
 
   it("selects a single zoom that makes nearby pins visibly separate", () => {
@@ -163,16 +163,21 @@ describe("clusterExpansionScale", () => {
     expect(plan).toEqual({ mode: "separable", targetScale: 2 });
   });
 
-  it("freezes spiderfy only for canonical points that cannot separate at max zoom", () => {
+  it("freezes spiderfy only for coordinates that render at the same canonical point", () => {
     expect(planClusterExpansion(
       [input("a", 100, 100), input("b", 100, 100)],
       { currentScale: 1, maxScale: 4 },
     )).toEqual({ mode: "spiderfy", targetScale: 4 });
 
     expect(planClusterExpansion(
-      [input("a", 100, 100), input("b", 107, 100)],
+      [input("a", 100, 100), input("b", 101, 100)],
       { currentScale: 1, maxScale: 4 },
-    ).mode).toBe("separable");
+    )).toEqual({ mode: "separable", targetScale: 4 });
+
+    expect(planClusterExpansion(
+      [input("a", 100.001, 100.001), input("b", 100.004, 100.004)],
+      { currentScale: 1, maxScale: 4 },
+    )).toEqual({ mode: "spiderfy", targetScale: 4 });
   });
 });
 

@@ -205,9 +205,10 @@ export function clusterExpansionScale<T>(
  * Freeze the interaction mode and target before camera motion begins.
  *
  * Grid-cell membership is deliberately irrelevant here. A pair can remain in
- * one clustering cell at maximum zoom while still being far enough apart to
- * draw as two ordinary pins. Spiderfy is reserved for canonical coordinates
- * that cannot reach the required screen-space separation at maxScale.
+ * one clustering cell at maximum zoom while still representing two distinct
+ * real locations. Spiderfy is reserved for canonical coordinates that render
+ * at the same SVG point; merely being close is never enough to replace real
+ * geography with a radial display offset.
  */
 export function planClusterExpansion<T>(
   members: readonly ClusterInput<T>[],
@@ -226,19 +227,17 @@ export function planClusterExpansion<T>(
   let requiredScale = start;
   for (let left = 0; left < members.length; left += 1) {
     for (let right = left + 1; right < members.length; right += 1) {
+      const leftPoint = roundPoint(members[left].point);
+      const rightPoint = roundPoint(members[right].point);
       const canonicalDistance = Math.hypot(
-        members[left].point.x - members[right].point.x,
-        members[left].point.y - members[right].point.y,
+        leftPoint.x - rightPoint.x,
+        leftPoint.y - rightPoint.y,
       );
-      if (canonicalDistance <= Number.EPSILON) {
+      if (canonicalDistance === 0) {
         return { mode: "spiderfy", targetScale: options.maxScale };
       }
       requiredScale = Math.max(requiredScale, minimumSeparation / canonicalDistance);
     }
-  }
-
-  if (requiredScale > options.maxScale + 1e-9) {
-    return { mode: "spiderfy", targetScale: options.maxScale };
   }
 
   const steppedScale = start + Math.ceil(Math.max(0, requiredScale - start) / step) * step;

@@ -308,15 +308,29 @@ export function FiyuMap({
     cancelViewAnimation();
     const start = viewRef.current;
     if (viewsEqual(start, target)) {
-      onComplete?.(true);
+      if (commitBeforeComplete) {
+        flushSync(() => {
+          setView(target);
+          onComplete?.(true);
+        });
+      } else {
+        setView(target);
+        onComplete?.(true);
+      }
       return;
     }
     const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true;
     if (reducedMotion || typeof window.requestAnimationFrame !== "function") {
       viewRef.current = target;
-      if (commitBeforeComplete) flushSync(() => setView(target));
-      else setView(target);
-      onComplete?.(true);
+      if (commitBeforeComplete) {
+        flushSync(() => {
+          setView(target);
+          onComplete?.(true);
+        });
+      } else {
+        setView(target);
+        onComplete?.(true);
+      }
       return;
     }
 
@@ -334,15 +348,25 @@ export function FiyuMap({
             k: start.k + (target.k - start.k) * eased,
           });
       viewRef.current = next;
-      if (progress === 1 && commitBeforeComplete) flushSync(() => setView(next));
-      else setView(next);
       if (progress < 1) {
+        setView(next);
         viewAnimation.current = window.requestAnimationFrame(tick);
       } else {
         viewAnimation.current = null;
         const completion = viewAnimationCompletion.current;
         viewAnimationCompletion.current = null;
-        completion?.(true);
+        if (commitBeforeComplete) {
+          // The final transform and the expansion phase that exposes leaf pins
+          // belong to one authoritative React commit. No later pointer, resize
+          // or animation frame is needed to synchronize declarative SVG state.
+          flushSync(() => {
+            setView(next);
+            completion?.(true);
+          });
+        } else {
+          setView(next);
+          completion?.(true);
+        }
       }
     };
     viewAnimation.current = window.requestAnimationFrame(tick);
@@ -519,10 +543,13 @@ export function FiyuMap({
 
     const onWheel = (event: WheelEvent) => {
       event.preventDefault();
-      markInteracted();
       const factor = Math.exp(-event.deltaY * WHEEL_SENSITIVITY);
       const focus = clientToViewBox(event.clientX, event.clientY, svg.getBoundingClientRect());
-      setView((current) => zoomAt(current, factor, focus));
+      const next = zoomAt(viewRef.current, factor, focus);
+      if (viewsEqual(viewRef.current, next)) return;
+      markInteracted();
+      viewRef.current = next;
+      setView(next);
     };
 
     svg.addEventListener("wheel", onWheel, { passive: false });
@@ -567,10 +594,14 @@ export function FiyuMap({
         const [a, b] = active;
         const spread = distanceBetween(a, b);
         if (pinchDistance.current !== null && pinchDistance.current > 0) {
-          markInteracted();
           const factor = spread / pinchDistance.current;
           const focus = toViewBox((a.clientX + b.clientX) / 2, (a.clientY + b.clientY) / 2);
-          setView((current) => zoomAt(current, factor, focus));
+          const next = zoomAt(viewRef.current, factor, focus);
+          if (!viewsEqual(viewRef.current, next)) {
+            markInteracted();
+            viewRef.current = next;
+            setView(next);
+          }
         }
         pinchDistance.current = spread;
         return;
@@ -584,8 +615,11 @@ export function FiyuMap({
       const dy = to.y - from.y;
       if (dx === 0 && dy === 0) return;
 
+      const next = panBy(viewRef.current, dx, dy);
+      if (viewsEqual(viewRef.current, next)) return;
       markInteracted();
-      setView((current) => panBy(current, dx, dy));
+      viewRef.current = next;
+      setView(next);
     },
     [interactive, markInteracted, toViewBox],
   );

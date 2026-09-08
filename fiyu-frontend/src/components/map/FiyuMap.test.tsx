@@ -519,6 +519,65 @@ describe("clustering on the map", () => {
     }
   });
 
+  it("commits close distinct leaves canonically before any pointer input", () => {
+    const frames: FrameRequestCallback[] = [];
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+    // These points begin in one k=1 cell but straddle a k=4 cell boundary.
+    // They are closer than one marker footprint, which previously caused a
+    // false spiderfy even though their canonical coordinates are distinct.
+    const firstCoordinate = unproject({ x: 111, y: 100 });
+    const secondCoordinate = unproject({ x: 113, y: 100 });
+    const a = mappable("a", firstCoordinate.lat, firstCoordinate.lng, {
+      name_en: "Restaurant A",
+    });
+    const b = mappable("b", secondCoordinate.lat, secondCoordinate.lng, {
+      name_en: "Restaurant B",
+    });
+    saveMapViewportSession("close-distinct-expansion", {
+      resultKey: "a|b",
+      view: { x: 0, y: 0, k: 1 },
+    });
+    const { container } = render(
+      <FiyuMap
+        restaurants={[a, b]}
+        selectedPlaceId={null}
+        onSelect={() => {}}
+        viewportSessionKey="close-distinct-expansion"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /2 restaurants in this area/ }));
+    act(() => frames.shift()?.(0));
+    act(() => frames.shift()?.(1_000));
+
+    const markerPositions = () => [a, b].map((restaurant) => {
+      const canonical = project({ lat: restaurant.latitude, lng: restaurant.longitude });
+      const marker = container.querySelector(`[data-place-id="${restaurant.place_id}"]`);
+      const circle = marker?.querySelector("circle:nth-of-type(2)");
+      return {
+        actual: `${circle?.getAttribute("cx")}:${circle?.getAttribute("cy")}`,
+        canonical: `${canonical.x}:${canonical.y}`,
+      };
+    });
+    const immediatelySettled = markerPositions();
+    expect(immediatelySettled.every(({ actual, canonical }) => actual === canonical)).toBe(true);
+    expect(new Set(immediatelySettled.map(({ actual }) => actual)).size).toBe(2);
+    const settledTransform = mapSurface().querySelector("g[transform]")?.getAttribute("transform");
+
+    // Idle hover has no state path, and a wheel gesture clamped at MAX_SCALE
+    // is also a no-op. Neither may clear or "correct" marker geometry.
+    fireEvent.pointerMove(mapSurface(), { pointerId: 9, clientX: 300, clientY: 300 });
+    fireEvent.wheel(mapSurface(), { clientX: 300, clientY: 300, deltaY: -100 });
+
+    expect(markerPositions()).toEqual(immediatelySettled);
+    expect(mapSurface().querySelector("g[transform]")?.getAttribute("transform")).toBe(
+      settledTransform,
+    );
+  });
+
   it("ignores repeated activation while one cluster expansion is in flight", () => {
     const onMapBackgroundClick = vi.fn();
     const animation = vi.spyOn(window, "requestAnimationFrame").mockImplementation(() => 99);
