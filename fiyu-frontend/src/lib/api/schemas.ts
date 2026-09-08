@@ -397,6 +397,7 @@ export const dailyPickAssignmentResponseSchema = z.object({
   expires_at: z.string().min(1).optional(),
   revealed_at: z.string().min(1).nullable().optional(),
   revealed_place_ids: z.array(z.string().min(1)).max(3).default([]),
+  revealed_at_by_place_id: z.record(z.string(), z.string().min(1)).default({}),
   discovery_mode: z.enum(["current", "preview", "manual"]).nullable().optional(),
   discovery_label: z.string().nullable().optional(),
   restaurants: z.array(publicRestaurantSchema).max(3).optional(),
@@ -453,6 +454,7 @@ export const recentDailyPickRoundSchema = z.object({
   place_ids: z.array(z.string().min(1)).max(3),
   assigned_at: z.string().min(1),
   retention_expires_at: z.string().min(1),
+  revealed_at_by_place_id: z.record(z.string(), z.string().min(1)).default({}),
   restaurants: z.array(publicRestaurantSchema).max(3),
 });
 

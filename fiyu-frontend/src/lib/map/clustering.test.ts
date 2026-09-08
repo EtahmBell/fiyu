@@ -2,7 +2,14 @@ import { describe, expect, it } from "vitest";
 
 import { publicRestaurantSchema } from "@/lib/api/schemas";
 import { mappableRestaurants } from "@/lib/geo/mappable";
-import { BASE_CELL_SIZE, type ClusterInput, clusterMarkers, individualMarkers, isCluster } from "@/lib/map/clustering";
+import {
+  BASE_CELL_SIZE,
+  type ClusterInput,
+  clusterExpansionScale,
+  clusterMarkers,
+  individualMarkers,
+  isCluster,
+} from "@/lib/map/clustering";
 import { project } from "@/lib/map/projection";
 import restaurantsFixture from "@/test/fixtures/restaurants.json";
 
@@ -105,6 +112,24 @@ describe("individualMarkers", () => {
     expect(first).toEqual(second);
     expect(new Set(first.map((marker) => `${marker.point.x}:${marker.point.y}`)).size).toBe(3);
     expect(first.map((marker) => marker.id)).toEqual(["b", "a", "c"]);
+  });
+});
+
+describe("clusterExpansionScale", () => {
+  it("skips an early grid-boundary split that would leave pins overlapping", () => {
+    const members = [input("a", 63, 100), input("b", 65, 100)];
+    expect(clusterMarkers(members, { scale: 1 })).toHaveLength(2);
+    expect(clusterExpansionScale(members, { currentScale: 1, maxScale: 4 })).toBeNull();
+  });
+
+  it("selects a single zoom that makes nearby pins visibly separate", () => {
+    const members = [input("a", 100, 100), input("b", 120, 100)];
+    expect(clusterExpansionScale(members, { currentScale: 1, maxScale: 4 })).toBe(1.25);
+  });
+
+  it("returns null for effectively coincident markers so the chooser can open", () => {
+    const members = [input("a", 100, 100), input("b", 100, 100)];
+    expect(clusterExpansionScale(members, { currentScale: 1, maxScale: 4 })).toBeNull();
   });
 });
 

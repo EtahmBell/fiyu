@@ -35,6 +35,14 @@ export interface ClusterOptions {
   baseCellSize?: number;
 }
 
+export interface ClusterExpansionOptions {
+  currentScale: number;
+  maxScale: number;
+  /** Minimum centre-to-centre distance needed for two full-size pins to read separately. */
+  minimumSeparation?: number;
+  step?: number;
+}
+
 export interface IndividualMarkerOptions {
   /** Current map scale; keeps display-only collision separation visually stable. */
   scale?: number;
@@ -134,6 +142,45 @@ export function clusterMarkers<T>(
       members,
     };
   });
+}
+
+/**
+ * Find one intentional zoom level where a cluster is both structurally split
+ * and visually separated. A grid-boundary split alone is insufficient: it can
+ * leave overlapping pins and may re-cluster at the next scale.
+ */
+export function clusterExpansionScale<T>(
+  members: readonly ClusterInput<T>[],
+  options: ClusterExpansionOptions,
+): number | null {
+  if (members.length < 2) return null;
+  const step = Math.max(0.05, options.step ?? 0.25);
+  const minimumSeparation = Math.max(1, options.minimumSeparation ?? BASE_CELL_SIZE * 0.375);
+  const start = Math.min(options.maxScale, Math.max(1, options.currentScale + step));
+
+  for (let scale = start; scale <= options.maxScale + 1e-9; scale += step) {
+    const candidateScale = Math.min(options.maxScale, scale);
+    if (!clusterMarkers(members, { scale: candidateScale }).every(
+      (cluster) => cluster.members.length === 1,
+    )) continue;
+
+    let separated = true;
+    for (let left = 0; left < members.length && separated; left += 1) {
+      for (let right = left + 1; right < members.length; right += 1) {
+        const distance = Math.hypot(
+          members[left].point.x - members[right].point.x,
+          members[left].point.y - members[right].point.y,
+        ) * candidateScale;
+        if (distance < minimumSeparation) {
+          separated = false;
+          break;
+        }
+      }
+    }
+    if (separated) return candidateScale;
+    if (candidateScale === options.maxScale) break;
+  }
+  return null;
 }
 
 export function isCluster<T>(cluster: MarkerCluster<T>): boolean {

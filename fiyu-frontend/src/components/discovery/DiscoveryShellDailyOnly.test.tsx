@@ -531,8 +531,14 @@ describe("daily-only discovery shell", () => {
     ).toBeTruthy();
   });
 
-  it("restores all three restaurants from a previous persisted round without interactions", async () => {
+  it("keeps every unexpired discovery when a newer active round exists", async () => {
     const assignedAt = new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString();
+    const revealTimes = Object.fromEntries(
+      catalog.slice(0, 3).map((restaurant, index) => [
+        restaurant.place_id,
+        new Date(Date.parse(assignedAt) + (index + 1) * 60 * 60 * 1000).toISOString(),
+      ]),
+    );
     dailyApi.fetchRecentDailyPicks.mockResolvedValue([
       {
         round_id: "previous-round",
@@ -540,11 +546,24 @@ describe("daily-only discovery shell", () => {
         place_ids: catalog.slice(0, 3).map((restaurant) => restaurant.place_id),
         assigned_at: assignedAt,
         retention_expires_at: new Date(
-          Date.parse(assignedAt) + 72 * 60 * 60 * 1000,
+          Date.parse(revealTimes.three) + 72 * 60 * 60 * 1000,
         ).toISOString(),
+        revealed_at_by_place_id: revealTimes,
         restaurants: catalog.slice(0, 3),
       },
     ]);
+    const currentAssignedAt = new Date().toISOString();
+    dailyApi.fetchActiveDailyPicks.mockResolvedValue({
+      round_id: "current-round",
+      city_id: "tokyo",
+      place_ids: catalog.slice(3, 6).map((restaurant) => restaurant.place_id),
+      assigned_at: currentAssignedAt,
+      expires_at: new Date(Date.parse(currentAssignedAt) + 24 * 60 * 60 * 1000).toISOString(),
+      revealed_at: null,
+      revealed_place_ids: [],
+      revealed_at_by_place_id: {},
+      restaurants: catalog.slice(3, 6),
+    });
     locationApi.fetchDiscoveryLocation.mockResolvedValue(configuredLocation("Shinjuku"));
     publishProfileIdentity(accountProfile("account-a", "accounta"));
 
@@ -563,6 +582,15 @@ describe("daily-only discovery shell", () => {
         await within(recentSection as HTMLElement).findByText(restaurant.name_en ?? ""),
       ).toBeTruthy();
     }
+    expect(
+      Object.fromEntries(
+        JSON.parse(window.localStorage.getItem(dailyPicksStorageKey("account-a")) ?? "{}")
+          .discoveries.map((item: { restaurantId: string; revealedAt: string }) => [
+            item.restaurantId,
+            item.revealedAt,
+          ]),
+      ),
+    ).toEqual(revealTimes);
 
     first.unmount();
     render(<DiscoveryShell restaurants={[]} areaAnchors={[]} />);

@@ -398,10 +398,12 @@ export function DailyPicksPanel({
       const latestHistorical = new Map<string, { restaurantId: string; revealedAt: string }>();
       for (const round of recentRounds) {
         for (const restaurantId of round.place_ids) {
-          if (!latestHistorical.has(restaurantId)) {
+          const revealedAt = round.revealed_at_by_place_id?.[restaurantId] ?? round.assigned_at;
+          const current = latestHistorical.get(restaurantId);
+          if (!current || Date.parse(revealedAt) > Date.parse(current.revealedAt)) {
             latestHistorical.set(restaurantId, {
               restaurantId,
-              revealedAt: round.assigned_at,
+              revealedAt,
             });
           }
         }
@@ -431,7 +433,8 @@ export function DailyPicksPanel({
             (discoveries, placeId) => recordRevealedDiscovery(
               discoveries,
               placeId,
-              Number.isFinite(revealedAt) ? revealedAt : assignedAt,
+              Date.parse(assignment.revealed_at_by_place_id?.[placeId] ?? "") ||
+                (Number.isFinite(revealedAt) ? revealedAt : assignedAt),
             ),
             activeDiscoveries,
           );
@@ -688,6 +691,10 @@ export function DailyPicksPanel({
                   ...hydration.assignment,
                   revealed_at: result.revealed_at,
                   revealed_place_ids: result.revealed_place_ids,
+                  revealed_at_by_place_id: {
+                    ...(hydration.assignment.revealed_at_by_place_id ?? {}),
+                    [placeId]: result.pick_revealed_at,
+                  },
                 },
               });
             }

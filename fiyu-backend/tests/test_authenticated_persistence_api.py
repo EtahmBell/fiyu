@@ -287,6 +287,7 @@ def shared_account_api(tmp_path, monkeypatch):
         revealed_ids = metadata.setdefault("revealed_place_ids", [])
         if place_id not in revealed_ids:
             revealed_ids.append(place_id)
+            metadata.setdefault("revealed_at_by_place_id", {})[place_id] = revealed_at
         snapshot["revealed_at"] = (
             snapshot.get("revealed_at") or revealed_at
             if len(revealed_ids) == len(snapshot["place_ids"])
@@ -319,6 +320,52 @@ def shared_account_api(tmp_path, monkeypatch):
 
 def _auth(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
+
+
+def test_recent_discoveries_survive_a_new_round_and_expire_per_reveal(
+    shared_account_api,
+):
+    client, user_ids, _ = shared_account_api
+    user_id = user_ids["token-a"]
+    now = datetime.now(UTC)
+    old_ids = ["tokyo-0", "tokyo-1", "tokyo-2"]
+    reveal_times = {
+        "tokyo-0": (now - timedelta(hours=71)).isoformat(),
+        "tokyo-1": (now - timedelta(hours=73)).isoformat(),
+        "tokyo-2": (now - timedelta(hours=2)).isoformat(),
+    }
+    client.fiyu_test_state["recent_rounds"][(user_id, "tokyo")].append(
+        {
+            "round_id": str(uuid4()),
+            "place_ids": old_ids,
+            "assigned_at": (now - timedelta(hours=74)).isoformat(),
+            "expires_at": (now - timedelta(hours=50)).isoformat(),
+            "selection_metadata": {
+                "revealed_place_ids": old_ids,
+                "revealed_at_by_place_id": reveal_times,
+            },
+        }
+    )
+    client.fiyu_test_state["snapshots"][(user_id, "tokyo")] = {
+        "round_id": str(uuid4()),
+        "place_ids": ["tokyo-3"],
+        "assigned_at": now.isoformat(),
+        "expires_at": (now + timedelta(hours=24)).isoformat(),
+        "selection_metadata": {"revealed_place_ids": []},
+    }
+
+    response = client.get("/daily-picks/recent", headers=_auth("token-a"))
+    map_response = client.get("/map/restaurants", headers=_auth("token-a"))
+    other_account = client.get("/daily-picks/recent", headers=_auth("token-b"))
+
+    assert response.status_code == map_response.status_code == other_account.status_code == 200
+    assert response.json()[0]["place_ids"] == ["tokyo-0", "tokyo-2"]
+    assert response.json()[0]["revealed_at_by_place_id"] == {
+        "tokyo-0": reveal_times["tokyo-0"],
+        "tokyo-2": reveal_times["tokyo-2"],
+    }
+    assert {row["place_id"] for row in map_response.json()} == {"tokyo-0", "tokyo-2"}
+    assert other_account.json() == []
 
 
 def _add_catalog_restaurants(*place_ids: str) -> None:

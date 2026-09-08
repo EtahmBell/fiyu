@@ -106,6 +106,27 @@ def revealed_place_ids(
     return tuple(place_id for place_id in ordered if place_id in stored)
 
 
+def revealed_at_by_place_id(
+    selection_metadata: Mapping[str, object],
+    place_ids: Iterable[str],
+    revealed_at: str | None,
+    assigned_at: str,
+) -> dict[str, str]:
+    """Return per-Pick reveal times with conservative legacy fallbacks."""
+    ordered = tuple(place_ids)
+    valid_ids = set(ordered)
+    raw = selection_metadata.get("revealed_at_by_place_id")
+    timestamps = {
+        str(place_id): str(timestamp)
+        for place_id, timestamp in (raw.items() if isinstance(raw, dict) else ())
+        if str(place_id) in valid_ids and _parse_datetime(timestamp) is not None
+    }
+    legacy_timestamp = revealed_at or assigned_at
+    for place_id in revealed_place_ids(selection_metadata, ordered, revealed_at):
+        timestamps.setdefault(place_id, legacy_timestamp)
+    return {place_id: timestamps[place_id] for place_id in ordered if place_id in timestamps}
+
+
 def _ensure_column(connection: Any, table: str, name: str, declaration: str) -> None:
     columns = {str(row["name"]) for row in connection.execute(f"PRAGMA table_info({table})")}
     if name not in columns:
@@ -641,6 +662,10 @@ def reveal_active_daily_picks(
         if place_id not in revealed_ids:
             revealed_ids.append(place_id)
             metadata["revealed_place_ids"] = revealed_ids
+            raw_timestamps = metadata.get("revealed_at_by_place_id")
+            timestamps = dict(raw_timestamps) if isinstance(raw_timestamps, dict) else {}
+            timestamps[place_id] = timestamp
+            metadata["revealed_at_by_place_id"] = timestamps
             connection.execute(
                 """
                 UPDATE daily_pick_rounds SET selection_metadata_json = ?
@@ -778,7 +803,9 @@ def get_recent_daily_pick_rounds(
     """Return complete expired rounds still inside the discovery-retention window."""
     ensure_daily_picks_schema(db_path)
     current = now or _now()
-    cutoff = current - RECENT_DISCOVERY_DURATION
+    # A Pick can be revealed at any point in its 24-hour active round. Query the
+    # full possible window; the API applies the exact per-Pick reveal cutoff.
+    cutoff = current - RECENT_DISCOVERY_DURATION - ACTIVE_SNAPSHOT_DURATION
     with connect(db_path) as connection:
         rows = connection.execute(
             """

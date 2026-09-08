@@ -34,6 +34,7 @@ from .daily_picks import (
     plan_repaired_daily_picks,
     repair_active_daily_picks,
     reveal_active_daily_picks,
+    revealed_at_by_place_id,
     revealed_place_ids,
     seed_served_history,
     select_daily_pick_plan,
@@ -735,6 +736,7 @@ class DailyPickAssignmentResponse(BaseModel):
     expires_at: str
     revealed_at: str | None = None
     revealed_place_ids: list[str] = Field(default_factory=list)
+    revealed_at_by_place_id: dict[str, str] = Field(default_factory=dict)
     discovery_mode: Literal["current", "preview", "manual"] | None = None
     discovery_label: str | None = None
     restaurants: list[PublicRestaurantSummary] = Field(default_factory=list)
@@ -746,6 +748,7 @@ class RecentDailyPickRoundResponse(BaseModel):
     place_ids: list[str]
     assigned_at: str
     retention_expires_at: str
+    revealed_at_by_place_id: dict[str, str] = Field(default_factory=dict)
     restaurants: list[PublicRestaurantSummary] = Field(default_factory=list)
 
 
@@ -1368,6 +1371,12 @@ def _daily_pick_response(
         expires_at=assignment.expires_at,
         revealed_at=assignment.revealed_at,
         revealed_place_ids=list(assignment.revealed_place_ids),
+        revealed_at_by_place_id=revealed_at_by_place_id(
+            assignment.selection_metadata,
+            assignment.place_ids,
+            assignment.revealed_at,
+            assignment.assigned_at,
+        ),
         discovery_mode=assignment.selection_metadata.get("discovery_mode"),
         discovery_label=assignment.selection_metadata.get("discovery_label"),
         restaurants=restaurants,
@@ -1454,16 +1463,36 @@ def _repair_shared_active_assignment(
 def _recent_daily_pick_response(
     assignment: DailyPickAssignment, city_id: str, now: datetime
 ) -> RecentDailyPickRoundResponse:
-    restaurants = _public_restaurants_for_place_ids(assignment.revealed_place_ids)
+    reveal_times = revealed_at_by_place_id(
+        assignment.selection_metadata,
+        assignment.place_ids,
+        assignment.revealed_at,
+        assignment.assigned_at,
+    )
+    cutoff = now - RECENT_DISCOVERY_DURATION
+    recent_times = {
+        place_id: timestamp
+        for place_id, timestamp in reveal_times.items()
+        if (parsed := _parse_pick_datetime(timestamp)) is not None and parsed > cutoff
+    }
+    restaurants = _public_restaurants_for_place_ids(recent_times)
+    retained_times = {
+        str(restaurant["place_id"]): recent_times[str(restaurant["place_id"])]
+        for restaurant in restaurants
+    }
     return RecentDailyPickRoundResponse(
         round_id=assignment.round_id,
         city_id=city_id,
         place_ids=[str(restaurant["place_id"]) for restaurant in restaurants],
         assigned_at=assignment.assigned_at,
-        retention_expires_at=(
-            (_parse_pick_datetime(assignment.assigned_at) or now)
-            + RECENT_DISCOVERY_DURATION
+        retention_expires_at=max(
+            (
+                (_parse_pick_datetime(timestamp) or now) + RECENT_DISCOVERY_DURATION
+                for timestamp in retained_times.values()
+            ),
+            default=now,
         ).isoformat(),
+        revealed_at_by_place_id=retained_times,
         restaurants=restaurants,
     )
 
@@ -1794,7 +1823,9 @@ def get_recent_daily_pick_discoveries(
         rows = shared_user_data.get_recent_daily_pick_rounds(
             user_id=str(owner_id),
             city_id=normalized_city,
-            assigned_after=(now - RECENT_DISCOVERY_DURATION).isoformat(),
+            assigned_after=(
+                now - RECENT_DISCOVERY_DURATION - ACTIVE_SNAPSHOT_DURATION
+            ).isoformat(),
             expired_at_or_before=now.isoformat(),
         )
         rounds = [_shared_assignment(row) for row in rows]
@@ -1802,9 +1833,10 @@ def get_recent_daily_pick_discoveries(
         rounds = get_recent_daily_pick_rounds(
             DB_PATH, owner_id=owner_id, city_id=normalized_city, now=now
         )
-    return [
+    responses = [
         _recent_daily_pick_response(round, normalized_city, now) for round in rounds
     ]
+    return [response for response in responses if response.place_ids]
 
 
 @app.get("/seen/restaurants", response_model=SeenRestaurantsResponse)
@@ -1880,13 +1912,17 @@ def _authenticated_map_membership(
     recent_rounds = shared_user_data.get_recent_daily_pick_rounds(
         user_id=user_id,
         city_id=city_id,
-        assigned_after=(now - RECENT_DISCOVERY_DURATION).isoformat(),
+        assigned_after=(
+            now - RECENT_DISCOVERY_DURATION - ACTIVE_SNAPSHOT_DURATION
+        ).isoformat(),
         expired_at_or_before=now.isoformat(),
     )
     recent_place_ids = [
         place_id
         for round_row in recent_rounds
-        for place_id in _shared_assignment(round_row).revealed_place_ids
+        for place_id in _recent_daily_pick_response(
+            _shared_assignment(round_row), city_id, now
+        ).place_ids
     ]
     latest_ratings = shared_user_data.latest_visit_ratings(user_id=user_id)
     visited_place_ids = list(shared_user_data.visited_place_ids(user_id=user_id))

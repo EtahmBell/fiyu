@@ -14,7 +14,12 @@ import { MapRestaurantPopup } from "@/components/map/MapRestaurantPopup";
 import { MapStations } from "@/components/map/MapStations";
 import type { MappableRestaurant } from "@/lib/geo/mappable";
 import type { DiscoveryAnchor } from "@/lib/location/anchor";
-import { type MarkerCluster, clusterMarkers, individualMarkers } from "@/lib/map/clustering";
+import {
+  type MarkerCluster,
+  clusterExpansionScale,
+  clusterMarkers,
+  individualMarkers,
+} from "@/lib/map/clustering";
 import { detailLevelFor, detailLevelLabel } from "@/lib/map/detail";
 import { subscribeToNewlyRevealedMapPlaces } from "@/lib/map/revealEvents";
 import { readMapViewportSession, saveMapViewportSession } from "@/lib/map/viewportSession";
@@ -558,14 +563,10 @@ export function FiyuMap({
     (cluster: MarkerCluster<MappableRestaurant>) => {
       markInteracted();
       onMapBackgroundClick?.();
-      let separatingScale: number | null = null;
-      for (let scale = Math.min(MAX_SCALE, view.k + 0.25); scale <= MAX_SCALE; scale += 0.25) {
-        const candidateClusters = clusterMarkers(cluster.members, { scale });
-        if (candidateClusters.every((candidate) => candidate.members.length === 1)) {
-          separatingScale = scale;
-          break;
-        }
-      }
+      const separatingScale = clusterExpansionScale(cluster.members, {
+        currentScale: view.k,
+        maxScale: MAX_SCALE,
+      });
       if (separatingScale === null) {
         setClusterPicker(cluster);
         return;

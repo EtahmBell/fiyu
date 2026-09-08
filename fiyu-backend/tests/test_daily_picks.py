@@ -16,6 +16,7 @@ from fiyu.daily_picks import (
     get_recent_daily_pick_rounds,
     repair_active_daily_picks,
     reveal_active_daily_picks,
+    revealed_at_by_place_id,
     seed_served_history,
     select_daily_pick_plan,
     served_place_ids,
@@ -452,6 +453,17 @@ def test_per_pick_reveal_progress_is_idempotent_and_persists(daily_picks_db):
     assert restored.place_ids == assignment.place_ids
     assert restored.revealed_place_ids == assignment.place_ids
     assert restored.revealed_at == third[2]
+    reveal_times = revealed_at_by_place_id(
+        restored.selection_metadata,
+        restored.place_ids,
+        restored.revealed_at,
+        restored.assigned_at,
+    )
+    assert reveal_times == {
+        first_id: (NOW + timedelta(minutes=2)).isoformat(),
+        second_id: (NOW + timedelta(minutes=6)).isoformat(),
+        third_id: (NOW + timedelta(minutes=7)).isoformat(),
+    }
 
 
 def test_reveal_cannot_cross_accounts_or_mark_an_expired_round(daily_picks_db):
