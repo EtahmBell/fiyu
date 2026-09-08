@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useRef } from "react";
+
 import { resolveNames } from "@/lib/format/language";
 import type { MappableRestaurant } from "@/lib/geo/mappable";
 import type { MarkerCluster } from "@/lib/map/clustering";
@@ -15,6 +17,11 @@ const CLUSTER_RADIUS = 17;
 
 export interface MapMarkersProps {
   clusters: MarkerCluster<MappableRestaurant>[];
+  activeCluster?: {
+    cluster: MarkerCluster<MappableRestaurant>;
+    phase: "expanding" | "handoff" | "settled";
+    onHandoffComplete: () => void;
+  } | null;
   selectedPlaceId: string | null;
   newlyRevealedPlaceIds: ReadonlySet<string>;
   /** Cluster leaves that should only fade in after camera settlement. */
@@ -33,6 +40,7 @@ export interface MapMarkersProps {
  */
 export function MapMarkers({
   clusters,
+  activeCluster = null,
   selectedPlaceId,
   newlyRevealedPlaceIds,
   appearingPlaceIds,
@@ -40,9 +48,49 @@ export function MapMarkers({
   onSelect,
 }: MapMarkersProps) {
   const size = (value: number) => svgNumber(value / scale);
+  const activeClusterGhostRef = useRef<SVGGElement>(null);
+
+  useEffect(() => {
+    const ghost = activeClusterGhostRef.current;
+    if (!ghost || activeCluster?.phase !== "handoff") return;
+    const complete = () => activeCluster.onHandoffComplete();
+    ghost.addEventListener("animationend", complete);
+    return () => ghost.removeEventListener("animationend", complete);
+  }, [activeCluster]);
 
   return (
     <g data-layer="restaurants">
+      {activeCluster && activeCluster.phase !== "settled" && (
+        <g
+          ref={activeClusterGhostRef}
+          aria-hidden="true"
+          data-marker-kind="restaurant-cluster-ghost"
+          data-place-ids={activeCluster.cluster.members.map((member) => member.id).join(",")}
+          data-cluster-phase={activeCluster.phase}
+          className={activeCluster.phase === "handoff" ? "fiyu-map-cluster-fade" : undefined}
+        >
+          <circle
+            cx={activeCluster.cluster.point.x}
+            cy={activeCluster.cluster.point.y}
+            r={size(CLUSTER_RADIUS)}
+            fill="var(--map-marker)"
+            stroke="var(--map-marker-center)"
+            strokeWidth={size(2)}
+          />
+          <text
+            x={activeCluster.cluster.point.x}
+            y={activeCluster.cluster.point.y}
+            textAnchor="middle"
+            dominantBaseline="central"
+            fill="var(--map-marker-center)"
+            fontSize={size(13)}
+            className="pointer-events-none select-none font-medium"
+            style={{ fontFamily: "var(--font-sans)" }}
+          >
+            {activeCluster.cluster.members.length}
+          </text>
+        </g>
+      )}
       {clusters.map((cluster) => {
         const { x, y } = cluster.point;
         const newlyRevealed = cluster.members.some((member) =>

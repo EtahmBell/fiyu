@@ -7,6 +7,7 @@ import { publicRestaurantSchema } from "@/lib/api/schemas";
 import { type MappableRestaurant, mappableRestaurants } from "@/lib/geo/mappable";
 import { publishNewlyRevealedMapPlaces } from "@/lib/map/revealEvents";
 import { clearMapViewportSessions, saveMapViewportSession } from "@/lib/map/viewportSession";
+import { project, unproject } from "@/lib/map/projection";
 
 /**
  * Fixture coordinates. These are real Tokyo positions used to drive the
@@ -479,6 +480,45 @@ describe("clustering on the map", () => {
     }
   });
 
+  it("renders canonical leaves when separable points remain in one grid cell", () => {
+    const firstCoordinate = unproject({ x: 100, y: 100 });
+    const secondCoordinate = unproject({ x: 120, y: 100 });
+    const a = mappable("a", firstCoordinate.lat, firstCoordinate.lng, {
+      name_en: "Restaurant A",
+    });
+    const b = mappable("b", secondCoordinate.lat, secondCoordinate.lng, {
+      name_en: "Restaurant B",
+    });
+    saveMapViewportSession("grid-independent-expansion", {
+      resultKey: "a|b",
+      view: { x: 0, y: 0, k: 1 },
+    });
+    vi.stubGlobal("matchMedia", () => ({ matches: true }));
+    const { container } = render(
+      <FiyuMap
+        restaurants={[a, b]}
+        selectedPlaceId={null}
+        onSelect={() => {}}
+        viewportSessionKey="grid-independent-expansion"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /2 restaurants in this area/ }));
+
+    expect(container.querySelector('[data-marker-kind="restaurant-cluster"]')).toBeNull();
+    expect(container.querySelectorAll('[data-marker-kind="restaurant"]')).toHaveLength(2);
+    for (const restaurant of [a, b]) {
+      const canonical = project({ lat: restaurant.latitude, lng: restaurant.longitude });
+      const marker = container.querySelector(`[data-place-id="${restaurant.place_id}"]`);
+      expect(marker?.querySelector("circle:nth-of-type(2)")?.getAttribute("cx")).toBe(
+        String(canonical.x),
+      );
+      expect(marker?.querySelector("circle:nth-of-type(2)")?.getAttribute("cy")).toBe(
+        String(canonical.y),
+      );
+    }
+  });
+
   it("ignores repeated activation while one cluster expansion is in flight", () => {
     const onMapBackgroundClick = vi.fn();
     const animation = vi.spyOn(window, "requestAnimationFrame").mockImplementation(() => 99);
@@ -533,17 +573,33 @@ describe("clustering on the map", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /3 restaurants in this area/ }));
     expect(container.querySelector('[data-marker-kind="restaurant-cluster"]')).toBeNull();
+    const frozenCluster = container.querySelector('[data-marker-kind="restaurant-cluster-ghost"]');
+    expect(frozenCluster?.getAttribute("data-place-ids")).toBe("a,b,c");
+    const frozenPosition = `${frozenCluster?.querySelector("circle")?.getAttribute("cx")}:${frozenCluster?.querySelector("circle")?.getAttribute("cy")}`;
     expect(container.querySelectorAll('[data-marker-kind="restaurant"]')).toHaveLength(0);
     expect(frames).toHaveLength(1);
 
     act(() => frames.shift()?.(0));
     expect(container.querySelector('[data-marker-kind="restaurant-cluster"]')).toBeNull();
+    expect(`${frozenCluster?.querySelector("circle")?.getAttribute("cx")}:${frozenCluster?.querySelector("circle")?.getAttribute("cy")}`).toBe(frozenPosition);
     expect(container.querySelectorAll('[data-marker-kind="restaurant"]')).toHaveLength(0);
 
     act(() => frames.shift()?.(1_000));
     expect(container.querySelector('[data-marker-kind="restaurant-cluster"]')).toBeNull();
     expect(container.querySelectorAll('[data-marker-kind="restaurant"]')).toHaveLength(3);
     expect(container.querySelectorAll('[data-cluster-appearing="true"]')).toHaveLength(3);
+    expect(container.querySelector('[data-marker-kind="restaurant-cluster-ghost"]')?.getAttribute("data-cluster-phase")).toBe("handoff");
+    for (const restaurant of restaurants) {
+      const canonical = project({ lat: restaurant.latitude, lng: restaurant.longitude });
+      const marker = container.querySelector(`[data-place-id="${restaurant.place_id}"]`);
+      expect(marker?.querySelector("circle:nth-of-type(2)")?.getAttribute("cx")).toBe(String(canonical.x));
+      expect(marker?.querySelector("circle:nth-of-type(2)")?.getAttribute("cy")).toBe(String(canonical.y));
+    }
+    expect(container.querySelector('[data-marker-kind="restaurant-cluster-ghost"]')?.getAttribute("class")).toContain("fiyu-map-cluster-fade");
+    fireEvent.animationEnd(
+      container.querySelector('[data-marker-kind="restaurant-cluster-ghost"]') as Element,
+    );
+    expect(container.querySelector('[data-marker-kind="restaurant-cluster-ghost"]')).toBeNull();
     expect(screen.queryByText("Restaurants here")).toBeNull();
   });
 
@@ -595,6 +651,7 @@ describe("clustering on the map", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: /2 restaurants in this area/ }));
+    expect(container.querySelector('[data-marker-kind="restaurant-cluster-ghost"]')).toBeTruthy();
     expect(container.querySelectorAll('[data-marker-kind="restaurant"]')).toHaveLength(0);
     act(() => frames.shift()?.(0));
     expect(container.querySelectorAll('[data-marker-kind="restaurant"]')).toHaveLength(0);
@@ -603,6 +660,25 @@ describe("clustering on the map", () => {
     expect(container.querySelectorAll('[data-marker-kind="restaurant"]')).toHaveLength(2);
     expect(container.querySelectorAll('[data-cluster-appearing="true"]')).toHaveLength(2);
     expect(screen.queryByText("Restaurants here")).toBeNull();
+  });
+
+  it("does not let pointer hover clear or correct a settled spiderfy", () => {
+    const a = mappable("a", 35.658, 139.7016, { name_en: "Restaurant A" });
+    const b = mappable("b", 35.658, 139.7016, { name_en: "Restaurant B" });
+    vi.stubGlobal("matchMedia", () => ({ matches: true }));
+    const { container } = render(
+      <FiyuMap restaurants={[a, b]} selectedPlaceId={null} onSelect={() => {}} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /2 restaurants in this area/ }));
+    const positionsBefore = [...container.querySelectorAll('[data-marker-kind="restaurant"]')]
+      .map((marker) => `${marker.querySelector("circle:nth-of-type(2)")?.getAttribute("cx")}:${marker.querySelector("circle:nth-of-type(2)")?.getAttribute("cy")}`);
+
+    fireEvent.pointerMove(mapSurface(), { pointerId: 9, clientX: 300, clientY: 300 });
+
+    const positionsAfter = [...container.querySelectorAll('[data-marker-kind="restaurant"]')]
+      .map((marker) => `${marker.querySelector("circle:nth-of-type(2)")?.getAttribute("cx")}:${marker.querySelector("circle:nth-of-type(2)")?.getAttribute("cy")}`);
+    expect(positionsAfter).toEqual(positionsBefore);
+    expect(new Set(positionsAfter).size).toBe(2);
   });
 
   it("zooms to maximum and spiderfies coincident markers without opening a list", () => {

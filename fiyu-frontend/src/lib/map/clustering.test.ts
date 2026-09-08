@@ -9,6 +9,7 @@ import {
   clusterMarkers,
   individualMarkers,
   isCluster,
+  planClusterExpansion,
   spiderfyMarkers,
 } from "@/lib/map/clustering";
 import { project } from "@/lib/map/projection";
@@ -133,7 +134,7 @@ describe("clusterExpansionScale", () => {
     expect(clusterExpansionScale(members, { currentScale: 1, maxScale: 4 })).toBeNull();
   });
 
-  it("skips weak structural splits below the requested meaningful scale", () => {
+  it("uses the requested meaningful scale even when the display grid has not split", () => {
     const members = [input("a", 100, 100), input("b", 120, 100)];
     const target = clusterExpansionScale(members, {
       currentScale: 1,
@@ -143,7 +144,35 @@ describe("clusterExpansionScale", () => {
 
     expect(target).not.toBeNull();
     expect(target as number).toBeGreaterThanOrEqual(2);
-    expect(clusterMarkers(members, { scale: target as number })).toHaveLength(2);
+    expect(planClusterExpansion(members, {
+      currentScale: 1,
+      maxScale: 4,
+      minimumScale: 2,
+    }).mode).toBe("separable");
+  });
+
+  it("classifies from canonical screen separation rather than grid-cell membership", () => {
+    const members = [input("a", 100, 100), input("b", 120, 100)];
+    const plan = planClusterExpansion(members, {
+      currentScale: 1,
+      maxScale: 4,
+      minimumScale: 2,
+    });
+
+    expect(clusterMarkers(members, { scale: plan.targetScale })).toHaveLength(1);
+    expect(plan).toEqual({ mode: "separable", targetScale: 2 });
+  });
+
+  it("freezes spiderfy only for canonical points that cannot separate at max zoom", () => {
+    expect(planClusterExpansion(
+      [input("a", 100, 100), input("b", 100, 100)],
+      { currentScale: 1, maxScale: 4 },
+    )).toEqual({ mode: "spiderfy", targetScale: 4 });
+
+    expect(planClusterExpansion(
+      [input("a", 100, 100), input("b", 107, 100)],
+      { currentScale: 1, maxScale: 4 },
+    ).mode).toBe("separable");
   });
 });
 

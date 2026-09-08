@@ -45,6 +45,11 @@ export interface ClusterExpansionOptions {
   step?: number;
 }
 
+export interface ClusterExpansionPlan {
+  mode: "separable" | "spiderfy";
+  targetScale: number;
+}
+
 export interface IndividualMarkerOptions {
   /** Current map scale; keeps display-only collision separation visually stable. */
   scale?: number;
@@ -184,15 +189,33 @@ export function clusterMarkers<T>(
 }
 
 /**
- * Find one intentional zoom level where a cluster is both structurally split
- * and visually separated. A grid-boundary split alone is insufficient: it can
- * leave overlapping pins and may re-cluster at the next scale.
+ * Find one intentional zoom level where canonical marker positions are
+ * visually separated. Structural grid cells are a rendering optimization and
+ * must not decide whether real coordinates need display-only offsets.
  */
 export function clusterExpansionScale<T>(
   members: readonly ClusterInput<T>[],
   options: ClusterExpansionOptions,
 ): number | null {
-  if (members.length < 2) return null;
+  const plan = planClusterExpansion(members, options);
+  return plan.mode === "separable" ? plan.targetScale : null;
+}
+
+/**
+ * Freeze the interaction mode and target before camera motion begins.
+ *
+ * Grid-cell membership is deliberately irrelevant here. A pair can remain in
+ * one clustering cell at maximum zoom while still being far enough apart to
+ * draw as two ordinary pins. Spiderfy is reserved for canonical coordinates
+ * that cannot reach the required screen-space separation at maxScale.
+ */
+export function planClusterExpansion<T>(
+  members: readonly ClusterInput<T>[],
+  options: ClusterExpansionOptions,
+): ClusterExpansionPlan {
+  if (members.length < 2) {
+    return { mode: "spiderfy", targetScale: options.maxScale };
+  }
   const step = Math.max(0.05, options.step ?? 0.25);
   const minimumSeparation = Math.max(1, options.minimumSeparation ?? BASE_CELL_SIZE * 0.375);
   const start = Math.min(
@@ -200,29 +223,29 @@ export function clusterExpansionScale<T>(
     Math.max(1, options.currentScale + step, options.minimumScale ?? 1),
   );
 
-  for (let scale = start; scale <= options.maxScale + 1e-9; scale += step) {
-    const candidateScale = Math.min(options.maxScale, scale);
-    if (!clusterMarkers(members, { scale: candidateScale }).every(
-      (cluster) => cluster.members.length === 1,
-    )) continue;
-
-    let separated = true;
-    for (let left = 0; left < members.length && separated; left += 1) {
-      for (let right = left + 1; right < members.length; right += 1) {
-        const distance = Math.hypot(
-          members[left].point.x - members[right].point.x,
-          members[left].point.y - members[right].point.y,
-        ) * candidateScale;
-        if (distance < minimumSeparation) {
-          separated = false;
-          break;
-        }
+  let requiredScale = start;
+  for (let left = 0; left < members.length; left += 1) {
+    for (let right = left + 1; right < members.length; right += 1) {
+      const canonicalDistance = Math.hypot(
+        members[left].point.x - members[right].point.x,
+        members[left].point.y - members[right].point.y,
+      );
+      if (canonicalDistance <= Number.EPSILON) {
+        return { mode: "spiderfy", targetScale: options.maxScale };
       }
+      requiredScale = Math.max(requiredScale, minimumSeparation / canonicalDistance);
     }
-    if (separated) return candidateScale;
-    if (candidateScale === options.maxScale) break;
   }
-  return null;
+
+  if (requiredScale > options.maxScale + 1e-9) {
+    return { mode: "spiderfy", targetScale: options.maxScale };
+  }
+
+  const steppedScale = start + Math.ceil(Math.max(0, requiredScale - start) / step) * step;
+  return {
+    mode: "separable",
+    targetScale: Math.min(options.maxScale, steppedScale),
+  };
 }
 
 export function isCluster<T>(cluster: MarkerCluster<T>): boolean {
