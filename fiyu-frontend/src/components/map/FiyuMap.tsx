@@ -5,7 +5,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnchorMarker } from "@/components/map/AnchorMarker";
 import { MapBase } from "@/components/map/MapBase";
 import { MapControls } from "@/components/map/MapControls";
-import { MapClusterPicker } from "@/components/map/MapClusterPicker";
 import { MapLabels } from "@/components/map/MapLabels";
 import { MapLandmarks } from "@/components/map/MapLandmarks";
 import { MapLegend } from "@/components/map/MapLegend";
@@ -19,6 +18,7 @@ import {
   clusterExpansionScale,
   clusterMarkers,
   individualMarkers,
+  spiderfyMarkers,
 } from "@/lib/map/clustering";
 import { detailLevelFor, detailLevelLabel } from "@/lib/map/detail";
 import { subscribeToNewlyRevealedMapPlaces } from "@/lib/map/revealEvents";
@@ -159,14 +159,19 @@ export function FiyuMap({
   );
   const viewRef = useRef(view);
   const viewAnimation = useRef<number | null>(null);
-  const viewAnimationCompletion = useRef<(() => void) | null>(null);
+  const viewAnimationCompletion = useRef<((settled: boolean) => void) | null>(null);
   const lastAutoSelection = useRef<string | null>(null);
   const [sproutingPlaceIds, setSproutingPlaceIds] = useState<ReadonlySet<string>>(
     () => new Set(),
   );
-  const [clusterPicker, setClusterPicker] = useState<MarkerCluster<MappableRestaurant> | null>(null);
   const [expandingPlaceIds, setExpandingPlaceIds] = useState<ReadonlySet<string>>(
     () => new Set(),
+  );
+  const [spiderfiedPlaceIds, setSpiderfiedPlaceIds] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
+  const [clusterInteractionResultKey, setClusterInteractionResultKey] = useState<string | null>(
+    null,
   );
   const clusterExpansionInFlight = useRef(false);
   const seenRevealEventIds = useRef(new Set<string>());
@@ -208,15 +213,20 @@ export function FiyuMap({
       item: restaurant,
     }));
     if (!clusterNearbyRestaurants) return individualMarkers(inputs, { scale: view.k });
-    if (expandingPlaceIds.size === 0) return clusterMarkers(inputs, { scale: view.k });
+    if (expandingPlaceIds.size === 0 && spiderfiedPlaceIds.size === 0) {
+      return clusterMarkers(inputs, { scale: view.k });
+    }
 
     const expanding = inputs.filter((input) => expandingPlaceIds.has(input.id));
-    const remaining = inputs.filter((input) => !expandingPlaceIds.has(input.id));
+    const spiderfied = inputs.filter((input) => spiderfiedPlaceIds.has(input.id));
+    const overridden = new Set([...expandingPlaceIds, ...spiderfiedPlaceIds]);
+    const remaining = inputs.filter((input) => !overridden.has(input.id));
     return [
       ...clusterMarkers(remaining, { scale: view.k }),
       ...individualMarkers(expanding, { scale: view.k }),
+      ...spiderfyMarkers(spiderfied, { scale: view.k }),
     ];
-  }, [clusterNearbyRestaurants, expandingPlaceIds, plotted, points, view.k]);
+  }, [clusterNearbyRestaurants, expandingPlaceIds, plotted, points, spiderfiedPlaceIds, view.k]);
 
   /*
    * Detail level, bucketed from the scale.
@@ -232,15 +242,15 @@ export function FiyuMap({
    * has taken control -- re-framing under someone mid-pan is disorienting.
    */
   const resultKey = plotted.map((restaurant) => restaurant.place_id).join("|");
+  if (clusterInteractionResultKey !== null && clusterInteractionResultKey !== resultKey) {
+    setClusterInteractionResultKey(null);
+    setExpandingPlaceIds(new Set());
+    setSpiderfiedPlaceIds(new Set());
+  }
   const plottedPlaceIds = useMemo(
     () => new Set(plotted.map((restaurant) => restaurant.place_id)),
     [plotted],
   );
-  const visibleClusterPicker =
-    clusterPicker &&
-    clusterPicker.members.every((member) => plottedPlaceIds.has(member.item.place_id))
-      ? clusterPicker
-      : null;
   const pointByPlaceId = useMemo(
     () => new Map(plotted.map((restaurant, index) => [restaurant.place_id, points[index]])),
     [plotted, points],
@@ -264,32 +274,32 @@ export function FiyuMap({
     viewRef.current = view;
   }, [view]);
 
-  const cancelViewAnimation = useCallback((complete = true) => {
+  const cancelViewAnimation = useCallback((notifyCancellation = true) => {
     if (viewAnimation.current !== null) {
       window.cancelAnimationFrame(viewAnimation.current);
       viewAnimation.current = null;
     }
     const completion = viewAnimationCompletion.current;
     viewAnimationCompletion.current = null;
-    if (complete) completion?.();
+    if (notifyCancellation) completion?.(false);
   }, []);
 
   const animateToView = useCallback((
     target: MapView,
     duration: number,
-    onComplete?: () => void,
+    onComplete?: (settled: boolean) => void,
   ) => {
     cancelViewAnimation();
     const start = viewRef.current;
     if (viewsEqual(start, target)) {
-      onComplete?.();
+      onComplete?.(true);
       return;
     }
     const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true;
     if (reducedMotion || typeof window.requestAnimationFrame !== "function") {
       viewRef.current = target;
       setView(target);
-      onComplete?.();
+      onComplete?.(true);
       return;
     }
 
@@ -314,7 +324,7 @@ export function FiyuMap({
         setView(target);
         const completion = viewAnimationCompletion.current;
         viewAnimationCompletion.current = null;
-        completion?.();
+        completion?.(true);
       }
     };
     viewAnimation.current = window.requestAnimationFrame(tick);
@@ -358,6 +368,11 @@ export function FiyuMap({
     // `points` is derived from the same restaurants as resultKey.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cancelViewAnimation, preserveViewportOnRestaurantChange, resultKey, viewportSessionKey]);
+
+  useEffect(() => {
+    cancelViewAnimation(false);
+    clusterExpansionInFlight.current = false;
+  }, [cancelViewAnimation, resultKey]);
 
   useEffect(() => {
     if (!selectedPlaceId) {
@@ -416,15 +431,6 @@ export function FiyuMap({
   ]);
 
   useEffect(() => {
-    if (!visibleClusterPicker) return;
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setClusterPicker(null);
-    };
-    window.addEventListener("keydown", closeOnEscape);
-    return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [visibleClusterPicker]);
-
-  useEffect(() => {
     if (!viewportSessionKey || lastFitKey.current !== resultKey) return;
     // Persist the settled endpoint, not every animation frame. Synchronous
     // storage writes during motion are exactly the kind of main-thread work
@@ -472,9 +478,12 @@ export function FiyuMap({
     };
   }, [plottedPlaceIds, pointByPlaceId]);
 
-  const markInteracted = useCallback(() => {
+  const markInteracted = useCallback((clearSpiderfy = true) => {
     cancelViewAnimation();
     userHasInteracted.current = true;
+    if (clearSpiderfy) {
+      setSpiderfiedPlaceIds((current) => (current.size === 0 ? current : new Set()));
+    }
     setSproutingPlaceIds((current) => (current.size === 0 ? current : new Set()));
   }, [cancelViewAnimation]);
 
@@ -512,7 +521,6 @@ export function FiyuMap({
       if ((event.target as Element).closest('[data-layer="restaurant-popup"]')) return;
 
       cancelViewAnimation();
-      setClusterPicker(null);
       onMapBackgroundClick?.();
 
       pointers.current.set(event.pointerId, event.nativeEvent);
@@ -560,7 +568,11 @@ export function FiyuMap({
       const dy = to.y - from.y;
       if (dx === 0 && dy === 0) return;
 
-      markInteracted();
+      const start = gestureStart.current;
+      const travelled = start
+        ? Math.hypot(event.clientX - start.x, event.clientY - start.y)
+        : TAP_SLOP + 1;
+      markInteracted(travelled > TAP_SLOP);
       setView((current) => panBy(current, dx, dy));
     },
     [interactive, markInteracted, toViewBox],
@@ -601,7 +613,7 @@ export function FiyuMap({
       if (clusterExpansionInFlight.current) return;
       markInteracted();
       onMapBackgroundClick?.();
-      setClusterPicker(null);
+      setSpiderfiedPlaceIds(new Set());
       const currentScale = viewRef.current.k;
       const minimumScale = Math.min(
         MAX_SCALE,
@@ -615,26 +627,27 @@ export function FiyuMap({
         maxScale: MAX_SCALE,
         minimumScale,
       });
-      if (separatingScale === null) {
-        setClusterPicker(cluster);
-        return;
-      }
-
       clusterExpansionInFlight.current = true;
+      setClusterInteractionResultKey(resultKey);
       setExpandingPlaceIds(new Set(cluster.members.map((member) => member.id)));
+      const needsSpiderfy = separatingScale === null;
+      const targetScale = separatingScale ?? MAX_SCALE;
       animateToView(
         centerPointsAtScale(
           cluster.members.map((member) => member.point),
-          separatingScale,
+          targetScale,
         ),
         CLUSTER_TRANSITION_MS,
-        () => {
+        (settled) => {
           clusterExpansionInFlight.current = false;
           setExpandingPlaceIds(new Set());
+          if (settled && needsSpiderfy) {
+            setSpiderfiedPlaceIds(new Set(cluster.members.map((member) => member.id)));
+          }
         },
       );
     },
-    [animateToView, markInteracted, onMapBackgroundClick],
+    [animateToView, markInteracted, onMapBackgroundClick, resultKey],
   );
 
   const clusterButtonPosition = useCallback(
@@ -735,17 +748,6 @@ export function FiyuMap({
           view={view}
           containerWidth={containerSize.width}
           containerHeight={containerSize.height}
-        />
-      )}
-
-      {visibleClusterPicker && (
-        <MapClusterPicker
-          restaurants={visibleClusterPicker.members.map((member) => member.item)}
-          onClose={() => setClusterPicker(null)}
-          onSelect={(restaurant) => {
-            setClusterPicker(null);
-            onSelect(restaurant);
-          }}
         />
       )}
 

@@ -51,6 +51,12 @@ export interface IndividualMarkerOptions {
   collisionRadius?: number;
 }
 
+export interface SpiderfyMarkerOptions {
+  /** Current map scale; converts the screen-space fan radius to map units. */
+  scale?: number;
+  radius?: number;
+}
+
 /**
  * Preserve one rendered entity per restaurant while separating only exact
  * coordinate collisions. The canonical coordinate is never changed: the small
@@ -95,6 +101,37 @@ export function individualMarkers<T>(
     point: displayPointById.get(input.id) ?? input.point,
     members: [input],
   }));
+}
+
+/**
+ * Fan one otherwise unseparable cluster into deterministic display-only pins.
+ * Canonical coordinates and item data remain untouched.
+ */
+export function spiderfyMarkers<T>(
+  inputs: readonly ClusterInput<T>[],
+  options: SpiderfyMarkerOptions = {},
+): MarkerCluster<T>[] {
+  if (inputs.length < 2) return individualMarkers(inputs, options);
+
+  const scale = Math.max(1, options.scale ?? 1);
+  const radius = Math.max(1, options.radius ?? 30) / scale;
+  const anchor = roundPoint({
+    x: inputs.reduce((sum, input) => sum + input.point.x, 0) / inputs.length,
+    y: inputs.reduce((sum, input) => sum + input.point.y, 0) / inputs.length,
+  });
+  const ordered = [...inputs].sort((left, right) => left.id.localeCompare(right.id));
+
+  return ordered.map((input, index) => {
+    const angle = -Math.PI / 2 + (index * 2 * Math.PI) / ordered.length;
+    return {
+      id: input.id,
+      point: roundPoint({
+        x: anchor.x + Math.cos(angle) * radius,
+        y: anchor.y + Math.sin(angle) * radius,
+      }),
+      members: [input],
+    };
+  });
 }
 
 /**

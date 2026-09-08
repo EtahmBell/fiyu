@@ -9,6 +9,7 @@ import {
   clusterMarkers,
   individualMarkers,
   isCluster,
+  spiderfyMarkers,
 } from "@/lib/map/clustering";
 import { project } from "@/lib/map/projection";
 import restaurantsFixture from "@/test/fixtures/restaurants.json";
@@ -143,6 +144,32 @@ describe("clusterExpansionScale", () => {
     expect(target).not.toBeNull();
     expect(target as number).toBeGreaterThanOrEqual(2);
     expect(clusterMarkers(members, { scale: target as number })).toHaveLength(2);
+  });
+});
+
+describe("spiderfyMarkers", () => {
+  it("fans coincident points around their canonical anchor deterministically", () => {
+    const members = [input("b", 100, 100), input("a", 100, 100), input("c", 100, 100)];
+    const first = spiderfyMarkers(members, { scale: 4 });
+    const second = spiderfyMarkers(members, { scale: 4 });
+
+    expect(first).toEqual(second);
+    expect(first.map((marker) => marker.id)).toEqual(["a", "b", "c"]);
+    expect(new Set(first.map((marker) => `${marker.point.x}:${marker.point.y}`)).size).toBe(3);
+    expect(first.every((marker) => marker.members.length === 1)).toBe(true);
+  });
+
+  it("keeps the radial fan a stable screen-space size as the map scale changes", () => {
+    const members = [input("a", 100, 100), input("b", 100, 100)];
+    const atTwo = spiderfyMarkers(members, { scale: 2 });
+    const atFour = spiderfyMarkers(members, { scale: 4 });
+    const separation = (markers: ReturnType<typeof spiderfyMarkers<string>>, scale: number) =>
+      Math.hypot(
+        markers[0].point.x - markers[1].point.x,
+        markers[0].point.y - markers[1].point.y,
+      ) * scale;
+
+    expect(separation(atTwo, 2)).toBeCloseTo(separation(atFour, 4), 1);
   });
 });
 

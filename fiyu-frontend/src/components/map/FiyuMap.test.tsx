@@ -500,19 +500,95 @@ describe("clustering on the map", () => {
     expect(screen.queryByTestId("map-cluster-picker")).toBeNull();
   });
 
-  it("lists every restaurant when coincident markers cannot separate at maximum zoom", () => {
+  it("keeps a multi-point cluster opened until the camera animation settles", () => {
+    const frames: FrameRequestCallback[] = [];
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+    const restaurants = [
+      mappable("a", 35.658, 139.7016),
+      mappable("b", 35.658, 139.7046),
+      mappable("c", 35.658, 139.7076),
+    ];
+    saveMapViewportSession("multi-cluster-interaction", {
+      resultKey: "a|b|c",
+      view: { x: 0, y: 0, k: 1 },
+    });
+    const { container } = render(
+      <FiyuMap
+        restaurants={restaurants}
+        selectedPlaceId={null}
+        onSelect={() => {}}
+        viewportSessionKey="multi-cluster-interaction"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /3 restaurants in this area/ }));
+    expect(container.querySelector('[data-marker-kind="restaurant-cluster"]')).toBeNull();
+    expect(container.querySelectorAll('[data-marker-kind="restaurant"]')).toHaveLength(3);
+    expect(frames).toHaveLength(1);
+
+    act(() => frames.shift()?.(0));
+    expect(container.querySelector('[data-marker-kind="restaurant-cluster"]')).toBeNull();
+    expect(container.querySelectorAll('[data-marker-kind="restaurant"]')).toHaveLength(3);
+
+    act(() => frames.shift()?.(1_000));
+    expect(container.querySelector('[data-marker-kind="restaurant-cluster"]')).toBeNull();
+    expect(container.querySelectorAll('[data-marker-kind="restaurant"]')).toHaveLength(3);
+    expect(screen.queryByText("Restaurants here")).toBeNull();
+  });
+
+  it("zooms to maximum and spiderfies coincident markers without opening a list", () => {
     const onSelect = vi.fn();
     const a = mappable("a", 35.658, 139.7016, { name_en: "Restaurant A" });
     const b = mappable("b", 35.658, 139.7016, { name_en: "Restaurant B" });
+    vi.stubGlobal("matchMedia", () => ({ matches: true }));
     render(<FiyuMap restaurants={[a, b]} selectedPlaceId={null} onSelect={onSelect} />);
 
     fireEvent.click(screen.getByRole("button", { name: /2 restaurants in this area/ }));
 
-    expect(screen.getByTestId("map-cluster-picker")).toBeTruthy();
-    const restaurantB = screen.getByRole("button", { name: /Restaurant B/ });
-    fireEvent.click(restaurantB);
-    expect(onSelect).toHaveBeenCalledWith(b);
+    expect(screen.queryByText("Restaurants here")).toBeNull();
     expect(screen.queryByTestId("map-cluster-picker")).toBeNull();
+    const markers = [
+      screen.getByRole("button", { name: "Restaurant A" }),
+      screen.getByRole("button", { name: "Restaurant B" }),
+    ];
+    const positions = markers.map((marker) => {
+      const circle = marker.querySelector("circle:nth-of-type(2)");
+      return `${circle?.getAttribute("cx")}:${circle?.getAttribute("cy")}`;
+    });
+    expect(new Set(positions).size).toBe(2);
+    expect(mapSurface().querySelector("g[transform]")?.getAttribute("transform")).toContain(
+      "scale(4)",
+    );
+    fireEvent.click(markers[1]);
+    expect(onSelect).toHaveBeenCalledWith(b);
+
+    fireEvent.click(screen.getByRole("button", { name: "Reset to the whole map" }));
+    expect(screen.getByRole("button", { name: /2 restaurants in this area/ })).toBeTruthy();
+    expect(screen.queryByText("Restaurants here")).toBeNull();
+  });
+
+  it("clears spiderfy when filtered membership changes", async () => {
+    const a = mappable("a", 35.658, 139.7016, { name_en: "Restaurant A" });
+    const b = mappable("b", 35.658, 139.7016, { name_en: "Restaurant B" });
+    vi.stubGlobal("matchMedia", () => ({ matches: true }));
+    const { container, rerender } = render(
+      <FiyuMap restaurants={[a, b]} selectedPlaceId={null} onSelect={() => {}} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /2 restaurants in this area/ }));
+    expect(container.querySelectorAll('[data-marker-kind="restaurant"]')).toHaveLength(2);
+
+    rerender(<FiyuMap restaurants={[a]} selectedPlaceId={null} onSelect={() => {}} />);
+    await waitFor(() => {
+      expect(container.querySelectorAll('[data-marker-kind="restaurant"]')).toHaveLength(1);
+    });
+    rerender(<FiyuMap restaurants={[a, b]} selectedPlaceId={null} onSelect={() => {}} />);
+    await waitFor(() => {
+      expect(container.querySelector('[data-marker-kind="restaurant-cluster"]')).toBeTruthy();
+    });
+    expect(screen.queryByText("Restaurants here")).toBeNull();
   });
 
   it("keeps Picks markers individually selectable by place_id, including collisions", () => {
