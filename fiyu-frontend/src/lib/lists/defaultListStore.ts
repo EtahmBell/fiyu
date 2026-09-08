@@ -1,11 +1,18 @@
 import {
   addRestaurantToDefaultList,
+  fetchAuthenticatedMapRestaurants,
   fetchDefaultList,
   removeRestaurantFromDefaultList,
   type ListIdentity,
 } from "@/lib/api/client";
 import { FiyuApiError, type FiyuErrorKind } from "@/lib/api/errors";
-import type { DefaultListResponse } from "@/lib/api/schemas";
+import type { DefaultListResponse, MapRestaurant } from "@/lib/api/schemas";
+import {
+  accountQueryKey,
+  loadAccountQuery,
+  readAccountQuery,
+  writeAccountQuery,
+} from "@/lib/accountQueryCache";
 import {
   DAILY_PICKS_STORAGE_KEY,
   parseDailyPicksState,
@@ -230,6 +237,19 @@ export class DefaultListStore {
     return this.snapshot.savedPlaceIds.includes(placeId);
   }
 
+  private updateMapSavedState(placeId: string, saved: boolean): void {
+    if (!this.accountId) return;
+    const key = accountQueryKey("map-restaurants", this.accountId);
+    const cached = readAccountQuery<MapRestaurant[]>(key);
+    if (!cached?.some((restaurant) => restaurant.place_id === placeId)) return;
+    writeAccountQuery(
+      key,
+      cached.map((restaurant) =>
+        restaurant.place_id === placeId ? { ...restaurant, is_saved: saved } : restaurant,
+      ),
+    );
+  }
+
   private optimisticUpdate(placeId: string, saved: boolean): DefaultListResponse | null {
     if (!this.snapshot.list) return null;
     const existing = this.snapshot.list;
@@ -275,6 +295,7 @@ export class DefaultListStore {
       savedPlaceIds: optimisticSavedPlaceIds,
       operationError: null,
     });
+    this.updateMapSavedState(placeId, !clickedSaved);
 
     try {
       await this.ensureLoaded();
@@ -299,6 +320,13 @@ export class DefaultListStore {
       const sorted = sortedSavedIds(mutation.list);
       if (!this.accountId) writeLegacySavedIds(sorted);
       this.update({ list: mutation.list, savedPlaceIds: sorted, operationError: null });
+      if (this.accountId) {
+        await loadAccountQuery(
+          accountQueryKey("map-restaurants", this.accountId),
+          fetchAuthenticatedMapRestaurants,
+          { force: true },
+        ).catch(() => undefined);
+      }
     } catch (error) {
       const resolved =
         error instanceof FiyuApiError
@@ -330,6 +358,7 @@ export class DefaultListStore {
           : "Could not update saved status. Please try again.",
         error: resolved.kind === "not-found" ? null : this.snapshot.error,
       });
+      this.updateMapSavedState(placeId, clickedSaved);
     } finally {
       this.mutationInFlight.delete(placeId);
       this.update({});

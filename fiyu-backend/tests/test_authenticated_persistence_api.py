@@ -510,6 +510,61 @@ def test_authenticated_map_uses_current_relationships_not_historical_seen(
     assert "tokyo-0" not in map_place_ids()
 
 
+def test_authenticated_map_returns_one_account_scoped_personal_state_model(
+    shared_account_api,
+):
+    client, user_ids, seen = shared_account_api
+    user_id = user_ids["token-a"]
+    now = datetime.now(UTC)
+    seen[user_id].append("tokyo-3")
+    client.fiyu_test_state["snapshots"][(user_id, "tokyo")] = {
+        "round_id": str(uuid4()),
+        "place_ids": ["tokyo-2", "tokyo-3"],
+        "assigned_at": now.isoformat(),
+        "expires_at": (now + timedelta(hours=24)).isoformat(),
+        "selection_metadata": {"revealed_place_ids": ["tokyo-2"]},
+    }
+    assert client.post(
+        "/lists/default/items",
+        headers=_auth("token-a"),
+        json={"city_id": "tokyo", "place_id": "tokyo-0"},
+    ).status_code == 200
+    assert client.post(
+        "/log",
+        headers=_auth("token-a"),
+        json={
+            "place_id": "tokyo-1",
+            "visited_at": now.isoformat(),
+            "rating": 4,
+        },
+    ).status_code == 201
+
+    response = client.get("/profiles/me/map-restaurants", headers=_auth("token-a"))
+
+    assert response.status_code == 200
+    by_id = {row["place_id"]: row for row in response.json()}
+    assert list(by_id) == ["tokyo-2", "tokyo-1", "tokyo-0"]
+    assert (
+        by_id["tokyo-2"]["is_discovered"],
+        by_id["tokyo-2"]["is_saved"],
+        by_id["tokyo-2"]["is_visited"],
+    ) == (True, False, False)
+    assert (
+        by_id["tokyo-1"]["is_discovered"],
+        by_id["tokyo-1"]["is_saved"],
+        by_id["tokyo-1"]["is_visited"],
+    ) == (False, False, True)
+    assert (
+        by_id["tokyo-0"]["is_discovered"],
+        by_id["tokyo-0"]["is_saved"],
+        by_id["tokyo-0"]["is_visited"],
+    ) == (False, True, False)
+    assert "tokyo-3" not in by_id  # unrevealed and historical-seen state never leaks
+    assert client.get(
+        "/profiles/me/map-restaurants", headers=_auth("token-b")
+    ).json() == []
+
+
 def test_authenticated_legacy_map_never_falls_back_to_local_served_history(
     shared_account_api, monkeypatch
 ):
@@ -597,7 +652,7 @@ def test_map_visibility_expires_but_seen_history_and_retained_relationships_rema
     assert {item["place_id"] for item in saved_items} == {"tokyo-0", "tokyo-1"}
 
     client.fiyu_test_state["recent_rounds"][(user_id, "tokyo")].clear()
-    assert map_ids() == ["tokyo-2"]
+    assert set(map_ids()) == {"tokyo-0", "tokyo-1", "tokyo-2"}
     assert seen[user_id] == place_ids
 
     unsaved = client.request(
@@ -607,12 +662,12 @@ def test_map_visibility_expires_but_seen_history_and_retained_relationships_rema
         json={"city_id": "tokyo", "place_id": "tokyo-1"},
     )
     assert unsaved.status_code == 200
-    assert map_ids() == ["tokyo-2"]
+    assert set(map_ids()) == {"tokyo-0", "tokyo-2"}
     assert seen[user_id] == place_ids
 
     deleted = client.delete(f"/log/{visit.json()['id']}", headers=_auth("token-a"))
     assert deleted.status_code == 200
-    assert map_ids() == []
+    assert map_ids() == ["tokyo-0"]
     assert seen[user_id] == place_ids
 
 
@@ -687,7 +742,11 @@ def test_map_visibility_deduplicates_active_saved_and_visited_membership(
     assert returned == ["tokyo-0", "tokyo-1", "tokyo-2"]
     assert len(returned) == len(set(returned)) == 3
     by_place_id = {row["place_id"]: row for row in response.json()}
+    assert by_place_id["tokyo-0"]["is_discovered"] is True
+    assert by_place_id["tokyo-0"]["is_saved"] is True
     assert by_place_id["tokyo-0"]["is_visited"] is True
+    assert by_place_id["tokyo-1"]["is_discovered"] is True
+    assert by_place_id["tokyo-1"]["is_saved"] is False
     assert by_place_id["tokyo-1"]["is_visited"] is False
     assert by_place_id["tokyo-2"]["is_visited"] is False
 
@@ -986,9 +1045,13 @@ def test_authenticated_lists_log_and_seen_are_account_owned(shared_account_api):
     map_rows = client.get(
         "/profiles/me/map-restaurants", headers=_auth("token-a")
     ).json()
-    assert {item["place_id"] for item in map_rows} == {"tokyo-1"}
-    assert map_rows[0]["user_rating"] == 5
-    assert "private_note" not in map_rows[0]
+    assert {item["place_id"] for item in map_rows} == {"tokyo-0", "tokyo-1"}
+    map_by_id = {item["place_id"]: item for item in map_rows}
+    assert map_by_id["tokyo-0"]["is_saved"] is True
+    assert map_by_id["tokyo-0"]["is_discovered"] is False
+    assert map_by_id["tokyo-1"]["is_visited"] is True
+    assert map_by_id["tokyo-1"]["user_rating"] == 5
+    assert all("private_note" not in item for item in map_rows)
 
     assert (
         client.get("/lists/default", params={"city_id": "tokyo"}, headers=_auth("token-b")).json()[

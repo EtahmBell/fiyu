@@ -1,17 +1,26 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { FiyuMap } from "@/components/map/FiyuMap";
+import { PersonalMapFilterControl } from "@/components/map/PersonalMapFilterControl";
 import { FiyuLoadingScreen } from "@/components/states/FiyuLoadingScreen";
 import { fetchAuthenticatedMapRestaurants } from "@/lib/api/client";
 import { useAccountQuery } from "@/lib/accountQueryCache";
-import type { PublicRestaurant } from "@/lib/api/schemas";
+import type { MapRestaurant } from "@/lib/api/schemas";
 import { mappableRestaurants } from "@/lib/geo/mappable";
 import { useIsDesktop } from "@/lib/hooks/useMediaQuery";
+import { filterPersonalMapRestaurants, type PersonalMapFilter } from "@/lib/map/personalMap";
 import { useProfileIdentity } from "@/lib/profile/profileIdentity";
+
+const EMPTY_FILTER_COPY: Record<PersonalMapFilter, string> = {
+  all: "No places yet",
+  saved: "No saved places yet",
+  visited: "No visited places yet",
+  discovered: "No recent discoveries",
+};
+const MAP_STATE_REFRESH_MS = 60_000;
 
 export function DedicatedMap() {
   const router = useRouter();
@@ -19,17 +28,27 @@ export function DedicatedMap() {
   const identity = useProfileIdentity();
   const ownerKey = identity.profile?.user_id ?? null;
   const loadMap = useCallback(() => fetchAuthenticatedMapRestaurants(), []);
-  const map = useAccountQuery<PublicRestaurant[]>({
+  const map = useAccountQuery<MapRestaurant[]>({
     resource: "map-restaurants",
     accountId: identity.status === "loading" ? undefined : ownerKey,
     loader: loadMap,
     enabled: !isDesktop && Boolean(ownerKey),
   });
+  const refreshMap = map.refresh;
   const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
+  const [filter, setFilter] = useState<PersonalMapFilter>("all");
 
   useEffect(() => {
     if (isDesktop) router.replace("/picks");
   }, [isDesktop, router]);
+
+  useEffect(() => {
+    if (!ownerKey || isDesktop) return;
+    const interval = window.setInterval(() => {
+      void refreshMap(true).catch(() => undefined);
+    }, MAP_STATE_REFRESH_MS);
+    return () => window.clearInterval(interval);
+  }, [isDesktop, ownerKey, refreshMap]);
 
   useEffect(() => {
     if (!selectedPlaceId) return;
@@ -40,10 +59,23 @@ export function DedicatedMap() {
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [selectedPlaceId]);
 
-  const mappable =
-    ownerKey && map.status === "ready"
-      ? mappableRestaurants(map.data)
-      : [];
+  const filteredRestaurants = useMemo(
+    () => map.status === "ready" ? filterPersonalMapRestaurants(map.data, filter) : [],
+    [filter, map],
+  );
+  const mappable = useMemo(
+    () => ownerKey ? mappableRestaurants(filteredRestaurants) : [],
+    [filteredRestaurants, ownerKey],
+  );
+
+  const changeFilter = (nextFilter: PersonalMapFilter) => {
+    setFilter(nextFilter);
+    if (map.status !== "ready") return;
+    const nextPlaceIds = new Set(
+      filterPersonalMapRestaurants(map.data, nextFilter).map((item) => item.place_id),
+    );
+    setSelectedPlaceId((current) => current && !nextPlaceIds.has(current) ? null : current);
+  };
 
   if (isDesktop || identity.status === "loading") {
     return <FiyuLoadingScreen />;
@@ -51,12 +83,12 @@ export function DedicatedMap() {
 
   return (
     <main className="relative h-[calc(100dvh-var(--spacing-header)-var(--spacing-mobile-nav))] min-h-[22rem] overflow-hidden bg-subtle lg:h-[calc(100dvh-var(--spacing-header))]">
-      <div className="absolute top-4 left-4 z-20 rounded-card border border-line bg-surface/95 px-4 py-3 shadow-lg backdrop-blur-sm">
-        <p className="text-[0.6875rem] font-semibold tracking-[0.12em] text-lavender-700 uppercase">
-          Tokyo edition
-        </p>
-        <h1 className="mt-1 font-display text-2xl leading-none text-ink">Your map</h1>
-      </div>
+      <PersonalMapFilterControl
+        value={filter}
+        onChange={changeFilter}
+        showHeading
+        className="absolute top-4 right-4 left-4 z-20 sm:right-auto sm:w-[22rem]"
+      />
 
       {ownerKey && map.status === "error" ? (
         <div className="flex h-full items-center justify-center px-5 text-center">
@@ -76,18 +108,14 @@ export function DedicatedMap() {
             showSelectedRestaurantPopup
             surfaceMode="fullscreen"
             interactive
+            preserveViewportOnRestaurantChange
+            viewportSessionKey={`personal-map:${ownerKey ?? "anonymous"}`}
           />
           {mappable.length === 0 && (
-            <div className="pointer-events-none absolute inset-0 flex items-center justify-center px-5">
-              <div className="pointer-events-auto w-full max-w-lg rounded-card border border-line bg-surface/95 px-6 py-10 text-center backdrop-blur-sm">
-                <h2 className="font-display text-3xl text-ink">No places yet</h2>
-                <p className="mx-auto mt-3 max-w-sm text-sm leading-6 text-ink-muted">
-                  Your Fiyu discoveries will appear here as you receive Picks.
-                </p>
-                <Link href="/picks" className="mt-5 inline-flex min-h-11 items-center font-medium text-lavender-700 underline underline-offset-4">
-                  Go to Picks
-                </Link>
-              </div>
+            <div className="pointer-events-none absolute top-36 right-4 left-4 z-10 flex justify-center">
+              <p className="rounded-chip border border-line/70 bg-surface/95 px-3 py-2 text-xs text-ink-muted shadow-sm backdrop-blur-sm">
+                {EMPTY_FILTER_COPY[filter]}
+              </p>
             </div>
           )}
         </>

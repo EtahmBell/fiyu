@@ -3,6 +3,7 @@
 import { resolveNames } from "@/lib/format/language";
 import type { MappableRestaurant } from "@/lib/geo/mappable";
 import type { MarkerCluster } from "@/lib/map/clustering";
+import { personalMapMarkerState } from "@/lib/map/personalMap";
 import { svgNumber } from "@/lib/map/projection";
 import { cn } from "@/lib/utils/cn";
 
@@ -79,7 +80,9 @@ export function MapMarkers({
 
         const restaurant = cluster.members[0].item;
         const selected = restaurant.place_id === selectedPlaceId;
-        const visited = restaurant.is_visited;
+        const markerState = personalMapMarkerState(restaurant);
+        const visited = markerState === "visited";
+        const savedOnly = markerState === "saved";
         const marker = visited ? "var(--map-marker-visited)" : "var(--map-marker)";
         const label = resolveNames(restaurant).primary?.text ?? "Unnamed restaurant";
 
@@ -94,6 +97,9 @@ export function MapMarkers({
             data-place-id={restaurant.place_id}
             data-selected={selected ? "true" : "false"}
             data-visited={visited ? "true" : "false"}
+            data-discovered={restaurant.is_discovered ? "true" : "false"}
+            data-saved={restaurant.is_saved ? "true" : "false"}
+            data-marker-state={markerState}
             data-newly-revealed={newlyRevealed ? "true" : undefined}
             className={cn(
               "cursor-pointer focus:outline-none",
@@ -122,9 +128,9 @@ export function MapMarkers({
               cx={x}
               cy={y}
               r={size(selected ? MARKER_RADIUS + 1.5 : MARKER_RADIUS)}
-              fill={marker}
-              stroke="var(--map-marker-center)"
-              strokeWidth={size(selected ? 3 : 2.5)}
+              fill={savedOnly ? "var(--map-bg)" : marker}
+              stroke={savedOnly ? "var(--map-marker)" : "var(--map-marker-center)"}
+              strokeWidth={size(selected ? 3 : savedOnly ? 3 : 2.5)}
               className="transition-all duration-[180ms] ease-(--ease-fiyu)"
             />
             <title>{label}</title>

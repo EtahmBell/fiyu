@@ -265,6 +265,11 @@ export const publicRestaurantListSchema = z.array(publicRestaurantSchema);
 
 /** Account-private presentation state returned only by Map endpoints. */
 export const mapRestaurantSchema = publicRestaurantSchema.extend({
+  // Older Map responses contained only discovery/visit rows. Treat an absent
+  // flag as discovered during a rolling deploy; the expanded API sends false
+  // explicitly for saved-only rows.
+  is_discovered: z.boolean().default(true),
+  is_saved: z.boolean().default(false),
   is_visited: z.boolean(),
   // Default supports a safe rolling deploy against an older API response;
   // absence is legacy/no explicit rating, never an inferred star value.

@@ -255,6 +255,8 @@ class PublicRestaurantSummary(BaseModel):
 
 
 class MapRestaurantSummary(PublicRestaurantSummary):
+    is_discovered: bool = False
+    is_saved: bool = False
     is_visited: bool = False
     user_rating: int | None = Field(default=None, ge=1, le=5)
 
@@ -1902,8 +1904,8 @@ def _map_eligible_public_restaurants_for_place_ids(
 
 def _authenticated_map_membership(
     user_id: str, *, city_id: str = "tokyo"
-) -> tuple[list[str], set[str], dict[str, int]]:
-    """Derive Map membership from revealed discoveries and visit relationships."""
+) -> tuple[list[str], set[str], set[str], set[str], dict[str, int]]:
+    """Derive one personal Map model from discoveries, saves, and visits."""
     now = datetime.now(UTC)
     active_row = shared_user_data.get_active_daily_picks(user_id=user_id, city_id=city_id)
     active_place_ids = (
@@ -1925,8 +1927,12 @@ def _authenticated_map_membership(
         ).place_ids
     ]
     latest_ratings = shared_user_data.latest_visit_ratings(user_id=user_id)
+    saved_place_ids = set(
+        shared_user_data.saved_place_ids(user_id=user_id, city_id=city_id)
+    )
     visited_place_ids = list(shared_user_data.visited_place_ids(user_id=user_id))
     visited_place_id_set = set(visited_place_ids)
+    discovered_place_id_set = {*active_place_ids, *recent_place_ids}
     visible_place_ids = list(
         dict.fromkeys(
             str(place_id)
@@ -1934,28 +1940,41 @@ def _authenticated_map_membership(
                 *active_place_ids,
                 *recent_place_ids,
                 *visited_place_ids,
+                *sorted(saved_place_ids),
             ]
         )
     )
-    return visible_place_ids, visited_place_id_set, latest_ratings
+    return (
+        visible_place_ids,
+        discovered_place_id_set,
+        saved_place_ids,
+        visited_place_id_set,
+        latest_ratings,
+    )
 
 
 def _authenticated_map_visible_place_ids(
     user_id: str, *, city_id: str = "tokyo"
 ) -> list[str]:
-    """Return active/recent Picks plus visits; saves and seen are not Map unlocks."""
+    """Return the account's discovery, saved, and visited Map candidate union."""
     return _authenticated_map_membership(user_id, city_id=city_id)[0]
 
 
 def _authenticated_map_restaurants(
     user_id: str, *, city_id: str = "tokyo"
 ) -> list[dict[str, object]]:
-    visible_place_ids, visited_place_ids, latest_ratings = _authenticated_map_membership(
-        user_id, city_id=city_id
-    )
+    (
+        visible_place_ids,
+        discovered_place_ids,
+        saved_place_ids,
+        visited_place_ids,
+        latest_ratings,
+    ) = _authenticated_map_membership(user_id, city_id=city_id)
     return [
         {
             **restaurant,
+            "is_discovered": str(restaurant["place_id"]) in discovered_place_ids,
+            "is_saved": str(restaurant["place_id"]) in saved_place_ids,
             "is_visited": str(restaurant["place_id"]) in visited_place_ids,
             "user_rating": latest_ratings.get(str(restaurant["place_id"])),
         }
@@ -2263,7 +2282,7 @@ def reset_developer_visit_taste_data(
 def get_authenticated_map_restaurants(
     user_id: Annotated[str, Depends(_authenticated_user_id)],
 ) -> list[dict[str, object]]:
-    """Intersect active/recent Picks and visits with Map-eligible catalog rows."""
+    """Return the Map-eligible union of one account's personal restaurant state."""
     _ensure_database()
     return _authenticated_map_restaurants(user_id)
 

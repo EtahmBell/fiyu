@@ -101,7 +101,7 @@ describe("server and client render the same map", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /map key/i }));
 
-    expect(screen.getByText("Current Pick")).toBeTruthy();
+    expect(screen.getByText("Discovered")).toBeTruthy();
     expect(screen.getByText("Visited")).toBeTruthy();
     expect(screen.queryByText("Approximate area")).toBeNull();
     expect(errors).toEqual([]);

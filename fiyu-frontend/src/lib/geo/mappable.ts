@@ -39,6 +39,10 @@ export type MappableRestaurant = PublicRestaurant & {
   longitude: number;
   /** Present on authenticated Map rows; absent on ordinary public catalog rows. */
   is_visited?: boolean;
+  /** Current revealed Pick or retained Recent Discovery. */
+  is_discovered?: boolean;
+  /** Current account's default-list membership. */
+  is_saved?: boolean;
   /** Latest explicit owner-selected rating; absent/null for legacy reaction-only visits. */
   user_rating?: number | null;
 };

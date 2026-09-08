@@ -4,6 +4,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { DefaultListStore } from "@/lib/lists/defaultListStore";
 import { ownerKeyStorageKey, getOrCreateAnonymousOwnerKey } from "@/lib/lists/identity";
 import { DAILY_PICKS_STORAGE_KEY } from "@/lib/daily-picks/storage";
+import {
+  accountQueryKey,
+  clearAccountQueries,
+  readAccountQuery,
+  writeAccountQuery,
+} from "@/lib/accountQueryCache";
+import type { MapRestaurant } from "@/lib/api/schemas";
 
 function listBody(items: Array<{ place_id: string; added_at: string }>) {
   return {
@@ -39,6 +46,7 @@ function json(status: number, body: unknown): Response {
 describe("default list store", () => {
   beforeEach(() => {
     window.localStorage.clear();
+    clearAccountQueries();
     vi.restoreAllMocks();
   });
 
@@ -210,6 +218,36 @@ describe("default list store", () => {
 
     // One additional GET load only; migration POSTs are not repeated.
     expect(callsAfterSecondLoad - callsAfterFirstLoad).toBe(1);
+  });
+
+  it("updates cached personal Map membership optimistically for the authenticated account", async () => {
+    const mapRow = {
+      place_id: "one",
+      map_display_eligible: true,
+      is_discovered: true,
+      is_saved: false,
+      is_visited: false,
+    } as MapRestaurant;
+    const fetchMock = vi.spyOn(globalThis, "fetch");
+    fetchMock
+      .mockResolvedValueOnce(json(200, listBody([])))
+      .mockResolvedValueOnce(json(200, {
+        list: listBody([{ place_id: "one", added_at: "2026-08-03T08:00:00Z" }]),
+        changed: true,
+      }))
+      .mockResolvedValueOnce(json(200, [{ ...mapRow, is_saved: true }]))
+      .mockResolvedValueOnce(json(200, { list: listBody([]), changed: true }))
+      .mockResolvedValueOnce(json(200, [mapRow]));
+    const key = accountQueryKey("map-restaurants", "account-a");
+    writeAccountQuery<MapRestaurant[]>(key, [mapRow]);
+    const store = new DefaultListStore("tokyo", "account-a");
+    await store.ensureLoaded();
+
+    await store.toggle("one");
+    expect(readAccountQuery<MapRestaurant[]>(key)?.[0].is_saved).toBe(true);
+
+    await store.toggle("one");
+    expect(readAccountQuery<MapRestaurant[]>(key)?.[0].is_saved).toBe(false);
   });
 
   it("does not import or rewrite anonymous legacy saves for an authenticated account", async () => {

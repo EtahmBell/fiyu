@@ -12,6 +12,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import {
   createRestaurantVisit,
   deleteRestaurantVisit,
+  fetchAuthenticatedMapRestaurants,
   fetchRestaurantLog,
   fetchRestaurant,
   fetchSeenRestaurantIds,
@@ -367,7 +368,13 @@ export function LogWorkspace({
                   : restaurant,
               )
             : selectedRestaurant
-              ? [...current, { ...selectedRestaurant, is_visited: true, user_rating: rating }]
+              ? [...current, {
+                  ...selectedRestaurant,
+                  is_discovered: false,
+                  is_saved: false,
+                  is_visited: true,
+                  user_rating: rating,
+                }]
               : current;
           writeAccountQuery(mapKey, next);
         }
@@ -407,6 +414,13 @@ export function LogWorkspace({
       setVisits((current = []) =>
         current.filter((candidate) => candidate.id !== visit.id),
       );
+      if (accountId) {
+        void loadAccountQuery(
+          accountQueryKey("map-restaurants", accountId),
+          fetchAuthenticatedMapRestaurants,
+          { force: true },
+        ).catch(() => undefined);
+      }
       await refreshYourFiyu();
     } catch (cause) {
       const message = cause instanceof FiyuApiError ? cause.detail : null;

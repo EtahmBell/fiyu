@@ -742,6 +742,20 @@ describe("daily-only discovery shell", () => {
     for (const placeId of placeIds) {
       expect(mapRegion.querySelector(`[data-place-id="${placeId}"]`)).toBeTruthy();
     }
+    const initialTransform = mapRegion.querySelector("svg > g")?.getAttribute("transform");
+    expect(screen.getByRole("tab", { name: "All" }).getAttribute("aria-selected")).toBe("true");
+    fireEvent.click(screen.getByRole("tab", { name: "Visited" }));
+    await waitFor(() =>
+      expect(mapRegion.querySelectorAll('[data-marker-kind="restaurant"]')).toHaveLength(2),
+    );
+    expect(mapRegion.querySelector("svg > g")?.getAttribute("transform")).toBe(initialTransform);
+    fireEvent.click(screen.getByRole("tab", { name: "Saved" }));
+    expect(await screen.findByText("No saved places yet")).toBeTruthy();
+    expect(mapRegion.querySelector("svg")).toBeTruthy();
+    fireEvent.click(screen.getByRole("tab", { name: "All" }));
+    await waitFor(() =>
+      expect(mapRegion.querySelectorAll('[data-marker-kind="restaurant"]')).toHaveLength(3),
+    );
     const visitedMarker = mapRegion.querySelector(
       '[data-place-id="ChIJe1D1MyeLGGARBHKRN0-hQUw"]',
     );

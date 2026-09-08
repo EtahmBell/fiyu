@@ -4,7 +4,11 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DedicatedMap } from "@/components/destinations/DedicatedMap";
-import { clearAccountQueries } from "@/lib/accountQueryCache";
+import {
+  accountQueryKey,
+  clearAccountQueries,
+  writeAccountQuery,
+} from "@/lib/accountQueryCache";
 import type { PublicRestaurant } from "@/lib/api/schemas";
 import { mapRestaurantSchema, publicRestaurantSchema } from "@/lib/api/schemas";
 import { clearProfileIdentity, publishProfileIdentity } from "@/lib/profile/profileIdentity";
@@ -26,7 +30,7 @@ const verifiedLocationCatalog = [
   ["ChIJt2QEWDmNGGARvJ5tMBSBCqI", "江戸酒場 海", "Edo Sakaba Umi", 35.673682374824864, 139.71160773428886],
   ["ChIJGZiCSQCPGGARtJeKu6kiMVo", "牛たんの檸檬 秋葉原店", "Gyutan no Lemon Akihabara", 35.69797502625716, 139.77817065934673],
 ].map(([placeId, nameJa, name, latitude, longitude]) =>
-  publicRestaurantSchema.parse({
+  mapRestaurantSchema.parse({
     place_id: placeId,
     name_ja: nameJa,
     name_en: name,
@@ -37,6 +41,9 @@ const verifiedLocationCatalog = [
     longitude,
     map_display_eligible: true,
     location_precision: "exact",
+    is_discovered: true,
+    is_saved: false,
+    is_visited: false,
   }),
 );
 
@@ -92,7 +99,7 @@ describe("dedicated user map", () => {
     const { container } = render(<DedicatedMap />);
 
     expect(screen.getByText("Loading your map…")).toBeTruthy();
-    expect(await screen.findByRole("heading", { name: "No places yet" })).toBeTruthy();
+    expect(await screen.findByText("No places yet")).toBeTruthy();
     expect(
       container.querySelectorAll('[data-layer="restaurants"] [data-marker-kind="restaurant"]'),
     ).toHaveLength(0);
@@ -102,7 +109,6 @@ describe("dedicated user map", () => {
     expect(container.querySelector('[data-layer="restaurant-popup"]')).toBeNull();
     expect(container.querySelector('[data-layer="stations"]')).toBeTruthy();
     expect(container.querySelector('[data-layer="landmarks"]')).toBeTruthy();
-    expect(screen.getByText("Your Fiyu discoveries will appear here as you receive Picks.")).toBeTruthy();
     expect(container.querySelector("svg")).toBeTruthy();
     expect(api.fetchMapRestaurants).not.toHaveBeenCalled();
   });
@@ -111,7 +117,7 @@ describe("dedicated user map", () => {
     api.fetchMapRestaurants.mockResolvedValue(verifiedLocationCatalog);
     const { container } = render(<DedicatedMap />);
 
-    expect(await screen.findByRole("heading", { name: "No places yet" })).toBeTruthy();
+    expect(await screen.findByText("No places yet")).toBeTruthy();
     expect(
       container.querySelectorAll('[data-layer="restaurants"] [data-place-id]'),
     ).toHaveLength(0);
@@ -204,8 +210,9 @@ describe("dedicated user map", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Map key" }));
     const legend = document.getElementById("fiyu-map-legend") as HTMLElement;
-    expect(within(legend).getByText("Current Pick")).toBeTruthy();
+    expect(within(legend).getByText("Discovered")).toBeTruthy();
     expect(within(legend).getByText("Visited")).toBeTruthy();
+    expect(within(legend).getByText("Saved")).toBeTruthy();
   });
 
   it("renders only map-eligible rows returned by the authenticated seen endpoint", async () => {
@@ -232,10 +239,11 @@ describe("dedicated user map", () => {
 
   it("clusters only the restaurants returned for the authenticated account", async () => {
     const nearbySeen = verifiedLocationCatalog.slice(0, 3).map((restaurant, index) =>
-      publicRestaurantSchema.parse({
+      mapRestaurantSchema.parse({
         ...restaurant,
         latitude: 35.68 + index * 0.00001,
         longitude: 139.71 + index * 0.00001,
+        is_discovered: true,
       }),
     );
     api.fetchAuthenticatedMapRestaurants.mockResolvedValue(nearbySeen);
@@ -364,6 +372,126 @@ describe("dedicated user map", () => {
     });
     fireEvent.click(pin as Element);
     expect(container.querySelector('[aria-label^="Your rating:"]')).toBeNull();
+  });
+
+  it("filters one personal Map model without moving the camera and clears only excluded selection", async () => {
+    const rows = [
+      mapRestaurantSchema.parse({ ...verifiedLocationCatalog[0], is_discovered: true }),
+      mapRestaurantSchema.parse({
+        ...verifiedLocationCatalog[1],
+        is_discovered: false,
+        is_saved: true,
+      }),
+      mapRestaurantSchema.parse({
+        ...verifiedLocationCatalog[2],
+        is_discovered: false,
+        is_visited: true,
+      }),
+      mapRestaurantSchema.parse({
+        ...verifiedLocationCatalog[3],
+        is_discovered: true,
+        is_saved: true,
+        is_visited: true,
+      }),
+    ];
+    api.fetchAuthenticatedMapRestaurants.mockResolvedValue(rows);
+    publishProfileIdentity(profile("filter-user"));
+    const { container } = render(<DedicatedMap />);
+
+    const allTab = await screen.findByRole("tab", { name: "All" });
+    expect(allTab.getAttribute("aria-selected")).toBe("true");
+    await waitFor(() =>
+      expect(container.querySelectorAll('[data-marker-kind="restaurant"]')).toHaveLength(3),
+    );
+    const transform = container.querySelector("svg > g")?.getAttribute("transform");
+
+    fireEvent.click(container.querySelector(`[data-place-id="${rows[0].place_id}"]`) as Element);
+    expect(container.querySelector('[data-layer="restaurant-popup"]')).toBeTruthy();
+    fireEvent.click(screen.getByRole("tab", { name: "Saved" }));
+
+    await waitFor(() => {
+      expect(container.querySelectorAll('[data-marker-kind="restaurant"]')).toHaveLength(2);
+      expect(container.querySelector('[data-layer="restaurant-popup"]')).toBeNull();
+    });
+    expect(container.querySelector("svg > g")?.getAttribute("transform")).toBe(transform);
+    const savedOnly = container.querySelector(`[data-place-id="${rows[1].place_id}"]`);
+    expect(savedOnly?.getAttribute("data-marker-state")).toBe("saved");
+    expect(savedOnly?.querySelectorAll("circle")[2]?.getAttribute("fill")).toBe("var(--map-bg)");
+
+    fireEvent.click(container.querySelector(`[data-place-id="${rows[3].place_id}"]`) as Element);
+    fireEvent.click(screen.getByRole("tab", { name: "Visited" }));
+    await waitFor(() =>
+      expect(container.querySelector('[data-layer="restaurant-popup"]')).toBeTruthy(),
+    );
+    expect(container.querySelector(`[data-place-id="${rows[3].place_id}"]`)
+      ?.getAttribute("data-marker-state")).toBe("visited");
+    expect(api.fetchAuthenticatedMapRestaurants).toHaveBeenCalledTimes(1);
+  });
+
+  it("reclusters only the visible filter subset and supports keyboard filter navigation", async () => {
+    const rows = verifiedLocationCatalog.slice(0, 3).map((restaurant, index) =>
+      mapRestaurantSchema.parse({
+        ...restaurant,
+        latitude: 35.68 + index * 0.00001,
+        longitude: 139.71 + index * 0.00001,
+        is_discovered: true,
+        is_saved: index < 2,
+      }),
+    );
+    api.fetchAuthenticatedMapRestaurants.mockResolvedValue(rows);
+    publishProfileIdentity(profile("cluster-filter-user"));
+    const { container } = render(<DedicatedMap />);
+
+    await waitFor(() =>
+      expect(container.querySelector('[data-marker-kind="restaurant-cluster"]')
+        ?.getAttribute("data-place-ids")?.split(",")).toHaveLength(3),
+    );
+    const allTab = screen.getByRole("tab", { name: "All" });
+    allTab.focus();
+    fireEvent.keyDown(allTab.parentElement as HTMLElement, { key: "ArrowRight" });
+    expect(document.activeElement).toBe(screen.getByRole("tab", { name: "Saved" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Saved" }));
+    await waitFor(() =>
+      expect(container.querySelector('[data-marker-kind="restaurant-cluster"]')
+        ?.getAttribute("data-place-ids")?.split(",")).toHaveLength(2),
+    );
+  });
+
+  it("keeps the base map visible for an empty filter", async () => {
+    api.fetchAuthenticatedMapRestaurants.mockResolvedValue([verifiedLocationCatalog[0]]);
+    publishProfileIdentity(profile("empty-filter-user"));
+    const { container } = render(<DedicatedMap />);
+
+    await screen.findByRole("tab", { name: "Visited" });
+    fireEvent.click(screen.getByRole("tab", { name: "Visited" }));
+    expect(await screen.findByText("No visited places yet")).toBeTruthy();
+    expect(container.querySelector("svg")).toBeTruthy();
+    expect(container.querySelector('[data-layer="stations"]')).toBeTruthy();
+  });
+
+  it("reacts to discovery expiry while retaining the restaurant in Saved", async () => {
+    const accountId = "expiry-user";
+    const row = mapRestaurantSchema.parse({
+      ...verifiedLocationCatalog[0],
+      is_discovered: true,
+      is_saved: true,
+    });
+    api.fetchAuthenticatedMapRestaurants.mockResolvedValue([row]);
+    publishProfileIdentity(profile(accountId));
+    const { container } = render(<DedicatedMap />);
+    await waitFor(() =>
+      expect(container.querySelector(`[data-place-id="${row.place_id}"]`)).toBeTruthy(),
+    );
+
+    act(() => writeAccountQuery(accountQueryKey("map-restaurants", accountId), [{
+      ...row,
+      is_discovered: false,
+    }]));
+    await waitFor(() =>
+      expect(container.querySelector(`[data-place-id="${row.place_id}"]`)).toBeNull(),
+    );
+    fireEvent.click(screen.getByRole("tab", { name: "Saved" }));
+    expect(container.querySelector(`[data-place-id="${row.place_id}"]`)).toBeTruthy();
   });
 
   it("masks the previous account while the next account's Map hydrates", async () => {

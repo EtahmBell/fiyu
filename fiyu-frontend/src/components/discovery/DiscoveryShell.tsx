@@ -11,7 +11,7 @@ import {
 import { AuthenticatedLocationSetup } from "@/components/location/AuthenticatedLocationSetup";
 import { PageIntro, SiteFooter } from "@/components/layout/SiteHeader";
 import { FiyuMap } from "@/components/map/FiyuMap";
-import { MapUnavailable } from "@/components/map/MapUnavailable";
+import { PersonalMapFilterControl } from "@/components/map/PersonalMapFilterControl";
 import { FiyuLoadingScreen } from "@/components/states/FiyuLoadingScreen";
 import { Button } from "@/components/ui/Button";
 import {
@@ -36,6 +36,10 @@ import {
   savePicksReturnState,
 } from "@/lib/navigation/restaurantDetail";
 import { PICKS_DETAIL_MAP_SESSION_KEY } from "@/lib/map/viewportSession";
+import {
+  filterPersonalMapRestaurants,
+  type PersonalMapFilter,
+} from "@/lib/map/personalMap";
 import { cn } from "@/lib/utils/cn";
 
 export interface DiscoveryShellProps {
@@ -44,6 +48,14 @@ export interface DiscoveryShellProps {
   /** Operator-curated area centres. Empty until anchors are reviewed. */
   areaAnchors: LocationAnchor[];
 }
+
+const MAP_EMPTY_COPY: Record<PersonalMapFilter, string> = {
+  all: "No places yet",
+  saved: "No saved places yet",
+  visited: "No visited places yet",
+  discovered: "No recent discoveries",
+};
+const MAP_STATE_REFRESH_MS = 60_000;
 
 interface Selection {
   placeId: string;
@@ -87,6 +99,7 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
     ? locationQuery.data
     : null;
   const [selection, setSelection] = useState<Selection | null>(null);
+  const [mapFilter, setMapFilter] = useState<PersonalMapFilter>("all");
   const restaurantOwnerKey = identity.profile?.user_id ?? "anonymous";
   const [visibleRestaurantState, setVisibleRestaurantState] =
     useState<VisibleRestaurantState | null>(null);
@@ -120,6 +133,14 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
 
   const geolocation = useGeolocation();
   const requestFreshGeolocation = geolocation.requestFresh;
+
+  useEffect(() => {
+    if (!authenticatedUserId) return;
+    const interval = window.setInterval(() => {
+      void refreshMapRestaurants(true).catch(() => undefined);
+    }, MAP_STATE_REFRESH_MS);
+    return () => window.clearInterval(interval);
+  }, [authenticatedUserId, refreshMapRestaurants]);
 
   const waitForTokyoArea = useCallback(
     (status: NewRoundLocationGate, userId: string) =>
@@ -281,22 +302,48 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
     return null;
   }, [accountLocation, activeArea, identity.profile, origin]);
 
-  const mappable = useMemo(() => {
+  const personalMapRestaurants = useMemo(() => {
+    const accountMapRestaurants = mapQuery.status === "ready" ? mapQuery.data : [];
+    const immediateDiscoveries: MapRestaurant[] = visibleRestaurants.map((restaurant) => ({
+      ...restaurant,
+      is_discovered: true,
+      is_saved: false,
+      is_visited: false,
+      user_rating: null,
+    }));
     const mapRestaurants = identity.profile
       ? mapQuery.status === "ready"
-        ? [...new Map([...visibleRestaurants, ...mapQuery.data].map((restaurant) => [
+        ? [...new Map([...immediateDiscoveries, ...accountMapRestaurants].map((restaurant) => [
             restaurant.place_id,
             restaurant,
           ])).values()]
         : mapQuery.status === "error"
-          ? visibleRestaurants
+          ? immediateDiscoveries
           : []
-      : visibleRestaurants;
-    return mappableRestaurants(mapRestaurants);
+      : immediateDiscoveries;
+    return mapRestaurants;
   }, [identity.profile, mapQuery.data, mapQuery.status, visibleRestaurants]);
+  const mappable = useMemo(
+    () => mappableRestaurants(
+      identity.profile
+        ? filterPersonalMapRestaurants(personalMapRestaurants, mapFilter)
+        : personalMapRestaurants,
+    ),
+    [identity.profile, mapFilter, personalMapRestaurants],
+  );
   const selectedMapRestaurant = selection?.source === "map"
     ? mappable.find((restaurant) => restaurant.place_id === selection.placeId) ?? null
     : null;
+  const changeMapFilter = useCallback((nextFilter: PersonalMapFilter) => {
+    setMapFilter(nextFilter);
+    const nextPlaceIds = new Set(
+      filterPersonalMapRestaurants(personalMapRestaurants, nextFilter)
+        .map((restaurant) => restaurant.place_id),
+    );
+    setSelection((current) =>
+      current?.source === "map" && !nextPlaceIds.has(current.placeId) ? null : current,
+    );
+  }, [personalMapRestaurants]);
   const updateVisibleRestaurants = useCallback(
     (nextRestaurants: PublicRestaurant[]) =>
       setVisibleRestaurantState({ ownerKey: restaurantOwnerKey, restaurants: nextRestaurants }),
@@ -310,6 +357,7 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
           (current ?? []).filter(
             (restaurant) =>
               ("is_visited" in restaurant && restaurant.is_visited === true) ||
+              ("is_saved" in restaurant && restaurant.is_saved === true) ||
               !staleIds.has(restaurant.place_id),
           ),
         );
@@ -524,20 +572,35 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
           <div className="flex h-full items-center justify-center" role="status">
             <p className="text-sm text-ink-muted">Loading your map…</p>
           </div>
-        ) : mappable.length === 0 ? (
-          <MapUnavailable reason="no-mapped-restaurants" className="h-full" />
         ) : (
-          <FiyuMap
-            restaurants={mappable}
-            selectedPlaceId={selection?.placeId ?? null}
-            onSelect={selectFromMap}
-            onMapBackgroundClick={() => setSelection(null)}
-            showSelectedRestaurantPopup={selectedMapRestaurant?.is_visited === true}
-            surfaceMode="bounded"
-            interactive
-            clusterNearbyRestaurants={false}
-            viewportSessionKey={PICKS_DETAIL_MAP_SESSION_KEY}
-          />
+          <>
+            <PersonalMapFilterControl
+              value={mapFilter}
+              onChange={changeMapFilter}
+              className="absolute top-4 left-4 z-20 w-[min(22rem,calc(100%-2rem))]"
+            />
+            <FiyuMap
+              restaurants={mappable}
+              selectedPlaceId={selection?.placeId ?? null}
+              onSelect={selectFromMap}
+              onMapBackgroundClick={() => setSelection(null)}
+              showSelectedRestaurantPopup={
+                selectedMapRestaurant?.is_visited === true ||
+                (selectedMapRestaurant?.is_saved === true &&
+                  selectedMapRestaurant.is_discovered === false)
+              }
+              surfaceMode="bounded"
+              interactive
+              clusterNearbyRestaurants={false}
+              viewportSessionKey={PICKS_DETAIL_MAP_SESSION_KEY}
+              preserveViewportOnRestaurantChange
+            />
+            {mappable.length === 0 && (
+              <p className="pointer-events-none absolute top-20 left-1/2 z-10 -translate-x-1/2 rounded-chip border border-line/70 bg-surface/95 px-3 py-2 text-xs whitespace-nowrap text-ink-muted shadow-sm backdrop-blur-sm">
+                {MAP_EMPTY_COPY[mapFilter]}
+              </p>
+            )}
+          </>
         )}
       </aside>
 

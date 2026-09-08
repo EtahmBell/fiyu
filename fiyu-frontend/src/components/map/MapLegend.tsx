@@ -12,9 +12,9 @@ import { cn } from "@/lib/utils/cn";
  * surface, so reading the legend can never start a drag, and the disclosure
  * button is a real button for keyboard and screen-reader users.
  *
- * Collapsed to a single line by default. A permanent four-row key would occupy
+ * Collapsed to a single line by default. A permanent multi-row key would occupy
  * the corner of a map that only ever shows a handful of restaurants. The two
- * pin treatments communicate account state only: current Picks and places visited.
+ * pin treatments communicate personal Map state only.
  *
  * The ODbL credit is not optional and is shown whether the key is open or closed.
  */
@@ -29,7 +29,7 @@ interface LegendEntry {
 const ENTRIES: LegendEntry[] = [
   {
     id: "restaurant",
-    label: "Current Pick",
+    label: "Discovered",
     swatch: (
       <svg viewBox="0 0 16 16" className="size-4" aria-hidden="true">
         <circle cx="8" cy="8" r="5.5" fill="var(--map-marker)" stroke="var(--map-marker-center)" strokeWidth="1.5" />
@@ -48,6 +48,22 @@ const ENTRIES: LegendEntry[] = [
           fill="var(--map-marker-visited)"
           stroke="var(--map-marker-center)"
           strokeWidth="1.5"
+        />
+      </svg>
+    ),
+  },
+  {
+    id: "saved",
+    label: "Saved",
+    swatch: (
+      <svg viewBox="0 0 16 16" className="size-4" aria-hidden="true">
+        <circle
+          cx="8"
+          cy="8"
+          r="5.5"
+          fill="var(--map-bg)"
+          stroke="var(--map-marker)"
+          strokeWidth="2"
         />
       </svg>
     ),

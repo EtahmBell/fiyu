@@ -82,6 +82,7 @@ describe("authenticated default-list identity", () => {
       .mockResolvedValueOnce(
         json({ list: listBody(["restaurant-x"]), changed: true }),
       )
+      .mockResolvedValueOnce(json([]))
       .mockResolvedValueOnce(json(listBody([])));
 
     publishProfileIdentity(profile("account-save-a"));
@@ -93,7 +94,7 @@ describe("authenticated default-list identity", () => {
     detail.unmount();
     render(<ListProbe label="Saved page" />);
     expect(screen.getByRole("button", { name: "Saved page: Saved" })).toBeTruthy();
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
 
     publishProfileIdentity(profile("account-save-b"));
     await screen.findByRole("button", { name: "Saved page: ready" });
@@ -103,7 +104,7 @@ describe("authenticated default-list identity", () => {
     await waitFor(() =>
       expect(screen.getByRole("button", { name: "Saved page: Saved" })).toBeTruthy(),
     );
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
 
     const mutation = fetchMock.mock.calls[1];
     const headers = new Headers((mutation[1] as RequestInit | undefined)?.headers);

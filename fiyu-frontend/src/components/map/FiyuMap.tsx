@@ -89,6 +89,8 @@ export interface FiyuMapProps {
   onMapBackgroundClick?: () => void;
   /** Preserve the transform between application surfaces that share this key. */
   viewportSessionKey?: string;
+  /** Keep the current camera when presentation-only filtering changes markers. */
+  preserveViewportOnRestaurantChange?: boolean;
   className?: string;
 }
 
@@ -137,6 +139,7 @@ export function FiyuMap({
   clusterNearbyRestaurants = true,
   onMapBackgroundClick,
   viewportSessionKey,
+  preserveViewportOnRestaurantChange = false,
   className,
 }: FiyuMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -237,6 +240,9 @@ export function FiyuMap({
   const lastFitKey = useRef<string | null>(
     initialViewportSession?.resultKey === resultKey ? resultKey : null,
   );
+  const hasFittedResults = useRef(
+    initialViewportSession?.resultKey === resultKey,
+  );
   const skipNextViewportSave = useRef(false);
   const userHasInteracted = useRef(false);
 
@@ -309,6 +315,8 @@ export function FiyuMap({
   useEffect(() => {
     if (lastFitKey.current === resultKey) return;
     lastFitKey.current = resultKey;
+    if (preserveViewportOnRestaurantChange && hasFittedResults.current) return;
+    hasFittedResults.current = true;
     userHasInteracted.current = false;
     const fitted = points.length > 0 ? fitToPoints(points) : IDENTITY_VIEW;
     cancelViewAnimation();
@@ -320,7 +328,7 @@ export function FiyuMap({
     setView(fitted);
     // `points` is derived from the same restaurants as resultKey.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cancelViewAnimation, resultKey, viewportSessionKey]);
+  }, [cancelViewAnimation, preserveViewportOnRestaurantChange, resultKey, viewportSessionKey]);
 
   useEffect(() => {
     if (!selectedPlaceId) {

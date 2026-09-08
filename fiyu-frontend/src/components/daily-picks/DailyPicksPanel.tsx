@@ -656,14 +656,26 @@ export function DailyPicksPanel({
       if (mappableRevealed.length === 0) return;
       if (accountId) {
         const mapKey = accountQueryKey("map-restaurants", accountId);
-        const cachedMap = readAccountQuery<PublicRestaurant[]>(mapKey);
+        const cachedMap = readAccountQuery<MapRestaurant[]>(mapKey);
         if (cachedMap) {
-          writeAccountQuery(mapKey, [
-            ...new Map([...cachedMap, ...mappableRevealed].map((restaurant) => [
-              restaurant.place_id,
-              restaurant,
-            ])).values(),
-          ]);
+          const next = [...cachedMap];
+          for (const restaurant of mappableRevealed) {
+            const existingIndex = next.findIndex(
+              (candidate) => candidate.place_id === restaurant.place_id,
+            );
+            if (existingIndex >= 0) {
+              next[existingIndex] = { ...next[existingIndex], is_discovered: true };
+            } else {
+              next.push({
+                ...restaurant,
+                is_discovered: true,
+                is_saved: false,
+                is_visited: false,
+                user_rating: null,
+              });
+            }
+          }
+          writeAccountQuery(mapKey, next);
         }
       }
       publishNewlyRevealedMapPlaces(
