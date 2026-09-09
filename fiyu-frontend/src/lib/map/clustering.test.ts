@@ -6,6 +6,7 @@ import {
   BASE_CELL_SIZE,
   type ClusterInput,
   clusterExpansionScale,
+  clusterLevelForScale,
   clusterMarkers,
   individualMarkers,
   isCluster,
@@ -83,6 +84,67 @@ describe("clusterMarkers", () => {
     expect(first.map((c) => c.id)).toEqual(second.map((c) => c.id));
   });
 
+  it("is identical for shuffled input, including member order, IDs and centroids", () => {
+    const markers = [
+      input("c", 108, 104),
+      input("a", 100, 100),
+      input("d", 700, 700),
+      input("b", 104, 102),
+    ];
+    const expected = clusterMarkers(markers, { scale: 2.1 });
+    const shuffled = clusterMarkers([markers[2], markers[0], markers[3], markers[1]], {
+      scale: 2.4,
+    });
+
+    expect(shuffled).toEqual(expected);
+    expect(expected[0].id).toBe("cluster:a|b|c");
+  });
+
+  it("uses deliberate scale buckets and restores the exact prior partition", () => {
+    const markers = [input("a", 34, 34), input("b", 60, 60)];
+    const levelTwo = clusterMarkers(markers, { scale: 2.1 });
+    expect(clusterMarkers(markers, { scale: 2.49 })).toEqual(levelTwo);
+
+    const levelThree = clusterMarkers(markers, { scale: 2.5 });
+    expect(levelThree).not.toEqual(levelTwo);
+    expect(clusterMarkers(markers, { scale: 2.1 })).toEqual(levelTwo);
+  });
+
+  it("has no interaction-history input: different scale sequences converge identically", () => {
+    const markers = [
+      input("a", 34, 34),
+      input("b", 60, 60),
+      input("c", 400, 400),
+    ];
+    // Sequence A: pan (which never enters this API), zoom in, then zoom out.
+    clusterMarkers(markers, { scale: 3.2 });
+    const sequenceA = clusterMarkers(markers, { scale: 1.8 });
+    // Sequence B: visit other levels in another order and return to the same one.
+    clusterMarkers(markers, { scale: 1 });
+    clusterMarkers(markers, { scale: 4 });
+    const sequenceB = clusterMarkers([...markers].reverse(), { scale: 2.2 });
+
+    expect(sequenceB).toEqual(sequenceA);
+  });
+
+  it("clusters a filtered account subset independently of the source ordering", () => {
+    const all = [input("a", 100, 100), input("b", 105, 105), input("c", 110, 110)];
+    const filtered = all.filter((marker) => marker.id !== "b");
+    expect(clusterMarkers(filtered, { scale: 1 })).toEqual(
+      clusterMarkers([filtered[1], filtered[0]], { scale: 1 }),
+    );
+  });
+
+  it("applies a documented fixed-cell rule to transitive proximity", () => {
+    const markers = [input("a", 10, 10), input("b", 30, 10), input("c", 65, 10)];
+    const clusters = clusterMarkers(markers, { scale: 1 });
+    expect(clusters.map((cluster) => cluster.members.map((member) => member.id))).toEqual([
+      ["c"],
+      ["a", "b"],
+    ]);
+    expect(clusterMarkers([markers[2], markers[1], markers[0]], { scale: 1 })).toEqual(clusters);
+  });
+
   it("gives a single marker the marker's own id, so keys stay stable", () => {
     expect(clusterMarkers([input("only", 10, 10)])[0].id).toBe("only");
   });
@@ -95,6 +157,18 @@ describe("clusterMarkers", () => {
   it("carries the original item through untouched", () => {
     const clusters = clusterMarkers([{ id: "x", point: { x: 1, y: 1 }, item: { name: "Bar" } }]);
     expect(clusters[0].members[0].item).toEqual({ name: "Bar" });
+  });
+});
+
+describe("clusterLevelForScale", () => {
+  it("maps the custom 1..4 camera scale to four stable levels", () => {
+    expect(clusterLevelForScale(1)).toBe(1);
+    expect(clusterLevelForScale(1.49)).toBe(1);
+    expect(clusterLevelForScale(1.5)).toBe(2);
+    expect(clusterLevelForScale(2.49)).toBe(2);
+    expect(clusterLevelForScale(2.5)).toBe(3);
+    expect(clusterLevelForScale(3.5)).toBe(4);
+    expect(clusterLevelForScale(4)).toBe(4);
   });
 });
 
@@ -126,7 +200,7 @@ describe("clusterExpansionScale", () => {
 
   it("selects a single zoom that makes nearby pins visibly separate", () => {
     const members = [input("a", 100, 100), input("b", 120, 100)];
-    expect(clusterExpansionScale(members, { currentScale: 1, maxScale: 4 })).toBe(1.25);
+    expect(clusterExpansionScale(members, { currentScale: 1, maxScale: 4 })).toBe(2.5);
   });
 
   it("returns null for effectively coincident markers so the chooser can open", () => {
@@ -151,7 +225,7 @@ describe("clusterExpansionScale", () => {
     }).mode).toBe("separable");
   });
 
-  it("classifies from canonical screen separation rather than grid-cell membership", () => {
+  it("targets a stable level where separable leaves remain naturally individual", () => {
     const members = [input("a", 100, 100), input("b", 120, 100)];
     const plan = planClusterExpansion(members, {
       currentScale: 1,
@@ -159,8 +233,8 @@ describe("clusterExpansionScale", () => {
       minimumScale: 2,
     });
 
-    expect(clusterMarkers(members, { scale: plan.targetScale })).toHaveLength(1);
-    expect(plan).toEqual({ mode: "separable", targetScale: 2 });
+    expect(clusterMarkers(members, { scale: plan.targetScale })).toHaveLength(2);
+    expect(plan).toEqual({ mode: "separable", targetScale: 2.5 });
   });
 
   it("freezes spiderfy only for coordinates that render at the same canonical point", () => {

@@ -16,6 +16,7 @@ import type { MappableRestaurant } from "@/lib/geo/mappable";
 import type { DiscoveryAnchor } from "@/lib/location/anchor";
 import {
   type MarkerCluster,
+  clusterLevelForScale,
   clusterMarkers,
   individualMarkers,
   planClusterExpansion,
@@ -109,6 +110,8 @@ const SELECTION_TRANSITION_MAX_MS = 840;
 const CLUSTER_TRANSITION_MS = 680;
 const CLUSTER_MIN_ZOOM_FACTOR = 1.35;
 const CLUSTER_MIN_ZOOM_STEP = 0.5;
+/** Quiet period after wheel/pinch input before adopting a new cluster level. */
+const CLUSTER_ZOOM_SETTLE_MS = 120;
 
 type ClusterActivationPhase = "expanding" | "handoff" | "settled";
 
@@ -173,6 +176,9 @@ export function FiyuMap({
   const [view, setView] = useState<MapView>(
     () => initialViewportSession?.view ?? IDENTITY_VIEW,
   );
+  const [clusterLevel, setClusterLevel] = useState(() =>
+    clusterLevelForScale(initialViewportSession?.view.k ?? IDENTITY_VIEW.k),
+  );
   const viewRef = useRef(view);
   const viewAnimation = useRef<number | null>(null);
   const viewAnimationCompletion = useRef<((settled: boolean) => void) | null>(null);
@@ -213,7 +219,10 @@ export function FiyuMap({
     () => plotted.map((restaurant) => project({ lat: restaurant.latitude, lng: restaurant.longitude })),
     [plotted],
   );
-  const resultKey = plotted.map((restaurant) => restaurant.place_id).join("|");
+  const resultKey = [...plotted]
+    .map((restaurant) => restaurant.place_id)
+    .sort()
+    .join("|");
   const [clusterInteractionResultKey, setClusterInteractionResultKey] = useState(resultKey);
   if (clusterInteractionResultKey !== resultKey) {
     setClusterInteractionResultKey(resultKey);
@@ -223,31 +232,45 @@ export function FiyuMap({
     ? clusterActivation
     : null;
 
-  const clusters = useMemo(() => {
-    const inputs = plotted.map((restaurant, index) => ({
+  const clusterInputs = useMemo(
+    () => plotted.map((restaurant, index) => ({
       id: restaurant.place_id,
       point: points[index],
       item: restaurant,
-    }));
-    if (!clusterNearbyRestaurants) return individualMarkers(inputs, { scale: view.k });
-    if (!activeClusterActivation) {
-      return clusterMarkers(inputs, { scale: view.k });
-    }
+    })).sort((left, right) => left.id < right.id ? -1 : left.id > right.id ? 1 : 0),
+    [plotted, points],
+  );
+  const clusteredMarkers = useMemo(
+    () => clusterMarkers(clusterInputs, { scale: clusterLevel }),
+    [clusterInputs, clusterLevel],
+  );
+  const unclusteredMarkers = useMemo(
+    () => individualMarkers(clusterInputs, { scale: view.k }),
+    [clusterInputs, view.k],
+  );
+  const stableClusters = clusterNearbyRestaurants ? clusteredMarkers : unclusteredMarkers;
+  const activeMemberIds = activeClusterActivation?.memberIds ?? null;
+  const activeClusterPartition = useMemo(() => {
+    if (!activeMemberIds || !clusterNearbyRestaurants) return null;
 
-    const activatedIds = new Set(activeClusterActivation.memberIds);
-    const activated = inputs.filter((input) => activatedIds.has(input.id));
-    const remaining = inputs.filter((input) => !activatedIds.has(input.id));
-    const backgroundClusters = clusterMarkers(remaining, { scale: view.k });
-    if (activeClusterActivation.phase === "expanding") {
-      return backgroundClusters;
-    }
+    const activatedIds = new Set(activeMemberIds);
+    const activated = clusterInputs.filter((input) => activatedIds.has(input.id));
+    const remaining = clusterInputs.filter((input) => !activatedIds.has(input.id));
+    return {
+      activated,
+      background: clusterMarkers(remaining, { scale: clusterLevel }),
+    };
+  }, [activeMemberIds, clusterInputs, clusterLevel, clusterNearbyRestaurants]);
+  const clusters = useMemo(() => {
+    if (!activeClusterActivation || !activeClusterPartition) return stableClusters;
+    if (activeClusterActivation.phase === "expanding") return activeClusterPartition.background;
     return [
-      ...backgroundClusters,
+      ...activeClusterPartition.background,
       ...(activeClusterActivation.mode === "spiderfy"
-        ? spiderfyMarkers(activated, { scale: view.k })
-        : individualMarkers(activated, { scale: view.k })),
+        ? spiderfyMarkers(activeClusterPartition.activated, { scale: view.k })
+        : individualMarkers(activeClusterPartition.activated, { scale: view.k })),
     ];
-  }, [activeClusterActivation, clusterNearbyRestaurants, plotted, points, view.k]);
+  }, [activeClusterActivation, activeClusterPartition, stableClusters, view.k]);
 
   /*
    * Detail level, bucketed from the scale.
@@ -289,6 +312,27 @@ export function FiyuMap({
     viewRef.current = view;
   }, [view]);
 
+  /*
+   * Wheel and pinch update the camera continuously, but cluster membership is
+   * adopted only after input settles. Panning cannot reach this effect because
+   * its scale is unchanged. Programmatic animations commit their final level
+   * explicitly below, so this timer is never their completion mechanism.
+   */
+  useEffect(() => {
+    const nextLevel = clusterLevelForScale(view.k);
+    if (nextLevel === clusterLevel) return;
+    let timer = 0;
+    const commitWhenSettled = () => {
+      if (viewAnimation.current !== null) {
+        timer = window.setTimeout(commitWhenSettled, CLUSTER_ZOOM_SETTLE_MS);
+        return;
+      }
+      setClusterLevel(nextLevel);
+    };
+    timer = window.setTimeout(commitWhenSettled, CLUSTER_ZOOM_SETTLE_MS);
+    return () => window.clearTimeout(timer);
+  }, [clusterLevel, view.k]);
+
   const cancelViewAnimation = useCallback((notifyCancellation = true) => {
     if (viewAnimation.current !== null) {
       window.cancelAnimationFrame(viewAnimation.current);
@@ -311,10 +355,12 @@ export function FiyuMap({
       if (commitBeforeComplete) {
         flushSync(() => {
           setView(target);
+          setClusterLevel(clusterLevelForScale(target.k));
           onComplete?.(true);
         });
       } else {
         setView(target);
+        setClusterLevel(clusterLevelForScale(target.k));
         onComplete?.(true);
       }
       return;
@@ -325,10 +371,12 @@ export function FiyuMap({
       if (commitBeforeComplete) {
         flushSync(() => {
           setView(target);
+          setClusterLevel(clusterLevelForScale(target.k));
           onComplete?.(true);
         });
       } else {
         setView(target);
+        setClusterLevel(clusterLevelForScale(target.k));
         onComplete?.(true);
       }
       return;
@@ -361,10 +409,12 @@ export function FiyuMap({
           // or animation frame is needed to synchronize declarative SVG state.
           flushSync(() => {
             setView(next);
+            setClusterLevel(clusterLevelForScale(next.k));
             completion?.(true);
           });
         } else {
           setView(next);
+          setClusterLevel(clusterLevelForScale(next.k));
           completion?.(true);
         }
       }
@@ -407,6 +457,7 @@ export function FiyuMap({
       saveMapViewportSession(viewportSessionKey, { resultKey, view: fitted });
     }
     setView(fitted);
+    setClusterLevel(clusterLevelForScale(fitted.k));
     // `points` is derived from the same restaurants as resultKey.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cancelViewAnimation, preserveViewportOnRestaurantChange, resultKey, viewportSessionKey]);
@@ -646,12 +697,17 @@ export function FiyuMap({
 
   const fitResults = useCallback(() => {
     markInteracted();
-    setView(points.length > 0 ? fitToPoints(points) : IDENTITY_VIEW);
+    const next = points.length > 0 ? fitToPoints(points) : IDENTITY_VIEW;
+    viewRef.current = next;
+    setView(next);
+    setClusterLevel(clusterLevelForScale(next.k));
   }, [points, markInteracted]);
 
   const reset = useCallback(() => {
     markInteracted();
+    viewRef.current = IDENTITY_VIEW;
     setView(IDENTITY_VIEW);
+    setClusterLevel(clusterLevelForScale(IDENTITY_VIEW.k));
   }, [markInteracted]);
 
   const expandCluster = useCallback(
@@ -697,9 +753,9 @@ export function FiyuMap({
           clusterExpansionInFlight.current = false;
           setClusterActivation((current) => {
             if (!current || current.key !== activationKey) return current;
-            return settled
-              ? { ...current, phase: current.reducedMotion ? "settled" : "handoff" }
-              : null;
+            if (!settled) return null;
+            if (current.reducedMotion && current.mode === "separable") return null;
+            return { ...current, phase: current.reducedMotion ? "settled" : "handoff" };
           });
         },
         true,
@@ -735,6 +791,7 @@ export function FiyuMap({
         viewBox={VIEWBOX}
         preserveAspectRatio="xMidYMid meet"
         role="img"
+        data-cluster-level={clusterLevel}
         aria-label={
           plotted.length === 0
             ? "Map of Tokyo. No restaurants are currently mapped."
@@ -781,7 +838,9 @@ export function FiyuMap({
               onHandoffComplete: () => {
                 setClusterActivation((current) =>
                   current?.key === activeClusterActivation.key && current.phase === "handoff"
-                    ? { ...current, phase: "settled" }
+                    ? current.mode === "separable"
+                      ? null
+                      : { ...current, phase: "settled" }
                     : current,
                 );
               },
@@ -808,6 +867,7 @@ export function FiyuMap({
               type="button"
               aria-label={`${cluster.members.length} restaurants in this area. Activate to zoom in.`}
               data-marker-kind="restaurant-cluster"
+              data-cluster-id={cluster.id}
               data-place-ids={cluster.members.map((member) => member.item.place_id).join(",")}
               onClick={() => expandCluster(cluster)}
               className="pointer-events-auto absolute size-11 -translate-x-1/2 -translate-y-1/2 cursor-pointer rounded-full bg-transparent text-transparent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--map-marker)]"
@@ -838,11 +898,17 @@ export function FiyuMap({
         <MapControls
           onZoomIn={() => {
             markInteracted();
-            setView((current) => zoomByStep(current, 1));
+            const next = zoomByStep(viewRef.current, 1);
+            viewRef.current = next;
+            setView(next);
+            setClusterLevel(clusterLevelForScale(next.k));
           }}
           onZoomOut={() => {
             markInteracted();
-            setView((current) => zoomByStep(current, -1));
+            const next = zoomByStep(viewRef.current, -1);
+            viewRef.current = next;
+            setView(next);
+            setClusterLevel(clusterLevelForScale(next.k));
           }}
           onReset={reset}
           onFitResults={fitResults}

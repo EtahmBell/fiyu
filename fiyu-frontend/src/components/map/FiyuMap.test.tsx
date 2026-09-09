@@ -7,7 +7,7 @@ import { publicRestaurantSchema } from "@/lib/api/schemas";
 import { type MappableRestaurant, mappableRestaurants } from "@/lib/geo/mappable";
 import { publishNewlyRevealedMapPlaces } from "@/lib/map/revealEvents";
 import { clearMapViewportSessions, saveMapViewportSession } from "@/lib/map/viewportSession";
-import { project, unproject } from "@/lib/map/projection";
+import { project, svgNumber, unproject } from "@/lib/map/projection";
 
 /**
  * Fixture coordinates. These are real Tokyo positions used to drive the
@@ -132,7 +132,7 @@ describe("card and marker selection stay in sync", () => {
 
   it("does not schedule the same automatic selection transition twice", async () => {
     saveMapViewportSession("selection-repeat", {
-      resultKey: "west-tokyo|east-tokyo",
+      resultKey: "east-tokyo|west-tokyo",
       view: { x: -3000, y: -1500, k: 4 },
     });
     const animation = vi
@@ -171,7 +171,7 @@ describe("card and marker selection stay in sync", () => {
       dispatchEvent: vi.fn(),
     })));
     saveMapViewportSession("selection-reduced-motion", {
-      resultKey: "west-tokyo|east-tokyo",
+      resultKey: "east-tokyo|west-tokyo",
       view: { x: -3000, y: -1500, k: 4 },
     });
     const animation = vi.spyOn(window, "requestAnimationFrame");
@@ -511,10 +511,10 @@ describe("clustering on the map", () => {
       const canonical = project({ lat: restaurant.latitude, lng: restaurant.longitude });
       const marker = container.querySelector(`[data-place-id="${restaurant.place_id}"]`);
       expect(marker?.querySelector("circle:nth-of-type(2)")?.getAttribute("cx")).toBe(
-        String(canonical.x),
+        String(svgNumber(canonical.x)),
       );
       expect(marker?.querySelector("circle:nth-of-type(2)")?.getAttribute("cy")).toBe(
-        String(canonical.y),
+        String(svgNumber(canonical.y)),
       );
     }
   });
@@ -559,7 +559,7 @@ describe("clustering on the map", () => {
       const circle = marker?.querySelector("circle:nth-of-type(2)");
       return {
         actual: `${circle?.getAttribute("cx")}:${circle?.getAttribute("cy")}`,
-        canonical: `${canonical.x}:${canonical.y}`,
+        canonical: `${svgNumber(canonical.x)}:${svgNumber(canonical.y)}`,
       };
     });
     const immediatelySettled = markerPositions();
@@ -576,6 +576,91 @@ describe("clustering on the map", () => {
     expect(mapSurface().querySelector("g[transform]")?.getAttribute("transform")).toBe(
       settledTransform,
     );
+  });
+
+  it("freezes the whole cluster partition during camera motion and swaps once at settlement", () => {
+    const frames: FrameRequestCallback[] = [];
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+    const at = (id: string, x: number) => {
+      const coordinate = unproject({ x, y: 100 });
+      return mappable(id, coordinate.lat, coordinate.lng, { name_en: id.toUpperCase() });
+    };
+    const restaurants = [at("a", 100), at("b", 120), at("c", 340), at("d", 370)];
+    saveMapViewportSession("partition-freeze", {
+      resultKey: "a|b|c|d",
+      view: { x: 0, y: 0, k: 1 },
+    });
+    const { container } = render(
+      <FiyuMap
+        restaurants={restaurants}
+        selectedPlaceId={null}
+        onSelect={() => {}}
+        viewportSessionKey="partition-freeze"
+      />,
+    );
+    const clusterFor = (ids: string) =>
+      container.querySelector(`[data-marker-kind="restaurant-cluster"][data-place-ids="${ids}"]`);
+
+    expect(clusterFor("a,b")).toBeTruthy();
+    expect(clusterFor("c,d")).toBeTruthy();
+    fireEvent.click(clusterFor("a,b") as Element);
+
+    act(() => frames.shift()?.(0));
+    act(() => frames.shift()?.(400));
+    expect(mapSurface().getAttribute("data-cluster-level")).toBe("1");
+    expect(clusterFor("c,d")?.getAttribute("data-cluster-id")).toBe("cluster:c|d");
+
+    act(() => frames.shift()?.(1_000));
+    expect(mapSurface().getAttribute("data-cluster-level")).toBe("3");
+    expect(clusterFor("c,d")).toBeNull();
+    expect(container.querySelector('[data-place-id="c"]')).toBeTruthy();
+    expect(container.querySelector('[data-place-id="d"]')).toBeTruthy();
+  });
+
+  it("keeps fractional manual zoom on the old partition until input settles", () => {
+    vi.useFakeTimers();
+    const first = unproject({ x: 34, y: 100 });
+    const second = unproject({ x: 60, y: 100 });
+    const restaurants = [
+      mappable("a", first.lat, first.lng, { name_en: "Restaurant A" }),
+      mappable("b", second.lat, second.lng, { name_en: "Restaurant B" }),
+    ];
+    saveMapViewportSession("manual-zoom-settle", {
+      resultKey: "a|b",
+      view: { x: 0, y: 0, k: 1 },
+    });
+    const { container } = render(
+      <FiyuMap
+        restaurants={restaurants}
+        selectedPlaceId={null}
+        onSelect={() => {}}
+        viewportSessionKey="manual-zoom-settle"
+      />,
+    );
+    vi.spyOn(mapSurface(), "getBoundingClientRect").mockReturnValue({
+      left: 0,
+      top: 0,
+      width: 1000,
+      height: 1026,
+      right: 1000,
+      bottom: 1026,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+
+    fireEvent.wheel(mapSurface(), { clientX: 500, clientY: 513, deltaY: -700 });
+    expect(mapSurface().getAttribute("data-cluster-level")).toBe("1");
+    expect(container.querySelector('[data-marker-kind="restaurant-cluster"]')).toBeTruthy();
+
+    act(() => vi.advanceTimersByTime(119));
+    expect(mapSurface().getAttribute("data-cluster-level")).toBe("1");
+    act(() => vi.advanceTimersByTime(1));
+    expect(mapSurface().getAttribute("data-cluster-level")).toBe("3");
+    expect(container.querySelector('[data-marker-kind="restaurant-cluster"]')).toBeNull();
   });
 
   it("ignores repeated activation while one cluster expansion is in flight", () => {
@@ -651,8 +736,8 @@ describe("clustering on the map", () => {
     for (const restaurant of restaurants) {
       const canonical = project({ lat: restaurant.latitude, lng: restaurant.longitude });
       const marker = container.querySelector(`[data-place-id="${restaurant.place_id}"]`);
-      expect(marker?.querySelector("circle:nth-of-type(2)")?.getAttribute("cx")).toBe(String(canonical.x));
-      expect(marker?.querySelector("circle:nth-of-type(2)")?.getAttribute("cy")).toBe(String(canonical.y));
+      expect(marker?.querySelector("circle:nth-of-type(2)")?.getAttribute("cx")).toBe(String(svgNumber(canonical.x)));
+      expect(marker?.querySelector("circle:nth-of-type(2)")?.getAttribute("cy")).toBe(String(svgNumber(canonical.y)));
     }
     expect(container.querySelector('[data-marker-kind="restaurant-cluster-ghost"]')?.getAttribute("class")).toContain("fiyu-map-cluster-fade");
     fireEvent.animationEnd(
