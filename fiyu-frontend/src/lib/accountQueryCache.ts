@@ -79,6 +79,14 @@ export function clearAccountQuery(key: string): void {
   notify(key);
 }
 
+export function invalidateTogetherSurfaces(accountId: string): void {
+  // Together's Picks/Profile views share `together-state`; Map has its own
+  // account query. Solo Picks and Recent Discoveries are not cached here.
+  for (const resource of ["together-state", "map-restaurants"]) {
+    clearAccountQuery(accountQueryKey(resource, accountId));
+  }
+}
+
 type AccountQueryState<T> =
   | { key: string; status: "loading"; data: undefined }
   | { key: string; status: "ready"; data: T }

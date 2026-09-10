@@ -9,10 +9,11 @@ const mocks = vi.hoisted(() => ({
   accept: vi.fn(),
   fetch: vi.fn(),
   push: vi.fn(),
+  replace: vi.fn(),
   identity: { status: "ready", profile: null } as { status: string; profile: null | { user_id: string } },
 }));
 
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push: mocks.push }) }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: mocks.push, replace: mocks.replace }) }));
 vi.mock("@/lib/profile/profileIdentity", () => ({ useProfileIdentity: () => mocks.identity }));
 vi.mock("@/lib/api/client", () => ({
   acceptTogetherInvite: mocks.accept,
@@ -27,6 +28,7 @@ describe("TogetherInvitePage", () => {
       status: "pending",
       initiator: { display_name: "Ethan", username: "ethan", avatar_url: null },
       expires_at: "2026-09-11T00:00:00Z",
+      is_own_invite: false,
     });
   });
 
@@ -36,18 +38,42 @@ describe("TogetherInvitePage", () => {
     render(<TogetherInvitePage token="secure-token" />);
     expect(await screen.findByText("Ethan wants to find somewhere with you.")).toBeTruthy();
     expect(screen.getByRole("link", { name: "Sign in to join" }).getAttribute("href"))
-      .toBe("/signin?next=%2Ftogether%2Fsecure-token");
+      .toBe("/signin?next=%2Ftogether%2Fsecure-token%3Fjoin%3D1");
     expect(screen.getByRole("link", { name: "Create account" }).getAttribute("href"))
-      .toBe("/signup?next=%2Ftogether%2Fsecure-token");
+      .toBe("/signup?next=%2Ftogether%2Fsecure-token%3Fjoin%3D1");
+    expect(screen.getByRole("link", { name: "Sign in without joining yet" }).getAttribute("href"))
+      .toBe("/signin?next=%2Ftogether%2Fsecure-token");
   });
 
   it("accepts for an authenticated invitee and opens the shared Picks", async () => {
     mocks.identity = { status: "ready", profile: { user_id: "invitee" } };
-    mocks.accept.mockResolvedValue({});
+    mocks.accept.mockResolvedValue({ session_id: "generated-session" });
     render(<TogetherInvitePage token="secure-token" />);
     fireEvent.click(await screen.findByRole("button", { name: "Join Ethan" }));
     await waitFor(() => expect(mocks.accept).toHaveBeenCalledWith("secure-token"));
-    expect(mocks.push).toHaveBeenCalledWith("/picks#together-picks");
+    expect(mocks.replace).toHaveBeenCalledWith("/together/session/generated-session");
+  });
+
+  it("resumes an explicit Join after authentication", async () => {
+    mocks.identity = { status: "ready", profile: { user_id: "invitee" } };
+    mocks.accept.mockResolvedValue({ session_id: "generated-session" });
+    render(<TogetherInvitePage token="secure-token" autoJoin />);
+    await waitFor(() => expect(mocks.accept).toHaveBeenCalledTimes(1));
+    expect(mocks.replace).toHaveBeenCalledWith("/together/session/generated-session");
+  });
+
+  it("does not offer Join for the initiator's own invitation", async () => {
+    mocks.identity = { status: "ready", profile: { user_id: "initiator" } };
+    mocks.fetch.mockResolvedValue({
+      status: "pending",
+      initiator: { display_name: "Ethan", username: "ethan", avatar_url: null },
+      expires_at: "2026-09-11T00:00:00Z",
+      is_own_invite: true,
+    });
+    render(<TogetherInvitePage token="secure-token" autoJoin />);
+    expect(await screen.findByText("This is your own Fiyu Together invite.")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Join/ })).toBeNull();
+    expect(mocks.accept).not.toHaveBeenCalled();
   });
 
   it("renders invalid invitations without exposing account actions", async () => {

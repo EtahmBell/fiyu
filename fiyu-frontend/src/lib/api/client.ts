@@ -44,6 +44,7 @@ import {
   togetherInviteUrl,
   togetherInvitesUrl,
   togetherSessionUrl,
+  togetherRevealUrl,
   togetherShareTokenUrl,
   togetherStateUrl,
   userFiyuSummaryUrl,
@@ -454,6 +455,18 @@ export function cancelTogetherInvite(sessionId: string, options: RequestOptions 
   return requestRaw(togetherSessionUrl(sessionId), paths.togetherSession(sessionId), {
     ...options, method: "DELETE",
   }).then(() => undefined);
+}
+
+export function fetchTogetherSession(sessionId: string, options: RequestOptions = {}): Promise<TogetherSession> {
+  return requestJson(togetherSessionUrl(sessionId), paths.togetherSession(sessionId), togetherSessionSchema, {
+    ...options, cache: "no-store",
+  });
+}
+
+export function revealTogetherSession(sessionId: string, options: RequestOptions = {}): Promise<TogetherSession> {
+  return requestJson(togetherRevealUrl(sessionId), paths.togetherReveal(sessionId), togetherSessionSchema, {
+    ...options, method: "POST",
+  });
 }
 
 export function fetchTogetherInvite(token: string, options: RequestOptions = {}): Promise<TogetherInvitePreview> {

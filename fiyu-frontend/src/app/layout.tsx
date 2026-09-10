@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Instrument_Serif, Inter, Noto_Sans_JP } from "next/font/google";
 
 import "./globals.css";
+import { AuthReturnResume } from "@/components/profile/AuthReturnResume";
 
 /**
  * Three faces, each with one job:
@@ -57,7 +58,7 @@ export default function RootLayout({
       lang="en"
       className={`${inter.variable} ${instrumentSerif.variable} ${notoSansJP.variable} h-full antialiased`}
     >
-      <body className="flex min-h-full flex-col bg-canvas text-ink">{children}</body>
+      <body className="flex min-h-full flex-col bg-canvas text-ink"><AuthReturnResume />{children}</body>
     </html>
   );
 }

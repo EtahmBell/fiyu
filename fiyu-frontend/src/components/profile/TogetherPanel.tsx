@@ -1,11 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/Button";
 import { cancelTogetherInvite, createTogetherInvite, fetchTogetherState, rotateTogetherInvite } from "@/lib/api/client";
-import { useAccountQuery } from "@/lib/accountQueryCache";
+import { invalidateTogetherSurfaces, useAccountQuery } from "@/lib/accountQueryCache";
 import type { TogetherInviteCreated, TogetherState } from "@/lib/api/schemas";
 
 export function TogetherPanel({ accountId, ratedVisitCount = 0 }: { accountId: string; ratedVisitCount?: number }) {
@@ -13,6 +13,19 @@ export function TogetherPanel({ accountId, ratedVisitCount = 0 }: { accountId: s
   const query = useAccountQuery<TogetherState>({ resource: "together-state", accountId, loader: load, enabled: true, maxAgeMs: 30_000 });
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const sessionStatus = query.data?.session?.status;
+  const refreshTogether = query.refresh;
+
+  useEffect(() => {
+    if (sessionStatus !== "pending") return;
+    const refresh = () => void refreshTogether(true).catch(() => undefined);
+    const interval = window.setInterval(refresh, 5_000);
+    window.addEventListener("focus", refresh);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("focus", refresh);
+    };
+  }, [refreshTogether, sessionStatus]);
 
   const applyInvite = (created: TogetherInviteCreated) => {
     if (query.data) query.setData({ ...query.data, can_initiate: false, session: created.session });
@@ -47,7 +60,7 @@ export function TogetherPanel({ accountId, ratedVisitCount = 0 }: { accountId: s
     const session = query.data?.session;
     if (!session || busy) return;
     setBusy(true); setMessage(null);
-    try { await cancelTogetherInvite(session.session_id); await query.refresh(true); setMessage("Invitation cancelled. Your trial was not used."); }
+    try { await cancelTogetherInvite(session.session_id); invalidateTogetherSurfaces(accountId); await query.refresh(true); setMessage("Invitation cancelled. Your trial was not used."); }
     catch (error) { setMessage(error instanceof Error ? error.message : "The invite could not be cancelled."); }
     finally { setBusy(false); }
   };
@@ -70,7 +83,7 @@ export function TogetherPanel({ accountId, ratedVisitCount = 0 }: { accountId: s
         {query.status === "loading" ? <p className="mt-6 text-sm text-ink-muted">Checking availability…</p> : null}
         {query.status === "error" && ratedVisitCount >= 5 ? <p role="alert" className="mt-6 text-sm text-ink-muted">Together is unavailable right now.</p> : null}
         {state?.session?.status === "generated" ? (
-          <div className="mt-6"><p className="font-display text-xl text-ink">Together with {state.session.partner?.display_name ?? "your partner"}</p><Link href="/picks#together-picks" className="mt-3 inline-flex min-h-11 items-center text-sm font-semibold text-gold-700">View Together Picks →</Link></div>
+          <div className="mt-6"><p className="font-display text-xl text-ink">{state.session.reveal_pending ? "Your Together is ready" : `Together with ${state.session.partner?.display_name ?? "your partner"}`}</p><Link href={state.session.reveal_pending ? `/together/session/${encodeURIComponent(state.session.session_id)}` : "/picks#together-picks"} className="mt-3 inline-flex min-h-11 items-center text-sm font-semibold text-gold-700">{state.session.reveal_pending ? "Reveal our Picks →" : "View Together Picks →"}</Link></div>
         ) : state?.session?.status === "pending" ? (
           <div className="mt-6"><p className="font-display text-xl text-ink">Waiting for someone to join</p><div className="mt-4 flex flex-wrap gap-3"><Button variant="secondary" size="sm" disabled={busy} onClick={() => void reshare()}>Share invite</Button><button type="button" disabled={busy} onClick={() => void cancel()} className="min-h-11 px-2 text-sm text-ink-muted underline underline-offset-4">Cancel</button></div></div>
         ) : state?.block_reason === "ratings_required" ? (

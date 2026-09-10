@@ -785,6 +785,8 @@ class TogetherSessionResponse(BaseModel):
     restaurants: list[PublicRestaurantSummary] = Field(default_factory=list, max_length=3)
     consumed_trial: bool = False
     invite_url: str | None = None
+    revealed_at: str | None = None
+    reveal_pending: bool = False
 
 
 class TogetherStateResponse(BaseModel):
@@ -801,6 +803,7 @@ class TogetherInvitePreviewResponse(BaseModel):
     status: Literal["pending", "generated", "expired", "cancelled", "invalid"]
     initiator: TogetherIdentityResponse | None = None
     expires_at: str | None = None
+    is_own_invite: bool = False
 
 
 class TogetherInviteCreatedResponse(BaseModel):
@@ -1916,14 +1919,15 @@ def _together_discovery_assignments(user_id: str, now: datetime) -> list[DailyPi
     for row in shared_user_data.list_together_sessions(user_id=user_id):
         if row.get("status") != "generated":
             continue
-        generated = _parse_pick_datetime(row.get("generated_at"))
-        if generated is None or generated <= cutoff:
+        role = "initiator" if str(row.get("initiator_user_id")) == user_id else "invitee"
+        revealed = _parse_pick_datetime(row.get(f"{role}_revealed_at"))
+        if revealed is None or revealed <= cutoff:
             continue
         items = shared_user_data.together_pick_items(session_id=str(row["id"]))
         place_ids = tuple(str(item["place_id"]) for item in items)
         if not place_ids:
             continue
-        timestamp = generated.isoformat()
+        timestamp = revealed.isoformat()
         metadata = dict(row.get("selection_metadata") or {})
         metadata["revealed_place_ids"] = list(place_ids)
         metadata["revealed_at_by_place_id"] = {place_id: timestamp for place_id in place_ids}
@@ -1944,7 +1948,14 @@ def _active_together_row(user_id: str, now: datetime) -> dict[str, Any] | None:
     generated = [
         row for row in rows
         if row.get("status") == "generated"
-        and (_parse_pick_datetime(row.get("cycle_expires_at")) or now) > now
+        and (
+            (_parse_pick_datetime(row.get("cycle_expires_at")) or now) > now
+            or row.get(
+                "initiator_revealed_at"
+                if str(row.get("initiator_user_id")) == user_id
+                else "invitee_revealed_at"
+            ) is None
+        )
     ]
     if generated:
         return generated[0]
@@ -1970,16 +1981,20 @@ def _together_session_response(
     restaurants = _map_eligible_public_restaurants_for_place_ids(
         str(item["place_id"]) for item in items
     )
+    role = "initiator" if user_id == initiator_id else "invitee"
+    revealed_at = str(row.get(f"{role}_revealed_at") or "") or None
     return TogetherSessionResponse(
         session_id=str(row["id"]),
         status=str(row["status"]),
-        role="initiator" if user_id == initiator_id else "invitee",
+        role=role,
         expires_at=str(row["expires_at"]),
         cycle_expires_at=str(row["cycle_expires_at"]),
         partner=_together_identity(partner_id) if partner_id else None,
         restaurants=restaurants,
         consumed_trial=bool(row.get("consumed_trial")),
         invite_url=invite_url,
+        revealed_at=revealed_at,
+        reveal_pending=row.get("status") == "generated" and revealed_at is None,
     )
 
 
@@ -1996,7 +2011,11 @@ def _together_state(user_id: str) -> TogetherStateResponse:
     premium = has_premium_access(user_id)
     trial_consumed = shared_user_data.together_trial_consumed(user_id=user_id)
     session_row = _active_together_row(user_id, now)
-    generated = session_row is not None and session_row.get("status") == "generated"
+    generated = (
+        session_row is not None
+        and session_row.get("status") == "generated"
+        and (_parse_pick_datetime(session_row.get("cycle_expires_at")) or now) > now
+    )
     block_reason = (
         "ratings_required" if rated_count < 5 else
         "cycle_quota_used" if generated else
@@ -2022,11 +2041,26 @@ def _raise_together_storage_error(exc: shared_user_data.SharedUserDataError) -> 
         "together_invite_expired": (410, "This invitation has expired."),
         "together_invite_not_pending": (409, "This invitation is no longer available."),
         "together_selection_became_ineligible": (409, "The shared Picks changed. Try accepting again."),
+        "together_session_not_found": (404, "Together session not found."),
+        "together_session_not_generated": (409, "Together Picks are not ready."),
+        "together_session_forbidden": (403, "This Together session belongs to someone else."),
     }
     for code, (status, message) in mapping.items():
         if code in detail:
+            if code == "together_self_invite":
+                raise HTTPException(
+                    status_code=status,
+                    detail={"code": code, "message": message},
+                ) from None
             raise HTTPException(status_code=status, detail=message) from None
     raise HTTPException(status_code=503, detail="Fiyu Together is unavailable right now") from None
+
+
+def _together_error(status_code: int, code: str, message: str) -> None:
+    raise HTTPException(
+        status_code=status_code,
+        detail={"code": code, "message": message},
+    )
 
 
 def _together_user_id(
@@ -2037,11 +2071,59 @@ def _together_user_id(
     return str(owner_id)
 
 
+def _optional_together_user_id(authorization: str | None) -> str | None:
+    if not authorization:
+        return None
+    try:
+        return _authenticated_user_id(authorization)
+    except HTTPException:
+        # Invite previews are public. A stale browser token must not make a
+        # valid public link unavailable; acceptance still requires fresh auth.
+        return None
+
+
 @app.get("/together/me", response_model=TogetherStateResponse)
 def get_my_together_state(
     user_id: Annotated[str, Depends(_together_user_id)],
 ) -> TogetherStateResponse:
     return _together_state(user_id)
+
+
+@app.get("/together/sessions/{session_id}", response_model=TogetherSessionResponse)
+def get_together_session(
+    session_id: str,
+    user_id: Annotated[str, Depends(_together_user_id)],
+) -> TogetherSessionResponse:
+    row = shared_user_data.get_together_session(session_id=session_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Together session not found")
+    if user_id not in {str(row["initiator_user_id"]), str(row.get("invitee_user_id") or "")}:
+        _together_error(403, "together_session_forbidden", "This Together session belongs to someone else.")
+    return _together_session_response(row, user_id)
+
+
+@app.post("/together/sessions/{session_id}/reveal", response_model=TogetherSessionResponse)
+def reveal_together_session(
+    session_id: str,
+    user_id: Annotated[str, Depends(_together_user_id)],
+) -> TogetherSessionResponse:
+    row = shared_user_data.get_together_session(session_id=session_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Together session not found")
+    if user_id not in {str(row["initiator_user_id"]), str(row.get("invitee_user_id") or "")}:
+        _together_error(403, "together_session_forbidden", "This Together session belongs to someone else.")
+    try:
+        shared_user_data.reveal_together_session(
+            session_id=session_id,
+            user_id=user_id,
+            revealed_at=datetime.now(UTC).isoformat(),
+        )
+    except shared_user_data.SharedUserDataError as exc:
+        _raise_together_storage_error(exc)
+    updated = shared_user_data.get_together_session(session_id=session_id)
+    if updated is None:
+        raise HTTPException(status_code=503, detail="Together reveal could not be restored")
+    return _together_session_response(updated, user_id)
 
 
 @app.post("/together/invites", response_model=TogetherInviteCreatedResponse)
@@ -2128,7 +2210,10 @@ def cancel_together_invitation(
 
 
 @app.get("/together/invites/{token}", response_model=TogetherInvitePreviewResponse)
-def preview_together_invitation(token: str) -> TogetherInvitePreviewResponse:
+def preview_together_invitation(
+    token: str,
+    authorization: Annotated[str | None, Header()] = None,
+) -> TogetherInvitePreviewResponse:
     if len(token) < 32:
         return TogetherInvitePreviewResponse(status="invalid")
     row = shared_user_data.get_together_session_by_token_hash(token_hash=_together_token_hash(token))
@@ -2137,10 +2222,12 @@ def preview_together_invitation(token: str) -> TogetherInvitePreviewResponse:
     status = str(row["status"])
     if status == "pending" and (_parse_pick_datetime(row.get("expires_at")) or datetime.now(UTC)) <= datetime.now(UTC):
         status = "expired"
+    authenticated_user_id = _optional_together_user_id(authorization)
     return TogetherInvitePreviewResponse(
         status=status,
         initiator=_together_identity(str(row["initiator_user_id"])),
         expires_at=str(row["expires_at"]),
+        is_own_invite=authenticated_user_id == str(row["initiator_user_id"]),
     )
 
 
@@ -2155,7 +2242,11 @@ def accept_together_invitation(
         raise HTTPException(status_code=404, detail="Together invitation not found")
     initiator_id = str(row["initiator_user_id"])
     if initiator_id == invitee_user_id:
-        raise HTTPException(status_code=409, detail="You cannot accept your own invitation.")
+        _together_error(
+            409,
+            "together_self_invite",
+            "You cannot accept your own invitation.",
+        )
     now = datetime.now(UTC)
     participants = (initiator_id, invitee_user_id)
     visits = {user_id: shared_user_data.list_visits(user_id=user_id) for user_id in participants}

@@ -961,7 +961,7 @@ export function DailyPicksPanel({
         )}
       </section>
 
-      {phase === "idle" && together.status === "ready" && together.data.session?.status === "generated" ? (
+      {phase === "idle" && together.status === "ready" && together.data.session?.status === "generated" && !together.data.session.reveal_pending ? (
         <section id="together-picks" aria-labelledby="together-picks-heading" className="my-8 min-w-0 w-full scroll-mt-24">
           <div className="border-b border-gold-line pb-2.5">
             <p className="text-[0.625rem] font-semibold tracking-[0.16em] text-gold-700 uppercase">Fiyu Together</p>

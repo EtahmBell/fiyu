@@ -877,6 +877,30 @@ def together_pick_items(*, session_id: str) -> list[dict[str, Any]]:
     return result if isinstance(result, list) else []
 
 
+def get_together_session(*, session_id: str) -> dict[str, Any] | None:
+    rows = _rows("fiyu_together_sessions", id=session_id)
+    return rows[0] if rows else None
+
+
+def reveal_together_session(
+    *, session_id: str, user_id: str, revealed_at: str
+) -> str:
+    result = _request(
+        "rpc/reveal_fiyu_together_session",
+        method="POST",
+        body={
+            "p_session_id": session_id,
+            "p_user_id": user_id,
+            "p_revealed_at": revealed_at,
+        },
+    )
+    if isinstance(result, list) and result:
+        result = result[0]
+    if not isinstance(result, dict) or not result.get("revealed_at"):
+        raise SharedUserDataError("Together reveal could not be persisted")
+    return str(result["revealed_at"])
+
+
 def cancel_together_invite(*, user_id: str, session_id: str, cancelled_at: str) -> bool:
     result = _request(
         "fiyu_together_sessions",

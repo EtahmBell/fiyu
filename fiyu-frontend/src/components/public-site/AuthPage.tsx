@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 
 import { LANDING_MEASURE } from "@/components/landing-page/landingSystem";
 import { authService } from "@/lib/auth/authService";
-import { currentSafeNextPath } from "@/lib/navigation/safeRedirect";
+import { clearAuthReturnPath, currentSafeNextPath, rememberAuthReturnPath } from "@/lib/navigation/safeRedirect";
 import { cn } from "@/lib/utils/cn";
 
 const FIELD_CLASS =
@@ -28,7 +28,10 @@ export function AuthPage({ mode }: { mode: "signin" | "signup" }) {
   useEffect(() => {
     let active = true;
     authService.getSession().then((session) => {
-      if (active && session) router.replace(nextPath);
+      if (active && session) {
+        clearAuthReturnPath();
+        router.replace(nextPath);
+      }
     }).catch(() => undefined);
     return () => { active = false; };
   }, [nextPath, router]);
@@ -52,9 +55,10 @@ export function AuthPage({ mode }: { mode: "signin" | "signup" }) {
       setError("Username must use 3–30 letters, numbers, or underscores.");
       return;
     }
-    setSubmitting(true);
-    setError(null);
-    setNotice(null);
+      setSubmitting(true);
+      setError(null);
+      setNotice(null);
+      rememberAuthReturnPath(nextPath);
     try {
       if (signup) {
         const result = await authService.signUp({
@@ -65,10 +69,12 @@ export function AuthPage({ mode }: { mode: "signin" | "signup" }) {
         if (result.emailVerificationRequired) {
           setVerificationEmail(result.email);
         } else {
+          clearAuthReturnPath();
           router.replace(nextPath);
         }
       } else {
         await authService.signIn({ identifier: normalizedIdentifier, password });
+        clearAuthReturnPath();
         router.replace(nextPath);
       }
     } catch (cause) {

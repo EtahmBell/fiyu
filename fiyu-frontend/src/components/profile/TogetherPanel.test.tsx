@@ -57,12 +57,25 @@ describe("TogetherPanel", () => {
       session_id: "session-1", status: "generated", role: "initiator",
       expires_at: "2026-09-10T00:00:00Z", cycle_expires_at: "2026-09-10T00:00:00Z",
       partner: { display_name: "Lianne", username: "lianne", avatar_url: null },
-      restaurants: [], consumed_trial: true, invite_url: null,
+      restaurants: [], consumed_trial: true, invite_url: null, revealed_at: "2026-09-09T00:00:00Z", reveal_pending: false,
     } });
     render(<TogetherPanel accountId="account-a" />);
     expect(await screen.findByText("Together with Lianne")).toBeTruthy();
     expect(screen.getByRole("link", { name: "View Together Picks →" }).getAttribute("href"))
       .toBe("/picks#together-picks");
+  });
+
+  it("routes an unrevealed generated session to its one-time reveal", async () => {
+    vi.mocked(fetchTogetherState).mockResolvedValue({ ...base, can_initiate: false, block_reason: "cycle_quota_used", session: {
+      session_id: "session-1", status: "generated", role: "initiator",
+      expires_at: "2026-09-11T00:00:00Z", cycle_expires_at: "2026-09-11T00:00:00Z",
+      partner: { display_name: "Lianne", username: "lianne", avatar_url: null },
+      restaurants: [], consumed_trial: true, invite_url: null, revealed_at: null, reveal_pending: true,
+    } });
+    render(<TogetherPanel accountId="account-a" />);
+    expect(await screen.findByText("Your Together is ready")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Reveal our Picks →" }).getAttribute("href"))
+      .toBe("/together/session/session-1");
   });
 
   it("creates one pending invite without presenting it as consumed", async () => {
@@ -71,7 +84,7 @@ describe("TogetherPanel", () => {
       session: {
         session_id: "session-1", status: "pending", role: "initiator",
         expires_at: "2026-09-10T00:00:00Z", cycle_expires_at: "2026-09-10T00:00:00Z",
-        partner: null, restaurants: [], consumed_trial: false,
+        partner: null, restaurants: [], consumed_trial: false, revealed_at: null, reveal_pending: false,
         invite_url: "https://fiyu.app/together/secure-token",
       },
     });
@@ -86,7 +99,7 @@ describe("TogetherPanel", () => {
       .mockResolvedValueOnce({ ...base, can_initiate: false, session: {
         session_id: "session-1", status: "pending", role: "initiator",
         expires_at: "2026-09-10T00:00:00Z", cycle_expires_at: "2026-09-10T00:00:00Z",
-        partner: null, restaurants: [], consumed_trial: false, invite_url: null,
+        partner: null, restaurants: [], consumed_trial: false, invite_url: null, revealed_at: null, reveal_pending: false,
       } })
       .mockResolvedValueOnce(base);
     vi.mocked(cancelTogetherInvite).mockResolvedValue(undefined);
@@ -94,6 +107,24 @@ describe("TogetherPanel", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Cancel" }));
     await waitFor(() => expect(cancelTogetherInvite).toHaveBeenCalledWith("session-1"));
     expect(await screen.findByText("Invitation cancelled. Your trial was not used.")).toBeTruthy();
+  });
+
+  it("revalidates a pending invitation on focus without visiting Picks", async () => {
+    const pending = { ...base, can_initiate: false, session: {
+      session_id: "session-1", status: "pending" as const, role: "initiator" as const,
+      expires_at: "2026-09-11T00:00:00Z", cycle_expires_at: "2026-09-11T00:00:00Z",
+      partner: null, restaurants: [], consumed_trial: false, invite_url: null, revealed_at: null, reveal_pending: false,
+    } };
+    const generated = { ...pending, block_reason: "cycle_quota_used" as const, session: {
+      ...pending.session!, status: "generated" as const,
+      partner: { display_name: "Lianne", username: "lianne", avatar_url: null },
+      reveal_pending: true, revealed_at: null,
+    } };
+    vi.mocked(fetchTogetherState).mockResolvedValueOnce(pending).mockResolvedValueOnce(generated);
+    render(<TogetherPanel accountId="account-a" />);
+    expect(await screen.findByText("Waiting for someone to join")).toBeTruthy();
+    fireEvent.focus(window);
+    expect(await screen.findByText("Your Together is ready")).toBeTruthy();
   });
 });
 // @vitest-environment jsdom

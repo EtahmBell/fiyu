@@ -49,6 +49,7 @@ def together_api(tmp_path, monkeypatch):
     by_hash: dict[str, str] = {}
     items = defaultdict(list)
     consumed = set()
+    seen = defaultdict(dict)
 
     def authenticated(header):
         token = (header or "").removeprefix("Bearer ")
@@ -68,6 +69,8 @@ def together_api(tmp_path, monkeypatch):
             "status": "pending",
             "consumed_trial": False,
             "selection_metadata": {},
+            "initiator_revealed_at": None,
+            "invitee_revealed_at": None,
             **{key: value for key, value in values.items() if key != "user_id"},
         }
         row.update({
@@ -107,6 +110,19 @@ def together_api(tmp_path, monkeypatch):
             consumed.add(row["initiator_user_id"])
         return {"session_id": row["id"], "place_ids": values["place_ids"], "consumed_trial": use_trial}
 
+    def reveal_session(*, session_id, user_id, revealed_at):
+        row = sessions[session_id]
+        if user_id == row["initiator_user_id"]:
+            field = "initiator_revealed_at"
+        elif user_id == row.get("invitee_user_id"):
+            field = "invitee_revealed_at"
+        else:
+            raise api.shared_user_data.SharedUserDataError("together_session_forbidden")
+        row[field] = row.get(field) or revealed_at
+        for item in items[session_id]:
+            seen[user_id][item["place_id"]] = row[field]
+        return row[field]
+
     def cancel_invite(*, user_id, session_id, cancelled_at):
         row = sessions.get(session_id)
         if not row or row["initiator_user_id"] != user_id or row["status"] != "pending":
@@ -123,6 +139,8 @@ def together_api(tmp_path, monkeypatch):
     monkeypatch.setattr(api.shared_user_data, "together_trial_consumed", lambda *, user_id: user_id in consumed)
     monkeypatch.setattr(api.shared_user_data, "list_together_sessions", lambda *, user_id: [row for row in sessions.values() if user_id in {row["initiator_user_id"], row.get("invitee_user_id")}])
     monkeypatch.setattr(api.shared_user_data, "together_pick_items", lambda *, session_id: list(items[session_id]))
+    monkeypatch.setattr(api.shared_user_data, "get_together_session", lambda *, session_id: sessions.get(session_id))
+    monkeypatch.setattr(api.shared_user_data, "reveal_together_session", reveal_session)
     monkeypatch.setattr(api.shared_user_data, "get_discovery_location", lambda *, user_id: {"configured": True, "location_mode": "preview", "discovery_label": "Shibuya", "discovery_latitude": 35.66, "discovery_longitude": 139.70})
     monkeypatch.setattr(api.shared_user_data, "get_active_daily_picks", lambda **_: None)
     monkeypatch.setattr(api.shared_user_data, "get_recent_daily_pick_rounds", lambda **_: [])
@@ -131,7 +149,7 @@ def together_api(tmp_path, monkeypatch):
     monkeypatch.setattr(api.shared_user_data, "accept_together_invite", accept_invite)
     monkeypatch.setattr(api.shared_user_data, "cancel_together_invite", cancel_invite)
     monkeypatch.setattr(api.shared_user_data, "saved_place_ids", lambda **_: set())
-    monkeypatch.setattr(api.shared_user_data, "seen_history", lambda **_: {})
+    monkeypatch.setattr(api.shared_user_data, "seen_history", lambda *, user_id: dict(seen[user_id]))
     monkeypatch.setattr(api.shared_user_data, "visited_place_ids", lambda **_: [])
     monkeypatch.setattr(api.shared_user_data, "latest_visit_ratings", lambda **_: {})
     return TestClient(api.app), users, sessions, consumed, visits
@@ -166,11 +184,16 @@ def test_invitee_without_ratings_accepts_and_private_taste_is_not_exposed(togeth
 
 
 def test_self_accept_is_rejected(together_api):
-    client, _, _, _, _ = together_api
+    client, _, sessions, consumed, _ = together_api
     created = client.post("/together/invites", headers=auth("initiator")).json()
     token = created["invite_url"].rsplit("/", 1)[-1]
     response = client.post(f"/together/invites/{token}/accept", headers=auth("initiator"))
     assert response.status_code == 409
+    assert response.json()["detail"]["code"] == "together_self_invite"
+    assert sessions[created["session"]["session_id"]]["status"] == "pending"
+    assert consumed == set()
+    preview = client.get(f"/together/invites/{token}", headers=auth("initiator"))
+    assert preview.json()["is_own_invite"] is True
 
 
 def test_invite_preview_is_public_but_account_state_requires_auth(together_api):
@@ -312,17 +335,50 @@ def test_generated_participant_cannot_start_second_session_in_cycle(together_api
     assert state["session"]["status"] == "generated"
 
 
-def test_generated_picks_enter_both_participants_discovery_and_map_state(together_api):
+def test_generated_picks_enter_each_participants_discovery_only_when_revealed(together_api):
     client, _, _, _, _ = together_api
     created = client.post("/together/invites", headers=auth("initiator")).json()
     token = created["invite_url"].rsplit("/", 1)[-1]
     accepted = client.post(f"/together/invites/{token}/accept", headers=auth("invitee"))
     place_ids = [restaurant["place_id"] for restaurant in accepted.json()["restaurants"]]
-    for participant in ("initiator", "invitee"):
-        mapped = client.get("/map/restaurants", headers=auth(participant))
-        assert mapped.status_code == 200
-        assert {restaurant["place_id"] for restaurant in mapped.json()} == set(place_ids)
-        assert all(restaurant["is_discovered"] for restaurant in mapped.json())
+    session_id = accepted.json()["session_id"]
+    assert accepted.json()["reveal_pending"] is True
+    assert client.get("/map/restaurants", headers=auth("initiator")).json() == []
+    assert client.get("/map/restaurants", headers=auth("invitee")).json() == []
+
+    revealed = client.post(f"/together/sessions/{session_id}/reveal", headers=auth("initiator"))
+    assert revealed.status_code == 200
+    assert revealed.json()["reveal_pending"] is False
+    assert client.get("/map/restaurants", headers=auth("invitee")).json() == []
+    mapped = client.get("/map/restaurants", headers=auth("initiator"))
+    assert {restaurant["place_id"] for restaurant in mapped.json()} == set(place_ids)
+
+    invitee_state = client.get("/together/me", headers=auth("invitee")).json()
+    assert invitee_state["session"]["reveal_pending"] is True
+    client.post(f"/together/sessions/{session_id}/reveal", headers=auth("invitee"))
+    assert {restaurant["place_id"] for restaurant in client.get("/map/restaurants", headers=auth("invitee")).json()} == set(place_ids)
+
+
+def test_generated_session_and_reveal_are_participant_scoped(together_api):
+    client, _, _, _, _ = together_api
+    created = client.post("/together/invites", headers=auth("initiator")).json()
+    token = created["invite_url"].rsplit("/", 1)[-1]
+    accepted = client.post(f"/together/invites/{token}/accept", headers=auth("invitee")).json()
+    session_id = accepted["session_id"]
+    assert client.get(f"/together/sessions/{session_id}", headers=auth("other")).status_code == 403
+    assert client.post(f"/together/sessions/{session_id}/reveal", headers=auth("other")).status_code == 403
+    assert client.get(f"/together/sessions/{session_id}", headers=auth("invitee")).status_code == 200
+
+
+def test_unrevealed_participant_can_resume_after_cycle_expiry(together_api):
+    client, _, sessions, _, _ = together_api
+    created = client.post("/together/invites", headers=auth("initiator")).json()
+    token = created["invite_url"].rsplit("/", 1)[-1]
+    accepted = client.post(f"/together/invites/{token}/accept", headers=auth("invitee")).json()
+    sessions[accepted["session_id"]]["cycle_expires_at"] = "2000-01-01T00:00:00+00:00"
+    state = client.get("/together/me", headers=auth("invitee")).json()
+    assert state["session"]["session_id"] == accepted["session_id"]
+    assert state["session"]["reveal_pending"] is True
 
 
 def test_together_migration_keeps_generation_atomic_and_account_scoped():
@@ -343,3 +399,15 @@ def test_together_migration_keeps_generation_atomic_and_account_scoped():
     assert "initiator_user_id = auth.uid() or invitee_user_id = auth.uid()" in migration
     assert "from public, anon, authenticated" in migration
     assert "to service_role" in migration
+    reveal_migration = (
+        Path(__file__).parents[1]
+        / "supabase"
+        / "migrations"
+        / "202609100001_together_participant_reveal.sql"
+    ).read_text(encoding="utf-8").lower()
+    assert "initiator_revealed_at" in reveal_migration
+    assert "invitee_revealed_at" in reveal_migration
+    assert "reveal_fiyu_together_session" in reveal_migration
+    assert "set initiator_revealed_at = coalesce(initiator_revealed_at, generated_at)" in reveal_migration
+    assert "together_session_forbidden" in reveal_migration
+    assert "to service_role" in reveal_migration

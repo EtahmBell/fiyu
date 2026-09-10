@@ -471,6 +471,8 @@ export const togetherSessionSchema = z.object({
   restaurants: z.array(publicRestaurantSchema).max(3),
   consumed_trial: z.boolean(),
   invite_url: nullableString,
+  revealed_at: nullableString.default(null),
+  reveal_pending: z.boolean().default(false),
 });
 
 export const togetherStateSchema = z.object({
@@ -487,6 +489,7 @@ export const togetherInvitePreviewSchema = z.object({
   status: z.enum(["pending", "generated", "expired", "cancelled", "invalid"]),
   initiator: togetherIdentitySchema.nullable(),
   expires_at: nullableString,
+  is_own_invite: z.boolean().default(false),
 });
 
 export const togetherInviteCreatedSchema = z.object({

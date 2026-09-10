@@ -1,6 +1,7 @@
 import { TogetherInvitePage } from "@/components/profile/TogetherInvitePage";
 
-export default async function TogetherInvitationRoute({ params }: { params: Promise<{ token: string }> }) {
+export default async function TogetherInvitationRoute({ params, searchParams }: { params: Promise<{ token: string }>; searchParams: Promise<{ join?: string }> }) {
   const { token } = await params;
-  return <TogetherInvitePage token={token} />;
+  const { join } = await searchParams;
+  return <TogetherInvitePage token={token} autoJoin={join === "1"} />;
 }

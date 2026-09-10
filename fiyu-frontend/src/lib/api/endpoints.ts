@@ -48,6 +48,7 @@ export const paths = {
   togetherInvite: (token: string) => `/together/invites/${encodeURIComponent(token)}`,
   togetherAccept: (token: string) => `/together/invites/${encodeURIComponent(token)}/accept`,
   togetherSession: (sessionId: string) => `/together/sessions/${encodeURIComponent(sessionId)}`,
+  togetherReveal: (sessionId: string) => `/together/sessions/${encodeURIComponent(sessionId)}/reveal`,
   togetherShareToken: (sessionId: string) =>
     `/together/sessions/${encodeURIComponent(sessionId)}/share-token`,
   developerStatus: "/developer/status",
@@ -91,6 +92,7 @@ export function togetherInvitesUrl(): string { return `${getApiBaseUrl()}${paths
 export function togetherInviteUrl(token: string): string { return `${getApiBaseUrl()}${paths.togetherInvite(token)}`; }
 export function togetherAcceptUrl(token: string): string { return `${getApiBaseUrl()}${paths.togetherAccept(token)}`; }
 export function togetherSessionUrl(sessionId: string): string { return `${getApiBaseUrl()}${paths.togetherSession(sessionId)}`; }
+export function togetherRevealUrl(sessionId: string): string { return `${getApiBaseUrl()}${paths.togetherReveal(sessionId)}`; }
 export function togetherShareTokenUrl(sessionId: string): string { return `${getApiBaseUrl()}${paths.togetherShareToken(sessionId)}`; }
 
 export function developerStatusUrl(): string {
