@@ -11,11 +11,13 @@ import { clearProfileIdentity, publishProfileIdentity } from "@/lib/profile/prof
 const api = vi.hoisted(() => ({
   fetchUserFiyuSummary: vi.fn(),
   acknowledgeTasteUpdate: vi.fn(),
+  fetchTogetherState: vi.fn(),
 }));
 
 vi.mock("@/lib/api/client", () => ({
   fetchUserFiyuSummary: api.fetchUserFiyuSummary,
   acknowledgeTasteUpdate: api.acknowledgeTasteUpdate,
+  fetchTogetherState: api.fetchTogetherState,
 }));
 
 /** Class tokens, so a check for `border-t` cannot be satisfied by `sm:border-t`. */
@@ -63,6 +65,7 @@ beforeEach(() => {
   api.fetchUserFiyuSummary.mockReset();
   api.acknowledgeTasteUpdate.mockReset();
   api.acknowledgeTasteUpdate.mockResolvedValue(10);
+  api.fetchTogetherState.mockRejectedValue(new Error("not configured in profile fixture"));
   publishProfileIdentity(profile);
 });
 
@@ -86,8 +89,8 @@ describe("YourFiyuPage", () => {
     expect(screen.getAllByText("0")).toHaveLength(3);
     expect(screen.getByRole("heading", { name: "Your taste is taking shape." })).toBeTruthy();
     expect(screen.getByText("Rate your first 10 visits to unlock your first Taste.")).toBeTruthy();
-    expect(screen.getByText("Rate your first 5 visits to unlock Fiyu Together.")).toBeTruthy();
-    expect(screen.getByText("Locked")).toBeTruthy();
+    expect(screen.getByRole("region", { name: "Taste is better shared." }).textContent)
+      .toContain("Rate 5 more visits to unlock Fiyu Together.");
     expect(screen.getByText("No visits logged yet")).toBeTruthy();
     expect(screen.queryByText("Developer tools")).toBeNull();
     expect(api.fetchUserFiyuSummary).toHaveBeenCalledTimes(1);
@@ -105,7 +108,6 @@ describe("YourFiyuPage", () => {
     expect(await screen.findByText("Rate 6 more visits to unlock your first Taste.")).toBeTruthy();
     expect(screen.getByText("Rate 1 more visit to unlock Fiyu Together.")).toBeTruthy();
     expect(screen.getByText("4/10")).toBeTruthy();
-    expect(screen.getByText("4/5")).toBeTruthy();
   });
 
   it("unlocks only evidence-backed insights and renders private recent-visit context", async () => {
@@ -166,7 +168,7 @@ describe("YourFiyuPage", () => {
     expect(screen.getByLabelText("5 out of 5 stars")).toBeTruthy();
     expect(screen.getByText("Order the seasonal nigiri again.")).toBeTruthy();
     expect(screen.getByRole("link", { name: "View all →" }).getAttribute("href")).toBe("/log/history");
-    expect(screen.getByText("Coming soon")).toBeTruthy();
+    expect(screen.queryByText("Coming soon")).toBeNull();
     expect(screen.queryByText("Locked")).toBeNull();
   });
 

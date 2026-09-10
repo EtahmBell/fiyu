@@ -40,6 +40,12 @@ import {
   restaurantUrl,
   restaurantsUrl,
   seenRestaurantsUrl,
+  togetherAcceptUrl,
+  togetherInviteUrl,
+  togetherInvitesUrl,
+  togetherSessionUrl,
+  togetherShareTokenUrl,
+  togetherStateUrl,
   userFiyuSummaryUrl,
   userFiyuTasteAcknowledgeUrl,
 } from "@/lib/api/endpoints";
@@ -67,6 +73,10 @@ import {
   type SmartViewResponse,
   type UserNotification,
   type UserFiyuSummary,
+  type TogetherInviteCreated,
+  type TogetherInvitePreview,
+  type TogetherSession,
+  type TogetherState,
   defaultListMembershipResponseSchema,
   dailyPickAssignmentResponseSchema,
   dailyPickRevealResponseSchema,
@@ -98,6 +108,10 @@ import {
   seenRestaurantsResponseSchema,
   smartViewCatalogResponseSchema,
   smartViewResponseSchema,
+  togetherInviteCreatedSchema,
+  togetherInvitePreviewSchema,
+  togetherSessionSchema,
+  togetherStateSchema,
 } from "@/lib/api/schemas";
 
 /**
@@ -416,6 +430,42 @@ export function revealDailyPicks(
       headers: { ...listHeaders(identity), ...(options.headers ?? {}) },
     },
   );
+}
+
+export function fetchTogetherState(options: RequestOptions = {}): Promise<TogetherState> {
+  return requestJson(togetherStateUrl(), paths.togetherState, togetherStateSchema, {
+    ...options, cache: options.cache ?? "no-store",
+  });
+}
+
+export function createTogetherInvite(options: RequestOptions = {}): Promise<TogetherInviteCreated> {
+  return requestJson(togetherInvitesUrl(), paths.togetherInvites, togetherInviteCreatedSchema, {
+    ...options, method: "POST",
+  });
+}
+
+export function rotateTogetherInvite(sessionId: string, options: RequestOptions = {}): Promise<TogetherInviteCreated> {
+  return requestJson(togetherShareTokenUrl(sessionId), paths.togetherShareToken(sessionId), togetherInviteCreatedSchema, {
+    ...options, method: "POST",
+  });
+}
+
+export function cancelTogetherInvite(sessionId: string, options: RequestOptions = {}): Promise<void> {
+  return requestRaw(togetherSessionUrl(sessionId), paths.togetherSession(sessionId), {
+    ...options, method: "DELETE",
+  }).then(() => undefined);
+}
+
+export function fetchTogetherInvite(token: string, options: RequestOptions = {}): Promise<TogetherInvitePreview> {
+  return requestJson(togetherInviteUrl(token), paths.togetherInvite(token), togetherInvitePreviewSchema, {
+    ...options, cache: "no-store",
+  });
+}
+
+export function acceptTogetherInvite(token: string, options: RequestOptions = {}): Promise<TogetherSession> {
+  return requestJson(togetherAcceptUrl(token), paths.togetherAccept(token), togetherSessionSchema, {
+    ...options, method: "POST",
+  });
 }
 
 export function fetchDiscoveryLocation(options: RequestOptions = {}): Promise<DiscoveryLocation> {

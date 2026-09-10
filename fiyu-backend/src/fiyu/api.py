@@ -50,6 +50,7 @@ from .entitlements import (
     CAPABILITY_CUSTOM_LISTS,
     CAPABILITY_PREMIUM_SMART_VIEWS,
     EntitlementError,
+    has_premium_access,
     resolve_owner_capabilities,
 )
 from .google_places import (
@@ -107,6 +108,7 @@ from .supabase_auth import (
     sign_in_with_supabase,
     sign_up_with_supabase,
 )
+from .together import build_user_taste_profile, select_together_pick_plan
 from .user_accounts import (
     create_city_poll_vote,
     create_contact_submission,
@@ -765,6 +767,45 @@ class DailyPickRevealResponse(BaseModel):
     pick_revealed_at: str
     revealed_place_ids: list[str]
     revealed_at: str | None = None
+
+
+class TogetherIdentityResponse(BaseModel):
+    display_name: str
+    username: str | None = None
+    avatar_url: str | None = None
+
+
+class TogetherSessionResponse(BaseModel):
+    session_id: str
+    status: Literal["pending", "generated", "expired", "cancelled"]
+    role: Literal["initiator", "invitee"]
+    expires_at: str
+    cycle_expires_at: str
+    partner: TogetherIdentityResponse | None = None
+    restaurants: list[PublicRestaurantSummary] = Field(default_factory=list, max_length=3)
+    consumed_trial: bool = False
+    invite_url: str | None = None
+
+
+class TogetherStateResponse(BaseModel):
+    rated_visit_count: int = Field(ge=0)
+    ratings_required: int = Field(default=5, ge=1)
+    premium: bool
+    trial_consumed: bool
+    can_initiate: bool
+    block_reason: Literal["ratings_required", "premium_required", "cycle_quota_used"] | None = None
+    session: TogetherSessionResponse | None = None
+
+
+class TogetherInvitePreviewResponse(BaseModel):
+    status: Literal["pending", "generated", "expired", "cancelled", "invalid"]
+    initiator: TogetherIdentityResponse | None = None
+    expires_at: str | None = None
+
+
+class TogetherInviteCreatedResponse(BaseModel):
+    session: TogetherSessionResponse
+    invite_url: str
 
 
 DeveloperLocationMode = Literal["real", "area", "outside_tokyo"]
@@ -1832,6 +1873,11 @@ def get_recent_daily_pick_discoveries(
             expired_at_or_before=now.isoformat(),
         )
         rounds = [_shared_assignment(row) for row in rows]
+        rounds.extend(
+            assignment
+            for assignment in _together_discovery_assignments(str(owner_id), now)
+            if (_parse_pick_datetime(assignment.expires_at) or now) <= now
+        )
     else:
         rounds = get_recent_daily_pick_rounds(
             DB_PATH, owner_id=owner_id, city_id=normalized_city, now=now
@@ -1840,6 +1886,343 @@ def get_recent_daily_pick_discoveries(
         _recent_daily_pick_response(round, normalized_city, now) for round in rounds
     ]
     return [response for response in responses if response.place_ids]
+
+
+def _together_token_hash(token: str) -> str:
+    return sha256(token.encode("utf-8")).hexdigest()
+
+
+def _together_invite_url(token: str) -> str:
+    web_url = os.getenv("FIYU_WEB_URL", "http://localhost:3000").strip().rstrip("/")
+    return f"{web_url}/together/{token}"
+
+
+def _together_identity(user_id: str) -> TogetherIdentityResponse:
+    profile = shared_user_data.get_profile(user_id=user_id) or {}
+    username = str(profile.get("username") or "").strip() or None
+    display_name = str(profile.get("display_name") or "").strip() or username or "Fiyu member"
+    return TogetherIdentityResponse(
+        display_name=display_name,
+        username=username,
+        avatar_url=str(profile["avatar_url"]) if profile.get("avatar_url") else None,
+    )
+
+
+def _together_discovery_assignments(user_id: str, now: datetime) -> list[DailyPickAssignment]:
+    """Project shared Picks into the existing discovery timeline without a parallel history."""
+
+    assignments: list[DailyPickAssignment] = []
+    cutoff = now - RECENT_DISCOVERY_DURATION
+    for row in shared_user_data.list_together_sessions(user_id=user_id):
+        if row.get("status") != "generated":
+            continue
+        generated = _parse_pick_datetime(row.get("generated_at"))
+        if generated is None or generated <= cutoff:
+            continue
+        items = shared_user_data.together_pick_items(session_id=str(row["id"]))
+        place_ids = tuple(str(item["place_id"]) for item in items)
+        if not place_ids:
+            continue
+        timestamp = generated.isoformat()
+        metadata = dict(row.get("selection_metadata") or {})
+        metadata["revealed_place_ids"] = list(place_ids)
+        metadata["revealed_at_by_place_id"] = {place_id: timestamp for place_id in place_ids}
+        assignments.append(DailyPickAssignment(
+            round_id=f"together:{row['id']}",
+            place_ids=place_ids,
+            assigned_at=timestamp,
+            expires_at=str(row["cycle_expires_at"]),
+            selection_metadata=metadata,
+            revealed_at=timestamp,
+            revealed_place_ids=place_ids,
+        ))
+    return assignments
+
+
+def _active_together_row(user_id: str, now: datetime) -> dict[str, Any] | None:
+    rows = shared_user_data.list_together_sessions(user_id=user_id)
+    generated = [
+        row for row in rows
+        if row.get("status") == "generated"
+        and (_parse_pick_datetime(row.get("cycle_expires_at")) or now) > now
+    ]
+    if generated:
+        return generated[0]
+    pending = [
+        row for row in rows
+        if row.get("status") == "pending"
+        and str(row.get("initiator_user_id")) == user_id
+        and (_parse_pick_datetime(row.get("expires_at")) or now) > now
+    ]
+    return pending[0] if pending else None
+
+
+def _together_session_response(
+    row: dict[str, Any], user_id: str, *, invite_url: str | None = None
+) -> TogetherSessionResponse:
+    initiator_id = str(row["initiator_user_id"])
+    invitee_id = str(row.get("invitee_user_id") or "") or None
+    partner_id = invitee_id if user_id == initiator_id else initiator_id
+    items = (
+        shared_user_data.together_pick_items(session_id=str(row["id"]))
+        if row.get("status") == "generated" else []
+    )
+    restaurants = _map_eligible_public_restaurants_for_place_ids(
+        str(item["place_id"]) for item in items
+    )
+    return TogetherSessionResponse(
+        session_id=str(row["id"]),
+        status=str(row["status"]),
+        role="initiator" if user_id == initiator_id else "invitee",
+        expires_at=str(row["expires_at"]),
+        cycle_expires_at=str(row["cycle_expires_at"]),
+        partner=_together_identity(partner_id) if partner_id else None,
+        restaurants=restaurants,
+        consumed_trial=bool(row.get("consumed_trial")),
+        invite_url=invite_url,
+    )
+
+
+def _together_rated_count(user_id: str) -> int:
+    return sum(
+        isinstance(visit.get("rating"), int) and 1 <= int(visit["rating"]) <= 5
+        for visit in shared_user_data.list_visits(user_id=user_id)
+    )
+
+
+def _together_state(user_id: str) -> TogetherStateResponse:
+    now = datetime.now(UTC)
+    rated_count = _together_rated_count(user_id)
+    premium = has_premium_access(user_id)
+    trial_consumed = shared_user_data.together_trial_consumed(user_id=user_id)
+    session_row = _active_together_row(user_id, now)
+    generated = session_row is not None and session_row.get("status") == "generated"
+    block_reason = (
+        "ratings_required" if rated_count < 5 else
+        "cycle_quota_used" if generated else
+        "premium_required" if trial_consumed and not premium else None
+    )
+    return TogetherStateResponse(
+        rated_visit_count=rated_count,
+        premium=premium,
+        trial_consumed=trial_consumed,
+        can_initiate=block_reason is None and session_row is None,
+        block_reason=block_reason,
+        session=_together_session_response(session_row, user_id) if session_row else None,
+    )
+
+
+def _raise_together_storage_error(exc: shared_user_data.SharedUserDataError) -> None:
+    detail = str(exc)
+    mapping = {
+        "together_cycle_quota_used": (409, "A participant already used Together this cycle."),
+        "together_trial_consumed": (403, "Fiyu Premium is required to start another Together."),
+        "together_ratings_required": (403, "Rate 5 visits before starting Together."),
+        "together_self_invite": (409, "You cannot accept your own invitation."),
+        "together_invite_expired": (410, "This invitation has expired."),
+        "together_invite_not_pending": (409, "This invitation is no longer available."),
+        "together_selection_became_ineligible": (409, "The shared Picks changed. Try accepting again."),
+    }
+    for code, (status, message) in mapping.items():
+        if code in detail:
+            raise HTTPException(status_code=status, detail=message) from None
+    raise HTTPException(status_code=503, detail="Fiyu Together is unavailable right now") from None
+
+
+def _together_user_id(
+    owner_id: Annotated[str, Depends(_owner_id_from_header)],
+) -> str:
+    if not isinstance(owner_id, OwnerIdentity) or not owner_id.authenticated:
+        raise HTTPException(status_code=401, detail="Bearer authentication required")
+    return str(owner_id)
+
+
+@app.get("/together/me", response_model=TogetherStateResponse)
+def get_my_together_state(
+    user_id: Annotated[str, Depends(_together_user_id)],
+) -> TogetherStateResponse:
+    return _together_state(user_id)
+
+
+@app.post("/together/invites", response_model=TogetherInviteCreatedResponse)
+def create_together_invitation(
+    user_id: Annotated[str, Depends(_together_user_id)],
+) -> TogetherInviteCreatedResponse:
+    state = _together_state(user_id)
+    if state.rated_visit_count < 5:
+        raise HTTPException(status_code=403, detail="Rate 5 visits before starting Together.")
+    if state.block_reason == "cycle_quota_used":
+        raise HTTPException(status_code=409, detail="You already used Together this cycle.")
+    if state.trial_consumed and not state.premium:
+        raise HTTPException(status_code=403, detail="Fiyu Premium is required to start another Together.")
+    location = shared_user_data.get_discovery_location(user_id=user_id)
+    if (
+        not location
+        or location.get("location_mode") not in {"current", "preview", "manual"}
+        or not isinstance(location.get("discovery_latitude"), (int, float))
+        or not isinstance(location.get("discovery_longitude"), (int, float))
+    ):
+        raise HTTPException(status_code=409, detail="Choose a Fiyu location before starting Together.")
+    now = datetime.now(UTC)
+    active = shared_user_data.get_active_daily_picks(user_id=user_id, city_id="tokyo")
+    active_expires = _parse_pick_datetime(active.get("expires_at")) if active else None
+    invite_expires = now + ACTIVE_SNAPSHOT_DURATION
+    # A pending invite always gets the documented 24-hour acceptance window,
+    # even if the initiator's current solo snapshot is close to rolling over.
+    cycle_expires = max(active_expires or invite_expires, invite_expires)
+    token = secrets.token_urlsafe(32)
+    try:
+        row = shared_user_data.create_together_invite(
+            user_id=user_id,
+            token_hash=_together_token_hash(token),
+            created_at=now.isoformat(),
+            expires_at=invite_expires.isoformat(),
+            cycle_id=str(active.get("id")) if active else f"together:{now.date().isoformat()}",
+            cycle_expires_at=cycle_expires.isoformat(),
+            location_mode=str(location["location_mode"]),
+            location_label=str(location.get("discovery_label") or "") or None,
+            location_latitude=float(location["discovery_latitude"]),
+            location_longitude=float(location["discovery_longitude"]),
+        )
+    except shared_user_data.SharedUserDataError as exc:
+        _raise_together_storage_error(exc)
+    invite_url = _together_invite_url(token)
+    return TogetherInviteCreatedResponse(
+        session=_together_session_response(row, user_id, invite_url=invite_url),
+        invite_url=invite_url,
+    )
+
+
+@app.post("/together/sessions/{session_id}/share-token", response_model=TogetherInviteCreatedResponse)
+def rotate_together_invitation(
+    session_id: str,
+    user_id: Annotated[str, Depends(_together_user_id)],
+) -> TogetherInviteCreatedResponse:
+    token = secrets.token_urlsafe(32)
+    if not shared_user_data.rotate_together_invite_token(
+        user_id=user_id, session_id=session_id, token_hash=_together_token_hash(token)
+    ):
+        raise HTTPException(status_code=404, detail="Pending Together invitation not found")
+    row = next(
+        (item for item in shared_user_data.list_together_sessions(user_id=user_id) if str(item["id"]) == session_id),
+        None,
+    )
+    if row is None:
+        raise HTTPException(status_code=404, detail="Pending Together invitation not found")
+    invite_url = _together_invite_url(token)
+    return TogetherInviteCreatedResponse(
+        session=_together_session_response(row, user_id, invite_url=invite_url),
+        invite_url=invite_url,
+    )
+
+
+@app.delete("/together/sessions/{session_id}", status_code=204)
+def cancel_together_invitation(
+    session_id: str,
+    user_id: Annotated[str, Depends(_together_user_id)],
+) -> None:
+    if not shared_user_data.cancel_together_invite(
+        user_id=user_id, session_id=session_id, cancelled_at=datetime.now(UTC).isoformat()
+    ):
+        raise HTTPException(status_code=404, detail="Pending Together invitation not found")
+
+
+@app.get("/together/invites/{token}", response_model=TogetherInvitePreviewResponse)
+def preview_together_invitation(token: str) -> TogetherInvitePreviewResponse:
+    if len(token) < 32:
+        return TogetherInvitePreviewResponse(status="invalid")
+    row = shared_user_data.get_together_session_by_token_hash(token_hash=_together_token_hash(token))
+    if row is None:
+        return TogetherInvitePreviewResponse(status="invalid")
+    status = str(row["status"])
+    if status == "pending" and (_parse_pick_datetime(row.get("expires_at")) or datetime.now(UTC)) <= datetime.now(UTC):
+        status = "expired"
+    return TogetherInvitePreviewResponse(
+        status=status,
+        initiator=_together_identity(str(row["initiator_user_id"])),
+        expires_at=str(row["expires_at"]),
+    )
+
+
+@app.post("/together/invites/{token}/accept", response_model=TogetherSessionResponse)
+def accept_together_invitation(
+    token: str,
+    invitee_user_id: Annotated[str, Depends(_together_user_id)],
+) -> TogetherSessionResponse:
+    token_hash = _together_token_hash(token)
+    row = shared_user_data.get_together_session_by_token_hash(token_hash=token_hash)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Together invitation not found")
+    initiator_id = str(row["initiator_user_id"])
+    if initiator_id == invitee_user_id:
+        raise HTTPException(status_code=409, detail="You cannot accept your own invitation.")
+    now = datetime.now(UTC)
+    participants = (initiator_id, invitee_user_id)
+    visits = {user_id: shared_user_data.list_visits(user_id=user_id) for user_id in participants}
+    saved = {user_id: shared_user_data.saved_place_ids(user_id=user_id, city_id="tokyo") for user_id in participants}
+    histories = {
+        user_id: {
+            place_id: parsed for place_id, value in shared_user_data.seen_history(user_id=user_id).items()
+            if (parsed := _parse_pick_datetime(value)) is not None
+        } for user_id in participants
+    }
+    active_solo: set[str] = set()
+    for user_id in participants:
+        active = shared_user_data.get_active_daily_picks(user_id=user_id, city_id="tokyo")
+        if active:
+            active_solo.update(str(value) for value in active.get("place_ids", []))
+    current_together: set[str] = set()
+    for user_id in participants:
+        for session in shared_user_data.list_together_sessions(user_id=user_id):
+            if session.get("status") == "generated" and (_parse_pick_datetime(session.get("cycle_expires_at")) or now) > now:
+                current_together.update(
+                    str(item["place_id"]) for item in shared_user_data.together_pick_items(session_id=str(session["id"]))
+                )
+    hard_excluded = set().union(
+        *({str(visit["place_id"]) for visit in visits[user_id]} for user_id in participants),
+        *(set(saved[user_id]) for user_id in participants),
+        active_solo,
+        current_together,
+    )
+    catalog_rows = [dict(item) for item in list_published_restaurants(DB_PATH, limit=10_000)]
+    catalog = {str(item["place_id"]): item for item in catalog_rows}
+    seed = str(row["id"])
+    place_ids, metadata = select_together_pick_plan(
+        catalog_rows,
+        profile_a=build_user_taste_profile(visits=visits[initiator_id], catalog=catalog),
+        profile_b=build_user_taste_profile(visits=visits[invitee_user_id], catalog=catalog),
+        discovery_latitude=float(row["location_latitude"]),
+        discovery_longitude=float(row["location_longitude"]),
+        active_area=str(row.get("location_label") or "") or None,
+        hard_excluded_place_ids=hard_excluded,
+        recent_seen_a=histories[initiator_id],
+        recent_seen_b=histories[invitee_user_id],
+        now=now,
+        seed=seed,
+    )
+    if not place_ids:
+        raise HTTPException(status_code=409, detail="No shared Picks are available near this location.")
+    metadata.update({
+        "discovery_mode": row["location_mode"],
+        "discovery_label": row.get("location_label"),
+        "discovery_latitude": row["location_latitude"],
+        "discovery_longitude": row["location_longitude"],
+    })
+    try:
+        shared_user_data.accept_together_invite(
+            token_hash=token_hash,
+            invitee_user_id=invitee_user_id,
+            place_ids=list(place_ids),
+            generated_at=now.isoformat(),
+            selection_metadata=metadata,
+            initiator_is_premium=has_premium_access(initiator_id),
+        )
+    except shared_user_data.SharedUserDataError as exc:
+        _raise_together_storage_error(exc)
+    generated_row = shared_user_data.get_together_session_by_token_hash(token_hash=token_hash)
+    if generated_row is None:
+        raise HTTPException(status_code=503, detail="Together generation could not be restored")
+    return _together_session_response(generated_row, invitee_user_id)
 
 
 @app.get("/seen/restaurants", response_model=SeenRestaurantsResponse)
@@ -1943,19 +2326,34 @@ def _authenticated_map_membership(
             expiration = (parsed + RECENT_DISCOVERY_DURATION).isoformat()
             if expiration > discovery_expirations.get(place_id, ""):
                 discovery_expirations[place_id] = expiration
+    together_place_ids: list[str] = []
+    for assignment in _together_discovery_assignments(user_id, now):
+        together_place_ids.extend(assignment.place_ids)
+        for place_id, timestamp in revealed_at_by_place_id(
+            assignment.selection_metadata,
+            assignment.place_ids,
+            assignment.revealed_at,
+            assignment.assigned_at,
+        ).items():
+            parsed = _parse_pick_datetime(timestamp)
+            if parsed is not None:
+                discovery_expirations[place_id] = (
+                    parsed + RECENT_DISCOVERY_DURATION
+                ).isoformat()
     latest_ratings = shared_user_data.latest_visit_ratings(user_id=user_id)
     saved_place_ids = set(
         shared_user_data.saved_place_ids(user_id=user_id, city_id=city_id)
     )
     visited_place_ids = list(shared_user_data.visited_place_ids(user_id=user_id))
     visited_place_id_set = set(visited_place_ids)
-    discovered_place_id_set = {*active_place_ids, *recent_place_ids}
+    discovered_place_id_set = {*active_place_ids, *recent_place_ids, *together_place_ids}
     visible_place_ids = list(
         dict.fromkeys(
             str(place_id)
             for place_id in [
                 *active_place_ids,
                 *recent_place_ids,
+                *together_place_ids,
                 *visited_place_ids,
                 *sorted(saved_place_ids),
             ]

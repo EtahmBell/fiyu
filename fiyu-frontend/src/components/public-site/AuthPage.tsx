@@ -122,7 +122,7 @@ export function AuthPage({ mode }: { mode: "signin" | "signup" }) {
             <p className="mt-3 text-sm leading-6 text-ink-muted">
               Verify your email to finish creating your Fiyu account.
             </p>
-            <Link href="/signin" className="mt-8 inline-flex min-h-11 items-center font-semibold text-plum underline underline-offset-4">
+            <Link href={`/signin?next=${encodeURIComponent(nextPath)}`} className="mt-8 inline-flex min-h-11 items-center font-semibold text-plum underline underline-offset-4">
               Return to sign in
             </Link>
           </div>
@@ -253,7 +253,7 @@ export function AuthPage({ mode }: { mode: "signin" | "signup" }) {
 
           <p className="mt-7 text-center text-sm text-ink-muted">
             {signup ? "Already have an account?" : "New to Fiyu?"}{" "}
-            <Link href={signup ? "/signin" : "/signup"} className="font-semibold text-plum underline underline-offset-4">
+            <Link href={`${signup ? "/signin" : "/signup"}?next=${encodeURIComponent(nextPath)}`} className="font-semibold text-plum underline underline-offset-4">
               {signup ? "Sign in" : "Sign up"}
             </Link>
           </p>

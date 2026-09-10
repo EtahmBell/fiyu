@@ -455,6 +455,45 @@ export const dailyPickRevealResponseSchema = z.object({
   revealed_at: z.string().min(1).nullable(),
 });
 
+export const togetherIdentitySchema = z.object({
+  display_name: z.string().min(1),
+  username: nullableString,
+  avatar_url: nullableString,
+});
+
+export const togetherSessionSchema = z.object({
+  session_id: z.string().min(1),
+  status: z.enum(["pending", "generated", "expired", "cancelled"]),
+  role: z.enum(["initiator", "invitee"]),
+  expires_at: z.string().min(1),
+  cycle_expires_at: z.string().min(1),
+  partner: togetherIdentitySchema.nullable(),
+  restaurants: z.array(publicRestaurantSchema).max(3),
+  consumed_trial: z.boolean(),
+  invite_url: nullableString,
+});
+
+export const togetherStateSchema = z.object({
+  rated_visit_count: z.number().int().nonnegative(),
+  ratings_required: z.number().int().positive(),
+  premium: z.boolean(),
+  trial_consumed: z.boolean(),
+  can_initiate: z.boolean(),
+  block_reason: z.enum(["ratings_required", "premium_required", "cycle_quota_used"]).nullable(),
+  session: togetherSessionSchema.nullable(),
+});
+
+export const togetherInvitePreviewSchema = z.object({
+  status: z.enum(["pending", "generated", "expired", "cancelled", "invalid"]),
+  initiator: togetherIdentitySchema.nullable(),
+  expires_at: nullableString,
+});
+
+export const togetherInviteCreatedSchema = z.object({
+  session: togetherSessionSchema,
+  invite_url: z.string().url(),
+});
+
 export const recentDailyPickRoundSchema = z.object({
   round_id: z.string().min(1),
   city_id: z.string().min(1),
@@ -654,6 +693,11 @@ export type DeveloperGeneratePicksResponse = z.infer<typeof developerGeneratePic
 export type DeveloperResetPicksResponse = z.infer<typeof developerResetPicksResponseSchema>;
 export type DeveloperResetVisitTasteResponse = z.infer<typeof developerResetVisitTasteResponseSchema>;
 export type DailyPickRevealResponse = z.infer<typeof dailyPickRevealResponseSchema>;
+export type TogetherIdentity = z.infer<typeof togetherIdentitySchema>;
+export type TogetherSession = z.infer<typeof togetherSessionSchema>;
+export type TogetherState = z.infer<typeof togetherStateSchema>;
+export type TogetherInvitePreview = z.infer<typeof togetherInvitePreviewSchema>;
+export type TogetherInviteCreated = z.infer<typeof togetherInviteCreatedSchema>;
 export type RecentDailyPickRound = z.infer<typeof recentDailyPickRoundSchema>;
 export type RestaurantVisit = z.infer<typeof restaurantVisitSchema>;
 export type UserFiyuSummary = z.infer<typeof userFiyuSummarySchema>;

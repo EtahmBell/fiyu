@@ -383,4 +383,56 @@ describe("/picks revealed-card save bookmark", () => {
       false,
     );
   });
+
+  it("renders generated Together Picks separately without replacing solo Picks", async () => {
+    const solo = [restaurant("one"), restaurant("two"), restaurant("three")];
+    const shared = [restaurant("four"), restaurant("five"), restaurant("six")];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.includes("/daily-picks/active")) {
+        return json(200, {
+          round_id: "solo-round",
+          city_id: "tokyo",
+          place_ids: solo.map((item) => item.place_id),
+          assigned_at: new Date().toISOString(),
+          expires_at: new Date(Date.now() + DAILY_PICKS_DURATION_MS).toISOString(),
+          selection_metadata: { revealed_place_ids: solo.map((item) => item.place_id) },
+          revealed_place_ids: solo.map((item) => item.place_id),
+          restaurants: solo,
+        });
+      }
+      if (url.includes("/daily-picks/recent")) return json(200, []);
+      if (url.includes("/lists/default")) return json(200, listBody([]));
+      if (url.includes("/together/me")) {
+        return json(200, {
+          rated_visit_count: 5,
+          ratings_required: 5,
+          premium: false,
+          trial_consumed: true,
+          can_initiate: false,
+          block_reason: "cycle_quota_used",
+          session: {
+            session_id: "together-round",
+            status: "generated",
+            role: "invitee",
+            expires_at: new Date(Date.now() + DAILY_PICKS_DURATION_MS).toISOString(),
+            cycle_expires_at: new Date(Date.now() + DAILY_PICKS_DURATION_MS).toISOString(),
+            partner: { display_name: "Lianne", username: "lianne", avatar_url: null },
+            restaurants: shared,
+            consumed_trial: false,
+            invite_url: null,
+          },
+        });
+      }
+      throw new Error(`Unexpected request: ${url}`);
+    });
+
+    const DailyPicksPanel = await loadDailyPicksPanel();
+    render(<DailyPicksPanel accountId="account-a" restaurants={[]} />);
+
+    expect(await screen.findByRole("heading", { name: "Together with Lianne" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Today’s Fiyu Picks" })).toBeTruthy();
+    expect(screen.getByLabelText("Together restaurants").querySelectorAll('[data-testid="compact-restaurant-card"]'))
+      .toHaveLength(3);
+  });
 });

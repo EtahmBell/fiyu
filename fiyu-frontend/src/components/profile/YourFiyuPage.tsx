@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
 import { ProfileIdentityAvatar, profileIdentityPresentation } from "@/components/profile/ProfileIdentityAvatar";
+import { TogetherPanel } from "@/components/profile/TogetherPanel";
 import { FiyuLoadingScreen } from "@/components/states/FiyuLoadingScreen";
 import { useAccountQuery } from "@/lib/accountQueryCache";
 import { acknowledgeTasteUpdate, fetchUserFiyuSummary } from "@/lib/api/client";
@@ -558,43 +559,6 @@ function RecentVisits({ summary }: { summary: UserFiyuSummary }) {
   );
 }
 
-/**
- * Fiyu Together.
- *
- * The warm chapter, and the last one: champagne hairlines top and bottom over a
- * pale champagne field. A feature that does not exist yet is easy to render as
- * grey and disabled; the warmth is what makes it read as something coming
- * rather than something switched off. The chip is the only saturated champagne
- * on the page, so it still reads as a chip against the wash behind it.
- */
-function Together({ summary }: { summary: UserFiyuSummary }) {
-  return (
-    <section className="border-y border-gold-line bg-gold-soft/40" aria-labelledby="together-title">
-      <div className={cn(MEASURE, "py-9 sm:py-11")}>
-        <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-end lg:gap-14">
-          <div>
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-              <Eyebrow tone="champagne">Fiyu Together</Eyebrow>
-              <span className={cn("rounded-full border border-gold-line bg-gold-soft px-2.5 py-1", MICRO_CAPS, "text-gold-700")}>
-                {summary.together_unlocked ? "Coming soon" : "Locked"}
-              </span>
-            </div>
-            <h2 id="together-title" className="mt-4 font-display text-[1.75rem] leading-tight tracking-[-0.015em] text-ink sm:text-[2rem]">
-              Taste is better shared.
-            </h2>
-            <p className="mt-2 max-w-[46ch] text-sm leading-6 text-ink-body">
-              Three extra Picks, chosen for you and someone else.
-            </p>
-          </div>
-          {!summary.together_unlocked ? (
-            <div className="mt-6 lg:mt-0"><Progress summary={summary} context="together" /></div>
-          ) : null}
-        </div>
-      </div>
-    </section>
-  );
-}
-
 export function YourFiyuPage() {
   const identity = useProfileIdentity();
   const accountId = identity.status === "loading" ? undefined : identity.profile?.user_id ?? null;
@@ -712,7 +676,7 @@ export function YourFiyuPage() {
         onAcknowledge={acknowledgeTaste}
       />
       <RecentVisits summary={summary.data} />
-      <Together summary={summary.data} />
+      <TogetherPanel accountId={accountId} ratedVisitCount={summary.data.rated_visit_count} />
     </main>
   );
 }

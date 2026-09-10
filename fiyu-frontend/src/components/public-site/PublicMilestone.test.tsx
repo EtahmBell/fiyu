@@ -122,7 +122,7 @@ describe("public account milestone", () => {
 
     expect(await screen.findByRole("heading", { name: "Check your email" })).toBeTruthy();
     expect(screen.getByText(/Verify your email to finish creating your Fiyu account/)).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Return to sign in" }).getAttribute("href")).toBe("/signin");
+    expect(screen.getByRole("link", { name: "Return to sign in" }).getAttribute("href")).toBe("/signin?next=%2Fpicks");
     expect(mocks.signUp).toHaveBeenCalledWith({
       email: "person@example.com",
       password: "provider-password",
@@ -139,7 +139,7 @@ describe("public account milestone", () => {
     render(<AuthPage mode="signin" />);
 
     expect(screen.getByRole("button", { name: "Forgot password?" })).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Sign up" }).getAttribute("href")).toBe("/signup");
+    expect(screen.getByRole("link", { name: "Sign up" }).getAttribute("href")).toBe("/signup?next=%2Fpicks");
     expect(screen.getByPlaceholderText("Email or username")).toBeTruthy();
     expect(screen.getByPlaceholderText("Email or username").className).toContain("text-base");
     expect(screen.getByLabelText("Password").className).toContain("text-base");

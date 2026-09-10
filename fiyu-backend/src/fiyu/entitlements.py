@@ -9,12 +9,14 @@ Capability = Literal[
     "premium_smart_views",
     "live_near_me",
     "day_planning",
+    "together",
 ]
 
 CAPABILITY_CUSTOM_LISTS: Capability = "custom_lists"
 CAPABILITY_PREMIUM_SMART_VIEWS: Capability = "premium_smart_views"
 CAPABILITY_LIVE_NEAR_ME: Capability = "live_near_me"
 CAPABILITY_DAY_PLANNING: Capability = "day_planning"
+CAPABILITY_TOGETHER: Capability = "together"
 
 PREMIUM_CAPABILITIES: frozenset[Capability] = frozenset(
     {
@@ -22,6 +24,7 @@ PREMIUM_CAPABILITIES: frozenset[Capability] = frozenset(
         CAPABILITY_PREMIUM_SMART_VIEWS,
         CAPABILITY_LIVE_NEAR_ME,
         CAPABILITY_DAY_PLANNING,
+        CAPABILITY_TOGETHER,
     }
 )
 
@@ -51,3 +54,9 @@ def require_capability(owner_id: str, capability: Capability) -> None:
     if capability in resolve_owner_capabilities(owner_id):
         return
     raise EntitlementError(capability=capability)
+
+
+def has_premium_access(owner_id: str) -> bool:
+    """Single provider-independent Premium seam used by product entitlements."""
+
+    return CAPABILITY_TOGETHER in resolve_owner_capabilities(owner_id)

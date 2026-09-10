@@ -779,6 +779,136 @@ def record_seen(*, user_id: str, place_ids: list[str]) -> None:
         )
 
 
+def together_trial_consumed(*, user_id: str) -> bool:
+    rows = _rows("fiyu_together_trials", user_id=user_id)
+    return bool(rows and rows[0].get("consumed_at"))
+
+
+def get_together_session_by_token_hash(*, token_hash: str) -> dict[str, Any] | None:
+    rows = _rows("fiyu_together_sessions", invite_token_hash=token_hash)
+    return rows[0] if rows else None
+
+
+def create_together_invite(
+    *,
+    user_id: str,
+    token_hash: str,
+    created_at: str,
+    expires_at: str,
+    cycle_id: str,
+    cycle_expires_at: str,
+    location_mode: str,
+    location_label: str | None,
+    location_latitude: float,
+    location_longitude: float,
+) -> dict[str, Any]:
+    result = _request(
+        "rpc/create_fiyu_together_invite",
+        method="POST",
+        body={
+            "p_user_id": user_id,
+            "p_token_hash": token_hash,
+            "p_created_at": created_at,
+            "p_expires_at": expires_at,
+            "p_cycle_id": cycle_id,
+            "p_cycle_expires_at": cycle_expires_at,
+            "p_location_mode": location_mode,
+            "p_location_label": location_label,
+            "p_location_latitude": location_latitude,
+            "p_location_longitude": location_longitude,
+        },
+    )
+    if isinstance(result, list) and result:
+        result = result[0]
+    if not isinstance(result, dict) or not result.get("id"):
+        raise SharedUserDataError("Together invitation could not be created")
+    return result
+
+
+def accept_together_invite(
+    *,
+    token_hash: str,
+    invitee_user_id: str,
+    place_ids: list[str],
+    generated_at: str,
+    selection_metadata: dict[str, object],
+    initiator_is_premium: bool,
+) -> dict[str, Any]:
+    result = _request(
+        "rpc/accept_fiyu_together_invite",
+        method="POST",
+        body={
+            "p_token_hash": token_hash,
+            "p_invitee_user_id": invitee_user_id,
+            "p_place_ids": place_ids,
+            "p_generated_at": generated_at,
+            "p_selection_metadata": selection_metadata,
+            "p_initiator_is_premium": initiator_is_premium,
+        },
+    )
+    if isinstance(result, list) and result:
+        result = result[0]
+    if not isinstance(result, dict) or not result.get("session_id"):
+        raise SharedUserDataError("Together invitation could not be accepted")
+    return result
+
+
+def list_together_sessions(*, user_id: str) -> list[dict[str, Any]]:
+    result = _request(
+        "fiyu_together_sessions",
+        query={
+            "select": "*",
+            "or": f"(initiator_user_id.eq.{user_id},invitee_user_id.eq.{user_id})",
+            "order": "created_at.desc,id.desc",
+        },
+    )
+    return result if isinstance(result, list) else []
+
+
+def together_pick_items(*, session_id: str) -> list[dict[str, Any]]:
+    result = _request(
+        "fiyu_together_pick_items",
+        query={
+            "select": "place_id,position",
+            "session_id": f"eq.{session_id}",
+            "order": "position.asc",
+        },
+    )
+    return result if isinstance(result, list) else []
+
+
+def cancel_together_invite(*, user_id: str, session_id: str, cancelled_at: str) -> bool:
+    result = _request(
+        "fiyu_together_sessions",
+        method="PATCH",
+        query={
+            "id": f"eq.{session_id}",
+            "initiator_user_id": f"eq.{user_id}",
+            "status": "eq.pending",
+        },
+        body={"status": "cancelled", "cancelled_at": cancelled_at},
+        prefer="return=representation",
+    )
+    return isinstance(result, list) and bool(result)
+
+
+def rotate_together_invite_token(
+    *, user_id: str, session_id: str, token_hash: str
+) -> bool:
+    result = _request(
+        "fiyu_together_sessions",
+        method="PATCH",
+        query={
+            "id": f"eq.{session_id}",
+            "initiator_user_id": f"eq.{user_id}",
+            "status": "eq.pending",
+        },
+        body={"invite_token_hash": token_hash},
+        prefer="return=representation",
+    )
+    return isinstance(result, list) and bool(result)
+
+
 NOTIFICATION_TYPES = frozenset(
     {"picks_ready", "smart_list_ready", "new_drop", "early_access_unlocked", "trip_reminder"}
 )

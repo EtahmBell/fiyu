@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
 import { ConcealedRestaurantCard } from "@/components/daily-picks/ConcealedRestaurantCard";
+import { CompactRestaurantCard } from "@/components/daily-picks/CompactRestaurantCard";
 import { DailyPicksCountdown } from "@/components/daily-picks/DailyPicksCountdown";
 import { CityHeaderMark } from "@/components/city-signature/CitySignature";
 import {
@@ -18,6 +19,7 @@ import {
   assignDailyPicks,
   fetchActiveDailyPicks,
   fetchRecentDailyPicks,
+  fetchTogetherState,
   revealDailyPicks,
 } from "@/lib/api/client";
 import {
@@ -25,9 +27,10 @@ import {
   loadAccountQuery,
   readAccountQuery,
   writeAccountQuery,
+  useAccountQuery,
 } from "@/lib/accountQueryCache";
 import { FiyuApiError } from "@/lib/api/errors";
-import type { MapRestaurant, PublicRestaurant } from "@/lib/api/schemas";
+import type { MapRestaurant, PublicRestaurant, TogetherState } from "@/lib/api/schemas";
 import { ACTIVE_FIYU_CITY } from "@/lib/city/editions";
 import {
   selectDailyRestaurants,
@@ -243,6 +246,14 @@ export function DailyPicksPanel({
   const defaultList = useDefaultList(ACTIVE_FIYU_CITY.id, {
     enabled: injectedStorage === undefined,
     accountId,
+  });
+  const loadTogether = useCallback(() => fetchTogetherState(), []);
+  const together = useAccountQuery<TogetherState>({
+    resource: "together-state",
+    accountId,
+    loader: loadTogether,
+    enabled: Boolean(accountId) && injectedStorage === undefined,
+    maxAgeMs: 30_000,
   });
   const hydrationKey = accountId ? accountQueryKey("daily-picks", accountId) : null;
   const cachedHydration = hydrationKey
@@ -949,6 +960,33 @@ export function DailyPicksPanel({
           </div>
         )}
       </section>
+
+      {phase === "idle" && together.status === "ready" && together.data.session?.status === "generated" ? (
+        <section id="together-picks" aria-labelledby="together-picks-heading" className="my-8 min-w-0 w-full scroll-mt-24">
+          <div className="border-b border-gold-line pb-2.5">
+            <p className="text-[0.625rem] font-semibold tracking-[0.16em] text-gold-700 uppercase">Fiyu Together</p>
+            <h2 id="together-picks-heading" className="mt-1 font-display text-2xl text-ink">Together with {together.data.session.partner?.display_name ?? "your partner"}</h2>
+            <p className="mt-1 text-xs text-ink-muted">
+              {together.data.session.restaurants.length} {together.data.session.restaurants.length === 1 ? "Pick" : "Picks"} chosen for both of you
+            </p>
+          </div>
+          <div className="mt-4 space-y-3 sm:space-y-4" aria-label="Together restaurants">
+            {together.data.session.restaurants.map((restaurant) => (
+              <DailyCardFrame key={restaurant.place_id} placeId={restaurant.place_id} selected={selectedPlaceId === restaurant.place_id} tone="history" registerRef={registerCardRef}>
+                <CompactRestaurantCard
+                  restaurant={restaurant}
+                  tone="history"
+                  saved={savedRestaurantIds.includes(restaurant.place_id)}
+                  savePending={defaultList.pendingPlaceIds.includes(restaurant.place_id)}
+                  onToggleSaved={() => toggleSaved(restaurant.place_id)}
+                  onOpen={onOpenRestaurant}
+                  onViewDetails={onViewRestaurant}
+                />
+              </DailyCardFrame>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       {/*
        * Recent Discoveries is its own section on the page background, not a

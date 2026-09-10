@@ -43,6 +43,13 @@ export const paths = {
   dailyPicksRecent: "/daily-picks/recent",
   dailyPicksReveal: (roundId: string) =>
     `/daily-picks/${encodeURIComponent(roundId)}/reveal`,
+  togetherState: "/together/me",
+  togetherInvites: "/together/invites",
+  togetherInvite: (token: string) => `/together/invites/${encodeURIComponent(token)}`,
+  togetherAccept: (token: string) => `/together/invites/${encodeURIComponent(token)}/accept`,
+  togetherSession: (sessionId: string) => `/together/sessions/${encodeURIComponent(sessionId)}`,
+  togetherShareToken: (sessionId: string) =>
+    `/together/sessions/${encodeURIComponent(sessionId)}/share-token`,
   developerStatus: "/developer/status",
   developerLocationOverride: "/developer/location-override",
   developerDailyPicksGenerate: "/developer/daily-picks/generate",
@@ -78,6 +85,13 @@ export function dailyPicksRecentUrl(cityId: string): string {
 export function dailyPicksRevealUrl(roundId: string): string {
   return `${getApiBaseUrl()}${paths.dailyPicksReveal(roundId)}`;
 }
+
+export function togetherStateUrl(): string { return `${getApiBaseUrl()}${paths.togetherState}`; }
+export function togetherInvitesUrl(): string { return `${getApiBaseUrl()}${paths.togetherInvites}`; }
+export function togetherInviteUrl(token: string): string { return `${getApiBaseUrl()}${paths.togetherInvite(token)}`; }
+export function togetherAcceptUrl(token: string): string { return `${getApiBaseUrl()}${paths.togetherAccept(token)}`; }
+export function togetherSessionUrl(sessionId: string): string { return `${getApiBaseUrl()}${paths.togetherSession(sessionId)}`; }
+export function togetherShareTokenUrl(sessionId: string): string { return `${getApiBaseUrl()}${paths.togetherShareToken(sessionId)}`; }
 
 export function developerStatusUrl(): string {
   return `${getApiBaseUrl()}${paths.developerStatus}`;

@@ -306,6 +306,16 @@ def shared_account_api(tmp_path, monkeypatch):
             place_id for place_id in place_ids if place_id not in seen[user_id]
         ),
     )
+    monkeypatch.setattr(
+        api.shared_user_data,
+        "list_together_sessions",
+        lambda *, user_id: [],
+    )
+    monkeypatch.setattr(
+        api.shared_user_data,
+        "together_pick_items",
+        lambda *, session_id: [],
+    )
     client = TestClient(api.app)
     client.fiyu_test_state = {
         "items": items,
