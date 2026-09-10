@@ -829,7 +829,7 @@ def get_recent_daily_pick_rounds(
             )
             if expires_at.tzinfo is None:
                 expires_at = expires_at.replace(tzinfo=UTC)
-            if expires_at > current or assigned_at + RECENT_DISCOVERY_DURATION <= current:
+            if expires_at > current:
                 continue
             items = connection.execute(
                 """
@@ -847,6 +847,24 @@ def get_recent_daily_pick_rounds(
             place_ids = tuple(str(item["restaurant_place_id"]) for item in items)
             revealed_at = str(row["revealed_at"]) if row["revealed_at"] is not None else None
             normalized_metadata = metadata if isinstance(metadata, dict) else {}
+            reveal_times = revealed_at_by_place_id(
+                normalized_metadata, place_ids, revealed_at, str(row["assigned_at"])
+            )
+            parsed_reveal_times = [
+                parsed
+                for value in reveal_times.values()
+                if (parsed := _parse_datetime(value)) is not None
+            ]
+            # The query window is deliberately broad. Retain a round until its
+            # last independently revealed restaurant expires; the API then
+            # filters individual items against their own reveal timestamps.
+            retention_end = (
+                max(parsed_reveal_times) + RECENT_DISCOVERY_DURATION
+                if parsed_reveal_times
+                else assigned_at + RECENT_DISCOVERY_DURATION
+            )
+            if retention_end <= current:
+                continue
             rounds.append(
                 DailyPickAssignment(
                     round_id=str(row["id"]),

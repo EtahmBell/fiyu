@@ -32,7 +32,11 @@ import { ACTIVE_FIYU_CITY } from "@/lib/city/editions";
 import {
   selectDailyRestaurants,
 } from "@/lib/daily-picks/selection";
-import { recentDiscoveries, recordRevealedDiscovery } from "@/lib/daily-picks/history";
+import {
+  getDiscoveryExpiration,
+  recentDiscoveries,
+  recordRevealedDiscovery,
+} from "@/lib/daily-picks/history";
 import { UNLIMITED_PICKS_DEV_MODE } from "@/lib/daily-picks/developmentMode";
 import { isMappable } from "@/lib/geo/mappable";
 import type { FreeOriginSetup } from "@/lib/location/origin";
@@ -52,6 +56,7 @@ import {
 import { useDefaultList } from "@/lib/lists/useDefaultList";
 import { getOrCreateAnonymousOwnerKey } from "@/lib/lists/identity";
 import { useMediaQuery } from "@/lib/hooks/useMediaQuery";
+import { useExpiryBoundaries } from "@/lib/hooks/useExpiryBoundaries";
 
 export interface DailyPicksPanelProps {
   restaurants: PublicRestaurant[];
@@ -234,7 +239,7 @@ export function DailyPicksPanel({
     storage.getSnapshot,
     storage.getServerSnapshot,
   );
-  const now = useSyncExternalStore(subscribeClock, currentMinute, serverMinute);
+  const minuteNow = useSyncExternalStore(subscribeClock, currentMinute, serverMinute);
   const defaultList = useDefaultList(ACTIVE_FIYU_CITY.id, {
     enabled: injectedStorage === undefined,
     accountId,
@@ -279,6 +284,10 @@ export function DailyPicksPanel({
   const cardRefs = useRef(new Map<string, HTMLDivElement>());
 
   const state = snapshot ?? EMPTY_DAILY_PICKS_STATE;
+  const expiryNow = useExpiryBoundaries(
+    state.discoveries.map((discovery) => getDiscoveryExpiration(discovery.revealedAt)),
+  );
+  const now = Math.max(minuteNow, expiryNow);
   const selection = snapshot?.selection ?? null;
   const active = selection ? selectionIsActive(selection, now) : false;
   const currentSelection = active ? selection : null;

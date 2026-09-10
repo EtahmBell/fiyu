@@ -584,6 +584,31 @@ describe("Today’s Fiyu Picks panel", () => {
     expect(storage.getSnapshot()?.savedRestaurantIds).toEqual(["one"]);
   });
 
+  it("removes a discovery at its own expiry while the page remains open", () => {
+    const now = Date.UTC(2026, 6, 29, 12);
+    vi.useFakeTimers();
+    vi.setSystemTime(now);
+    const storage = createDailyPicksStorage(window.localStorage);
+    storage.save({
+      version: 3,
+      preferences: { categories: [], nonJapanese: "occasionally" },
+      selection: createDailySelection(["four", "five", "six"], now),
+      discoveries: [{
+        restaurantId: "one",
+        revealedAt: new Date(now - RECENT_DISCOVERY_DURATION_MS + 30_000).toISOString(),
+      }],
+      savedRestaurantIds: [],
+    });
+
+    render(<DailyPicksPanel restaurants={catalog} storage={storage} />);
+    expect(screen.getByText("Restaurant one")).toBeTruthy();
+
+    act(() => vi.advanceTimersByTime(29_999));
+    expect(screen.getByText("Restaurant one")).toBeTruthy();
+    act(() => vi.advanceTimersByTime(1));
+    expect(screen.queryByText("Restaurant one")).toBeNull();
+  });
+
   it("hydrates deterministically without a localStorage mismatch", async () => {
     const storage = createDailyPicksStorage(window.localStorage);
     const element = <DailyPicksPanel restaurants={catalog} storage={storage} />;

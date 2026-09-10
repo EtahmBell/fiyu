@@ -269,6 +269,8 @@ export const mapRestaurantSchema = publicRestaurantSchema.extend({
   // flag as discovered during a rolling deploy; the expanded API sends false
   // explicitly for saved-only rows.
   is_discovered: z.boolean().default(true),
+  /** Exact expiry of the latest qualifying reveal; absent on legacy responses. */
+  discovery_expires_at: z.string().min(1).nullable().optional(),
   is_saved: z.boolean().default(false),
   is_visited: z.boolean(),
   // Default supports a safe rolling deploy against an older API response;

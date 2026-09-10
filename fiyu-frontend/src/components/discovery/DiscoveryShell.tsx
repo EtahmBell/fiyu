@@ -23,6 +23,7 @@ import { useAccountQuery } from "@/lib/accountQueryCache";
 import type { DiscoveryLocation, MapRestaurant, PublicRestaurant } from "@/lib/api/schemas";
 import { mappableRestaurants } from "@/lib/geo/mappable";
 import { useGeolocation } from "@/lib/hooks/useGeolocation";
+import { useExpiryBoundaries } from "@/lib/hooks/useExpiryBoundaries";
 import { useProfileIdentity } from "@/lib/profile/profileIdentity";
 import type { LocationAnchor } from "@/lib/api/schemas";
 import {
@@ -38,6 +39,7 @@ import {
 import { PICKS_DETAIL_MAP_SESSION_KEY } from "@/lib/map/viewportSession";
 import {
   filterPersonalMapRestaurants,
+  reconcileDiscoveryExpiry,
   type PersonalMapFilter,
 } from "@/lib/map/personalMap";
 import { cn } from "@/lib/utils/cn";
@@ -121,6 +123,21 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
   });
   const refreshMapRestaurants = mapQuery.refresh;
   const setMapRestaurants = mapQuery.setData;
+  const mapRows = useMemo(
+    () => mapQuery.status === "ready" ? mapQuery.data : [],
+    [mapQuery],
+  );
+  const mapExpiryNow = useExpiryBoundaries(
+    mapRows.flatMap((restaurant) => {
+      const expiration = Date.parse(restaurant.discovery_expires_at ?? "");
+      return Number.isFinite(expiration) ? [expiration] : [];
+    }),
+    () => { void refreshMapRestaurants(true).catch(() => undefined); },
+  );
+  const currentMapRows = useMemo(
+    () => reconcileDiscoveryExpiry(mapRows, mapExpiryNow),
+    [mapExpiryNow, mapRows],
+  );
   const [homeArea, setHomeArea] = useState<LocationAnchor | null>(null);
   const [continuedWithoutLocation, setContinuedWithoutLocation] = useState(false);
   const [newRoundLocationGate, setNewRoundLocationGate] =
@@ -303,7 +320,7 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
   }, [accountLocation, activeArea, identity.profile, origin]);
 
   const personalMapRestaurants = useMemo(() => {
-    const accountMapRestaurants = mapQuery.status === "ready" ? mapQuery.data : [];
+    const accountMapRestaurants = currentMapRows;
     const immediateDiscoveries: MapRestaurant[] = visibleRestaurants.map((restaurant) => ({
       ...restaurant,
       is_discovered: true,
@@ -322,7 +339,7 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
           : []
       : immediateDiscoveries;
     return mapRestaurants;
-  }, [identity.profile, mapQuery.data, mapQuery.status, visibleRestaurants]);
+  }, [currentMapRows, identity.profile, mapQuery.status, visibleRestaurants]);
   const mappable = useMemo(
     () => mappableRestaurants(
       identity.profile

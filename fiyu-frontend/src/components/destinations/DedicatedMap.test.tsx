@@ -67,6 +67,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   cleanup();
   clearProfileIdentity();
   vi.unstubAllGlobals();
@@ -492,6 +493,32 @@ describe("dedicated user map", () => {
     );
     fireEvent.click(screen.getByRole("tab", { name: "Saved" }));
     expect(container.querySelector(`[data-place-id="${row.place_id}"]`)).toBeTruthy();
+  });
+
+  it("removes an expired discovery at its boundary without a user action", async () => {
+    vi.useFakeTimers();
+    const now = Date.UTC(2026, 8, 9, 12);
+    vi.setSystemTime(now);
+    const accountId = "timed-expiry-user";
+    const row = mapRestaurantSchema.parse({
+      ...verifiedLocationCatalog[0],
+      is_discovered: true,
+      discovery_expires_at: new Date(now + 30_000).toISOString(),
+    });
+    api.fetchAuthenticatedMapRestaurants.mockResolvedValue([row]);
+    writeAccountQuery(accountQueryKey("map-restaurants", accountId), [row]);
+    publishProfileIdentity(profile(accountId));
+    const { container } = render(<DedicatedMap />);
+    await act(async () => Promise.resolve());
+    expect(container.querySelector(`[data-place-id="${row.place_id}"]`)).toBeTruthy();
+
+    await act(async () => {
+      vi.advanceTimersByTime(30_000);
+      await Promise.resolve();
+    });
+
+    expect(container.querySelector(`[data-place-id="${row.place_id}"]`)).toBeNull();
+    expect(api.fetchAuthenticatedMapRestaurants).toHaveBeenCalledTimes(1);
   });
 
   it("masks the previous account while the next account's Map hydrates", async () => {

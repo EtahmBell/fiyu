@@ -365,6 +365,13 @@ def test_recent_discoveries_survive_a_new_round_and_expire_per_reveal(
         "tokyo-2": reveal_times["tokyo-2"],
     }
     assert {row["place_id"] for row in map_response.json()} == {"tokyo-0", "tokyo-2"}
+    map_by_id = {row["place_id"]: row for row in map_response.json()}
+    assert map_by_id["tokyo-0"]["discovery_expires_at"] == (
+        datetime.fromisoformat(reveal_times["tokyo-0"]) + timedelta(hours=72)
+    ).isoformat()
+    assert map_by_id["tokyo-2"]["discovery_expires_at"] == (
+        datetime.fromisoformat(reveal_times["tokyo-2"]) + timedelta(hours=72)
+    ).isoformat()
     assert other_account.json() == []
 
 

@@ -517,6 +517,44 @@ def test_complete_expired_round_remains_recent_for_72_hours_without_interactions
     assert served_place_ids(daily_picks_db, owner_id=owner) == set(assignment.place_ids)
 
 
+def test_late_reveal_is_not_evicted_by_round_assignment_time(daily_picks_db):
+    owner = str(uuid4())
+    assignment = assign_daily_picks(
+        daily_picks_db,
+        owner_id=owner,
+        city_id="tokyo",
+        discovery_latitude=LATITUDE,
+        discovery_longitude=LONGITUDE,
+        active_area="Shibuya",
+        now=NOW,
+        seed=1,
+    )
+    reveal_time = NOW + timedelta(hours=23)
+    for place_id in assignment.place_ids:
+        assert reveal_active_daily_picks(
+            daily_picks_db,
+            owner_id=owner,
+            round_id=assignment.round_id,
+            place_id=place_id,
+            now=reveal_time,
+        ) is not None
+
+    recent = get_recent_daily_pick_rounds(
+        daily_picks_db,
+        owner_id=owner,
+        city_id="tokyo",
+        now=NOW + timedelta(hours=80),
+    )
+
+    assert len(recent) == 1
+    assert revealed_at_by_place_id(
+        recent[0].selection_metadata,
+        recent[0].place_ids,
+        recent[0].revealed_at,
+        recent[0].assigned_at,
+    ) == {place_id: reveal_time.isoformat() for place_id in assignment.place_ids}
+
+
 def test_concurrent_assignment_creates_one_snapshot(daily_picks_db):
     owner = str(uuid4())
 

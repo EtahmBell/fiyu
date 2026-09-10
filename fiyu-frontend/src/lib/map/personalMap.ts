@@ -25,6 +25,20 @@ export function filterPersonalMapRestaurants(
   return restaurants.filter((restaurant) => belongsToPersonalMapFilter(restaurant, filter));
 }
 
+export function reconcileDiscoveryExpiry(
+  restaurants: readonly MapRestaurant[],
+  now: number,
+): MapRestaurant[] {
+  return restaurants.map((restaurant) => {
+    const expiresAt = restaurant.discovery_expires_at
+      ? Date.parse(restaurant.discovery_expires_at)
+      : Number.NaN;
+    return restaurant.is_discovered && Number.isFinite(expiresAt) && now >= expiresAt
+      ? { ...restaurant, is_discovered: false }
+      : restaurant;
+  });
+}
+
 export function personalMapMarkerState(
   restaurant: {
     is_discovered?: boolean;

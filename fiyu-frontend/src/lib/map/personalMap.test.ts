@@ -5,6 +5,7 @@ import {
   belongsToPersonalMapFilter,
   filterPersonalMapRestaurants,
   personalMapMarkerState,
+  reconcileDiscoveryExpiry,
 } from "@/lib/map/personalMap";
 
 function restaurant(
@@ -23,6 +24,30 @@ function restaurant(
 }
 
 describe("personal Map membership", () => {
+  it("expires discovery independently while retaining saved and visited relationships", () => {
+    const now = Date.UTC(2026, 8, 9, 12);
+    const expiredSaved = {
+      ...restaurant("saved-expired", { is_discovered: true, is_saved: true }),
+      discovery_expires_at: new Date(now).toISOString(),
+    };
+    const expiredVisited = {
+      ...restaurant("visited-expired", { is_discovered: true, is_visited: true }),
+      discovery_expires_at: new Date(now - 1).toISOString(),
+    };
+    const reconciled = reconcileDiscoveryExpiry([expiredSaved, expiredVisited], now);
+
+    expect(filterPersonalMapRestaurants(reconciled, "discovered")).toEqual([]);
+    expect(filterPersonalMapRestaurants(reconciled, "all").map((row) => row.place_id)).toEqual([
+      "visited-expired",
+    ]);
+    expect(filterPersonalMapRestaurants(reconciled, "saved").map((row) => row.place_id)).toEqual([
+      "saved-expired",
+    ]);
+    expect(filterPersonalMapRestaurants(reconciled, "visited").map((row) => row.place_id)).toEqual([
+      "visited-expired",
+    ]);
+  });
+
   it.each([
     ["discovered-only", restaurant("d", { is_discovered: true }), [true, false, false, true]],
     ["saved-only", restaurant("s", { is_saved: true }), [false, true, false, false]],

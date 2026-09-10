@@ -11,7 +11,12 @@ import { useAccountQuery } from "@/lib/accountQueryCache";
 import type { MapRestaurant } from "@/lib/api/schemas";
 import { mappableRestaurants } from "@/lib/geo/mappable";
 import { useIsDesktop } from "@/lib/hooks/useMediaQuery";
-import { filterPersonalMapRestaurants, type PersonalMapFilter } from "@/lib/map/personalMap";
+import { useExpiryBoundaries } from "@/lib/hooks/useExpiryBoundaries";
+import {
+  filterPersonalMapRestaurants,
+  reconcileDiscoveryExpiry,
+  type PersonalMapFilter,
+} from "@/lib/map/personalMap";
 import { useProfileIdentity } from "@/lib/profile/profileIdentity";
 
 const EMPTY_FILTER_COPY: Record<PersonalMapFilter, string> = {
@@ -37,6 +42,18 @@ export function DedicatedMap() {
   const refreshMap = map.refresh;
   const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
   const [filter, setFilter] = useState<PersonalMapFilter>("all");
+  const mapRows = useMemo(() => map.status === "ready" ? map.data : [], [map]);
+  const expiryNow = useExpiryBoundaries(
+    mapRows.flatMap((restaurant) => {
+      const expiration = Date.parse(restaurant.discovery_expires_at ?? "");
+      return Number.isFinite(expiration) ? [expiration] : [];
+    }),
+    () => { void refreshMap(true).catch(() => undefined); },
+  );
+  const currentMapRows = useMemo(
+    () => reconcileDiscoveryExpiry(mapRows, expiryNow),
+    [expiryNow, mapRows],
+  );
 
   useEffect(() => {
     if (isDesktop) router.replace("/picks");
@@ -60,8 +77,8 @@ export function DedicatedMap() {
   }, [selectedPlaceId]);
 
   const filteredRestaurants = useMemo(
-    () => map.status === "ready" ? filterPersonalMapRestaurants(map.data, filter) : [],
-    [filter, map],
+    () => filterPersonalMapRestaurants(currentMapRows, filter),
+    [currentMapRows, filter],
   );
   const mappable = useMemo(
     () => ownerKey ? mappableRestaurants(filteredRestaurants) : [],
@@ -72,7 +89,7 @@ export function DedicatedMap() {
     setFilter(nextFilter);
     if (map.status !== "ready") return;
     const nextPlaceIds = new Set(
-      filterPersonalMapRestaurants(map.data, nextFilter).map((item) => item.place_id),
+      filterPersonalMapRestaurants(currentMapRows, nextFilter).map((item) => item.place_id),
     );
     setSelectedPlaceId((current) => current && !nextPlaceIds.has(current) ? null : current);
   };

@@ -256,6 +256,7 @@ class PublicRestaurantSummary(BaseModel):
 
 class MapRestaurantSummary(PublicRestaurantSummary):
     is_discovered: bool = False
+    discovery_expires_at: str | None = None
     is_saved: bool = False
     is_visited: bool = False
     user_rating: int | None = Field(default=None, ge=1, le=5)
@@ -1904,13 +1905,25 @@ def _map_eligible_public_restaurants_for_place_ids(
 
 def _authenticated_map_membership(
     user_id: str, *, city_id: str = "tokyo"
-) -> tuple[list[str], set[str], set[str], set[str], dict[str, int]]:
+) -> tuple[list[str], set[str], dict[str, str], set[str], set[str], dict[str, int]]:
     """Derive one personal Map model from discoveries, saves, and visits."""
     now = datetime.now(UTC)
     active_row = shared_user_data.get_active_daily_picks(user_id=user_id, city_id=city_id)
-    active_place_ids = (
-        list(_shared_assignment(active_row).revealed_place_ids) if active_row else []
-    )
+    active_assignment = _shared_assignment(active_row) if active_row else None
+    active_place_ids = list(active_assignment.revealed_place_ids) if active_assignment else []
+    discovery_expirations: dict[str, str] = {}
+    if active_assignment:
+        for place_id, timestamp in revealed_at_by_place_id(
+            active_assignment.selection_metadata,
+            active_assignment.place_ids,
+            active_assignment.revealed_at,
+            active_assignment.assigned_at,
+        ).items():
+            parsed = _parse_pick_datetime(timestamp)
+            if parsed is not None and parsed + RECENT_DISCOVERY_DURATION > now:
+                discovery_expirations[place_id] = (
+                    parsed + RECENT_DISCOVERY_DURATION
+                ).isoformat()
     recent_rounds = shared_user_data.get_recent_daily_pick_rounds(
         user_id=user_id,
         city_id=city_id,
@@ -1919,13 +1932,17 @@ def _authenticated_map_membership(
         ).isoformat(),
         expired_at_or_before=now.isoformat(),
     )
-    recent_place_ids = [
-        place_id
-        for round_row in recent_rounds
-        for place_id in _recent_daily_pick_response(
-            _shared_assignment(round_row), city_id, now
-        ).place_ids
-    ]
+    recent_place_ids: list[str] = []
+    for round_row in recent_rounds:
+        response = _recent_daily_pick_response(_shared_assignment(round_row), city_id, now)
+        recent_place_ids.extend(response.place_ids)
+        for place_id, timestamp in response.revealed_at_by_place_id.items():
+            parsed = _parse_pick_datetime(timestamp)
+            if parsed is None:
+                continue
+            expiration = (parsed + RECENT_DISCOVERY_DURATION).isoformat()
+            if expiration > discovery_expirations.get(place_id, ""):
+                discovery_expirations[place_id] = expiration
     latest_ratings = shared_user_data.latest_visit_ratings(user_id=user_id)
     saved_place_ids = set(
         shared_user_data.saved_place_ids(user_id=user_id, city_id=city_id)
@@ -1947,6 +1964,7 @@ def _authenticated_map_membership(
     return (
         visible_place_ids,
         discovered_place_id_set,
+        discovery_expirations,
         saved_place_ids,
         visited_place_id_set,
         latest_ratings,
@@ -1966,6 +1984,7 @@ def _authenticated_map_restaurants(
     (
         visible_place_ids,
         discovered_place_ids,
+        discovery_expirations,
         saved_place_ids,
         visited_place_ids,
         latest_ratings,
@@ -1974,6 +1993,9 @@ def _authenticated_map_restaurants(
         {
             **restaurant,
             "is_discovered": str(restaurant["place_id"]) in discovered_place_ids,
+            "discovery_expires_at": discovery_expirations.get(
+                str(restaurant["place_id"])
+            ),
             "is_saved": str(restaurant["place_id"]) in saved_place_ids,
             "is_visited": str(restaurant["place_id"]) in visited_place_ids,
             "user_rating": latest_ratings.get(str(restaurant["place_id"])),
