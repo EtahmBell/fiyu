@@ -55,6 +55,7 @@ describe("personal Map membership", () => {
     ["saved + discovered", restaurant("sd", { is_saved: true, is_discovered: true }), [true, true, false, true]],
     ["saved + visited", restaurant("sv", { is_saved: true, is_visited: true }), [true, true, true, false]],
     ["discovered + visited", restaurant("dv", { is_discovered: true, is_visited: true }), [true, false, true, true]],
+    ["saved + discovered + visited", restaurant("sdv", { is_discovered: true, is_saved: true, is_visited: true }), [true, true, true, true]],
     ["unrevealed", restaurant("u"), [false, false, false, false]],
     ["historical seen-only", restaurant("h"), [false, false, false, false]],
     ["expired + saved", restaurant("es", { is_saved: true }), [false, true, false, false]],
@@ -91,5 +92,21 @@ describe("personal Map membership", () => {
     ]);
     expect(personalMapMarkerState(rows[2])).toBe("visited");
     expect(personalMapMarkerState(rows[1])).toBe("saved");
+  });
+
+  it.each([
+    ["saved only", { is_saved: true }, "saved"],
+    ["discovered only", { is_discovered: true }, "discovered"],
+    ["saved and discovered", { is_saved: true, is_discovered: true }, "discovered"],
+    ["visited only", { is_visited: true }, "visited"],
+    ["saved and visited", { is_saved: true, is_visited: true }, "visited"],
+    ["discovered and visited", { is_discovered: true, is_visited: true }, "visited"],
+    [
+      "saved, discovered, and visited",
+      { is_saved: true, is_discovered: true, is_visited: true },
+      "visited",
+    ],
+  ] as const)("uses one dominant style for %s", (_label, state, expected) => {
+    expect(personalMapMarkerState(restaurant("state", state))).toBe(expected);
   });
 });

@@ -418,6 +418,11 @@ describe("dedicated user map", () => {
     const savedOnly = container.querySelector(`[data-place-id="${rows[1].place_id}"]`);
     expect(savedOnly?.getAttribute("data-marker-state")).toBe("saved");
     expect(savedOnly?.querySelectorAll("circle")[2]?.getAttribute("fill")).toBe("var(--map-bg)");
+    const savedAndVisited = container.querySelector(`[data-place-id="${rows[3].place_id}"]`);
+    expect(savedAndVisited?.getAttribute("data-marker-state")).toBe("visited");
+    expect(savedAndVisited?.querySelectorAll("circle")[2]?.getAttribute("fill")).toBe(
+      "var(--map-marker-visited)",
+    );
 
     fireEvent.click(container.querySelector(`[data-place-id="${rows[3].place_id}"]`) as Element);
     fireEvent.click(screen.getByRole("tab", { name: "Visited" }));

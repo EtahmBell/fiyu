@@ -4,8 +4,12 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-li
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { LogWorkspace } from "@/components/log/LogWorkspace";
-import { clearAccountQueries } from "@/lib/accountQueryCache";
-import type { RestaurantVisit } from "@/lib/api/schemas";
+import {
+  accountQueryKey,
+  clearAccountQueries,
+  readAccountQuery,
+} from "@/lib/accountQueryCache";
+import type { MapRestaurant, RestaurantVisit } from "@/lib/api/schemas";
 import {
   createRestaurantVisit,
   deleteRestaurantVisit,
@@ -346,6 +350,42 @@ describe("LogWorkspace", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save visit" }));
 
     await waitFor(() => expect(fetchUserFiyuSummary).toHaveBeenCalledTimes(1));
+  });
+
+  it("keeps a saved restaurant saved when logging seeds an empty Map cache", async () => {
+    desktopViewport = false;
+    const accountId = "account-a";
+    defaultList.savedPlaceIds = ["tokyo-a"];
+    publishProfileIdentity({
+      user_id: accountId,
+      username: "tester",
+      display_name: "Tester",
+      bio: null,
+      avatar_url: null,
+      created_at: "2026-08-01T00:00:00Z",
+      updated_at: "2026-08-01T00:00:00Z",
+    });
+    vi.mocked(fetchRestaurantLog).mockResolvedValue([]);
+    vi.mocked(createRestaurantVisit).mockResolvedValue(visit());
+    vi.mocked(fetchUserFiyuSummary).mockResolvedValue({} as never);
+    render(<LogWorkspace />);
+
+    const restaurant = await screen.findByRole("combobox", { name: "Restaurant" });
+    fireEvent.focus(restaurant);
+    expect(await screen.findByRole("option", { name: /Tokyo Sushi/ })).toBeTruthy();
+    fireEvent.change(restaurant, { target: { value: "Tokyo Sushi" } });
+    fireEvent.keyDown(restaurant, { key: "Enter" });
+    fireEvent.click(screen.getByRole("radio", { name: "4 out of 5 stars" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save visit" }));
+
+    await waitFor(() => {
+      const mapRow = readAccountQuery<MapRestaurant[]>(
+        accountQueryKey("map-restaurants", accountId),
+      )?.[0];
+      expect(mapRow?.is_saved).toBe(true);
+      expect(mapRow?.is_visited).toBe(true);
+      expect(mapRow?.user_rating).toBe(4);
+    });
   });
 
   it("renders mobile history as a normal page view with route-based back navigation", async () => {

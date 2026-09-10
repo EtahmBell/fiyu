@@ -371,7 +371,9 @@ export function LogWorkspace({
               ? [...current, {
                   ...selectedRestaurant,
                   is_discovered: false,
-                  is_saved: false,
+                  // Log can be opened before Map has populated its cache, so
+                  // seed the independent Save dimension from the list store.
+                  is_saved: savedPlaceIds.includes(placeId),
                   is_visited: true,
                   user_rating: rating,
                 }]

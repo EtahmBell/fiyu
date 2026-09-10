@@ -224,9 +224,9 @@ describe("default list store", () => {
     const mapRow = {
       place_id: "one",
       map_display_eligible: true,
-      is_discovered: true,
+      is_discovered: false,
       is_saved: false,
-      is_visited: false,
+      is_visited: true,
     } as MapRestaurant;
     const fetchMock = vi.spyOn(globalThis, "fetch");
     fetchMock
@@ -245,9 +245,11 @@ describe("default list store", () => {
 
     await store.toggle("one");
     expect(readAccountQuery<MapRestaurant[]>(key)?.[0].is_saved).toBe(true);
+    expect(readAccountQuery<MapRestaurant[]>(key)?.[0].is_visited).toBe(true);
 
     await store.toggle("one");
     expect(readAccountQuery<MapRestaurant[]>(key)?.[0].is_saved).toBe(false);
+    expect(readAccountQuery<MapRestaurant[]>(key)?.[0].is_visited).toBe(true);
   });
 
   it("does not import or rewrite anonymous legacy saves for an authenticated account", async () => {
