@@ -473,6 +473,8 @@ export const togetherSessionSchema = z.object({
   invite_url: nullableString,
   revealed_at: nullableString.default(null),
   reveal_pending: z.boolean().default(false),
+  generated_at: nullableString.optional(),
+  pick_count: z.number().int().min(0).max(3).default(0),
 });
 
 export const togetherStateSchema = z.object({
@@ -481,8 +483,11 @@ export const togetherStateSchema = z.object({
   premium: z.boolean(),
   trial_consumed: z.boolean(),
   can_initiate: z.boolean(),
-  block_reason: z.enum(["ratings_required", "premium_required", "cycle_quota_used"]).nullable(),
+  block_reason: z.enum(["ratings_required", "premium_required", "cycle_limit_reached"]).nullable(),
   session: togetherSessionSchema.nullable(),
+  current_sessions: z.array(togetherSessionSchema).max(3).default([]),
+  generated_session_count: z.number().int().nonnegative().default(0),
+  cycle_limit: z.number().int().positive().default(3),
 });
 
 export const togetherInvitePreviewSchema = z.object({

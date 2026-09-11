@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import Link from "next/link";
 
 import { ConcealedRestaurantCard } from "@/components/daily-picks/ConcealedRestaurantCard";
-import { CompactRestaurantCard } from "@/components/daily-picks/CompactRestaurantCard";
 import { DailyPicksCountdown } from "@/components/daily-picks/DailyPicksCountdown";
 import { CityHeaderMark } from "@/components/city-signature/CitySignature";
 import {
@@ -961,30 +961,23 @@ export function DailyPicksPanel({
         )}
       </section>
 
-      {phase === "idle" && together.status === "ready" && together.data.session?.status === "generated" && !together.data.session.reveal_pending ? (
-        <section id="together-picks" aria-labelledby="together-picks-heading" className="my-8 min-w-0 w-full scroll-mt-24">
-          <div className="border-b border-gold-line pb-2.5">
-            <p className="text-[0.625rem] font-semibold tracking-[0.16em] text-gold-700 uppercase">Fiyu Together</p>
-            <h2 id="together-picks-heading" className="mt-1 font-display text-2xl text-ink">Together with {together.data.session.partner?.display_name ?? "your partner"}</h2>
-            <p className="mt-1 text-xs text-ink-muted">
-              {together.data.session.restaurants.length} {together.data.session.restaurants.length === 1 ? "Pick" : "Picks"} chosen for both of you
-            </p>
-          </div>
-          <div className="mt-4 space-y-3 sm:space-y-4" aria-label="Together restaurants">
-            {together.data.session.restaurants.map((restaurant) => (
-              <DailyCardFrame key={restaurant.place_id} placeId={restaurant.place_id} selected={selectedPlaceId === restaurant.place_id} tone="history" registerRef={registerCardRef}>
-                <CompactRestaurantCard
-                  restaurant={restaurant}
-                  tone="history"
-                  saved={savedRestaurantIds.includes(restaurant.place_id)}
-                  savePending={defaultList.pendingPlaceIds.includes(restaurant.place_id)}
-                  onToggleSaved={() => toggleSaved(restaurant.place_id)}
-                  onOpen={onOpenRestaurant}
-                  onViewDetails={onViewRestaurant}
-                />
-              </DailyCardFrame>
-            ))}
-          </div>
+      {phase === "idle" && together.status === "ready" ? (
+        <section aria-label="Fiyu Together" className="my-6 border-y border-gold-line py-4">
+          <Link href="/together" className="group flex min-h-11 items-center justify-between gap-4">
+            <span>
+              <span className="block text-[0.625rem] font-semibold tracking-[0.16em] text-gold-700 uppercase">Fiyu Together</span>
+              <span className="mt-1 block font-display text-lg text-ink">
+                {together.data.current_sessions.length === 1
+                  ? `${together.data.current_sessions[0].partner?.display_name ?? "Your partner"} · ${together.data.current_sessions[0].pick_count} Picks together`
+                  : together.data.current_sessions.length > 1
+                    ? `${together.data.current_sessions.length} sets today · ${together.data.current_sessions.map((session) => session.partner?.display_name).filter(Boolean).slice(0, 3).join(", ")}`
+                    : together.data.session?.status === "pending"
+                      ? "Invitation waiting to be accepted"
+                      : "Find three Picks with someone"}
+              </span>
+            </span>
+            <span className="shrink-0 text-sm font-semibold text-gold-700 group-hover:underline">View →</span>
+          </Link>
         </section>
       ) : null}
 

@@ -23,7 +23,7 @@ const pending = {
   expires_at: "2026-09-11T00:00:00Z", cycle_expires_at: "2026-09-11T00:00:00Z",
   partner: { display_name: "Lianne", username: "lianne", avatar_url: null },
   restaurants: [{ place_id: "one" }, { place_id: "two" }, { place_id: "three" }],
-  consumed_trial: true, invite_url: null, revealed_at: null, reveal_pending: true,
+  consumed_trial: true, invite_url: null, revealed_at: null, reveal_pending: true, pick_count: 3,
 };
 
 describe("TogetherRevealPage", () => {
@@ -34,13 +34,13 @@ describe("TogetherRevealPage", () => {
     render(<TogetherRevealPage sessionId="session-1" />);
     fireEvent.click(await screen.findByRole("button", { name: "Reveal our Picks" }));
     await waitFor(() => expect(mocks.reveal).toHaveBeenCalledWith("session-1"));
-    expect(mocks.replace).toHaveBeenCalledWith("/picks#together-picks");
+    expect(mocks.replace).toHaveBeenCalledWith("/together?session=session-1");
   });
 
   it("does not replay an already revealed session", async () => {
     mocks.fetch.mockResolvedValue({ ...pending, reveal_pending: false, revealed_at: "2026-09-10T00:00:00Z" });
     render(<TogetherRevealPage sessionId="session-1" />);
-    await waitFor(() => expect(mocks.replace).toHaveBeenCalledWith("/picks#together-picks"));
+    await waitFor(() => expect(mocks.replace).toHaveBeenCalledWith("/together?session=session-1"));
     expect(screen.queryByRole("button", { name: "Reveal our Picks" })).toBeNull();
   });
 });

@@ -384,9 +384,23 @@ describe("/picks revealed-card save bookmark", () => {
     );
   });
 
-  it("renders generated Together Picks separately without replacing solo Picks", async () => {
+  it("renders a compact Together entry without replacing solo Picks", async () => {
     const solo = [restaurant("one"), restaurant("two"), restaurant("three")];
     const shared = [restaurant("four"), restaurant("five"), restaurant("six")];
+    const session = {
+      session_id: "together-round",
+      status: "generated",
+      role: "invitee",
+      expires_at: new Date(Date.now() + DAILY_PICKS_DURATION_MS).toISOString(),
+      cycle_expires_at: new Date(Date.now() + DAILY_PICKS_DURATION_MS).toISOString(),
+      partner: { display_name: "Lianne", username: "lianne", avatar_url: null },
+      restaurants: shared,
+      consumed_trial: false,
+      invite_url: null,
+      revealed_at: new Date().toISOString(),
+      reveal_pending: false,
+      pick_count: 3,
+    };
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
       const url = String(input);
       if (url.includes("/daily-picks/active")) {
@@ -410,18 +424,11 @@ describe("/picks revealed-card save bookmark", () => {
           premium: false,
           trial_consumed: true,
           can_initiate: false,
-          block_reason: "cycle_quota_used",
-          session: {
-            session_id: "together-round",
-            status: "generated",
-            role: "invitee",
-            expires_at: new Date(Date.now() + DAILY_PICKS_DURATION_MS).toISOString(),
-            cycle_expires_at: new Date(Date.now() + DAILY_PICKS_DURATION_MS).toISOString(),
-            partner: { display_name: "Lianne", username: "lianne", avatar_url: null },
-            restaurants: shared,
-            consumed_trial: false,
-            invite_url: null,
-          },
+          block_reason: "cycle_limit_reached",
+          session,
+          current_sessions: [session],
+          generated_session_count: 1,
+          cycle_limit: 3,
         });
       }
       throw new Error(`Unexpected request: ${url}`);
@@ -430,9 +437,9 @@ describe("/picks revealed-card save bookmark", () => {
     const DailyPicksPanel = await loadDailyPicksPanel();
     render(<DailyPicksPanel accountId="account-a" restaurants={[]} />);
 
-    expect(await screen.findByRole("heading", { name: "Together with Lianne" })).toBeTruthy();
+    expect(await screen.findByText("Lianne · 3 Picks together")).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Today’s Fiyu Picks" })).toBeTruthy();
-    expect(screen.getByLabelText("Together restaurants").querySelectorAll('[data-testid="compact-restaurant-card"]'))
-      .toHaveLength(3);
+    expect(screen.getByRole("link", { name: /Lianne · 3 Picks together/ }).getAttribute("href")).toBe("/together");
+    expect(screen.queryByLabelText("Together restaurants")).toBeNull();
   });
 });

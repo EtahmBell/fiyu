@@ -24,7 +24,7 @@ export function TogetherRevealPage({ sessionId }: { sessionId: string }) {
       .then((value) => {
         if (!active) return;
         setSession(value);
-        if (!value.reveal_pending) router.replace("/picks#together-picks");
+        if (!value.reveal_pending) router.replace(`/together?session=${encodeURIComponent(sessionId)}`);
       })
       .catch((cause) => {
         if (active) setError(cause instanceof Error ? cause.message : "Together is unavailable.");
@@ -38,7 +38,7 @@ export function TogetherRevealPage({ sessionId }: { sessionId: string }) {
     try {
       await revealTogetherSession(sessionId);
       if (accountId) invalidateTogetherSurfaces(accountId);
-      router.replace("/picks#together-picks");
+      router.replace(`/together?session=${encodeURIComponent(sessionId)}`);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Together could not be revealed.");
       setBusy(false);
@@ -55,7 +55,7 @@ export function TogetherRevealPage({ sessionId }: { sessionId: string }) {
               {participantName} × {session.partner?.display_name ?? "your partner"}
             </h1>
             <p className="mt-5 font-display text-2xl text-ink">Your Fiyu Together is ready.</p>
-            <p className="mt-2 text-sm text-ink-muted">{session.restaurants.length} Picks chosen for both of you.</p>
+            <p className="mt-2 text-sm text-ink-muted">{session.pick_count} Picks chosen for both of you.</p>
             <Button className="mt-8" disabled={busy} onClick={() => void reveal()}>Reveal our Picks</Button>
           </>
         ) : !error ? <p className="mt-6 text-sm text-ink-muted">Opening your Together…</p> : null}

@@ -21,7 +21,9 @@ def together_api(tmp_path, monkeypatch):
         connection.commit()
     ensure_public_schema(db_path)
     with connect(db_path) as connection:
-        for index, category in enumerate(("sushi", "ramen", "tempura", "izakaya")):
+        categories = ("sushi", "ramen", "tempura", "izakaya")
+        for index in range(16):
+            category = categories[index % len(categories)]
             connection.execute(
                 """
                 INSERT INTO public_restaurants(
@@ -34,11 +36,13 @@ def together_api(tmp_path, monkeypatch):
             )
         connection.commit()
 
-    users = {"initiator": str(uuid4()), "invitee": str(uuid4()), "other": str(uuid4())}
+    users = {name: str(uuid4()) for name in ("initiator", "invitee", "other", "partner3", "partner4")}
     profiles = {
         users["initiator"]: {"username": "ethan", "display_name": "Ethan", "avatar_url": None},
         users["invitee"]: {"username": "lianne", "display_name": "Lianne", "avatar_url": None},
         users["other"]: {"username": "other", "display_name": None, "avatar_url": None},
+        users["partner3"]: {"username": "three", "display_name": "Partner Three", "avatar_url": None},
+        users["partner4"]: {"username": "four", "display_name": "Partner Four", "avatar_url": None},
     }
     visits = defaultdict(list)
     visits[users["initiator"]] = [
@@ -88,12 +92,25 @@ def together_api(tmp_path, monkeypatch):
             raise api.shared_user_data.SharedUserDataError("together_invite_not_pending")
         if row["initiator_user_id"] == values["invitee_user_id"]:
             raise api.shared_user_data.SharedUserDataError("together_self_invite")
+        pair = {row["initiator_user_id"], values["invitee_user_id"]}
+        generated_at = datetime.fromisoformat(values["generated_at"])
+        current_generated = [
+            existing for existing in sessions.values()
+            if existing["status"] == "generated"
+            and datetime.fromisoformat(existing["cycle_expires_at"]) > generated_at
+        ]
         if any(
-            existing["status"] == "generated"
-            and ({existing["initiator_user_id"], existing.get("invitee_user_id")} & {row["initiator_user_id"], values["invitee_user_id"]})
-            for existing in sessions.values()
+            {existing["initiator_user_id"], existing.get("invitee_user_id")} == pair
+            for existing in current_generated
         ):
-            raise api.shared_user_data.SharedUserDataError("together_cycle_quota_used")
+            raise api.shared_user_data.SharedUserDataError("together_pair_already_used")
+        for participant in pair:
+            count = sum(
+                participant in {existing["initiator_user_id"], existing.get("invitee_user_id")}
+                for existing in current_generated
+            )
+            if count >= 3:
+                raise api.shared_user_data.SharedUserDataError("together_cycle_limit_reached")
         use_trial = not values["initiator_is_premium"]
         if use_trial and row["initiator_user_id"] in consumed:
             raise api.shared_user_data.SharedUserDataError("together_trial_consumed")
@@ -178,7 +195,7 @@ def test_invitee_without_ratings_accepts_and_private_taste_is_not_exposed(togeth
     assert "private" not in preview.text and users["initiator"] not in preview.text
     accepted = client.post(f"/together/invites/{token}/accept", headers=auth("invitee"))
     assert accepted.status_code == 200
-    assert len(accepted.json()["restaurants"]) == 3
+    assert accepted.json()["restaurants"] == []
     assert accepted.json()["partner"]["display_name"] == "Ethan"
     assert users["initiator"] in consumed
 
@@ -237,7 +254,8 @@ def test_second_accept_cannot_replace_first_invitee(together_api):
     client, users, sessions, _, _ = together_api
     created = client.post("/together/invites", headers=auth("initiator")).json()
     token = created["invite_url"].rsplit("/", 1)[-1]
-    assert client.post(f"/together/invites/{token}/accept", headers=auth("invitee")).status_code == 200
+    first = client.post(f"/together/invites/{token}/accept", headers=auth("invitee"))
+    assert first.status_code == 200
     response = client.post(f"/together/invites/{token}/accept", headers=auth("other"))
     assert response.status_code == 409
     assert sessions[created["session"]["session_id"]]["invitee_user_id"] == users["invitee"]
@@ -319,7 +337,38 @@ def test_premium_generation_does_not_consume_lifetime_trial(together_api, monkey
     assert users["initiator"] not in consumed
 
 
-def test_generated_participant_cannot_start_second_session_in_cycle(together_api):
+def test_generated_participant_can_start_with_a_different_partner_in_cycle(together_api, monkeypatch):
+    client, users, _, _, _ = together_api
+    monkeypatch.setattr(api, "has_premium_access", lambda user_id: user_id == users["initiator"])
+    created = client.post("/together/invites", headers=auth("initiator")).json()
+    token = created["invite_url"].rsplit("/", 1)[-1]
+    first = client.post(f"/together/invites/{token}/accept", headers=auth("invitee"))
+    assert first.status_code == 200
+    first_revealed = client.post(
+        f"/together/sessions/{first.json()['session_id']}/reveal",
+        headers=auth("initiator"),
+    ).json()
+    second = client.post("/together/invites", headers=auth("initiator"))
+    assert second.status_code == 200
+    second_token = second.json()["invite_url"].rsplit("/", 1)[-1]
+    second_result = client.post(f"/together/invites/{second_token}/accept", headers=auth("other"))
+    assert second_result.status_code == 200
+    second_revealed = client.post(
+        f"/together/sessions/{second_result.json()['session_id']}/reveal",
+        headers=auth("initiator"),
+    ).json()
+    assert {
+        restaurant["place_id"] for restaurant in first_revealed["restaurants"]
+    }.isdisjoint(
+        restaurant["place_id"] for restaurant in second_revealed["restaurants"]
+    )
+    state = client.get("/together/me", headers=auth("initiator")).json()
+    assert state["generated_session_count"] == 2
+    assert len(state["current_sessions"]) == 2
+    assert state["can_initiate"] is True
+
+
+def test_same_pair_is_blocked_in_reverse_direction(together_api):
     client, users, _, _, visits = together_api
     created = client.post("/together/invites", headers=auth("initiator")).json()
     token = created["invite_url"].rsplit("/", 1)[-1]
@@ -328,11 +377,79 @@ def test_generated_participant_cannot_start_second_session_in_cycle(together_api
         {"id": str(uuid4()), "place_id": f"invitee-rated-{index}", "rating": 4}
         for index in range(5)
     ]
-    response = client.post("/together/invites", headers=auth("invitee"))
-    assert response.status_code == 409
+    reverse = client.post("/together/invites", headers=auth("invitee")).json()
+    reverse_token = reverse["invite_url"].rsplit("/", 1)[-1]
+    rejected = client.post(f"/together/invites/{reverse_token}/accept", headers=auth("initiator"))
+    assert rejected.status_code == 409
+    assert rejected.json()["detail"]["code"] == "together_pair_already_used"
+
+
+def test_participant_cycle_cap_is_three_generated_sessions(together_api, monkeypatch):
+    client, users, _, _, _ = together_api
+    monkeypatch.setattr(api, "has_premium_access", lambda user_id: user_id == users["initiator"])
+    for partner in ("invitee", "other", "partner3"):
+        created = client.post("/together/invites", headers=auth("initiator")).json()
+        token = created["invite_url"].rsplit("/", 1)[-1]
+        assert client.post(f"/together/invites/{token}/accept", headers=auth(partner)).status_code == 200
+    state = client.get("/together/me", headers=auth("initiator")).json()
+    assert state["generated_session_count"] == 3
+    assert state["block_reason"] == "cycle_limit_reached"
+    assert state["can_initiate"] is False
+    assert client.post("/together/invites", headers=auth("initiator")).status_code == 409
+
+
+def test_same_pair_is_eligible_after_the_existing_cycle_expires(together_api, monkeypatch):
+    client, users, sessions, _, _ = together_api
+    monkeypatch.setattr(api, "has_premium_access", lambda user_id: user_id == users["initiator"])
+    first = client.post("/together/invites", headers=auth("initiator")).json()
+    token = first["invite_url"].rsplit("/", 1)[-1]
+    assert client.post(f"/together/invites/{token}/accept", headers=auth("invitee")).status_code == 200
+    sessions[first["session"]["session_id"]]["cycle_expires_at"] = "2000-01-01T00:00:00+00:00"
+    second = client.post("/together/invites", headers=auth("initiator")).json()
+    second_token = second["invite_url"].rsplit("/", 1)[-1]
+    assert client.post(f"/together/invites/{second_token}/accept", headers=auth("invitee")).status_code == 200
+
+
+def test_failed_generation_does_not_consume_pair_slot(together_api, monkeypatch):
+    client, _, sessions, consumed, _ = together_api
+    original_selector = api.select_together_pick_plan
+    created = client.post("/together/invites", headers=auth("initiator")).json()
+    token = created["invite_url"].rsplit("/", 1)[-1]
+    monkeypatch.setattr(api, "select_together_pick_plan", lambda *args, **kwargs: ((), {}))
+    failed = client.post(f"/together/invites/{token}/accept", headers=auth("invitee"))
+    assert failed.status_code == 409
+    assert sessions[created["session"]["session_id"]]["status"] == "pending"
+    assert consumed == set()
+    monkeypatch.setattr(api, "select_together_pick_plan", original_selector)
+    assert client.post(f"/together/invites/{token}/accept", headers=auth("invitee")).status_code == 200
+
+
+def test_cancelled_pending_invite_does_not_consume_pair_slot(together_api):
+    client, _, _, _, _ = together_api
+    first = client.post("/together/invites", headers=auth("initiator")).json()
+    assert client.delete(
+        f"/together/sessions/{first['session']['session_id']}", headers=auth("initiator")
+    ).status_code == 204
+    second = client.post("/together/invites", headers=auth("initiator")).json()
+    token = second["invite_url"].rsplit("/", 1)[-1]
+    assert client.post(f"/together/invites/{token}/accept", headers=auth("invitee")).status_code == 200
+
+
+def test_invitee_can_accept_multiple_partners_without_consuming_trial(together_api, monkeypatch):
+    client, users, _, consumed, visits = together_api
+    for initiator in ("initiator", "other"):
+        visits[users[initiator]] = [
+            {"id": str(uuid4()), "place_id": f"{initiator}-rated-{index}", "rating": 5}
+            for index in range(5)
+        ]
+    monkeypatch.setattr(api, "has_premium_access", lambda user_id: user_id == users["other"])
+    for initiator in ("initiator", "other"):
+        created = client.post("/together/invites", headers=auth(initiator)).json()
+        token = created["invite_url"].rsplit("/", 1)[-1]
+        assert client.post(f"/together/invites/{token}/accept", headers=auth("invitee")).status_code == 200
+    assert users["invitee"] not in consumed
     state = client.get("/together/me", headers=auth("invitee")).json()
-    assert state["block_reason"] == "cycle_quota_used"
-    assert state["session"]["status"] == "generated"
+    assert state["generated_session_count"] == 2
 
 
 def test_generated_picks_enter_each_participants_discovery_only_when_revealed(together_api):
@@ -340,8 +457,8 @@ def test_generated_picks_enter_each_participants_discovery_only_when_revealed(to
     created = client.post("/together/invites", headers=auth("initiator")).json()
     token = created["invite_url"].rsplit("/", 1)[-1]
     accepted = client.post(f"/together/invites/{token}/accept", headers=auth("invitee"))
-    place_ids = [restaurant["place_id"] for restaurant in accepted.json()["restaurants"]]
     session_id = accepted.json()["session_id"]
+    assert accepted.json()["restaurants"] == []
     assert accepted.json()["reveal_pending"] is True
     assert client.get("/map/restaurants", headers=auth("initiator")).json() == []
     assert client.get("/map/restaurants", headers=auth("invitee")).json() == []
@@ -349,6 +466,8 @@ def test_generated_picks_enter_each_participants_discovery_only_when_revealed(to
     revealed = client.post(f"/together/sessions/{session_id}/reveal", headers=auth("initiator"))
     assert revealed.status_code == 200
     assert revealed.json()["reveal_pending"] is False
+    assert len(revealed.json()["restaurants"]) == 3
+    place_ids = [restaurant["place_id"] for restaurant in revealed.json()["restaurants"]]
     assert client.get("/map/restaurants", headers=auth("invitee")).json() == []
     mapped = client.get("/map/restaurants", headers=auth("initiator"))
     assert {restaurant["place_id"] for restaurant in mapped.json()} == set(place_ids)
@@ -411,3 +530,15 @@ def test_together_migration_keeps_generation_atomic_and_account_scoped():
     assert "set initiator_revealed_at = coalesce(initiator_revealed_at, generated_at)" in reveal_migration
     assert "together_session_forbidden" in reveal_migration
     assert "to service_role" in reveal_migration
+    multi_partner_migration = (
+        Path(__file__).parents[1]
+        / "supabase"
+        / "migrations"
+        / "202609110001_together_multi_partner.sql"
+    ).read_text(encoding="utf-8").lower()
+    assert "fiyu_together_one_pair_per_cycle" in multi_partner_migration
+    assert "together:pair:" in multi_partner_migration
+    assert "together_pair_already_used" in multi_partner_migration
+    assert "together_cycle_limit_reached" in multi_partner_migration
+    assert ">= 3" in multi_partner_migration
+    assert "fiyu_together_pick_items ti" in multi_partner_migration

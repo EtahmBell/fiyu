@@ -73,6 +73,9 @@ export function TogetherPanel({ accountId, ratedVisitCount = 0 }: { accountId: s
     can_initiate: ratedVisitCount >= 5,
     block_reason: ratedVisitCount < 5 ? "ratings_required" as const : null,
     session: null,
+    current_sessions: [],
+    generated_session_count: 0,
+    cycle_limit: 3,
   };
   return (
     <section className="border-y border-gold-line bg-gold-soft/40" aria-labelledby="together-title">
@@ -82,16 +85,31 @@ export function TogetherPanel({ accountId, ratedVisitCount = 0 }: { accountId: s
         <p className="mt-2 max-w-[46ch] text-sm leading-6 text-ink-body">Three extra Picks, chosen for you and someone else.</p>
         {query.status === "loading" ? <p className="mt-6 text-sm text-ink-muted">Checking availability…</p> : null}
         {query.status === "error" && ratedVisitCount >= 5 ? <p role="alert" className="mt-6 text-sm text-ink-muted">Together is unavailable right now.</p> : null}
-        {state?.session?.status === "generated" ? (
-          <div className="mt-6"><p className="font-display text-xl text-ink">{state.session.reveal_pending ? "Your Together is ready" : `Together with ${state.session.partner?.display_name ?? "your partner"}`}</p><Link href={state.session.reveal_pending ? `/together/session/${encodeURIComponent(state.session.session_id)}` : "/picks#together-picks"} className="mt-3 inline-flex min-h-11 items-center text-sm font-semibold text-gold-700">{state.session.reveal_pending ? "Reveal our Picks →" : "View Together Picks →"}</Link></div>
-        ) : state?.session?.status === "pending" ? (
+        {state?.session?.status === "pending" ? (
           <div className="mt-6"><p className="font-display text-xl text-ink">Waiting for someone to join</p><div className="mt-4 flex flex-wrap gap-3"><Button variant="secondary" size="sm" disabled={busy} onClick={() => void reshare()}>Share invite</Button><button type="button" disabled={busy} onClick={() => void cancel()} className="min-h-11 px-2 text-sm text-ink-muted underline underline-offset-4">Cancel</button></div></div>
+        ) : state.current_sessions.length > 0 ? (
+          <div className="mt-6">
+            <p className="font-display text-xl text-ink">
+              {state.current_sessions.length === 1
+                ? state.current_sessions[0].reveal_pending
+                  ? "Your Together is ready"
+                  : `Together with ${state.current_sessions[0].partner?.display_name ?? "your partner"}`
+                : `${state.current_sessions.length} active Togethers`}
+            </p>
+            <div className="mt-3 flex flex-wrap items-center gap-4">
+              <Link href="/together" className="inline-flex min-h-11 items-center text-sm font-semibold text-gold-700">View Together →</Link>
+              {state.can_initiate ? <Button variant="secondary" size="sm" disabled={busy} onClick={() => void start()}>Start another</Button> : null}
+            </div>
+            {state.current_sessions.some((session) => session.reveal_pending) ? (
+              <Link href={`/together/session/${encodeURIComponent(state.current_sessions.find((session) => session.reveal_pending)!.session_id)}`} className="mt-2 inline-flex min-h-11 items-center text-sm text-ink-muted">A shared set is ready to reveal →</Link>
+            ) : null}
+          </div>
         ) : state?.block_reason === "ratings_required" ? (
           <p className="mt-6 text-sm leading-6 text-ink-body">Rate {Math.max(state.ratings_required - state.rated_visit_count, 0)} more visit{state.ratings_required - state.rated_visit_count === 1 ? "" : "s"} to unlock Fiyu Together.</p>
         ) : state?.block_reason === "premium_required" ? (
           <p className="mt-6 font-display text-xl text-ink">Available with Fiyu Premium</p>
-        ) : state?.block_reason === "cycle_quota_used" ? (
-          <p className="mt-6 text-sm text-ink-body">Your Together Picks for this cycle are complete.</p>
+        ) : state?.block_reason === "cycle_limit_reached" ? (
+          <p className="mt-6 text-sm text-ink-body">You have reached this cycle&apos;s Together limit.</p>
         ) : state?.can_initiate && query.status !== "error" ? (
           <div className="mt-6"><Button variant="secondary" disabled={busy} onClick={() => void start()}>{state.premium ? "Start a Together" : "Start your first Together"}</Button>{!state.premium ? <p className="mt-2 text-xs text-ink-muted">Your first completed Together is included.</p> : null}</div>
         ) : null}

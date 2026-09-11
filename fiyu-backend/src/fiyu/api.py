@@ -787,6 +787,8 @@ class TogetherSessionResponse(BaseModel):
     invite_url: str | None = None
     revealed_at: str | None = None
     reveal_pending: bool = False
+    generated_at: str | None = None
+    pick_count: int = Field(default=0, ge=0, le=3)
 
 
 class TogetherStateResponse(BaseModel):
@@ -795,8 +797,11 @@ class TogetherStateResponse(BaseModel):
     premium: bool
     trial_consumed: bool
     can_initiate: bool
-    block_reason: Literal["ratings_required", "premium_required", "cycle_quota_used"] | None = None
+    block_reason: Literal["ratings_required", "premium_required", "cycle_limit_reached"] | None = None
     session: TogetherSessionResponse | None = None
+    current_sessions: list[TogetherSessionResponse] = Field(default_factory=list, max_length=3)
+    generated_session_count: int = Field(default=0, ge=0)
+    cycle_limit: int = Field(default=3, ge=1)
 
 
 class TogetherInvitePreviewResponse(BaseModel):
@@ -1943,8 +1948,30 @@ def _together_discovery_assignments(user_id: str, now: datetime) -> list[DailyPi
     return assignments
 
 
+TOGETHER_CYCLE_SESSION_LIMIT = 3
+
+
+def _current_generated_together_rows(
+    user_id: str, now: datetime, *, rows: list[dict[str, Any]] | None = None
+) -> list[dict[str, Any]]:
+    rows = rows if rows is not None else shared_user_data.list_together_sessions(user_id=user_id)
+    return [
+        row for row in rows
+        if row.get("status") == "generated"
+        and (_parse_pick_datetime(row.get("cycle_expires_at")) or now) > now
+    ]
+
+
 def _active_together_row(user_id: str, now: datetime) -> dict[str, Any] | None:
     rows = shared_user_data.list_together_sessions(user_id=user_id)
+    pending = [
+        row for row in rows
+        if row.get("status") == "pending"
+        and str(row.get("initiator_user_id")) == user_id
+        and (_parse_pick_datetime(row.get("expires_at")) or now) > now
+    ]
+    if pending:
+        return pending[0]
     generated = [
         row for row in rows
         if row.get("status") == "generated"
@@ -1959,13 +1986,7 @@ def _active_together_row(user_id: str, now: datetime) -> dict[str, Any] | None:
     ]
     if generated:
         return generated[0]
-    pending = [
-        row for row in rows
-        if row.get("status") == "pending"
-        and str(row.get("initiator_user_id")) == user_id
-        and (_parse_pick_datetime(row.get("expires_at")) or now) > now
-    ]
-    return pending[0] if pending else None
+    return None
 
 
 def _together_session_response(
@@ -1974,15 +1995,18 @@ def _together_session_response(
     initiator_id = str(row["initiator_user_id"])
     invitee_id = str(row.get("invitee_user_id") or "") or None
     partner_id = invitee_id if user_id == initiator_id else initiator_id
+    role = "initiator" if user_id == initiator_id else "invitee"
+    revealed_at = str(row.get(f"{role}_revealed_at") or "") or None
     items = (
         shared_user_data.together_pick_items(session_id=str(row["id"]))
         if row.get("status") == "generated" else []
     )
-    restaurants = _map_eligible_public_restaurants_for_place_ids(
-        str(item["place_id"]) for item in items
+    restaurants = (
+        _map_eligible_public_restaurants_for_place_ids(
+            str(item["place_id"]) for item in items
+        )
+        if revealed_at else []
     )
-    role = "initiator" if user_id == initiator_id else "invitee"
-    revealed_at = str(row.get(f"{role}_revealed_at") or "") or None
     return TogetherSessionResponse(
         session_id=str(row["id"]),
         status=str(row["status"]),
@@ -1995,6 +2019,8 @@ def _together_session_response(
         invite_url=invite_url,
         revealed_at=revealed_at,
         reveal_pending=row.get("status") == "generated" and revealed_at is None,
+        generated_at=str(row.get("generated_at") or "") or None,
+        pick_count=len(items),
     )
 
 
@@ -2010,30 +2036,41 @@ def _together_state(user_id: str) -> TogetherStateResponse:
     rated_count = _together_rated_count(user_id)
     premium = has_premium_access(user_id)
     trial_consumed = shared_user_data.together_trial_consumed(user_id=user_id)
-    session_row = _active_together_row(user_id, now)
-    generated = (
-        session_row is not None
-        and session_row.get("status") == "generated"
-        and (_parse_pick_datetime(session_row.get("cycle_expires_at")) or now) > now
+    rows = shared_user_data.list_together_sessions(user_id=user_id)
+    generated_rows = _current_generated_together_rows(user_id, now, rows=rows)
+    pending_rows = [
+        row for row in rows
+        if row.get("status") == "pending"
+        and str(row.get("initiator_user_id")) == user_id
+        and (_parse_pick_datetime(row.get("expires_at")) or now) > now
+    ]
+    session_row = pending_rows[0] if pending_rows else (
+        generated_rows[0] if generated_rows else _active_together_row(user_id, now)
     )
     block_reason = (
         "ratings_required" if rated_count < 5 else
-        "cycle_quota_used" if generated else
+        "cycle_limit_reached" if len(generated_rows) >= TOGETHER_CYCLE_SESSION_LIMIT else
         "premium_required" if trial_consumed and not premium else None
     )
     return TogetherStateResponse(
         rated_visit_count=rated_count,
         premium=premium,
         trial_consumed=trial_consumed,
-        can_initiate=block_reason is None and session_row is None,
+        can_initiate=block_reason is None and not pending_rows,
         block_reason=block_reason,
         session=_together_session_response(session_row, user_id) if session_row else None,
+        current_sessions=[
+            _together_session_response(row, user_id) for row in generated_rows
+        ],
+        generated_session_count=len(generated_rows),
     )
 
 
 def _raise_together_storage_error(exc: shared_user_data.SharedUserDataError) -> None:
     detail = str(exc)
     mapping = {
+        "together_pair_already_used": (409, "You already used Together with this person this cycle."),
+        "together_cycle_limit_reached": (409, "A participant reached the Together limit for this cycle."),
         "together_cycle_quota_used": (409, "A participant already used Together this cycle."),
         "together_trial_consumed": (403, "Fiyu Premium is required to start another Together."),
         "together_ratings_required": (403, "Rate 5 visits before starting Together."),
@@ -2047,7 +2084,11 @@ def _raise_together_storage_error(exc: shared_user_data.SharedUserDataError) -> 
     }
     for code, (status, message) in mapping.items():
         if code in detail:
-            if code == "together_self_invite":
+            if code in {
+                "together_self_invite",
+                "together_pair_already_used",
+                "together_cycle_limit_reached",
+            }:
                 raise HTTPException(
                     status_code=status,
                     detail={"code": code, "message": message},
@@ -2133,8 +2174,12 @@ def create_together_invitation(
     state = _together_state(user_id)
     if state.rated_visit_count < 5:
         raise HTTPException(status_code=403, detail="Rate 5 visits before starting Together.")
-    if state.block_reason == "cycle_quota_used":
-        raise HTTPException(status_code=409, detail="You already used Together this cycle.")
+    if state.block_reason == "cycle_limit_reached":
+        _together_error(
+            409,
+            "together_cycle_limit_reached",
+            "You reached the Together limit for this cycle.",
+        )
     if state.trial_consumed and not state.premium:
         raise HTTPException(status_code=403, detail="Fiyu Premium is required to start another Together.")
     location = shared_user_data.get_discovery_location(user_id=user_id)
@@ -2249,6 +2294,35 @@ def accept_together_invitation(
         )
     now = datetime.now(UTC)
     participants = (initiator_id, invitee_user_id)
+    participant_sessions = {
+        user_id: shared_user_data.list_together_sessions(user_id=user_id)
+        for user_id in participants
+    }
+    active_sessions = {
+        user_id: _current_generated_together_rows(
+            user_id, now, rows=participant_sessions[user_id]
+        )
+        for user_id in participants
+    }
+    if any(
+        {str(session["initiator_user_id"]), str(session.get("invitee_user_id") or "")}
+        == {initiator_id, invitee_user_id}
+        for session in active_sessions[initiator_id]
+    ):
+        _together_error(
+            409,
+            "together_pair_already_used",
+            "You already used Together with this person this cycle.",
+        )
+    if any(
+        len(active_sessions[user_id]) >= TOGETHER_CYCLE_SESSION_LIMIT
+        for user_id in participants
+    ):
+        _together_error(
+            409,
+            "together_cycle_limit_reached",
+            "A participant reached the Together limit for this cycle.",
+        )
     visits = {user_id: shared_user_data.list_visits(user_id=user_id) for user_id in participants}
     saved = {user_id: shared_user_data.saved_place_ids(user_id=user_id, city_id="tokyo") for user_id in participants}
     histories = {
@@ -2264,7 +2338,7 @@ def accept_together_invitation(
             active_solo.update(str(value) for value in active.get("place_ids", []))
     current_together: set[str] = set()
     for user_id in participants:
-        for session in shared_user_data.list_together_sessions(user_id=user_id):
+        for session in participant_sessions[user_id]:
             if session.get("status") == "generated" and (_parse_pick_datetime(session.get("cycle_expires_at")) or now) > now:
                 current_together.update(
                     str(item["place_id"]) for item in shared_user_data.together_pick_items(session_id=str(session["id"]))
