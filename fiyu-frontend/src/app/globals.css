@@ -19,6 +19,13 @@
  *   larger than a chip, no outline running all the way round a card, and always
  *   paired with a word or a shape so colour is never the only signal.
  *
+ *   Plum is US. Fiyu Together, and nothing else. It is the third tense --
+ *   neither what Fiyu is showing you now nor where you have already been, but
+ *   the set of places that exist because two people are looking at once. It is
+ *   spent at two scales only: a deep ground under the moments that belong to
+ *   the pair (the reveal, the hub masthead), and pale washes, hairlines and
+ *   micro-caps everywhere else. Restaurant cards stay on white paper under it.
+ *
  * Contrast, measured against WCAG 2.1:
  *   lavender-500  3.77:1 on white  -> GRAPHICS ONLY (pins, rules, focus rings)
  *   lavender-600  4.89:1 on white  -> AA for text and for white-on-fill
@@ -26,6 +33,10 @@
  *   gold          3.20:1 on white  -> GRAPHICS ONLY (pins, rules, hairlines)
  *   gold-700      5.04:1 on white, 4.64:1 on canvas -> AA for small text
  *   ink-muted     4.76:1 on canvas -> AA for body text
+ *   plum-500      5.07:1 on white  -> marks and rules
+ *   plum-700      8.10:1 on white, 7.44:1 on canvas -> AA for small text
+ *   plum-mist    10.20:1 on plum-900 -> AA for body text on the deep ground
+ *   white        16.10:1 on plum-900
  * Never set text in lavender-500 or in gold, and never fill a button with
  * either.
  */
@@ -48,6 +59,27 @@
   --color-lavender-600: #7657e8;
   --color-lavender-700: #6044c8;
   --color-plum: #31283d;
+
+  /*
+   * Plum: the Fiyu Together accent, a red-violet deliberately turned away from
+   * lavender's blue-violet so a Together surface is never mistaken for an
+   * ordinary active one.
+   *
+   *   plum-50    the section wash. Pale enough to sit under body copy.
+   *   plum-100   the chip fill and the selected partner.
+   *   plum-line  the warm-cool hairline that ends a Together section.
+   *   plum-500   marks and rules: the pair glyph, score rules, card top edge.
+   *   plum-700   the text step. Micro-caps, links, the Together wordmark.
+   *   plum-900   the deep ground. Reveal screen and hub masthead only.
+   *   plum-mist  the muted text step on plum-900.
+   */
+  --color-plum-50: #faf5fa;
+  --color-plum-100: #f0e7f2;
+  --color-plum-line: #e4d7e7;
+  --color-plum-500: #8a5f93;
+  --color-plum-700: #6b3f75;
+  --color-plum-900: #2a1b33;
+  --color-plum-mist: #d8c9dd;
 
   /*
    * Champagne: the secondary accent, four steps deep so a history treatment
@@ -368,5 +400,76 @@ body {
   to {
     opacity: 1;
     transform: none;
+  }
+}
+
+/*
+ * Fiyu Together.
+ *
+ * Two participants arriving from opposite sides and meeting at a glyph. The
+ * distance is deliberately small -- 14px, less than the avatar's own radius --
+ * so the pair reads as settling into place rather than flying together, and the
+ * whole entrance is over inside 620ms including the glyph.
+ *
+ * `--fiyu-together-from` lets one keyframe serve both sides: the component sets
+ * it per avatar rather than the stylesheet carrying a mirrored copy.
+ */
+@keyframes fiyu-together-approach {
+  from {
+    opacity: 0;
+    transform: translateX(var(--fiyu-together-from, 0));
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes fiyu-together-join {
+  from {
+    opacity: 0;
+    transform: scale(0.72);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/*
+ * The waiting-for-someone mark.
+ *
+ * A slow breath on an empty seat, not a spinner: nothing is loading, so the
+ * mark must not imply a request is in flight. It is the only looping animation
+ * in Together, it runs at four seconds, and reduced motion stops it entirely.
+ */
+@keyframes fiyu-together-await {
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
+
+.fiyu-together-await {
+  animation: fiyu-together-await 4s var(--ease-fiyu) infinite;
+}
+
+/*
+ * The global reduced-motion rule collapses every duration, but an
+ * animation-delay set inline survives it -- a staggered set would still arrive
+ * one card at a time, just instantly. Staggers are cancelled in script as well;
+ * this is the guard for the first paint before that runs.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .fiyu-together-await {
+    animation: none;
+    opacity: 0.7;
+  }
+
+  [data-fiyu-stagger] {
+    animation-delay: 0ms !important;
   }
 }

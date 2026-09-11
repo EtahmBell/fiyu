@@ -252,7 +252,7 @@ describe("YourFiyuPage", () => {
     const tint = (element: Element) => classNames(element).find((name) => name.startsWith("bg-"));
     expect(tint(taste)).toMatch(/^bg-lavender-/);
     expect(tint(history)).toBeUndefined();
-    expect(tint(together)).toMatch(/^bg-gold-/);
+    expect(tint(together)).toMatch(/^bg-plum-/);
   });
 
   it("labels limited first-snapshot evidence as an early signal", async () => {

@@ -51,7 +51,7 @@ describe("TogetherPanel", () => {
     vi.mocked(fetchTogetherState).mockResolvedValue({ ...base, premium: true });
     render(<TogetherPanel accountId="account-a" />);
     expect(await screen.findByRole("button", { name: "Start a Together" })).toBeTruthy();
-    expect(screen.queryByText("Your first completed Together is included.")).toBeNull();
+    expect(screen.queryByText("Your first Together is included.")).toBeNull();
   });
 
   it("links an active session to its separate Picks section", async () => {
@@ -77,8 +77,8 @@ describe("TogetherPanel", () => {
     };
     vi.mocked(fetchTogetherState).mockResolvedValue({ ...base, can_initiate: false, block_reason: "premium_required", session, current_sessions: [session], generated_session_count: 1 });
     render(<TogetherPanel accountId="account-a" />);
-    expect(await screen.findByText("A shared set is ready to reveal →")).toBeTruthy();
-    expect(screen.getByRole("link", { name: "A shared set is ready to reveal →" }).getAttribute("href"))
+    expect(await screen.findByText("Lianne joined.")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Reveal our Picks →" }).getAttribute("href"))
       .toBe("/together/session/session-1");
   });
 
@@ -141,7 +141,7 @@ describe("TogetherPanel", () => {
       .mockResolvedValueOnce(base);
     vi.mocked(cancelTogetherInvite).mockResolvedValue(undefined);
     render(<TogetherPanel accountId="account-a" />);
-    fireEvent.click(await screen.findByRole("button", { name: "Cancel" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Cancel invitation" }));
     await waitFor(() => expect(cancelTogetherInvite).toHaveBeenCalledWith("session-1"));
     expect(await screen.findByText("Invitation cancelled. Your trial was not used.")).toBeTruthy();
   });
@@ -162,7 +162,7 @@ describe("TogetherPanel", () => {
     render(<TogetherPanel accountId="account-a" />);
     expect(await screen.findByText("Waiting for someone to join")).toBeTruthy();
     fireEvent.focus(window);
-    expect(await screen.findByText("A shared set is ready to reveal →")).toBeTruthy();
+    expect(await screen.findByText("Lianne joined.")).toBeTruthy();
   });
 });
 // @vitest-environment jsdom

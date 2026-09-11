@@ -49,9 +49,28 @@ function BookmarkIcon({ filled }: { filled: boolean }) {
  * family. `history` is a place already discovered, and earns the two champagne
  * details defined below -- a warm top rule and a champagne expiry line -- so a
  * run of past discoveries reads as a different group from a run of Picks
- * without either one becoming a different kind of object.
+ * without either one becoming a different kind of object. `together` is a pick
+ * that belongs to a pair, and takes plum in the same two places.
+ *
+ * All three stay on white paper with the same structure. The tense is carried
+ * by a hairline along one edge and by the score's wordmark, never by the card's
+ * fill: three identically-shaped restaurants have to be equally readable
+ * whichever section a reader is in.
  */
-export type CompactCardTone = "current" | "history";
+export type CompactCardTone = "current" | "history" | "together";
+
+/** The one coloured edge. Every other side of the card stays neutral. */
+const TONE_EDGE: Record<CompactCardTone, string> = {
+  current: "border-t-lavender-500/45",
+  history: "border-t-gold/50",
+  together: "border-t-plum-500/55",
+};
+
+const TONE_FOCUS: Record<CompactCardTone, string> = {
+  current: "focus-visible:outline-lavender-600",
+  history: "focus-visible:outline-gold",
+  together: "focus-visible:outline-plum-700",
+};
 
 export interface CompactRestaurantCardProps {
   restaurant: PublicRestaurant;
@@ -218,11 +237,11 @@ export function CompactRestaurantCard({
         // A single warm hairline along the top edge -- the card stays white and
         // its other three sides stay neutral, so this reads as a rule rather
         // than as a gold outline.
-        history ? "border-t-gold/50" : "border-t-lavender-500/45",
+        TONE_EDGE[tone],
         onOpen &&
           cn(
             "cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2",
-            history ? "focus-visible:outline-gold" : "focus-visible:outline-lavender-600",
+            TONE_FOCUS[tone],
           ),
       )}
       style={{ animation: "fiyu-fade-in 260ms var(--ease-fiyu)" }}

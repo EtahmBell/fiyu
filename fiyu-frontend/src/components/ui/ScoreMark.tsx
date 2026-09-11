@@ -22,10 +22,29 @@ const SIZES: Record<ScoreMarkSize, { numeral: string; label: string; rule: strin
   },
 };
 
+export type ScoreMarkTone = "current" | "history" | "together";
+
+/**
+ * The wordmark and the rule take the tense of the card they sit on: lavender
+ * for today's Picks, champagne for a place already discovered, plum for a set
+ * that belongs to a pair. The numeral never moves -- the score is the score.
+ */
+const TONE_LABEL: Record<ScoreMarkTone, string> = {
+  current: "text-lavender-700",
+  history: "text-gold-700",
+  together: "text-plum-700",
+};
+
+const TONE_RULE: Record<ScoreMarkTone, string> = {
+  current: "bg-lavender-500",
+  history: "bg-gold",
+  together: "bg-plum-500",
+};
+
 export interface ScoreMarkProps {
   score: number | null;
   size?: ScoreMarkSize;
-  tone?: "current" | "history";
+  tone?: ScoreMarkTone;
   className?: string;
 }
 
@@ -53,7 +72,7 @@ export function ScoreMark({ score, size = "md", tone = "current", className }: S
         aria-hidden="true"
         className={cn(
           "leading-none font-medium tracking-[0.18em] uppercase",
-          tone === "history" ? "text-gold-700" : "text-lavender-700",
+          TONE_LABEL[tone],
           hasScore ? "opacity-100" : "opacity-50",
           label,
         )}
@@ -85,7 +104,7 @@ export function ScoreMark({ score, size = "md", tone = "current", className }: S
         className={cn(
           size === "card" ? "mt-1 lg:mt-2" : "mt-1.5 lg:mt-2",
           "h-px rounded-full",
-          tone === "history" ? "bg-gold" : "bg-lavender-500",
+          TONE_RULE[tone],
           rule,
           !hasScore && "opacity-30",
         )}

@@ -21,16 +21,16 @@ import { cn } from "@/lib/utils/cn";
  * stays on one shared column.
  *
  * Tone carries the chapters. Identity sits on plain canvas, Taste on a pale
- * lavender wash, history back on canvas, Fiyu Together on a pale champagne wash
+ * lavender wash, history back on canvas, Fiyu Together on a pale plum wash
  * -- four fields, each running the full width of the screen, so a reader can see
  * where one chapter ends before reading a word of it. Inside a band the
  * structure is type, gutters and a small number of hairlines; the tone change is
  * the only boundary that needs to be visible from a scroll's distance.
  *
- * A note against `globals.css`: the champagne rules there say no fill larger
- * than a chip. This page is the deliberate exception, and only at the lowest
- * step of the ramp -- `gold-soft` at 40% over canvas, which is a tone rather
- * than a colour, and never behind a control.
+ * The last band is plum rather than champagne on purpose. Champagne is what
+ * this page already spends on the reader's own history, and Together is not
+ * more history: it is the one chapter about places that exist because someone
+ * else is involved, so it takes the accent that means exactly that.
  *
  * Below `sm` the bands are identical but their contents are not: at 390px four
  * observations at one size is a list rather than a hierarchy, so the first is

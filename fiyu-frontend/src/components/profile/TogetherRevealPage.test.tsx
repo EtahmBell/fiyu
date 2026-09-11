@@ -4,6 +4,10 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TogetherRevealPage } from "@/components/profile/TogetherRevealPage";
+import {
+  clearTogetherRevealArrival,
+  consumeTogetherRevealArrival,
+} from "@/lib/profile/togetherRevealArrival";
 
 const mocks = vi.hoisted(() => ({
   fetch: vi.fn(), reveal: vi.fn(), replace: vi.fn(),
@@ -11,7 +15,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ replace: mocks.replace }) }));
 vi.mock("@/lib/profile/profileIdentity", () => ({
-  useProfileIdentity: () => ({ status: "ready", profile: { user_id: "user-a", username: "ethan", display_name: "Ethan" } }),
+  useProfileIdentity: () => ({ status: "ready", profile: { user_id: "user-a", username: "ethan", display_name: "Ethan" }, profileImage: null }),
 }));
 vi.mock("@/lib/api/client", () => ({
   fetchTogetherSession: mocks.fetch,
@@ -27,7 +31,12 @@ const pending = {
 };
 
 describe("TogetherRevealPage", () => {
-  beforeEach(() => { vi.clearAllMocks(); mocks.fetch.mockResolvedValue(pending); mocks.reveal.mockResolvedValue({ ...pending, reveal_pending: false, revealed_at: "2026-09-10T00:00:00Z" }); });
+  beforeEach(() => {
+    vi.clearAllMocks();
+    clearTogetherRevealArrival();
+    mocks.fetch.mockResolvedValue(pending);
+    mocks.reveal.mockResolvedValue({ ...pending, reveal_pending: false, revealed_at: "2026-09-10T00:00:00Z" });
+  });
   afterEach(() => cleanup());
 
   it("reveals the persisted set once and opens normal Picks", async () => {
@@ -42,5 +51,31 @@ describe("TogetherRevealPage", () => {
     render(<TogetherRevealPage sessionId="session-1" />);
     await waitFor(() => expect(mocks.replace).toHaveBeenCalledWith("/together?session=session-1"));
     expect(screen.queryByRole("button", { name: "Reveal our Picks" })).toBeNull();
+  });
+
+  it("presents both participants and one action, and no restaurant", async () => {
+    render(<TogetherRevealPage sessionId="session-1" />);
+    expect(await screen.findByRole("heading", { name: "Ethan × Lianne" })).toBeTruthy();
+    expect(screen.getByText("Three places chosen for both of you.")).toBeTruthy();
+    expect(screen.getAllByRole("button")).toHaveLength(1);
+    expect(screen.queryByTestId("compact-restaurant-card")).toBeNull();
+  });
+
+  it("hands the stagger to the hub for this session only", async () => {
+    render(<TogetherRevealPage sessionId="session-1" />);
+    fireEvent.click(await screen.findByRole("button", { name: "Reveal our Picks" }));
+    await waitFor(() => expect(mocks.replace).toHaveBeenCalled());
+    expect(consumeTogetherRevealArrival("another-session")).toBe(false);
+    expect(consumeTogetherRevealArrival("session-1")).toBe(true);
+  });
+
+  it("does not pretend a failed reveal succeeded", async () => {
+    mocks.reveal.mockRejectedValue(new Error("Together could not be revealed."));
+    render(<TogetherRevealPage sessionId="session-1" />);
+    fireEvent.click(await screen.findByRole("button", { name: "Reveal our Picks" }));
+    expect(await screen.findByRole("alert")).toBeTruthy();
+    expect(mocks.replace).not.toHaveBeenCalled();
+    expect(consumeTogetherRevealArrival("session-1")).toBe(false);
+    expect(screen.getByRole("button", { name: "Reveal our Picks" })).toBeTruthy();
   });
 });

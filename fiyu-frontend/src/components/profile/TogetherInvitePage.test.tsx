@@ -76,6 +76,23 @@ describe("TogetherInvitePage", () => {
     expect(mocks.accept).not.toHaveBeenCalled();
   });
 
+  it("turns the initiator's own invite into a way to pass it on", async () => {
+    mocks.identity = { status: "ready", profile: { user_id: "initiator" } };
+    mocks.fetch.mockResolvedValue({
+      status: "pending",
+      initiator: { display_name: "Ethan", username: "ethan", avatar_url: null },
+      expires_at: "2026-09-11T00:00:00Z",
+      is_own_invite: true,
+    });
+    render(<TogetherInvitePage token="secure-token" />);
+    expect(await screen.findByText("Send it to someone else to get started.")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Share invite" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Copy invite link" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Return to Fiyu" }).getAttribute("href")).toBe("/profile");
+    // Not an error: nothing failed, so nothing is announced as a failure.
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
   it("renders invalid invitations without exposing account actions", async () => {
     mocks.fetch.mockResolvedValue({ status: "invalid", initiator: null, expires_at: null });
     render(<TogetherInvitePage token="invalid-token" />);

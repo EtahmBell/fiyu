@@ -437,9 +437,12 @@ describe("/picks revealed-card save bookmark", () => {
     const DailyPicksPanel = await loadDailyPicksPanel();
     render(<DailyPicksPanel accountId="account-a" restaurants={[]} />);
 
-    expect(await screen.findByText("Lianne · 3 Picks together")).toBeTruthy();
+    expect(await screen.findByText("Lianne")).toBeTruthy();
+    expect(screen.getByText("3 Picks together")).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Today’s Fiyu Picks" })).toBeTruthy();
-    expect(screen.getByRole("link", { name: /Lianne · 3 Picks together/ }).getAttribute("href")).toBe("/together");
+    expect(screen.getByRole("link", { name: /Lianne/ }).getAttribute("href")).toBe("/together");
+    // The entry summarises a Together; it never renders the shared cards.
     expect(screen.queryByLabelText("Together restaurants")).toBeNull();
+    expect(screen.queryByText("Restaurant four")).toBeNull();
   });
 });
