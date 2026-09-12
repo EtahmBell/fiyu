@@ -13,6 +13,8 @@ import { Button } from "@/components/ui/Button";
 import { createTogetherInvite, fetchTogetherState } from "@/lib/api/client";
 import { useAccountQuery } from "@/lib/accountQueryCache";
 import type { TogetherInviteCreated, TogetherSession, TogetherState } from "@/lib/api/schemas";
+import { activeTogetherSessions, formatTogetherExpiry, togetherExpiryMs } from "@/lib/profile/togetherLifecycle";
+import { useTogetherLifecycleClock } from "@/lib/profile/useTogetherLifecycleClock";
 import { cn } from "@/lib/utils/cn";
 
 /**
@@ -50,6 +52,12 @@ export function TogetherPanel({ accountId, ratedVisitCount = 0 }: { accountId: s
   const [message, setMessage] = useState<string | null>(null);
   const sessionStatus = query.data?.session?.status;
   const refreshTogether = query.refresh;
+  const rawSessions = query.data?.current_sessions ?? [];
+  const expiryNow = useTogetherLifecycleClock(
+    rawSessions.map(togetherExpiryMs).filter(Number.isFinite),
+    () => void refreshTogether(true).catch(() => undefined),
+  );
+  const activeSessions = activeTogetherSessions(rawSessions, expiryNow);
 
   /*
    * While an invitation is out, the thing that changes is on another person's
@@ -91,7 +99,7 @@ export function TogetherPanel({ accountId, ratedVisitCount = 0 }: { accountId: s
     finally { setBusy(false); }
   };
 
-  const state = query.data ?? {
+  const baseState = query.data ?? {
     rated_visit_count: ratedVisitCount,
     ratings_required: 5,
     premium: false,
@@ -103,6 +111,7 @@ export function TogetherPanel({ accountId, ratedVisitCount = 0 }: { accountId: s
     generated_session_count: 0,
     cycle_limit: 3,
   };
+  const state = { ...baseState, current_sessions: activeSessions };
 
   const pending = state.session?.status === "pending" ? state.session : null;
   const unrevealed = state.current_sessions.find((session) => session.reveal_pending) ?? null;
@@ -144,6 +153,11 @@ export function TogetherPanel({ accountId, ratedVisitCount = 0 }: { accountId: s
             >
               Reveal our Picks →
             </Link>
+            {state.can_initiate ? (
+              <Button className="mt-3 sm:ml-3 sm:mt-5" variant="secondary" size="sm" disabled={busy} onClick={() => void start()}>
+                Start another
+              </Button>
+            ) : null}
           </div>
         ) : state.current_sessions.length > 0 ? (
           <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-3">
@@ -153,6 +167,11 @@ export function TogetherPanel({ accountId, ratedVisitCount = 0 }: { accountId: s
                 ? `Together with ${people[0].displayName}`
                 : `${state.current_sessions.length} active Togethers`}
             </p>
+            {state.current_sessions.length === 1 && Number.isFinite(togetherExpiryMs(state.current_sessions[0])) ? (
+              <p className="w-full text-xs text-ink-muted">
+                {formatTogetherExpiry(togetherExpiryMs(state.current_sessions[0]), expiryNow)}
+              </p>
+            ) : null}
             <div className="flex w-full flex-wrap items-center gap-4">
               <Link href="/together" className="inline-flex min-h-11 items-center text-sm font-semibold text-plum-700 underline decoration-plum-line underline-offset-4 hover:decoration-plum-500">View Together →</Link>
               {state.can_initiate ? <Button variant="secondary" size="sm" disabled={busy} onClick={() => void start()}>Start another</Button> : null}

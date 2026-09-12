@@ -500,6 +500,77 @@ def test_unrevealed_participant_can_resume_after_cycle_expiry(together_api):
     assert state["session"]["reveal_pending"] is True
 
 
+def test_prior_cycle_revealed_session_stays_visible_but_does_not_consume_current_quota(
+    together_api, monkeypatch
+):
+    client, users, sessions, _, _ = together_api
+    monkeypatch.setattr(api, "has_premium_access", lambda user_id: user_id == users["initiator"])
+    created = client.post("/together/invites", headers=auth("initiator")).json()
+    token = created["invite_url"].rsplit("/", 1)[-1]
+    generated = client.post(f"/together/invites/{token}/accept", headers=auth("invitee")).json()
+    client.post(f"/together/sessions/{generated['session_id']}/reveal", headers=auth("initiator"))
+    sessions[generated["session_id"]]["cycle_expires_at"] = "2000-01-01T00:00:00+00:00"
+
+    state = client.get("/together/me", headers=auth("initiator")).json()
+    assert [item["session_id"] for item in state["current_sessions"]] == [generated["session_id"]]
+    assert state["generated_session_count"] == 0
+    assert state["can_initiate"] is True
+
+
+def test_same_pair_can_have_two_active_rounds_across_cycles(together_api, monkeypatch):
+    client, users, sessions, _, _ = together_api
+    monkeypatch.setattr(api, "has_premium_access", lambda user_id: user_id == users["initiator"])
+    session_ids = []
+    for index in range(2):
+        created = client.post("/together/invites", headers=auth("initiator")).json()
+        token = created["invite_url"].rsplit("/", 1)[-1]
+        generated = client.post(f"/together/invites/{token}/accept", headers=auth("invitee")).json()
+        session_ids.append(generated["session_id"])
+        client.post(f"/together/sessions/{generated['session_id']}/reveal", headers=auth("initiator"))
+        if index == 0:
+            sessions[generated["session_id"]]["cycle_expires_at"] = "2000-01-01T00:00:00+00:00"
+
+    state = client.get("/together/me", headers=auth("initiator")).json()
+    assert {item["session_id"] for item in state["current_sessions"]} == set(session_ids)
+    assert state["generated_session_count"] == 1
+
+
+def test_revealed_lifecycle_is_participant_specific(together_api):
+    client, _, sessions, _, _ = together_api
+    created = client.post("/together/invites", headers=auth("initiator")).json()
+    token = created["invite_url"].rsplit("/", 1)[-1]
+    generated = client.post(f"/together/invites/{token}/accept", headers=auth("invitee")).json()
+    row = sessions[generated["session_id"]]
+    row["cycle_expires_at"] = "2000-01-01T00:00:00+00:00"
+    row["initiator_revealed_at"] = (datetime.now(UTC) - timedelta(hours=73)).isoformat()
+    row["invitee_revealed_at"] = (datetime.now(UTC) - timedelta(hours=63)).isoformat()
+
+    initiator_state = client.get("/together/me", headers=auth("initiator")).json()
+    invitee_state = client.get("/together/me", headers=auth("invitee")).json()
+    assert initiator_state["current_sessions"] == []
+    assert [item["session_id"] for item in invitee_state["current_sessions"]] == [generated["session_id"]]
+
+
+def test_unrevealed_session_expires_without_seen_mutation(together_api):
+    client, users, sessions, _, _ = together_api
+    created = client.post("/together/invites", headers=auth("initiator")).json()
+    token = created["invite_url"].rsplit("/", 1)[-1]
+    generated = client.post(f"/together/invites/{token}/accept", headers=auth("invitee")).json()
+    row = sessions[generated["session_id"]]
+    row["generated_at"] = (datetime.now(UTC) - timedelta(hours=73)).isoformat()
+    row["cycle_expires_at"] = "2000-01-01T00:00:00+00:00"
+
+    state = client.get("/together/me", headers=auth("invitee")).json()
+    assert state["current_sessions"] == []
+    expired = client.post(
+        f"/together/sessions/{generated['session_id']}/reveal",
+        headers=auth("invitee"),
+    )
+    assert expired.status_code == 410
+    assert expired.json()["detail"]["code"] == "together_reveal_expired"
+    assert api.shared_user_data.seen_history(user_id=users["invitee"]) == {}
+
+
 def test_together_migration_keeps_generation_atomic_and_account_scoped():
     migration = (
         Path(__file__).parents[1]
@@ -542,3 +613,12 @@ def test_together_migration_keeps_generation_atomic_and_account_scoped():
     assert "together_cycle_limit_reached" in multi_partner_migration
     assert ">= 3" in multi_partner_migration
     assert "fiyu_together_pick_items ti" in multi_partner_migration
+    lifecycle_migration = (
+        Path(__file__).parents[1]
+        / "supabase"
+        / "migrations"
+        / "202609120001_together_reveal_readiness_expiry.sql"
+    ).read_text(encoding="utf-8").lower()
+    assert "interval '72 hours'" in lifecycle_migration
+    assert "together_reveal_expired" in lifecycle_migration
+    assert "prior_revealed_at is null" in lifecycle_migration

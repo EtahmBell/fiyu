@@ -69,6 +69,8 @@ const session = (id: string, partner: string, revealPending = false, places = 1)
   invite_url: null,
   revealed_at: revealPending ? null : "2026-09-11T00:00:00Z",
   reveal_pending: revealPending,
+  generated_at: `2026-09-11T0${id === "two" ? "2" : "1"}:00:00Z`,
+  partner_key: null as string | null,
   pick_count: revealPending ? 3 : places,
 });
 
@@ -98,23 +100,39 @@ describe("TogetherHub", () => {
 
   it("switches between multiple partner-specific sets", async () => {
     render(<TogetherHub />);
-    expect(await screen.findByText("Place one-0")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Mika" }));
     expect(await screen.findByText("Place two-0")).toBeTruthy();
-    expect(screen.queryByText("Place one-0")).toBeNull();
-    expect(mocks.replace).toHaveBeenCalledWith("/together?session=two", { scroll: false });
+    fireEvent.click(screen.getByRole("button", { name: "Lianne" }));
+    expect(await screen.findByText("Place one-0")).toBeTruthy();
+    expect(screen.queryByText("Place two-0")).toBeNull();
+    expect(mocks.replace).toHaveBeenCalledWith("/together?session=one", { scroll: false });
+  });
+
+  it("provides an explicit accessible return to Picks", async () => {
+    render(<TogetherHub />);
+    expect((await screen.findByRole("link", { name: "← Picks" })).getAttribute("href")).toBe("/picks");
+  });
+
+  it("groups active rounds from the same partner under one partner view", async () => {
+    mocks.fetch.mockResolvedValue(state([
+      { ...session("two", "Lianne", false, 3), partner_key: "partner-lianne" },
+      { ...session("one", "Lianne", false, 3), partner_key: "partner-lianne" },
+    ]));
+    render(<TogetherHub />);
+    expect(await screen.findByText("6 active Picks")).toBeTruthy();
+    expect(screen.queryByRole("group", { name: "Together partners" })).toBeNull();
+    expect(screen.getAllByTestId("compact-restaurant-card")).toHaveLength(6);
   });
 
   it("announces which partner is selected without relying on colour", async () => {
     render(<TogetherHub />);
     const lianne = await screen.findByRole("button", { name: "Lianne" });
     const mika = screen.getByRole("button", { name: "Mika" });
-    expect(lianne.getAttribute("aria-pressed")).toBe("true");
-    expect(mika.getAttribute("aria-pressed")).toBe("false");
+    expect(lianne.getAttribute("aria-pressed")).toBe("false");
+    expect(mika.getAttribute("aria-pressed")).toBe("true");
 
-    fireEvent.click(mika);
-    expect(screen.getByRole("button", { name: "Lianne" }).getAttribute("aria-pressed")).toBe("false");
-    expect(screen.getByRole("button", { name: "Mika" }).getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(lianne);
+    expect(screen.getByRole("button", { name: "Lianne" }).getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByRole("button", { name: "Mika" }).getAttribute("aria-pressed")).toBe("false");
   });
 
   it("directs an unrevealed set to the existing reveal route", async () => {

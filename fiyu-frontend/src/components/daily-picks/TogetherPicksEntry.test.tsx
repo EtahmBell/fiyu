@@ -47,7 +47,7 @@ describe("TogetherPicksEntry", () => {
   it("summarises one partner without listing the shared Picks", () => {
     render(<TogetherPicksEntry state={{ ...base, current_sessions: [session("a", "Lianne")] }} />);
     expect(screen.getByText("Lianne")).toBeTruthy();
-    expect(screen.getByText("3 Picks together")).toBeTruthy();
+    expect(screen.getByText("3 active Picks")).toBeTruthy();
     expect(screen.getByRole("link", { name: /View/ }).getAttribute("href")).toBe("/together");
   });
 
@@ -63,8 +63,18 @@ describe("TogetherPicksEntry", () => {
       />,
     );
     expect(screen.getByText("Lianne · Val · Miku")).toBeTruthy();
-    expect(screen.getByText("3 sets today")).toBeTruthy();
+    expect(screen.getByText("3 Togethers")).toBeTruthy();
     expect(screen.getAllByRole("link")).toHaveLength(1);
+  });
+
+  it("groups two active rounds with the same partner into one concise summary", () => {
+    render(
+      <TogetherPicksEntry
+        state={{ ...base, current_sessions: [session("new", "Lianne"), session("old", "Lianne")] }}
+      />,
+    );
+    expect(screen.getByText("Lianne")).toBeTruthy();
+    expect(screen.getByText("6 active Picks")).toBeTruthy();
   });
 
   it("sends an unopened set straight to its one-time reveal", () => {

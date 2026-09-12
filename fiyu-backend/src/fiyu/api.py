@@ -6,7 +6,7 @@ import re
 import secrets
 import sqlite3
 from collections.abc import Iterable
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from hashlib import sha256
 from math import cos, isfinite, radians
 from pathlib import Path
@@ -786,6 +786,10 @@ class TogetherSessionResponse(BaseModel):
     consumed_trial: bool = False
     invite_url: str | None = None
     revealed_at: str | None = None
+    expires_at_for_current_user: str | None = None
+    reveal_ready_expires_at: str | None = None
+    active_for_current_user: bool = False
+    partner_key: str | None = None
     reveal_pending: bool = False
     generated_at: str | None = None
     pick_count: int = Field(default=0, ge=0, le=3)
@@ -799,7 +803,7 @@ class TogetherStateResponse(BaseModel):
     can_initiate: bool
     block_reason: Literal["ratings_required", "premium_required", "cycle_limit_reached"] | None = None
     session: TogetherSessionResponse | None = None
-    current_sessions: list[TogetherSessionResponse] = Field(default_factory=list, max_length=3)
+    current_sessions: list[TogetherSessionResponse] = Field(default_factory=list)
     generated_session_count: int = Field(default=0, ge=0)
     cycle_limit: int = Field(default=3, ge=1)
 
@@ -1949,6 +1953,40 @@ def _together_discovery_assignments(user_id: str, now: datetime) -> list[DailyPi
 
 
 TOGETHER_CYCLE_SESSION_LIMIT = 3
+TOGETHER_ACTIVE_DURATION = timedelta(hours=72)
+
+
+def _together_role(row: dict[str, Any], user_id: str) -> Literal["initiator", "invitee"]:
+    return "initiator" if str(row.get("initiator_user_id")) == user_id else "invitee"
+
+
+def _together_generated_at(row: dict[str, Any]) -> datetime | None:
+    return _parse_pick_datetime(
+        row.get("generated_at") or row.get("accepted_at") or row.get("created_at")
+    )
+
+
+def _together_display_expiry(row: dict[str, Any], user_id: str) -> datetime | None:
+    if row.get("status") != "generated":
+        return None
+    role = _together_role(row, user_id)
+    revealed_at = _parse_pick_datetime(row.get(f"{role}_revealed_at"))
+    anchor = revealed_at or _together_generated_at(row)
+    return anchor + TOGETHER_ACTIVE_DURATION if anchor is not None else None
+
+
+def _active_display_together_rows(
+    user_id: str, now: datetime, *, rows: list[dict[str, Any]] | None = None
+) -> list[dict[str, Any]]:
+    """Return this participant's active 72-hour Together experiences across cycles."""
+
+    rows = rows if rows is not None else shared_user_data.list_together_sessions(user_id=user_id)
+    return [
+        row
+        for row in rows
+        if row.get("status") == "generated"
+        and (_together_display_expiry(row, user_id) or now) > now
+    ]
 
 
 def _current_generated_together_rows(
@@ -1972,18 +2010,7 @@ def _active_together_row(user_id: str, now: datetime) -> dict[str, Any] | None:
     ]
     if pending:
         return pending[0]
-    generated = [
-        row for row in rows
-        if row.get("status") == "generated"
-        and (
-            (_parse_pick_datetime(row.get("cycle_expires_at")) or now) > now
-            or row.get(
-                "initiator_revealed_at"
-                if str(row.get("initiator_user_id")) == user_id
-                else "invitee_revealed_at"
-            ) is None
-        )
-    ]
+    generated = _active_display_together_rows(user_id, now, rows=rows)
     if generated:
         return generated[0]
     return None
@@ -1995,8 +2022,18 @@ def _together_session_response(
     initiator_id = str(row["initiator_user_id"])
     invitee_id = str(row.get("invitee_user_id") or "") or None
     partner_id = invitee_id if user_id == initiator_id else initiator_id
-    role = "initiator" if user_id == initiator_id else "invitee"
+    role = _together_role(row, user_id)
     revealed_at = str(row.get(f"{role}_revealed_at") or "") or None
+    display_expiry = _together_display_expiry(row, user_id)
+    now = datetime.now(UTC)
+    active_for_current_user = bool(
+        row.get("status") == "generated" and display_expiry and display_expiry > now
+    )
+    ready_expiry = (
+        _together_generated_at(row) + TOGETHER_ACTIVE_DURATION
+        if row.get("status") == "generated" and revealed_at is None and _together_generated_at(row)
+        else None
+    )
     items = (
         shared_user_data.together_pick_items(session_id=str(row["id"]))
         if row.get("status") == "generated" else []
@@ -2018,7 +2055,18 @@ def _together_session_response(
         consumed_trial=bool(row.get("consumed_trial")),
         invite_url=invite_url,
         revealed_at=revealed_at,
-        reveal_pending=row.get("status") == "generated" and revealed_at is None,
+        expires_at_for_current_user=display_expiry.isoformat() if display_expiry else None,
+        reveal_ready_expires_at=ready_expiry.isoformat() if ready_expiry else None,
+        active_for_current_user=active_for_current_user,
+        partner_key=(
+            sha256(f"together-partner:{partner_id}".encode()).hexdigest()[:24]
+            if partner_id else None
+        ),
+        reveal_pending=(
+            row.get("status") == "generated"
+            and revealed_at is None
+            and active_for_current_user
+        ),
         generated_at=str(row.get("generated_at") or "") or None,
         pick_count=len(items),
     )
@@ -2038,6 +2086,7 @@ def _together_state(user_id: str) -> TogetherStateResponse:
     trial_consumed = shared_user_data.together_trial_consumed(user_id=user_id)
     rows = shared_user_data.list_together_sessions(user_id=user_id)
     generated_rows = _current_generated_together_rows(user_id, now, rows=rows)
+    active_display_rows = _active_display_together_rows(user_id, now, rows=rows)
     pending_rows = [
         row for row in rows
         if row.get("status") == "pending"
@@ -2045,7 +2094,7 @@ def _together_state(user_id: str) -> TogetherStateResponse:
         and (_parse_pick_datetime(row.get("expires_at")) or now) > now
     ]
     session_row = pending_rows[0] if pending_rows else (
-        generated_rows[0] if generated_rows else _active_together_row(user_id, now)
+        active_display_rows[0] if active_display_rows else _active_together_row(user_id, now)
     )
     block_reason = (
         "ratings_required" if rated_count < 5 else
@@ -2060,7 +2109,7 @@ def _together_state(user_id: str) -> TogetherStateResponse:
         block_reason=block_reason,
         session=_together_session_response(session_row, user_id) if session_row else None,
         current_sessions=[
-            _together_session_response(row, user_id) for row in generated_rows
+            _together_session_response(row, user_id) for row in active_display_rows
         ],
         generated_session_count=len(generated_rows),
     )
@@ -2081,6 +2130,7 @@ def _raise_together_storage_error(exc: shared_user_data.SharedUserDataError) -> 
         "together_session_not_found": (404, "Together session not found."),
         "together_session_not_generated": (409, "Together Picks are not ready."),
         "together_session_forbidden": (403, "This Together session belongs to someone else."),
+        "together_reveal_expired": (410, "This Together reveal has expired."),
     }
     for code, (status, message) in mapping.items():
         if code in detail:
@@ -2088,6 +2138,7 @@ def _raise_together_storage_error(exc: shared_user_data.SharedUserDataError) -> 
                 "together_self_invite",
                 "together_pair_already_used",
                 "together_cycle_limit_reached",
+                "together_reveal_expired",
             }:
                 raise HTTPException(
                     status_code=status,
@@ -2153,6 +2204,13 @@ def reveal_together_session(
         raise HTTPException(status_code=404, detail="Together session not found")
     if user_id not in {str(row["initiator_user_id"]), str(row.get("invitee_user_id") or "")}:
         _together_error(403, "together_session_forbidden", "This Together session belongs to someone else.")
+    if row.get("status") != "generated":
+        _together_error(409, "together_session_not_generated", "Together Picks are not ready.")
+    role = _together_role(row, user_id)
+    if row.get(f"{role}_revealed_at") is None:
+        ready_until = _together_display_expiry(row, user_id)
+        if ready_until is None or ready_until <= datetime.now(UTC):
+            _together_error(410, "together_reveal_expired", "This Together reveal has expired.")
     try:
         shared_user_data.reveal_together_session(
             session_id=session_id,

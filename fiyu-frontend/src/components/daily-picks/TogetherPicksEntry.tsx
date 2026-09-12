@@ -10,6 +10,8 @@ import {
   type TogetherPerson,
 } from "@/components/profile/TogetherIdentity";
 import type { TogetherState } from "@/lib/api/schemas";
+import { activeTogetherSessions, formatTogetherExpiry, togetherExpiryMs, togetherPartnerKey } from "@/lib/profile/togetherLifecycle";
+import { useTogetherLifecycleClock } from "@/lib/profile/useTogetherLifecycleClock";
 import { cn } from "@/lib/utils/cn";
 
 /**
@@ -39,13 +41,13 @@ interface EntryContent {
 }
 
 function partners(state: TogetherState): TogetherPerson[] {
-  return state.current_sessions.map((session) => ({
-    displayName: session.partner?.display_name ?? "Your partner",
-    avatarUrl: session.partner?.avatar_url ?? null,
-  }));
+  return [...new Map(state.current_sessions.map((session) => [
+    togetherPartnerKey(session),
+    { displayName: session.partner?.display_name ?? "Your partner", avatarUrl: session.partner?.avatar_url ?? null },
+  ])).values()];
 }
 
-function entryContent(state: TogetherState): EntryContent | null {
+function entryContent(state: TogetherState, now: number): EntryContent | null {
   const unrevealed = state.current_sessions.find((session) => session.reveal_pending);
 
   /*
@@ -66,13 +68,15 @@ function entryContent(state: TogetherState): EntryContent | null {
 
   if (state.current_sessions.length > 0) {
     const people = partners(state);
+    const totalPicks = state.current_sessions.reduce((total, session) => total + session.pick_count, 0);
+    const nearestExpiry = Math.min(...state.current_sessions.map(togetherExpiryMs).filter(Number.isFinite));
     return {
       mark: <TogetherAvatarStack people={people} />,
       headline: people.map((person) => person.displayName).join(" · "),
       detail:
-        state.current_sessions.length === 1
-          ? `${state.current_sessions[0].pick_count} Picks together`
-          : `${state.current_sessions.length} sets today`,
+        people.length === 1
+          ? `${totalPicks} active Picks`
+          : `${people.length} Togethers${Number.isFinite(nearestExpiry) ? ` · ${formatTogetherExpiry(nearestExpiry, now).replace("Expires", "next expiry")}` : ""}`,
       action: "View",
       href: "/together",
     };
@@ -128,7 +132,12 @@ function entryContent(state: TogetherState): EntryContent | null {
 }
 
 export function TogetherPicksEntry({ state }: { state: TogetherState }) {
-  const content = entryContent(state);
+  const expiryNow = useTogetherLifecycleClock(state.current_sessions.map(togetherExpiryMs).filter(Number.isFinite));
+  const activeState = {
+    ...state,
+    current_sessions: activeTogetherSessions(state.current_sessions, expiryNow),
+  };
+  const content = entryContent(activeState, expiryNow);
   if (!content) return null;
 
   const body = (
