@@ -13,7 +13,13 @@ import { Button } from "@/components/ui/Button";
 import { createTogetherInvite, fetchTogetherState } from "@/lib/api/client";
 import { useAccountQuery } from "@/lib/accountQueryCache";
 import type { TogetherInviteCreated, TogetherSession, TogetherState } from "@/lib/api/schemas";
-import { activeTogetherSessions, formatTogetherExpiry, togetherExpiryMs, togetherPartnerKey } from "@/lib/profile/togetherLifecycle";
+import {
+  activeTogetherSessions,
+  formatTogetherExpiry,
+  togetherCycleExpiryMs,
+  togetherExpiryMs,
+  togetherPartnerKey,
+} from "@/lib/profile/togetherLifecycle";
 import { useTogetherLifecycleClock } from "@/lib/profile/useTogetherLifecycleClock";
 import { cn } from "@/lib/utils/cn";
 
@@ -75,10 +81,22 @@ export function TogetherPanel({ accountId, ratedVisitCount = 0 }: { accountId: s
   const refreshTogether = query.refresh;
   const rawSessions = query.data?.current_sessions ?? [];
   const expiryNow = useTogetherLifecycleClock(
-    rawSessions.map(togetherExpiryMs).filter(Number.isFinite),
+    rawSessions
+      .flatMap((session) => [togetherExpiryMs(session), togetherCycleExpiryMs(session)])
+      .filter(Number.isFinite),
     () => void refreshTogether(true).catch(() => undefined),
   );
   const activeSessions = activeTogetherSessions(rawSessions, expiryNow);
+
+  /*
+   * Picks and Profile intentionally share their last successful Together
+   * response. Its display sessions remain useful for 72 hours, but initiation
+   * eligibility can change at the shorter Picks-cycle boundary. Reconcile that
+   * cached summary whenever Profile mounts while keeping cached content visible.
+   */
+  useEffect(() => {
+    void refreshTogether(true).catch(() => undefined);
+  }, [accountId, refreshTogether]);
 
   /*
    * While an invitation is out, the thing that changes is on another person's

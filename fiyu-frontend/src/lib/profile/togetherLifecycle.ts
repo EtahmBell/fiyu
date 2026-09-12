@@ -4,6 +4,10 @@ export function togetherExpiryMs(session: TogetherSession): number {
   return Date.parse(session.expires_at_for_current_user ?? "");
 }
 
+export function togetherCycleExpiryMs(session: TogetherSession): number {
+  return Date.parse(session.cycle_expires_at);
+}
+
 export function activeTogetherSessions(
   sessions: readonly TogetherSession[],
   now: number,

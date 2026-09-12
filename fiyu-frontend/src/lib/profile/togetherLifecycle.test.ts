@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import type { TogetherSession } from "@/lib/api/schemas";
-import { activeTogetherSessions, formatTogetherExpiry, togetherPartnerKey } from "@/lib/profile/togetherLifecycle";
+import {
+  activeTogetherSessions,
+  formatTogetherExpiry,
+  togetherCycleExpiryMs,
+  togetherPartnerKey,
+} from "@/lib/profile/togetherLifecycle";
 
 function session(id: string, expiry: string): TogetherSession {
   return {
@@ -24,6 +29,13 @@ function session(id: string, expiry: string): TogetherSession {
 }
 
 describe("Together lifecycle", () => {
+  it("keeps the Picks-cycle eligibility boundary separate from display expiry", () => {
+    const item = session("round", "2026-09-15T12:00:00Z");
+    item.cycle_expires_at = "2026-09-13T12:00:00Z";
+    expect(togetherCycleExpiryMs(item)).toBe(Date.parse("2026-09-13T12:00:00Z"));
+    expect(activeTogetherSessions([item], Date.parse("2026-09-14T12:00:00Z"))).toEqual([item]);
+  });
+
   it("removes a round exactly at its participant-specific expiry", () => {
     const expiry = Date.parse("2026-09-13T12:00:00Z");
     const item = session("round", new Date(expiry).toISOString());

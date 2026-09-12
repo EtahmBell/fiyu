@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TogetherPanel } from "@/components/profile/TogetherPanel";
 import { cancelTogetherInvite, createTogetherInvite, fetchTogetherState } from "@/lib/api/client";
 import type { TogetherSession, TogetherState } from "@/lib/api/schemas";
-import { clearAccountQueries } from "@/lib/accountQueryCache";
+import { accountQueryKey, clearAccountQueries, writeAccountQuery } from "@/lib/accountQueryCache";
 
 vi.mock("@/lib/api/client", () => ({
   fetchTogetherState: vi.fn(), createTogetherInvite: vi.fn(),
@@ -156,6 +156,40 @@ describe("TogetherPanel", () => {
     expect(screen.getByRole("button", { name: /Start another Together/ })).toBeTruthy();
     // A single active round states its expiry as quiet metadata.
     expect(screen.getByText("Expires in 2 days")).toBeTruthy();
+  });
+
+  it("revalidates cached cycle eligibility while preserving an active Together", async () => {
+    const session: TogetherSession = {
+      session_id: "prior-cycle", status: "generated", role: "invitee",
+      expires_at: "2026-09-13T00:00:00Z", cycle_expires_at: "2026-09-12T00:00:00Z",
+      expires_at_for_current_user: new Date(Date.now() + 2 * 86_400_000).toISOString(),
+      partner: { display_name: "Ethan", username: "ethan", avatar_url: null },
+      restaurants: [], consumed_trial: false, invite_url: null,
+      revealed_at: "2026-09-12T00:00:00Z", reveal_pending: false, pick_count: 3,
+    };
+    writeAccountQuery(accountQueryKey("together-state", "account-a"), {
+      ...base,
+      premium: true,
+      can_initiate: false,
+      block_reason: "cycle_limit_reached",
+      session,
+      current_sessions: [session],
+      generated_session_count: 3,
+    });
+    vi.mocked(fetchTogetherState).mockResolvedValue({
+      ...base,
+      premium: true,
+      can_initiate: true,
+      session,
+      current_sessions: [session],
+      generated_session_count: 0,
+    });
+
+    render(<TogetherPanel accountId="account-a" />);
+
+    expect(screen.getByRole("link", { name: "View Together →" })).toBeTruthy();
+    expect(await screen.findByRole("button", { name: "Start another Together →" })).toBeTruthy();
+    expect(fetchTogetherState).toHaveBeenCalled();
   });
 
   it("creates one pending invite without presenting it as consumed", async () => {

@@ -183,6 +183,9 @@ def test_free_initiator_creates_pending_without_consuming_trial(together_api):
     assert response.json()["session"]["status"] == "pending"
     assert users["initiator"] not in consumed
     assert len(sessions) == 1
+    state = client.get("/together/me", headers=auth("initiator")).json()
+    assert state["session"]["status"] == "pending"
+    assert state["can_initiate"] is False
 
 
 def test_invitee_without_ratings_accepts_and_private_taste_is_not_exposed(together_api):
@@ -248,6 +251,46 @@ def test_consumed_trial_blocks_free_initiation_but_not_premium(together_api, mon
     monkeypatch.setattr(api, "has_premium_access", lambda user_id: user_id == users["initiator"])
     response = client.post("/together/invites", headers=auth("initiator"))
     assert response.status_code == 200
+
+
+def test_free_invitee_with_unused_trial_can_initiate_while_together_is_active(together_api):
+    client, users, _, consumed, visits = together_api
+    created = client.post("/together/invites", headers=auth("initiator")).json()
+    token = created["invite_url"].rsplit("/", 1)[-1]
+    generated = client.post(f"/together/invites/{token}/accept", headers=auth("invitee")).json()
+    client.post(
+        f"/together/sessions/{generated['session_id']}/reveal",
+        headers=auth("invitee"),
+    )
+    visits[users["invitee"]] = [
+        {"id": str(uuid4()), "place_id": f"invitee-rated-{index}", "rating": 4}
+        for index in range(5)
+    ]
+
+    state = client.get("/together/me", headers=auth("invitee")).json()
+
+    assert users["invitee"] not in consumed
+    assert state["generated_session_count"] == 1
+    assert state["trial_consumed"] is False
+    assert state["can_initiate"] is True
+
+
+def test_free_initiator_with_consumed_trial_cannot_start_again_while_active(together_api):
+    client, users, _, consumed, _ = together_api
+    created = client.post("/together/invites", headers=auth("initiator")).json()
+    token = created["invite_url"].rsplit("/", 1)[-1]
+    generated = client.post(f"/together/invites/{token}/accept", headers=auth("invitee")).json()
+    client.post(
+        f"/together/sessions/{generated['session_id']}/reveal",
+        headers=auth("initiator"),
+    )
+
+    state = client.get("/together/me", headers=auth("initiator")).json()
+
+    assert users["initiator"] in consumed
+    assert state["generated_session_count"] == 1
+    assert state["block_reason"] == "premium_required"
+    assert state["can_initiate"] is False
 
 
 def test_second_accept_cannot_replace_first_invitee(together_api):
