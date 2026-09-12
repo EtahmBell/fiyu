@@ -95,7 +95,7 @@ describe("TogetherPanel", () => {
       current_sessions: [session], generated_session_count: 1,
     });
     render(<TogetherPanel accountId="account-a" />);
-    expect(await screen.findByRole("button", { name: "Start another" })).toBeTruthy();
+    expect(await screen.findByRole("button", { name: /Start another Together/ })).toBeTruthy();
   });
 
   it("summarizes multiple sessions and hides initiation at the cycle cap", async () => {
@@ -112,7 +112,50 @@ describe("TogetherPanel", () => {
     });
     render(<TogetherPanel accountId="account-a" />);
     expect(await screen.findByText("3 active Togethers")).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Start another" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Start another Together/ })).toBeNull();
+  });
+
+  it("counts people rather than rounds when one partner holds several", async () => {
+    const round = (id: string, generatedAt: string): TogetherSession => ({
+      session_id: id, status: "generated", role: "initiator",
+      expires_at: "2026-09-15T00:00:00Z", cycle_expires_at: "2026-09-15T00:00:00Z",
+      expires_at_for_current_user: "2026-09-15T00:00:00Z",
+      partner: { display_name: "Lianne", username: "lianne", avatar_url: null },
+      partner_key: "partner-lianne", generated_at: generatedAt,
+      restaurants: [], consumed_trial: false, invite_url: null,
+      revealed_at: "2026-09-12T00:00:00Z", reveal_pending: false, pick_count: 3,
+    });
+    const sessions = [round("new", "2026-09-12T02:00:00Z"), round("old", "2026-09-11T02:00:00Z")];
+    vi.mocked(fetchTogetherState).mockResolvedValue({
+      ...base, premium: true, can_initiate: true,
+      session: sessions[0], current_sessions: sessions, generated_session_count: 2,
+    });
+    render(<TogetherPanel accountId="account-a" />);
+    expect(await screen.findByText("Together with Lianne")).toBeTruthy();
+    expect(screen.queryByText("2 active Togethers")).toBeNull();
+    // Per-round expiry belongs to the hub; the band stays a summary.
+    expect(screen.queryByText(/^Expires in/)).toBeNull();
+  });
+
+  it("keeps viewing primary and starting another secondary", async () => {
+    const session: TogetherSession = {
+      session_id: "session-1", status: "generated", role: "initiator",
+      expires_at: "2026-09-15T00:00:00Z", cycle_expires_at: "2026-09-15T00:00:00Z",
+      expires_at_for_current_user: new Date(Date.now() + 2 * 86_400_000).toISOString(),
+      partner: { display_name: "Ethan", username: "ethan", avatar_url: null },
+      restaurants: [], consumed_trial: false, invite_url: null,
+      revealed_at: "2026-09-12T00:00:00Z", reveal_pending: false, pick_count: 3,
+    };
+    vi.mocked(fetchTogetherState).mockResolvedValue({
+      ...base, premium: true, can_initiate: true, session,
+      current_sessions: [session], generated_session_count: 1,
+    });
+    render(<TogetherPanel accountId="account-a" />);
+    // Both continuations are reachable; the primary one is the link into the hub.
+    expect(await screen.findByRole("link", { name: "View Together →" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Start another Together/ })).toBeTruthy();
+    // A single active round states its expiry as quiet metadata.
+    expect(screen.getByText("Expires in 2 days")).toBeTruthy();
   });
 
   it("creates one pending invite without presenting it as consumed", async () => {

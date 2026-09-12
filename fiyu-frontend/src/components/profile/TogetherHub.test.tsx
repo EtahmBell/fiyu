@@ -109,7 +109,7 @@ describe("TogetherHub", () => {
 
   it("provides an explicit accessible return to Picks", async () => {
     render(<TogetherHub />);
-    expect((await screen.findByRole("link", { name: "← Picks" })).getAttribute("href")).toBe("/picks");
+    expect((await screen.findByRole("link", { name: "Back to Picks" })).getAttribute("href")).toBe("/picks");
   });
 
   it("groups active rounds from the same partner under one partner view", async () => {
@@ -181,11 +181,65 @@ describe("TogetherHub", () => {
     expect(container.querySelectorAll("[data-fiyu-stagger]")).toHaveLength(0);
   });
 
+  it("separates a partner's rounds by dateline and its own expiry", async () => {
+    const hour = 3_600_000;
+    const round = (id: string, generatedAgoMs: number, expiresInMs: number) => ({
+      ...session(id, "Lianne", false, 3),
+      partner_key: "partner-lianne",
+      generated_at: new Date(Date.now() - generatedAgoMs).toISOString(),
+      expires_at_for_current_user: new Date(Date.now() + expiresInMs).toISOString(),
+    });
+    mocks.fetch.mockResolvedValue(state([
+      round("newest", 2 * hour, 48 * hour),
+      round("older", 30 * hour, 18 * hour),
+    ]));
+    render(<TogetherHub />);
+
+    expect(await screen.findByText("6 active Picks")).toBeTruthy();
+    expect(screen.getByText("Today")).toBeTruthy();
+    expect(screen.getByText("Yesterday")).toBeTruthy();
+    expect(screen.getByText("Expires in 2 days")).toBeTruthy();
+    expect(screen.getByText("Expires in 18h")).toBeTruthy();
+    // The partner is named once, and only the group header carries the pair.
+    expect(screen.getAllByRole("heading", { name: "Together with Lianne" })).toHaveLength(1);
+  });
+
+  it("marks a round as new only on the arrival that revealed it", async () => {
+    mocks.fetch.mockResolvedValue(state([session("one", "Lianne", false, 3)]));
+    const { unmount } = render(<TogetherHub initialSessionId="one" />);
+    await screen.findByText("Place one-0");
+    expect(screen.queryByText("New")).toBeNull();
+    unmount();
+
+    clearAccountQueries();
+    markTogetherRevealArrival("one");
+    render(<TogetherHub initialSessionId="one" />);
+    await screen.findByText("Place one-0");
+    expect(screen.getByText("New")).toBeTruthy();
+  });
+
   it("offers the feature rather than a blank page when the cycle has no Together", async () => {
     mocks.fetch.mockResolvedValue(state([]));
     render(<TogetherHub />);
     expect(await screen.findByRole("button", { name: "Start Together" })).toBeTruthy();
     expect(screen.getByText("Three Picks, chosen around your shared taste.")).toBeTruthy();
+  });
+
+  it("returns to the start state once every round has expired", async () => {
+    const expired = {
+      ...session("stale", "Lianne", false, 3),
+      expires_at_for_current_user: new Date(Date.now() - 60_000).toISOString(),
+    };
+    mocks.fetch.mockResolvedValue(state([expired]));
+    render(<TogetherHub />);
+
+    expect(await screen.findByRole("button", { name: "Start Together" })).toBeTruthy();
+    // Nothing stale is left behind: no selector, no count, no countdown.
+    expect(screen.queryByRole("group", { name: "Together partners" })).toBeNull();
+    expect(screen.queryByText(/active Picks/)).toBeNull();
+    expect(screen.queryByText(/active partner/)).toBeNull();
+    expect(screen.queryByText(/[Ee]xpir/)).toBeNull();
+    expect(screen.queryByTestId("compact-restaurant-card")).toBeNull();
   });
 
   it("states the cycle cap as a fact instead of offering another Together", async () => {

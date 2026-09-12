@@ -10,7 +10,7 @@ import {
   type TogetherPerson,
 } from "@/components/profile/TogetherIdentity";
 import type { TogetherState } from "@/lib/api/schemas";
-import { activeTogetherSessions, formatTogetherExpiry, togetherExpiryMs, togetherPartnerKey } from "@/lib/profile/togetherLifecycle";
+import { activeTogetherSessions, togetherExpiryMs, togetherPartnerKey } from "@/lib/profile/togetherLifecycle";
 import { useTogetherLifecycleClock } from "@/lib/profile/useTogetherLifecycleClock";
 import { cn } from "@/lib/utils/cn";
 
@@ -47,7 +47,7 @@ function partners(state: TogetherState): TogetherPerson[] {
   ])).values()];
 }
 
-function entryContent(state: TogetherState, now: number): EntryContent | null {
+function entryContent(state: TogetherState): EntryContent | null {
   const unrevealed = state.current_sessions.find((session) => session.reveal_pending);
 
   /*
@@ -69,14 +69,27 @@ function entryContent(state: TogetherState, now: number): EntryContent | null {
   if (state.current_sessions.length > 0) {
     const people = partners(state);
     const totalPicks = state.current_sessions.reduce((total, session) => total + session.pick_count, 0);
-    const nearestExpiry = Math.min(...state.current_sessions.map(togetherExpiryMs).filter(Number.isFinite));
+    /*
+     * One line whatever the lifecycle is doing.
+     *
+     * A single round reads as the set it is; several rounds with one person
+     * read as a running total, which is the only number that stays true as
+     * rounds expire under it; several people read as a count of Togethers.
+     *
+     * No expiry here. Picks is not where a countdown is acted on, and the
+     * nearest-expiry line this used to carry both grew the row and phrased
+     * the time differently from every other surface. Expiry is the hub's, and
+     * quietly Your Fiyu's.
+     */
     return {
       mark: <TogetherAvatarStack people={people} />,
       headline: people.map((person) => person.displayName).join(" · "),
       detail:
-        people.length === 1
-          ? `${totalPicks} active Picks`
-          : `${people.length} Togethers${Number.isFinite(nearestExpiry) ? ` · ${formatTogetherExpiry(nearestExpiry, now).replace("Expires", "next expiry")}` : ""}`,
+        people.length > 1
+          ? `${people.length} Togethers`
+          : state.current_sessions.length === 1
+            ? `${totalPicks} Picks together`
+            : `${totalPicks} active Picks`,
       action: "View",
       href: "/together",
     };
@@ -137,7 +150,7 @@ export function TogetherPicksEntry({ state }: { state: TogetherState }) {
     ...state,
     current_sessions: activeTogetherSessions(state.current_sessions, expiryNow),
   };
-  const content = entryContent(activeState, expiryNow);
+  const content = entryContent(activeState);
   if (!content) return null;
 
   const body = (

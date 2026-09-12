@@ -22,6 +22,26 @@ import { cn } from "@/lib/utils/cn";
 const MEASURE = "mx-auto w-full max-w-[64rem] px-5 sm:px-8 lg:px-12";
 const STAGGER_MS = 150;
 
+const DAY_MS = 86_400_000;
+
+/**
+ * The dateline above a round.
+ *
+ * Rounds can now outlive the cycle that made them, so a partner may hold two
+ * or three at once and the reader needs to know which is which. "Today" and
+ * "Yesterday" answer that in the fewest words; anything older falls back to a
+ * short date. Purely a label for `generated_at` -- it reads the lifecycle, it
+ * does not decide it.
+ */
+function roundDayLabel(generatedAt: string | null | undefined, now: number): string {
+  const generated = Date.parse(generatedAt ?? "");
+  if (!Number.isFinite(generated)) return "Earlier";
+  const startOfToday = new Date(now).setHours(0, 0, 0, 0);
+  if (generated >= startOfToday) return "Today";
+  if (generated >= startOfToday - DAY_MS) return "Yesterday";
+  return new Date(generated).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
 interface PartnerGroup {
   key: string;
   partner: TogetherPerson;
@@ -116,10 +136,32 @@ export function TogetherHub({ initialSessionId }: { initialSessionId?: string })
 
   return (
     <main className="flex-1 pb-[calc(var(--spacing-mobile-nav)+2rem)] lg:pb-20">
+      {/*
+       * The return to Picks sits on the canvas above the masthead rather than
+       * inside it. Together is a subpage of Picks, and this is the same mark
+       * every other Fiyu subpage uses for that relationship: micro-caps, a
+       * small arrow that is hidden from the accessible name, and an explicit
+       * "Back to" label. Keeping it off the plum also keeps it from reading as
+       * part of the wordmark it sits above.
+       */}
+      <div className={cn(MEASURE, "pt-4 pb-3")}>
+        <Link
+          href="/picks"
+          aria-label="Back to Picks"
+          className={cn(
+            "-ml-2 inline-flex min-h-11 items-center gap-2 px-2 transition-colors",
+            TOGETHER_CAPS,
+            "text-plum-700 hover:text-plum",
+          )}
+        >
+          <span aria-hidden="true" className="text-sm leading-none">←</span>
+          Picks
+        </Link>
+      </div>
+
       <header className="bg-plum-900">
-        <div className={cn(MEASURE, "py-7 sm:py-10 lg:py-12")}>
-          <Link href="/picks" className="inline-flex min-h-11 items-center text-sm font-semibold text-plum-mist hover:text-white">← Picks</Link>
-          <p className={cn(TOGETHER_CAPS, "mt-4 text-plum-mist")}>Fiyu Together</p>
+        <div className={cn(MEASURE, "py-8 sm:py-10 lg:py-12")}>
+          <p className={cn(TOGETHER_CAPS, "text-plum-mist")}>Fiyu Together</p>
           <h1 className="mt-3 max-w-[20ch] font-display text-[clamp(1.75rem,7.2vw,3rem)] leading-[1.12] text-balance text-white">Places chosen for you and the people you’re with.</h1>
           {groups.length > 0 ? <p className="mt-4 text-sm text-plum-mist">{groups.length === 1 ? "One active partner" : `${groups.length} active partners`}</p> : null}
         </div>
@@ -148,30 +190,63 @@ export function TogetherHub({ initialSessionId }: { initialSessionId?: string })
         {pending ? <TogetherPendingInvitation className="mt-7" sessionId={pending.session_id} accountId={accountId} onResolved={async (notice) => { setMessage(notice); await refreshTogether(true); }} /> : null}
 
         {selectedGroup ? (
-          <section className="mt-7 sm:mt-9" aria-labelledby="selected-together-title">
-            <div className="flex items-center gap-5 border-b border-plum-line pb-6">
+          /*
+           * Keyed on the partner, so switching plays one short fade instead of
+           * cross-dissolving one person's restaurants into another's.
+           */
+          <section
+            key={selectedGroup.key}
+            className="mt-7 sm:mt-9"
+            aria-labelledby="selected-together-title"
+            style={reducedMotion ? undefined : { animation: "fiyu-fade-in 140ms var(--ease-fiyu)" }}
+          >
+            <div className="flex items-center gap-5 pb-5">
               <TogetherPairMark people={[you, selectedGroup.partner]} size="md" />
               <div><h2 id="selected-together-title" className="font-display text-2xl text-ink sm:text-[1.75rem]">Together with {selectedGroup.partner.displayName}</h2><p className="mt-1 text-sm text-ink-muted">{selectedGroup.sessions.reduce((total, session) => total + session.pick_count, 0)} active Picks</p></div>
             </div>
 
-            <div className="mt-6 space-y-8">
+            {/*
+             * One partner, several rounds, one collection. Each round is
+             * introduced by a dateline and its own expiry over a single plum
+             * hairline -- no card around it, no repeated name, no repeated
+             * avatars, and no heavy divider between them. The grouping is
+             * temporal metadata, so it is set as metadata.
+             */}
+            <div className="space-y-9">
               {selectedGroup.sessions.map((session, roundIndex) => {
                 const expiry = togetherExpiryMs(session);
                 const expiryLabel = Number.isFinite(expiry) ? formatTogetherExpiry(expiry, now) : null;
-                const staggering = !reducedMotion && session.session_id === staggeredSessionId;
+                // True only on the arrival that just revealed this round.
+                // Nothing stays badged as new, so a partner who holds three
+                // rounds never accumulates three notifications.
+                const justRevealed = session.session_id === staggeredSessionId;
+                const staggering = justRevealed && !reducedMotion;
                 return (
-                  <section key={session.session_id} aria-label={`Together round ${roundIndex + 1}`} className={roundIndex ? "border-t border-line pt-7" : undefined}>
-                    <div className="mb-4 flex items-center justify-between gap-4 text-xs text-ink-muted"><span>{roundIndex === 0 ? "Newest" : session.generated_at ? new Date(session.generated_at).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "Earlier"}</span>{expiryLabel ? <span>{expiryLabel}</span> : null}</div>
-                    {session.reveal_pending ? (
-                      <div className="rounded-card border border-plum-line bg-plum-50 px-6 py-9 text-center">
-                        <p className="font-display text-2xl text-ink">Your Picks are ready.</p><p className="mt-2 text-sm text-ink-body">{session.pick_count} places are waiting for the two of you.</p>
-                        <Link href={`/together/session/${encodeURIComponent(session.session_id)}`} className="mt-6 inline-flex min-h-12 items-center rounded-lg bg-plum-900 px-6 text-sm font-semibold text-white hover:bg-plum">Reveal our Picks →</Link>
-                      </div>
-                    ) : (
-                      <div className="rounded-card border border-plum-line bg-plum-50/70 p-2 sm:p-4"><div className="space-y-3 sm:space-y-4">
+                  <section key={session.session_id} aria-label={`Together round ${roundIndex + 1}`}>
+                    <div className={cn("flex items-baseline justify-between gap-4 border-b border-plum-line pb-2", TOGETHER_CAPS)}>
+                      <span className="flex items-baseline gap-2 text-plum-700">
+                        {roundDayLabel(session.generated_at, now)}
+                        {justRevealed ? <span className="text-plum-500">New</span> : null}
+                      </span>
+                      {/*
+                       * Set as words, at AA, in neutral ink: the countdown is
+                       * read, never inferred from a colour. `ink-faint` is
+                       * 2.71:1 on canvas and cannot carry it.
+                       */}
+                      {expiryLabel ? <span className="shrink-0 text-ink-muted">{expiryLabel}</span> : null}
+                    </div>
+                    <div className="mt-4">
+                      {session.reveal_pending ? (
+                        <div className="rounded-card border border-plum-line bg-plum-50 px-6 py-9 text-center">
+                          <p className="font-display text-2xl text-ink">Your Picks are ready.</p><p className="mt-2 text-sm text-ink-body">{session.pick_count} places are waiting for the two of you.</p>
+                          <Link href={`/together/session/${encodeURIComponent(session.session_id)}`} className="mt-6 inline-flex min-h-12 items-center rounded-lg bg-plum-900 px-6 text-sm font-semibold text-white hover:bg-plum">Reveal our Picks →</Link>
+                        </div>
+                      ) : (
+                        <div className="rounded-card border border-plum-line bg-plum-50/70 p-2 sm:p-4"><div className="space-y-3 sm:space-y-4">
                         {session.restaurants.map((restaurant, index) => <div key={restaurant.place_id} data-fiyu-stagger={staggering ? String(index * STAGGER_MS) : undefined} style={staggering ? { animation: "fiyu-reveal-in 360ms var(--ease-fiyu) both", animationDelay: `${index * STAGGER_MS}ms` } : undefined}><CompactRestaurantCard restaurant={restaurant} tone="together" saved={list.isSaved(restaurant.place_id)} savePending={list.pendingPlaceIds.includes(restaurant.place_id)} onToggleSaved={() => void list.toggle(restaurant.place_id)} onViewDetails={() => router.push(`/restaurants/${encodeURIComponent(restaurant.place_id)}`)} /></div>)}
-                      </div></div>
-                    )}
+                        </div></div>
+                      )}
+                    </div>
                   </section>
                 );
               })}
@@ -181,7 +256,7 @@ export function TogetherHub({ initialSessionId }: { initialSessionId?: string })
           <section className="mt-8 max-w-[34rem] sm:mt-10"><h2 className="font-display text-[clamp(1.625rem,6.5vw,2rem)] text-ink">Find somewhere that works for both of you.</h2><p className="mt-3 text-sm text-ink-body">Three Picks, chosen around your shared taste.</p><div className="mt-6"><TogetherInitiation state={state} busy={busy} onStart={() => void start()} /></div></section>
         )}
 
-        {selectedGroup && state?.can_initiate && !pending ? <div className="mt-8 border-t border-line pt-6"><button type="button" disabled={busy} onClick={() => void start()} className="inline-flex min-h-11 items-center text-sm font-semibold text-plum-700 underline decoration-plum-line underline-offset-4 disabled:opacity-50">Start another Together →</button></div> : selectedGroup && atCycleCap ? <p className="mt-8 border-t border-line pt-6 text-xs text-ink-faint">That’s every Together for this cycle. New Picks bring new ones.</p> : null}
+        {selectedGroup && state?.can_initiate && !pending ? <div className="mt-8 border-t border-line pt-6"><button type="button" disabled={busy} onClick={() => void start()} className="inline-flex min-h-11 items-center text-sm font-semibold text-plum-700 underline decoration-plum-line underline-offset-4 disabled:opacity-50">Start another Together →</button></div> : selectedGroup && atCycleCap ? <p className="mt-8 border-t border-line pt-6 text-xs text-ink-muted">That’s every Together for this cycle. New Picks bring new ones.</p> : null}
       </div>
     </main>
   );

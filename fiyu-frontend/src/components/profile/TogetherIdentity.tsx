@@ -29,7 +29,7 @@ export interface TogetherPerson {
   avatarUrl?: string | null;
 }
 
-export type TogetherMarkTone = "light" | "deep";
+export type TogetherMarkTone = "light" | "deep" | "paper";
 export type TogetherMarkSize = "xs" | "sm" | "md" | "lg";
 
 const AVATAR_SIZES: Record<TogetherMarkSize, string> = {
@@ -57,17 +57,22 @@ const GAPS: Record<TogetherMarkSize, string> = {
  * Tone, not colour choice.
  *
  * `light` is the pale-plum and white surfaces; `deep` is the plum-900 ground
- * used by the reveal and the hub masthead. Both carry a visible edge, so an
- * avatar is legible as a face-shaped object even when the image fails.
+ * used by the reveal and the hub masthead; `paper` inverts to a white disc for
+ * the one surface tinted at plum-100 -- Your Fiyu's Together band -- where a
+ * plum-100 fill would leave the face with nothing to stand against. All three
+ * carry a visible edge, so an avatar is legible as a face-shaped object even
+ * when the image fails.
  */
 const TONE_CLASSES: Record<TogetherMarkTone, string> = {
   light: "border-plum-line bg-plum-100 text-plum-700",
   deep: "border-white/25 bg-white/10 text-white",
+  paper: "border-plum-line bg-surface text-plum-700",
 };
 
 const GLYPH_TONE: Record<TogetherMarkTone, string> = {
   light: "text-plum-500",
   deep: "text-plum-mist",
+  paper: "text-plum-500",
 };
 
 /** Matches the reduced-motion contract used by the rest of the app. */
@@ -241,7 +246,7 @@ export function TogetherAwaitingMark({
       className={cn(
         "fiyu-together-await flex shrink-0 items-center justify-center rounded-full border border-dashed font-display leading-none",
         AVATAR_SIZES[size],
-        tone === "deep" ? "border-white/40 text-white" : "border-plum-500/60 text-plum-500",
+        tone === "deep" ? "border-white/40 text-white" : "border-plum-500/65 text-plum-500",
         className,
       )}
     >

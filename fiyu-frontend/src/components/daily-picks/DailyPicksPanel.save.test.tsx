@@ -438,7 +438,7 @@ describe("/picks revealed-card save bookmark", () => {
     render(<DailyPicksPanel accountId="account-a" restaurants={[]} />);
 
     expect(await screen.findByText("Lianne")).toBeTruthy();
-    expect(screen.getByText("3 active Picks")).toBeTruthy();
+    expect(screen.getByText("3 Picks together")).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Today’s Fiyu Picks" })).toBeTruthy();
     expect(screen.getByRole("link", { name: /Lianne/ }).getAttribute("href")).toBe("/together");
     // The entry summarises a Together; it never renders the shared cards.

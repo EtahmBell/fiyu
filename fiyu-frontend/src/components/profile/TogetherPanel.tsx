@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/Button";
 import { createTogetherInvite, fetchTogetherState } from "@/lib/api/client";
 import { useAccountQuery } from "@/lib/accountQueryCache";
 import type { TogetherInviteCreated, TogetherSession, TogetherState } from "@/lib/api/schemas";
-import { activeTogetherSessions, formatTogetherExpiry, togetherExpiryMs } from "@/lib/profile/togetherLifecycle";
+import { activeTogetherSessions, formatTogetherExpiry, togetherExpiryMs, togetherPartnerKey } from "@/lib/profile/togetherLifecycle";
 import { useTogetherLifecycleClock } from "@/lib/profile/useTogetherLifecycleClock";
 import { cn } from "@/lib/utils/cn";
 
@@ -26,10 +26,20 @@ import { cn } from "@/lib/utils/cn";
  * a second feature page underneath the profile.
  *
  * The band used to sit on the same champagne wash as the history above it,
- * which made Together read as one more chapter of the past. It is now the pale
- * plum of the feature -- the same ground as the Picks entry and the hub's
- * content area -- so the page's last chapter is visibly a different tense from
- * the ones before it.
+ * which made Together read as one more chapter of the past. It now carries the
+ * plum of the feature, and at plum-100 rather than plum-50: Recent Visits
+ * directly above it is bare canvas, and at 50 the two were within a percent of
+ * each other, so the chapter break a reader is supposed to see from a scroll's
+ * distance was not there. One step up is enough -- Taste stays the cool
+ * lavender wash, Recent Visits stays neutral, Together is the tinted one.
+ *
+ * Still a full-width editorial band: no card container, no shadow, and the
+ * deep plum stays where it belongs, on the reveal.
+ *
+ * One consequence of the step up: `ink-muted` measures 4.30:1 on plum-100 and
+ * fails AA at the metadata sizes used here, so small copy drawn straight onto
+ * the band takes `ink-body` (7.15:1) instead. Copy inside the white card in
+ * the ready state keeps `ink-muted`, which is 5.18:1 on paper.
  *
  * Every state here is the server's, restated: ratings progress, the trial, the
  * Premium lock, the cycle cap, whether an invitation is out and whether a set
@@ -38,11 +48,22 @@ import { cn } from "@/lib/utils/cn";
 
 const MEASURE = "mx-auto w-full max-w-[74rem] px-5 sm:px-8 lg:px-12";
 
+/**
+ * One entry per person, not per round.
+ *
+ * Rounds group by partner in the hub, and Your Fiyu has to agree with it: two
+ * still-active rounds with Lianne are one Together with Lianne, so the band
+ * must not draw her face twice or count her twice. The key is the existing
+ * lifecycle one -- this only reads it.
+ */
 function partnerPeople(sessions: TogetherSession[]): TogetherPerson[] {
-  return sessions.map((session) => ({
-    displayName: session.partner?.display_name ?? "Your partner",
-    avatarUrl: session.partner?.avatar_url ?? null,
-  }));
+  return [...new Map(sessions.map((session) => [
+    togetherPartnerKey(session),
+    {
+      displayName: session.partner?.display_name ?? "Your partner",
+      avatarUrl: session.partner?.avatar_url ?? null,
+    },
+  ])).values()];
 }
 
 export function TogetherPanel({ accountId, ratedVisitCount = 0 }: { accountId: string; ratedVisitCount?: number }) {
@@ -118,14 +139,14 @@ export function TogetherPanel({ accountId, ratedVisitCount = 0 }: { accountId: s
   const people = partnerPeople(state.current_sessions);
 
   return (
-    <section className="border-y border-plum-line bg-plum-50" aria-labelledby="together-title">
+    <section className="border-y border-plum-line bg-plum-100" aria-labelledby="together-title">
       <div className={cn(MEASURE, "py-9 sm:py-11")}>
         <p className={cn(TOGETHER_CAPS, "text-plum-700")}>Fiyu Together</p>
         <h2 id="together-title" className="mt-4 font-display text-[1.75rem] leading-tight text-ink sm:text-[2rem]">Taste is better shared.</h2>
         <p className="mt-2 max-w-[46ch] text-sm leading-6 text-ink-body">Three extra Picks, chosen for you and someone else.</p>
 
-        {query.status === "loading" ? <p className="mt-6 text-sm text-ink-muted">Checking availability…</p> : null}
-        {query.status === "error" && ratedVisitCount >= 5 ? <p role="alert" className="mt-6 text-sm text-ink-muted">Together is unavailable right now.</p> : null}
+        {query.status === "loading" ? <p className="mt-6 text-sm text-ink-body">Checking availability…</p> : null}
+        {query.status === "error" && ratedVisitCount >= 5 ? <p role="alert" className="mt-6 text-sm text-ink-body">Together is unavailable right now.</p> : null}
 
         {pending ? (
           <TogetherPendingInvitation
@@ -142,7 +163,7 @@ export function TogetherPanel({ accountId, ratedVisitCount = 0 }: { accountId: s
            * than arriving as a banner over the page.
            */
           <div className="mt-6 max-w-[34rem] rounded-card border border-plum-line bg-surface p-5 sm:p-6">
-            <TogetherAvatarStack people={people} size="sm" ring="ring-surface" />
+            <TogetherAvatarStack people={people} size="sm" tone="paper" ring="ring-surface" />
             <p className={cn(TOGETHER_CAPS, "mt-4 text-plum-700")}>Your Together is ready</p>
             <p className="mt-2 font-display text-xl leading-tight text-ink">
               {unrevealed.partner?.display_name ?? "Your partner"} joined.
@@ -154,27 +175,66 @@ export function TogetherPanel({ accountId, ratedVisitCount = 0 }: { accountId: s
               Reveal our Picks →
             </Link>
             {state.can_initiate ? (
-              <Button className="mt-3 sm:ml-3 sm:mt-5" variant="secondary" size="sm" disabled={busy} onClick={() => void start()}>
-                Start another
-              </Button>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void start()}
+                className="mt-3 block min-h-11 text-sm text-ink-muted underline decoration-plum-line underline-offset-4 transition-colors hover:text-plum-700 hover:decoration-plum-500 disabled:opacity-50"
+              >
+                Start another Together →
+              </button>
             ) : null}
           </div>
         ) : state.current_sessions.length > 0 ? (
-          <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-3">
-            <TogetherAvatarStack people={people} size="sm" />
-            <p className="font-display text-xl text-ink">
-              {state.current_sessions.length === 1
-                ? `Together with ${people[0].displayName}`
-                : `${state.current_sessions.length} active Togethers`}
-            </p>
-            {state.current_sessions.length === 1 && Number.isFinite(togetherExpiryMs(state.current_sessions[0])) ? (
-              <p className="w-full text-xs text-ink-muted">
-                {formatTogetherExpiry(togetherExpiryMs(state.current_sessions[0]), expiryNow)}
-              </p>
-            ) : null}
-            <div className="flex w-full flex-wrap items-center gap-4">
-              <Link href="/together" className="inline-flex min-h-11 items-center text-sm font-semibold text-plum-700 underline decoration-plum-line underline-offset-4 hover:decoration-plum-500">View Together →</Link>
-              {state.can_initiate ? <Button variant="secondary" size="sm" disabled={busy} onClick={() => void start()}>Start another</Button> : null}
+          /*
+           * An active Together, and possibly the room to start another. Both
+           * have to be reachable from here, so the only question is weight:
+           * continuing what already exists is the primary path, and starting
+           * another is a quieter line beneath it. Two equally heavy buttons
+           * would make the reader choose before knowing what they have.
+           */
+          <div className="mt-6">
+            <div className="flex items-center gap-3.5">
+              <TogetherAvatarStack people={people} size="sm" tone="paper" ring="ring-plum-100" />
+              <div className="min-w-0">
+                <p className="font-display text-xl leading-tight break-words text-ink">
+                  {people.length === 1
+                    ? `Together with ${people[0].displayName}`
+                    : `${people.length} active Togethers`}
+                </p>
+                {/*
+                 * Metadata, not a deadline. One active round states its own
+                 * expiry in the same words the hub uses, in muted ink at
+                 * metadata size -- no badge, no warning colour, no icon, and
+                 * never louder than the partner's name. Several rounds say
+                 * nothing here; per-round expiry is the hub's job.
+                 */}
+                {state.current_sessions.length === 1
+                  && Number.isFinite(togetherExpiryMs(state.current_sessions[0])) ? (
+                  <p className="mt-1 text-xs text-ink-body">
+                    {formatTogetherExpiry(togetherExpiryMs(state.current_sessions[0]), expiryNow)}
+                  </p>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="mt-5 flex flex-col items-start gap-1">
+              <Link
+                href="/together"
+                className="inline-flex min-h-11 items-center rounded-lg border border-plum-500/40 bg-surface px-4 text-sm font-semibold text-plum-700 transition-colors duration-[180ms] ease-(--ease-fiyu) hover:border-plum-500 hover:bg-plum-50"
+              >
+                View Together →
+              </Link>
+              {state.can_initiate ? (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void start()}
+                  className="inline-flex min-h-11 items-center text-sm text-ink-body underline decoration-plum-line underline-offset-4 transition-colors hover:text-plum-700 hover:decoration-plum-500 disabled:opacity-50"
+                >
+                  Start another Together →
+                </button>
+              ) : null}
             </div>
           </div>
         ) : state.block_reason === "ratings_required" ? (
@@ -186,11 +246,11 @@ export function TogetherPanel({ accountId, ratedVisitCount = 0 }: { accountId: s
         ) : state.can_initiate && query.status !== "error" ? (
           <div className="mt-6">
             <Button variant="secondary" disabled={busy} onClick={() => void start()}>{state.premium ? "Start a Together" : "Start your first Together"}</Button>
-            {!state.premium ? <p className="mt-3 text-xs text-ink-muted">Your first Together is included.</p> : null}
+            {!state.premium ? <p className="mt-3 text-xs text-ink-body">Your first Together is included.</p> : null}
           </div>
         ) : null}
 
-        {message ? <p role="status" className="mt-4 text-xs text-ink-muted">{message}</p> : null}
+        {message ? <p role="status" className="mt-4 text-xs text-ink-body">{message}</p> : null}
       </div>
     </section>
   );
