@@ -104,7 +104,7 @@ export function DedicatedMap() {
         value={filter}
         onChange={changeFilter}
         showHeading
-        className="absolute top-4 right-4 left-4 z-20 sm:right-auto sm:w-[22rem]"
+        className="absolute top-3 left-3 z-20 w-[min(17.5rem,calc(100%-5.5rem))] sm:top-4 sm:left-4"
       />
 
       {ownerKey && map.status === "error" ? (

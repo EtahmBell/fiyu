@@ -178,7 +178,7 @@ describe("application navigation", () => {
     expect(screen.queryByLabelText("Notifications")).toBeNull();
     expect(screen.getByLabelText("Open menu")).toBeTruthy();
     expect(screen.getByRole("link", { name: "Settings" }).getAttribute("href")).toBe(
-      "/profile",
+      "/profile/settings",
     );
     expect(screen.getByRole("link", { name: "Help" }).getAttribute("href")).toBe(
       "/profile/help",

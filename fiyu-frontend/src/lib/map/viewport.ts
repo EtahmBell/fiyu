@@ -111,6 +111,25 @@ export function transformFor(view: MapView): string {
   return `translate(${view.x} ${view.y}) scale(${view.k})`;
 }
 
+/**
+ * Express the same canonical camera as an SVG viewBox.
+ *
+ * Fiyu previously applied the camera as a transform on one enormous SVG group.
+ * Chromium can cache that group as a composited image during repeated animated
+ * zooms, which makes later camera changes look like a bitmap being enlarged.
+ * Moving the camera at the SVG viewport keeps every feature in canonical map
+ * coordinates and asks the renderer to repaint the visible geographic extent.
+ */
+export function viewBoxFor(view: MapView): string {
+  const normalized = normalizeView(view);
+  return [
+    svgNumber(-normalized.x / normalized.k),
+    svgNumber(-normalized.y / normalized.k),
+    svgNumber(VIEWBOX_WIDTH / normalized.k),
+    svgNumber(VIEWBOX_HEIGHT / normalized.k),
+  ].join(" ");
+}
+
 /** Convenience: clamp both scale and translation. */
 export function normalizeView(view: MapView): MapView {
   return clampTranslate({ ...view, k: clampScale(view.k) });

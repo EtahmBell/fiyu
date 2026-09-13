@@ -28,25 +28,21 @@ export function PersonalMapFilterControl({
 }: PersonalMapFilterControlProps) {
   return (
     <div
+      data-testid="personal-map-filter-control"
       className={cn(
-        "rounded-card border border-line bg-surface/95 px-3.5 py-3 shadow-lg backdrop-blur-sm",
+        "rounded-card border border-line bg-surface/95 px-3 py-2.5 shadow-lg backdrop-blur-sm",
         className,
       )}
     >
       {showHeading && (
-        <>
-          <p className="text-[0.6875rem] font-semibold tracking-[0.12em] text-lavender-700 uppercase">
-            Tokyo edition
-          </p>
-          <h1 className="mt-1 font-display text-2xl leading-none text-ink">Your map</h1>
-        </>
+        <h1 className="font-display text-xl leading-none text-ink">Your map</h1>
       )}
       <div
         role="tablist"
         aria-label="Map places"
         className={cn(
           "grid grid-cols-4 rounded-chip border border-line/80 bg-subtle/80 p-0.5",
-          showHeading && "mt-3",
+          showHeading && "mt-2.5",
         )}
         onKeyDown={(event) => {
           if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;

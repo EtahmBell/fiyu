@@ -156,8 +156,7 @@ describe("landmark pictograms", () => {
    */
   it("renders at roughly 18-22px on screen, at any zoom", () => {
     const { container } = render(mapElement());
-    const transform = container.querySelector("g[transform]")?.getAttribute("transform") ?? "";
-    const scale = Number(/scale\(([\d.]+)\)/.exec(transform)?.[1] ?? "1");
+    const scale = Number(container.querySelector("svg")?.getAttribute("data-camera-scale") ?? "1");
     expect(scale).toBeGreaterThan(0);
 
     const iconNodes = [...container.querySelectorAll('[data-layer="landmarks"] svg')];

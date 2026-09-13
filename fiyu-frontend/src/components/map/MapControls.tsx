@@ -39,7 +39,7 @@ export function MapControls({
   canFit,
 }: MapControlsProps) {
   return (
-    <div className="pointer-events-auto absolute top-4 right-4 flex flex-col gap-2">
+    <div data-testid="map-controls" className="pointer-events-auto absolute top-3 right-3 flex flex-col gap-2 sm:top-4 sm:right-4">
       <div className="overflow-hidden rounded-xl border border-line shadow-[0_1px_3px_rgba(25,23,29,0.10)]">
         <button type="button" onClick={onZoomIn} disabled={!canZoomIn} className={BUTTON}>
           <span aria-hidden="true" className="text-lg leading-none">

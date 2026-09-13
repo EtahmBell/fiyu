@@ -88,17 +88,12 @@ describe("rendered SVG geometry", () => {
     expect(offenders).toEqual([]);
   });
 
-  it("writes a bounded transform rather than a full-precision one", () => {
+  it("writes a bounded camera viewBox rather than a full-precision transform", () => {
     const { container } = renderMap();
-    const transforms = [...container.querySelectorAll("[transform]")].map(
-      (element) => element.getAttribute("transform") as string,
-    );
-
-    expect(transforms.length).toBeGreaterThan(0);
-    for (const transform of transforms) {
-      expect(transform).toMatch(
-        /^translate\(-?\d+(\.\d{1,2})? -?\d+(\.\d{1,2})?\) scale\(\d+(\.\d{1,6})?\)$/,
-      );
+    const map = container.querySelector('svg[aria-label^="Map of Tokyo"]');
+    expect(map?.querySelector('[data-map-content="true"]')?.hasAttribute("transform")).toBe(false);
+    for (const part of (map?.getAttribute("viewBox") ?? "").split(" ")) {
+      expect(part).toMatch(ROUNDED);
     }
   });
 
@@ -184,8 +179,8 @@ describe("out-of-bounds coordinates", () => {
 
   it("frames the in-bounds pins the same with or without the outlier", () => {
     const withoutOutlier = renderMap().container
-      .querySelector("[transform]")
-      ?.getAttribute("transform");
+      .querySelector('svg[aria-label^="Map of Tokyo"]')
+      ?.getAttribute("viewBox");
     cleanup();
 
     const osaka = publicRestaurantSchema.parse({
@@ -196,8 +191,8 @@ describe("out-of-bounds coordinates", () => {
       distance_sort_eligible: true,
     });
     const withOutlier = renderMap([...browsable, ...mappableRestaurants([osaka])]).container
-      .querySelector("[transform]")
-      ?.getAttribute("transform");
+      .querySelector('svg[aria-label^="Map of Tokyo"]')
+      ?.getAttribute("viewBox");
 
     expect(withOutlier).toBe(withoutOutlier);
   });

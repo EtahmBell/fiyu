@@ -49,6 +49,16 @@ function mapSurface(): HTMLElement {
   return screen.getByRole("img", { name: /Map of Tokyo/ });
 }
 
+function cameraSnapshot(map: HTMLElement = mapSurface()): string {
+  return ["data-camera-x", "data-camera-y", "data-camera-scale"]
+    .map((attribute) => map.getAttribute(attribute))
+    .join(":");
+}
+
+function cameraScale(map: HTMLElement = mapSurface()): number {
+  return Number(map.getAttribute("data-camera-scale"));
+}
+
 afterEach(() => {
   cleanup();
   clearMapViewportSessions();
@@ -112,15 +122,14 @@ describe("card and marker selection stay in sync", () => {
     const { rerender } = render(
       <FiyuMap restaurants={[SHIBUYA, UENO]} selectedPlaceId={null} onSelect={() => {}} />,
     );
-    const content = mapSurface().querySelector("g[transform]") as SVGGElement;
     fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
-    const before = content.getAttribute("transform") ?? "";
+    const before = cameraSnapshot();
 
     rerender(
       <FiyuMap restaurants={[SHIBUYA, UENO]} selectedPlaceId="ueno" onSelect={() => {}} />,
     );
 
-    expect(content.getAttribute("transform")).toBe(before);
+    expect(cameraSnapshot()).toBe(before);
   });
 
   it("reports the restaurant when its pin is clicked", () => {
@@ -185,8 +194,7 @@ describe("card and marker selection stay in sync", () => {
     );
 
     await waitFor(() => {
-      const transform = mapSurface().querySelector("g[transform]")?.getAttribute("transform") ?? "";
-      expect(transform).not.toBe("translate(-3000 -1500) scale(4)");
+      expect(cameraSnapshot()).not.toBe("-3000:-1500:4");
     });
     expect(animation).not.toHaveBeenCalled();
   });
@@ -213,9 +221,7 @@ describe("newly revealed map pins", () => {
       </>,
     );
     const maps = screen.getAllByRole("img", { name: /Map of Tokyo/ });
-    const before = maps.map(
-      (map) => map.querySelector("g[transform]")?.getAttribute("transform") ?? "",
-    );
+    const before = maps.map(cameraSnapshot);
     const shibuyaPins = screen.getAllByLabelText("渋谷の店");
     expect(shibuyaPins).toHaveLength(2);
     expect(shibuyaPins.every((pin) => !pin.hasAttribute("data-newly-revealed"))).toBe(true);
@@ -233,7 +239,7 @@ describe("newly revealed map pins", () => {
     );
     expect(shibuyaPins.every((pin) => pin.classList.contains("fiyu-map-pin-sprout"))).toBe(true);
     expect(
-      maps.map((map) => map.querySelector("g[transform]")?.getAttribute("transform") ?? ""),
+      maps.map(cameraSnapshot),
     ).toEqual(before);
 
     act(() => vi.advanceTimersByTime(600));
@@ -248,11 +254,10 @@ describe("newly revealed map pins", () => {
         onSelect={() => {}}
       />,
     );
-    const content = mapSurface().querySelector("g[transform]") as SVGGElement;
     fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
     fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
-    const before = content.getAttribute("transform") ?? "";
-    const beforeScale = Number(before.match(/scale\(([\d.]+)\)/)?.[1]);
+    const before = cameraSnapshot();
+    const beforeScale = cameraScale();
 
     act(() => {
       publishNewlyRevealedMapPlaces(
@@ -262,8 +267,8 @@ describe("newly revealed map pins", () => {
       );
     });
 
-    const after = content.getAttribute("transform") ?? "";
-    const afterScale = Number(after.match(/scale\(([\d.]+)\)/)?.[1]);
+    const after = cameraSnapshot();
+    const afterScale = cameraScale();
     expect(after).not.toBe(before);
     expect(afterScale).toBeLessThanOrEqual(beforeScale);
     expect(screen.getByLabelText("East Tokyo fixture").getAttribute("data-newly-revealed")).toBe(
@@ -296,6 +301,64 @@ describe("newly revealed map pins", () => {
 });
 
 describe("controls", () => {
+  it("uses the root SVG viewport as the sole camera and supports mouse double-click zoom", () => {
+    const { container } = render(
+      <FiyuMap restaurants={[SHIBUYA]} selectedPlaceId={null} onSelect={() => {}} />,
+    );
+    const surface = mapSurface();
+    const before = cameraScale(surface);
+
+    fireEvent.doubleClick(surface, { clientX: 500, clientY: 513 });
+
+    expect(cameraScale(surface)).toBeGreaterThan(before);
+    expect(container.querySelector('[data-map-content="true"]')?.hasAttribute("transform")).toBe(
+      false,
+    );
+  });
+
+  it("supports touch double-tap zoom without making marker taps zoom", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-13T12:00:00Z"));
+    render(<FiyuMap restaurants={[SHIBUYA]} selectedPlaceId={null} onSelect={() => {}} />);
+    const surface = mapSurface();
+    Object.defineProperty(surface, "setPointerCapture", { value: vi.fn() });
+    const before = cameraScale(surface);
+
+    fireEvent.pointerDown(surface, {
+      pointerId: 1,
+      pointerType: "touch",
+      clientX: 500,
+      clientY: 513,
+    });
+    fireEvent.pointerUp(surface, {
+      pointerId: 1,
+      pointerType: "touch",
+      clientX: 500,
+      clientY: 513,
+    });
+    vi.advanceTimersByTime(100);
+    fireEvent.pointerDown(surface, {
+      pointerId: 2,
+      pointerType: "touch",
+      clientX: 500,
+      clientY: 513,
+    });
+    fireEvent.pointerUp(surface, {
+      pointerId: 2,
+      pointerType: "touch",
+      clientX: 500,
+      clientY: 513,
+    });
+
+    expect(cameraScale(surface)).toBeGreaterThan(before);
+    const afterMapTap = cameraSnapshot(surface);
+    fireEvent.doubleClick(surface, { clientX: 500, clientY: 513 });
+    expect(cameraSnapshot(surface)).toBe(afterMapTap);
+    vi.advanceTimersByTime(400);
+    fireEvent.doubleClick(screen.getByLabelText("渋谷の店"));
+    expect(cameraSnapshot(surface)).toBe(afterMapTap);
+  });
+
   it("restores an application map transform without re-fitting on a matching result set", () => {
     const first = render(
       <FiyuMap
@@ -306,9 +369,8 @@ describe("controls", () => {
       />,
     );
     const map = mapSurface();
-    const content = map.querySelector("g[transform]") as SVGGElement;
     fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
-    const changedTransform = content.getAttribute("transform");
+    const changedCamera = cameraSnapshot(map);
     first.unmount();
 
     render(
@@ -320,9 +382,7 @@ describe("controls", () => {
       />,
     );
 
-    expect((mapSurface().querySelector("g[transform]") as SVGGElement).getAttribute("transform")).toBe(
-      changedTransform,
-    );
+    expect(cameraSnapshot()).toBe(changedCamera);
   });
 
   it("exposes zoom, fit and reset as real keyboard-reachable buttons", () => {
@@ -361,8 +421,8 @@ describe("controls", () => {
     fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
     fireEvent.click(screen.getByRole("button", { name: "Reset to the whole map" }));
 
-    const group = surface.querySelector("g");
-    expect(group?.getAttribute("transform")).toBe("translate(0 0) scale(1)");
+    expect(cameraSnapshot(surface)).toBe("0:0:1");
+    expect(surface.getAttribute("viewBox")).toBe("0 0 1000 1026");
     expect(screen.getByRole("button", { name: "Zoom out" })).toHaveProperty("disabled", true);
   });
 
@@ -375,9 +435,7 @@ describe("controls", () => {
     }
     expect(screen.getByRole("button", { name: "Zoom in" })).toHaveProperty("disabled", true);
 
-    const transform = mapSurface().querySelector("g")?.getAttribute("transform") ?? "";
-    const scale = Number(transform.match(/scale\(([\d.]+)\)/)?.[1]);
-    expect(scale).toBeLessThanOrEqual(4);
+    expect(cameraScale()).toBeLessThanOrEqual(4);
   });
 });
 
@@ -423,15 +481,14 @@ describe("clustering on the map", () => {
       />,
     );
 
-    const content = mapSurface().querySelector("g[transform]") as SVGGElement;
-    const before = content.getAttribute("transform");
+    const before = cameraSnapshot();
     const nativeAnimation = window.requestAnimationFrame.bind(window);
     const animation = vi
       .spyOn(window, "requestAnimationFrame")
       .mockImplementation((callback) => nativeAnimation(callback));
     fireEvent.click(screen.getByRole("button", { name: /2 restaurants in this area/ }));
 
-    expect(content.getAttribute("transform")).toBe(before);
+    expect(cameraSnapshot()).toBe(before);
     expect(animation).toHaveBeenCalled();
     expect(screen.queryByTestId("map-cluster-picker")).toBeNull();
 
@@ -464,9 +521,7 @@ describe("clustering on the map", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /2 restaurants in this area/ }));
 
-    const transform = mapSurface().querySelector("g[transform]")?.getAttribute("transform") ?? "";
-    const scale = Number(transform.match(/scale\(([\d.]+)\)/)?.[1]);
-    expect(scale).toBeGreaterThanOrEqual(1.5);
+    expect(cameraScale()).toBeGreaterThanOrEqual(1.5);
     expect(container.querySelector('[data-marker-kind="restaurant-cluster"]')).toBeNull();
     expect(container.querySelectorAll('[data-marker-kind="restaurant"]')).toHaveLength(2);
     expect(screen.queryByTestId("map-cluster-picker")).toBeNull();
@@ -565,7 +620,7 @@ describe("clustering on the map", () => {
     const immediatelySettled = markerPositions();
     expect(immediatelySettled.every(({ actual, canonical }) => actual === canonical)).toBe(true);
     expect(new Set(immediatelySettled.map(({ actual }) => actual)).size).toBe(2);
-    const settledTransform = mapSurface().querySelector("g[transform]")?.getAttribute("transform");
+    const settledCamera = cameraSnapshot();
 
     // Idle hover has no state path, and a wheel gesture clamped at MAX_SCALE
     // is also a no-op. Neither may clear or "correct" marker geometry.
@@ -573,9 +628,7 @@ describe("clustering on the map", () => {
     fireEvent.wheel(mapSurface(), { clientX: 300, clientY: 300, deltaY: -100 });
 
     expect(markerPositions()).toEqual(immediatelySettled);
-    expect(mapSurface().querySelector("g[transform]")?.getAttribute("transform")).toBe(
-      settledTransform,
-    );
+    expect(cameraSnapshot()).toBe(settledCamera);
   });
 
   it("freezes the whole cluster partition during camera motion and swaps once at settlement", () => {
@@ -773,6 +826,46 @@ describe("clustering on the map", () => {
     expect(container.querySelectorAll('[data-cluster-appearing="true"]')).toHaveLength(0);
   });
 
+  it("settles the canonical camera and removes expansion artifacts when wheel input interrupts", () => {
+    const animation = vi.spyOn(window, "requestAnimationFrame").mockImplementation(() => 99);
+    const cancellation = vi.spyOn(window, "cancelAnimationFrame");
+    const a = mappable("a", 35.6978436, 139.7741913);
+    const b = mappable("b", 35.69797502625716, 139.77817065934673);
+    saveMapViewportSession("wheel-cancelled-cluster", {
+      resultKey: "a|b",
+      view: { x: 0, y: 0, k: 1 },
+    });
+    const { container } = render(
+      <FiyuMap
+        restaurants={[a, b]}
+        selectedPlaceId={null}
+        onSelect={() => {}}
+        viewportSessionKey="wheel-cancelled-cluster"
+      />,
+    );
+    const surface = mapSurface();
+    vi.spyOn(surface, "getBoundingClientRect").mockReturnValue({
+      left: 0,
+      top: 0,
+      width: 1000,
+      height: 1026,
+      right: 1000,
+      bottom: 1026,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /2 restaurants in this area/ }));
+    expect(animation).toHaveBeenCalledTimes(1);
+    fireEvent.wheel(surface, { clientX: 500, clientY: 513, deltaY: -100 });
+
+    expect(cancellation).toHaveBeenCalledWith(99);
+    expect(container.querySelector('[data-marker-kind="restaurant-cluster-ghost"]')).toBeNull();
+    expect(container.querySelector('[data-cluster-appearing="true"]')).toBeNull();
+    expect(cameraScale(surface)).toBeGreaterThan(1);
+  });
+
   it("waits for camera settlement before rendering spiderfied markers", () => {
     const frames: FrameRequestCallback[] = [];
     vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
@@ -845,9 +938,7 @@ describe("clustering on the map", () => {
       return `${circle?.getAttribute("cx")}:${circle?.getAttribute("cy")}`;
     });
     expect(new Set(positions).size).toBe(2);
-    expect(mapSurface().querySelector("g[transform]")?.getAttribute("transform")).toContain(
-      "scale(4)",
-    );
+    expect(cameraScale()).toBe(4);
     fireEvent.click(markers[1]);
     expect(onSelect).toHaveBeenCalledWith(b);
 

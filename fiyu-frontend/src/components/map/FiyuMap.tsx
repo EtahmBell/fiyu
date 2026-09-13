@@ -28,7 +28,6 @@ import { readMapViewportSession, saveMapViewportSession } from "@/lib/map/viewpo
 import {
   type LatLng,
   type Point,
-  VIEWBOX,
   VIEWBOX_HEIGHT,
   VIEWBOX_WIDTH,
   isWithinBounds,
@@ -39,6 +38,7 @@ import {
   IDENTITY_VIEW,
   MAX_SCALE,
   MIN_SCALE,
+  ZOOM_STEP,
   type MapView,
   centerPointsAtScale,
   clientToViewBox,
@@ -46,7 +46,7 @@ import {
   fitToPoints,
   normalizeView,
   panBy,
-  transformFor,
+  viewBoxFor,
   viewForSelectedPoint,
   viewBoxToContent,
   viewsEqual,
@@ -112,6 +112,8 @@ const CLUSTER_MIN_ZOOM_FACTOR = 1.35;
 const CLUSTER_MIN_ZOOM_STEP = 0.5;
 /** Quiet period after wheel/pinch input before adopting a new cluster level. */
 const CLUSTER_ZOOM_SETTLE_MS = 120;
+const DOUBLE_TAP_WINDOW_MS = 320;
+const DOUBLE_TAP_SLOP = 24;
 
 type ClusterActivationPhase = "expanding" | "handoff" | "settled";
 
@@ -197,6 +199,8 @@ export function FiyuMap({
   const [dragging, setDragging] = useState(false);
   /** Where a gesture started, so a tap can be told apart from a pan. */
   const gestureStart = useRef<{ x: number; y: number } | null>(null);
+  const lastTouchTap = useRef<{ at: number; x: number; y: number } | null>(null);
+  const lastTouchZoomAt = useRef(0);
 
   /*
    * Only restaurants inside the illustrated area are projected.
@@ -340,7 +344,12 @@ export function FiyuMap({
     }
     const completion = viewAnimationCompletion.current;
     viewAnimationCompletion.current = null;
-    if (notifyCancellation) completion?.(false);
+    if (notifyCancellation) {
+      const settled = viewRef.current;
+      setView(settled);
+      setClusterLevel(clusterLevelForScale(settled.k));
+      completion?.(false);
+    }
   }, []);
 
   const animateToView = useCallback((
@@ -596,9 +605,9 @@ export function FiyuMap({
       event.preventDefault();
       const factor = Math.exp(-event.deltaY * WHEEL_SENSITIVITY);
       const focus = clientToViewBox(event.clientX, event.clientY, svg.getBoundingClientRect());
+      markInteracted();
       const next = zoomAt(viewRef.current, factor, focus);
       if (viewsEqual(viewRef.current, next)) return;
-      markInteracted();
       viewRef.current = next;
       setView(next);
     };
@@ -614,7 +623,7 @@ export function FiyuMap({
       if ((event.target as Element).closest('[role="button"]')) return;
       if ((event.target as Element).closest('[data-layer="restaurant-popup"]')) return;
 
-      cancelViewAnimation();
+      markInteracted();
       onMapBackgroundClick?.();
 
       pointers.current.set(event.pointerId, event.nativeEvent);
@@ -627,7 +636,7 @@ export function FiyuMap({
         gestureStart.current = null;
       }
     },
-    [cancelViewAnimation, interactive, onMapBackgroundClick],
+    [interactive, markInteracted, onMapBackgroundClick],
   );
 
   const handlePointerMove = useCallback(
@@ -678,21 +687,74 @@ export function FiyuMap({
   const endPointer = useCallback(
     (event: React.PointerEvent<SVGSVGElement>) => {
       const start = gestureStart.current;
+      const wasTracked = pointers.current.has(event.pointerId);
       pointers.current.delete(event.pointerId);
       if (pointers.current.size < 2) pinchDistance.current = null;
       if (pointers.current.size === 0) setDragging(false);
 
+      if (!wasTracked) return;
+      const travelled = start
+        ? Math.hypot(event.clientX - start.x, event.clientY - start.y)
+        : TAP_SLOP + 1;
+      gestureStart.current = null;
+
+      if (
+        event.type === "pointerup" &&
+        !placingPin &&
+        travelled <= TAP_SLOP &&
+        (event.pointerType === "touch" || event.pointerType === "pen")
+      ) {
+        const previous = lastTouchTap.current;
+        const now = Date.now();
+        if (
+          previous &&
+          now - previous.at <= DOUBLE_TAP_WINDOW_MS &&
+          Math.hypot(event.clientX - previous.x, event.clientY - previous.y) <= DOUBLE_TAP_SLOP
+        ) {
+          lastTouchTap.current = null;
+          lastTouchZoomAt.current = now;
+          const focus = toViewBox(event.clientX, event.clientY);
+          const next = zoomAt(viewRef.current, ZOOM_STEP, focus);
+          markInteracted();
+          viewRef.current = next;
+          setView(next);
+          setClusterLevel(clusterLevelForScale(next.k));
+          return;
+        }
+        lastTouchTap.current = { at: now, x: event.clientX, y: event.clientY };
+      } else if (travelled > TAP_SLOP) {
+        lastTouchTap.current = null;
+      }
+
       // A tap in pin-placement mode drops or moves the starting point. The
       // slop check keeps the end of a pan from placing a pin by accident.
       if (!placingPin || !onPlacePin || !start || event.type !== "pointerup") return;
-      const travelled = Math.hypot(event.clientX - start.x, event.clientY - start.y);
-      gestureStart.current = null;
       if (travelled > TAP_SLOP) return;
 
       const inViewBox = toViewBox(event.clientX, event.clientY);
       onPlacePin(unproject(viewBoxToContent(inViewBox, view)));
     },
-    [placingPin, onPlacePin, toViewBox, view],
+    [markInteracted, placingPin, onPlacePin, toViewBox, view],
+  );
+
+  const handleDoubleClick = useCallback(
+    (event: React.MouseEvent<SVGSVGElement>) => {
+      if (!interactive || placingPin) return;
+      // Some mobile browsers synthesize a mouse dblclick after the two pointer
+      // taps. The pointer path already committed this gesture to the canonical
+      // camera, so ignore only that immediate compatibility event.
+      if (Date.now() - lastTouchZoomAt.current <= DOUBLE_TAP_WINDOW_MS) return;
+      if ((event.target as Element).closest('[role="button"]')) return;
+      if ((event.target as Element).closest('[data-layer="restaurant-popup"]')) return;
+      event.preventDefault();
+      const focus = toViewBox(event.clientX, event.clientY);
+      const next = zoomAt(viewRef.current, ZOOM_STEP, focus);
+      markInteracted();
+      viewRef.current = next;
+      setView(next);
+      setClusterLevel(clusterLevelForScale(next.k));
+    },
+    [interactive, markInteracted, placingPin, toViewBox],
   );
 
   const fitResults = useCallback(() => {
@@ -788,10 +850,13 @@ export function FiyuMap({
     <div ref={containerRef} className={cn("relative h-full w-full overflow-hidden bg-[var(--map-bg)]", className)}>
       <svg
         ref={svgRef}
-        viewBox={VIEWBOX}
+        viewBox={viewBoxFor(view)}
         preserveAspectRatio="xMidYMid meet"
         role="img"
         data-cluster-level={clusterLevel}
+        data-camera-scale={view.k}
+        data-camera-x={view.x}
+        data-camera-y={view.y}
         aria-label={
           plotted.length === 0
             ? "Map of Tokyo. No restaurants are currently mapped."
@@ -811,6 +876,7 @@ export function FiyuMap({
         onPointerUp={endPointer}
         onPointerCancel={endPointer}
         onPointerLeave={endPointer}
+        onDoubleClick={handleDoubleClick}
       >
         {/*
           Draw order is deliberate and is the whole basis of the visual
@@ -818,7 +884,7 @@ export function FiyuMap({
           restaurant markers LAST so a pin is never overdrawn by a station,
           landmark or label. Every layer above the markers would be a bug.
         */}
-        <g transform={transformFor(view)}>
+        <g data-map-content="true">
           <MapBase detail={detail} />
           <g className={compactOnMobile ? "hidden lg:inline" : undefined}>
             <MapLabels scale={view.k} detail={detail} />

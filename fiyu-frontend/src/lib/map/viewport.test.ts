@@ -17,12 +17,23 @@ import {
   panBy,
   pointIsWithinPaddedView,
   viewForSelectedPoint,
+  viewBoxFor,
   viewBoxToContent,
   zoomAt,
   zoomByStep,
 } from "@/lib/map/viewport";
 
 const CENTRE = { x: VIEWBOX_WIDTH / 2, y: VIEWBOX_HEIGHT / 2 };
+
+describe("viewBoxFor", () => {
+  it("keeps the whole Tokyo canvas at the identity camera", () => {
+    expect(viewBoxFor(IDENTITY_VIEW)).toBe("0 0 1000 1026");
+  });
+
+  it("expresses pan and zoom through the root SVG viewport", () => {
+    expect(viewBoxFor({ x: -500, y: -513, k: 2 })).toBe("250 256.5 500 513");
+  });
+});
 
 /** Screen position of a content point under a view. */
 function screenOf(point: { x: number; y: number }, view: MapView) {

@@ -75,6 +75,21 @@ afterEach(() => {
 });
 
 describe("dedicated user map", () => {
+  it("keeps the compact filter and zoom controls in separate mobile corner zones", async () => {
+    api.fetchAuthenticatedMapRestaurants.mockResolvedValue([]);
+    publishProfileIdentity(profile("mobile-controls"));
+    render(<DedicatedMap />);
+
+    await screen.findByText("No places yet");
+    const filter = screen.getByTestId("personal-map-filter-control");
+    const controls = screen.getByTestId("map-controls");
+    expect(filter.contains(controls)).toBe(false);
+    expect(filter.className).toContain("left-3");
+    expect(filter.className).toContain("calc(100%-5.5rem)");
+    expect(controls.className).toContain("right-3");
+    expect(screen.getAllByRole("tab")).toHaveLength(4);
+  });
+
   it("redirects desktop visitors without loading Map data", async () => {
     vi.stubGlobal(
       "matchMedia",
@@ -404,7 +419,7 @@ describe("dedicated user map", () => {
     await waitFor(() =>
       expect(container.querySelectorAll('[data-marker-kind="restaurant"]')).toHaveLength(3),
     );
-    const transform = container.querySelector("svg > g")?.getAttribute("transform");
+    const viewBox = container.querySelector("svg")?.getAttribute("viewBox");
 
     fireEvent.click(container.querySelector(`[data-place-id="${rows[0].place_id}"]`) as Element);
     expect(container.querySelector('[data-layer="restaurant-popup"]')).toBeTruthy();
@@ -414,7 +429,7 @@ describe("dedicated user map", () => {
       expect(container.querySelectorAll('[data-marker-kind="restaurant"]')).toHaveLength(2);
       expect(container.querySelector('[data-layer="restaurant-popup"]')).toBeNull();
     });
-    expect(container.querySelector("svg > g")?.getAttribute("transform")).toBe(transform);
+    expect(container.querySelector("svg")?.getAttribute("viewBox")).toBe(viewBox);
     const savedOnly = container.querySelector(`[data-place-id="${rows[1].place_id}"]`);
     expect(savedOnly?.getAttribute("data-marker-state")).toBe("saved");
     expect(savedOnly?.querySelectorAll("circle")[2]?.getAttribute("fill")).toBe("var(--map-bg)");

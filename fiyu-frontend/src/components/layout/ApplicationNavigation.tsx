@@ -146,7 +146,7 @@ function MobileMenu() {
         aria-label="More"
         className="absolute top-[calc(100%+0.5rem)] right-0 z-50 w-48 rounded-card border border-line bg-surface p-2 shadow-xl"
       >
-        <Link href="/profile" className="flex min-h-11 items-center rounded-lg px-3 text-sm text-ink hover:bg-subtle">
+        <Link href="/profile/settings" className="flex min-h-11 items-center rounded-lg px-3 text-sm text-ink hover:bg-subtle">
           Settings
         </Link>
         <Link href="/profile/help" className="flex min-h-11 items-center rounded-lg px-3 text-sm text-ink hover:bg-subtle">
