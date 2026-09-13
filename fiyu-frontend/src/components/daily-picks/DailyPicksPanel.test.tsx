@@ -45,6 +45,18 @@ afterEach(() => {
 });
 
 describe("Today’s Fiyu Picks panel", () => {
+  it("uses one primary heading and quiet pre-generation metadata without a location placeholder", () => {
+    const storage = createDailyPicksStorage(window.localStorage);
+
+    render(<DailyPicksPanel restaurants={catalog} storage={storage} />);
+
+    expect(screen.getByRole("heading", { level: 1, name: "Today’s Fiyu Picks" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Picks" })).toBeNull();
+    expect(screen.getByTestId("daily-picks-pre-generation-meta").textContent).toBe("3 PicksDaily");
+    expect(screen.queryByTestId("picks-location-context")).toBeNull();
+    expect(document.body.textContent).not.toContain("undefined");
+  });
+
   it("replaces only a visited active Pick with the compact brass state", () => {
     const now = Date.UTC(2026, 6, 29, 12);
     vi.useFakeTimers();
@@ -120,7 +132,7 @@ describe("Today’s Fiyu Picks panel", () => {
     const countdown = screen.getByTestId("daily-picks-countdown");
     const firstCard = screen.getAllByTestId("concealed-restaurant-card")[0];
 
-    expect(screen.getByText("Next Picks in")).toBeTruthy();
+    expect(screen.getByText("Next Picks")).toBeTruthy();
     expect(screen.getByText("23h 59m")).toBeTruthy();
     expect(countdown.compareDocumentPosition(firstCard) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.queryByText(/Next selection available in/)).toBeNull();
@@ -151,7 +163,7 @@ describe("Today’s Fiyu Picks panel", () => {
 
     act(() => vi.advanceTimersByTime(60_000));
 
-    expect(screen.getByText("Your next Picks are ready")).toBeTruthy();
+    expect(screen.getByTestId("daily-picks-pre-generation-meta").textContent).toBe("3 PicksDaily");
     expect(screen.getByRole("button", { name: /Find today's restaurants/i })).toBeTruthy();
     expect(storage.getSnapshot()?.selection?.restaurantIds).toEqual(selection.restaurantIds);
   });
@@ -185,7 +197,7 @@ describe("Today’s Fiyu Picks panel", () => {
     // The countdown shares the section heading's row and its single rule.
     const countdownRow = screen.getByTestId("daily-picks-countdown").parentElement;
     expect(countdownRow?.className).toContain("border-b");
-    expect(countdownRow?.querySelector("h2")?.textContent).toBe("Today’s Fiyu Picks");
+    expect(countdownRow?.querySelector("h1")?.textContent).toBe("Today’s Fiyu Picks");
     expect(screen.getAllByTestId("concealed-restaurant-card")).toHaveLength(3);
     const selectedIds = firstStorage.getSnapshot()?.selection?.restaurantIds;
     expect(selectedIds).toHaveLength(3);
@@ -391,17 +403,11 @@ describe("Today’s Fiyu Picks panel", () => {
       />,
     );
 
-    const context = screen.getByTestId("picks-discovery-context");
-    // The count and the area, stated once. The area used to appear in both a
-    // headline and a sentence beneath it, inside a tinted panel.
-    expect(within(context).getByText("3 Picks near Shibuya")).toBeTruthy();
+    const context = screen.getByTestId("picks-location-context");
+    expect(within(context).getByText("Near Shibuya")).toBeTruthy();
     expect(context.textContent).not.toContain("Selected near");
-    expect(within(context).queryByText("3 picks today")).toBeNull();
-    expect(within(context).queryByText("Selected around your tastes and nearby area")).toBeNull();
-    expect(context.querySelector('[data-city-signature-mark="tokyo"]')).toBeTruthy();
     expect(context.className).not.toContain("rounded-xl");
     expect(context.className).not.toContain("bg-lavender");
-    expect(context.className).not.toContain("border-b");
     expect(context.className).not.toContain("shadow");
 
     expect(within(context).queryByRole("button", { name: "Edit preferences" })).toBeNull();

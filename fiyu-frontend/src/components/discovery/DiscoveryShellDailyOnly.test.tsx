@@ -270,10 +270,9 @@ describe("daily-only discovery shell", () => {
     expect(screen.getByTestId("restaurant-scroll-region").firstElementChild?.className).toContain(
       "pb-[calc(var(--spacing-mobile-nav)+1.5rem)]",
     );
-    const mobileHeading = screen.getByTestId("mobile-picks-page-header");
-    expect(mobileHeading.className).toContain("lg:hidden");
-    expect(within(mobileHeading).getByRole("heading", { level: 1, name: "Picks" })).toBeTruthy();
-    expect(screen.getAllByRole("heading", { level: 1, name: "Picks" })).toHaveLength(1);
+    expect(screen.queryByTestId("mobile-picks-page-header")).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Picks" })).toBeNull();
+    expect(screen.getAllByRole("heading", { level: 1, name: "Today’s Fiyu Picks" })).toHaveLength(1);
 
     const scrollRegion = screen.getByTestId("restaurant-scroll-region");
     expect(scrollRegion.className).toContain("min-w-0");
@@ -337,8 +336,8 @@ describe("daily-only discovery shell", () => {
 
     const { container } = render(<DiscoveryShell restaurants={catalog} areaAnchors={[]} />);
     expect(container.querySelectorAll("[data-place-id]")).toHaveLength(3);
-    expect(screen.getAllByRole("heading", { level: 1, name: "Picks" })).toHaveLength(1);
-    expect(screen.getByRole("heading", { level: 2, name: "Today’s Fiyu Picks" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Picks" })).toBeNull();
+    expect(screen.getByRole("heading", { level: 1, name: "Today’s Fiyu Picks" })).toBeTruthy();
     const dailyPanel = document.querySelector('[aria-labelledby="daily-picks-heading"]');
     expect(dailyPanel?.className).toContain("min-w-0");
     expect(dailyPanel?.className).toContain("w-full");
@@ -1058,10 +1057,8 @@ describe("daily-only discovery shell", () => {
     await waitFor(() => expect(dailyApi.fetchActiveDailyPicks).toHaveBeenCalledOnce());
     await waitFor(() => expect(locationApi.fetchDiscoveryLocation).toHaveBeenCalledOnce());
     // The invariant is that a live-GPS round never claims a stored area name.
-    // The context line itself now carries the count and "you" together, so
-    // there is no longer a prefix to be redundant with.
-    const context = await screen.findByTestId("picks-discovery-context");
-    expect(context.textContent).toContain("3 Picks near you");
+    const context = await screen.findByTestId("picks-location-context");
+    expect(context.textContent).toContain("Near you");
     expect(context.textContent).not.toContain("Ginza");
   });
 

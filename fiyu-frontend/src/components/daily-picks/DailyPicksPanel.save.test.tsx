@@ -444,5 +444,10 @@ describe("/picks revealed-card save bookmark", () => {
     // The entry summarises a Together; it never renders the shared cards.
     expect(screen.queryByLabelText("Together restaurants")).toBeNull();
     expect(screen.queryByText("Restaurant four")).toBeNull();
+    const today = screen.getByRole("heading", { name: "Today’s Fiyu Picks" });
+    const together = screen.getByText("3 Picks together");
+    const recent = screen.getByRole("heading", { name: "Recent Discoveries" });
+    expect(today.compareDocumentPosition(together) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(together.compareDocumentPosition(recent) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });

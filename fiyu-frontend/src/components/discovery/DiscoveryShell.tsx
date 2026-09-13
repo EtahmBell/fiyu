@@ -535,15 +535,6 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
               "pb-[calc(var(--spacing-mobile-nav)+1.5rem)] lg:mx-auto lg:max-w-[48rem] lg:pb-10",
             )}
           >
-            {/*
-              * The hairline under the heading belongs to the discovery context
-              * that follows it, so the masthead and its standfirst read as one
-              * block rather than two stacked rules.
-              */}
-            <header data-testid="mobile-picks-page-header" className="pt-5 pb-2 lg:hidden">
-              <h1 className="font-display text-[1.75rem] leading-none text-ink">Picks</h1>
-            </header>
-
             <div className="relative z-10 min-w-0 w-full">
               <DailyPicksPanel
                 key={identity.profile?.user_id ?? "anonymous"}

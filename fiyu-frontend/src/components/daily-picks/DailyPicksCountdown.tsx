@@ -24,12 +24,8 @@ export function formatPicksCountdown(milliseconds: number): string {
 /**
  * When the next round arrives, set as a dateline.
  *
- * One line rather than a row of its own. This used to be a full-width band with
- * a tracked label at one end, a bold figure at the other and its own rule
- * underneath -- roughly forty pixels of page telling the reader something they
- * are not waiting for, directly above the restaurants they are. It now sits on
- * the baseline of the section heading and shares that heading's rule, so the
- * information survives at a fraction of the weight.
+ * Compact metadata in the right side of the Picks masthead. The caller owns
+ * the shared divider; this component owns only the canonical expiry wording.
  *
  * The element keeps its own live region: the caller lays it out, but the
  * announcement belongs to the value.
@@ -46,17 +42,17 @@ export function DailyPicksCountdown({ expiresAt, now }: DailyPicksCountdownProps
       data-testid="daily-picks-countdown"
       aria-live="polite"
       aria-atomic="true"
-      className="shrink-0 text-[0.8125rem] leading-5 text-ink-muted"
+      className="shrink-0 pb-0.5 text-right"
     >
+      <span className="block text-[0.6875rem] font-semibold tracking-[0.14em] text-ink-muted uppercase">
+        Next Picks
+      </span>
       {ready ? (
-        <span className="font-medium text-lavender-700">Your next Picks are ready</span>
+        <span className="mt-1 block text-sm font-semibold text-lavender-700">Ready</span>
       ) : (
-        <>
-          Next Picks in{" "}
-          <time dateTime={expiresAt} className="font-semibold text-plum tabular-nums">
-            {formatPicksCountdown(remaining)}
-          </time>
-        </>
+        <time dateTime={expiresAt} className="mt-1 block text-sm font-semibold text-plum tabular-nums">
+          {formatPicksCountdown(remaining)}
+        </time>
       )}
     </p>
   );

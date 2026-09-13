@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 
 import { ConcealedRestaurantCard } from "@/components/daily-picks/ConcealedRestaurantCard";
 import { DailyPicksCountdown } from "@/components/daily-picks/DailyPicksCountdown";
-import { CityHeaderMark } from "@/components/city-signature/CitySignature";
 import {
   DailyCardFrame,
   type DailyCardRefRegistrar,
@@ -166,48 +165,10 @@ const subscribeClock = (listener: () => void) => {
 const currentMinute = () => Math.floor(Date.now() / 60_000) * 60_000;
 const serverMinute = () => 0;
 
-/**
- * Discovery context beneath the mobile `Picks` heading.
- *
- * Every value here comes from state that already exists: the count is the
- * current selection's length and the area is the resolved discovery origin.
- * Neither is invented -- with no active selection the count line is omitted
- * entirely, and with no resolved origin the area prefix simply disappears.
- *
- * One line, on the page background.
- *
- * This was a tinted panel carrying `Near Ikebukuro · 3 picks selected` above
- * `Selected near Ikebukuro` -- the area named twice, the count phrased once as a
- * status and once as a sentence, inside a box with the visual weight of a
- * feature. The two facts are the same two facts; stated once they fit on a
- * single muted line under the heading, which is what context is supposed to
- * look like on a page whose subject is restaurants.
- *
- * Both inputs are unchanged: the count is still the current selection's length
- * and the area still the resolved discovery origin, with `you` and an
- * unresolved origin reading the same way they did before.
- */
-function PicksDiscoveryContext({
-  areaLabel,
-  pickCount,
-}: {
-  areaLabel: string | null;
-  pickCount: number;
-}) {
-  const namedAreaLabel = areaLabel === "you" ? null : areaLabel;
-  const nearLabel = namedAreaLabel ?? "you";
-  const line =
-    pickCount > 0 ? `${pickCount} Picks near ${nearLabel}` : `Near ${nearLabel}`;
-
-  return (
-    <p
-      data-testid="picks-discovery-context"
-      className="flex min-w-0 items-center gap-1.5 pb-0.5 text-[0.8125rem] leading-5 text-ink-muted lg:hidden"
-    >
-      <CityHeaderMark cityId={ACTIVE_FIYU_CITY.id} className="size-[0.9375rem]" />
-      <span className="min-w-0">{line}</span>
-    </p>
-  );
+function picksLocationCopy(location: ActivePicksDiscoveryLocation | null): string | null {
+  if (location?.mode === "current") return "Near you";
+  const label = location?.label?.trim();
+  return label ? `Near ${label}` : null;
 }
 
 export function DailyPicksPanel({
@@ -783,6 +744,16 @@ export function DailyPicksPanel({
     );
   }
 
+  const headerLocation = assignmentLocation?.accountId === accountId
+    ? {
+        mode: assignmentLocation.mode,
+        label: assignmentLocation.label,
+        latitude: null,
+        longitude: null,
+      }
+    : activeDiscoveryLocation;
+  const headerLocationCopy = picksLocationCopy(headerLocation);
+
   return (
     <>
       {newMapPlaceCount > 0 && (
@@ -799,45 +770,45 @@ export function DailyPicksPanel({
         </p>
       )}
 
-      {hasActivePicks && (
-        <PicksDiscoveryContext
-          areaLabel={
-            assignmentLocation?.accountId === accountId && assignmentLocation.mode === "current"
-              ? "you"
-              : assignmentLocation?.accountId === accountId && assignmentLocation.label
-                ? assignmentLocation.label
-                : activeDiscoveryLocation?.mode === "current"
-                  ? "you"
-                  : activeDiscoveryLocation?.label?.trim() || null
-          }
-          pickCount={selectedRestaurants.length}
-        />
-      )}
-
       <section
         aria-labelledby="daily-picks-heading"
         data-testid="daily-picks-section"
-        className="my-5 min-w-0 w-full"
+        className="mt-4 mb-5 min-w-0 w-full lg:my-5"
       >
-        {phase === "finding" ? (
-          <h2 id="daily-picks-heading" className="sr-only">
-            Fresh Picks
-          </h2>
-        ) : (
-          /*
-           * Heading and countdown on one baseline, over one rule. Two stacked
-           * rows of chrome above the first restaurant was the single biggest
-           * reason the page read as UI-first.
-           */
-          <div className="flex items-baseline justify-between gap-3 border-b border-line pb-2.5">
-            <h2 id="daily-picks-heading" className="min-w-0 font-display text-2xl text-ink">
+        <div
+          data-testid="daily-picks-header"
+          className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-x-4 border-b border-line pb-3"
+        >
+          <div className="min-w-0">
+            <p className="text-[0.6875rem] font-semibold tracking-[0.16em] text-plum-700 uppercase">
+              Today
+            </p>
+            <h1
+              id="daily-picks-heading"
+              className="mt-1 min-w-0 font-display text-[clamp(1.65rem,7vw,2rem)] leading-[1.05] text-ink"
+            >
               Today’s Fiyu Picks
-            </h2>
-            {phase === "idle" && selection && !UNLIMITED_PICKS_DEV_MODE && (
-              <DailyPicksCountdown expiresAt={selection.expiresAt} now={now} />
-            )}
+            </h1>
+            {headerLocationCopy ? (
+              <p
+                data-testid="picks-location-context"
+                className="mt-1.5 min-w-0 truncate text-[0.8125rem] leading-5 text-ink-muted"
+              >
+                {headerLocationCopy}
+              </p>
+            ) : null}
           </div>
-        )}
+          {hasActivePicks && selection && !UNLIMITED_PICKS_DEV_MODE ? (
+            <DailyPicksCountdown expiresAt={selection.expiresAt} now={now} />
+          ) : (
+            <p className="pb-0.5 text-right" data-testid="daily-picks-pre-generation-meta">
+              <span className="block text-[0.6875rem] font-semibold tracking-[0.14em] text-ink-muted uppercase">
+                3 Picks
+              </span>
+              <span className="mt-1 block text-sm font-semibold text-plum">Daily</span>
+            </p>
+          )}
+        </div>
 
         {phase === "finding" ? (
           <div

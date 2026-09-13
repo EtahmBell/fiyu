@@ -28,7 +28,8 @@ describe("Daily Picks countdown", () => {
     const boundary = Date.UTC(2026, 7, 30, 12);
     render(<DailyPicksCountdown expiresAt={new Date(boundary).toISOString()} now={boundary} />);
 
-    expect(screen.getByText("Your next Picks are ready")).toBeTruthy();
+    expect(screen.getByText("Next Picks")).toBeTruthy();
+    expect(screen.getByText("Ready")).toBeTruthy();
     expect(screen.queryByText(/\d+s/)).toBeNull();
   });
 });
