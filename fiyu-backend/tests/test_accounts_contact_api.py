@@ -361,6 +361,129 @@ def test_signin_uses_generic_errors_and_identifies_unverified_accounts(account_d
     assert pending.json()["detail"].startswith("Please verify your email")
 
 
+@pytest.mark.parametrize(
+    ("code", "expected_status"),
+    [
+        ("rate_limited", 429),
+        ("request_timeout", 504),
+        ("service_unavailable", 503),
+    ],
+)
+def test_signup_preserves_transient_provider_failure_status(
+    account_db, monkeypatch, code, expected_status
+):
+    def reject(**_):
+        raise api.SupabaseAuthError("sanitized provider failure", code=code)
+
+    monkeypatch.setattr(api, "sign_up_with_supabase", reject)
+    response = TestClient(api.app).post(
+        "/auth/signup",
+        json={"email": "retry@example.com", "password": "provider-valid", "username": "retry_user"},
+    )
+
+    assert response.status_code == expected_status
+    assert "sanitized provider failure" not in response.text
+
+
+@pytest.mark.parametrize(
+    ("code", "expected_status"),
+    [
+        ("invalid_credentials", 401),
+        ("email_not_confirmed", 403),
+        ("rate_limited", 429),
+        ("request_timeout", 504),
+        ("service_unavailable", 503),
+    ],
+)
+def test_signin_preserves_provider_failure_category(
+    account_db, monkeypatch, code, expected_status
+):
+    def reject(**_):
+        raise api.SupabaseAuthError("sanitized provider failure", code=code)
+
+    monkeypatch.setattr(api, "sign_in_with_supabase", reject)
+    response = TestClient(api.app).post(
+        "/auth/signin",
+        json={"identifier": "retry@example.com", "password": "provider-valid"},
+    )
+
+    assert response.status_code == expected_status
+    assert "sanitized provider failure" not in response.text
+
+
+def test_signup_reports_recoverable_partial_profile_setup(account_db, monkeypatch):
+    user_id = str(uuid4())
+    monkeypatch.setattr(
+        api,
+        "sign_up_with_supabase",
+        lambda **_: {"id": user_id, "email": "partial@example.com"},
+    )
+    monkeypatch.setattr(
+        api,
+        "_ensure_authenticated_profile",
+        lambda *_, **__: (_ for _ in ()).throw(api.shared_user_data.SharedUserDataError("private")),
+    )
+
+    response = TestClient(api.app).post(
+        "/auth/signup",
+        json={"email": "partial@example.com", "password": "provider-valid", "username": "partial"},
+    )
+
+    assert response.status_code == 503
+    assert "Account was created" in response.json()["detail"]
+    assert "private" not in response.text
+
+
+def test_login_repairs_partial_signup_profile_idempotently(
+    account_db, monkeypatch, shared_profile_store
+):
+    user_id = str(uuid4())
+    user = {
+        "id": user_id,
+        "email": "repair@example.com",
+        "user_metadata": {"username": "repair_user"},
+    }
+    monkeypatch.setattr(api, "sign_up_with_supabase", lambda **_: {"user": user})
+    ensure = api._ensure_authenticated_profile
+    attempts = 0
+
+    def fail_once(*args, **kwargs):
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise api.shared_user_data.SharedUserDataError("transient")
+        return ensure(*args, **kwargs)
+
+    monkeypatch.setattr(api, "_ensure_authenticated_profile", fail_once)
+    client = TestClient(api.app)
+    partial = client.post(
+        "/auth/signup",
+        json={"email": "repair@example.com", "password": "provider-valid", "username": "repair_user"},
+    )
+    assert partial.status_code == 503
+
+    monkeypatch.setattr(
+        api,
+        "sign_in_with_supabase",
+        lambda **_: {
+            "user": user,
+            "access_token": "access",
+            "refresh_token": "refresh",
+            "expires_in": 3600,
+            "token_type": "bearer",
+        },
+    )
+    first = client.post(
+        "/auth/signin", json={"identifier": "repair@example.com", "password": "provider-valid"}
+    )
+    second = client.post(
+        "/auth/signin", json={"identifier": "repair@example.com", "password": "provider-valid"}
+    )
+    assert first.status_code == second.status_code == 200
+    assert list(shared_profile_store) == [user_id]
+    assert shared_profile_store[user_id]["username"] == "repair_user"
+
+
 def test_authenticated_profile_read_update_and_owner_identity(account_db, monkeypatch):
     client = TestClient(api.app)
     user_id = str(uuid4())

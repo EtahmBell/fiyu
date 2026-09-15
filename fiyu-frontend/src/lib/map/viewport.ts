@@ -139,6 +139,39 @@ export function panBy(view: MapView, dx: number, dy: number): MapView {
   return clampTranslate({ x: view.x + dx, y: view.y + dy, k: view.k });
 }
 
+/** Convert a client-pixel drag into the canonical camera's viewport units. */
+export function panByClientDelta(
+  view: MapView,
+  from: Point,
+  to: Point,
+  rect: { left: number; top: number; width: number; height: number },
+): MapView {
+  const start = clientToViewBox(from.x, from.y, rect);
+  const end = clientToViewBox(to.x, to.y, rect);
+  return panBy(view, end.x - start.x, end.y - start.y);
+}
+
+/** A pinch changes scale and translates the original focal point to its new midpoint. */
+export function pinchView(
+  startView: MapView,
+  startMidpoint: Point,
+  startDistance: number,
+  currentMidpoint: Point,
+  currentDistance: number,
+  rect: { left: number; top: number; width: number; height: number },
+): MapView {
+  if (startDistance <= 0 || currentDistance <= 0) return normalizeView(startView);
+  const startFocus = clientToViewBox(startMidpoint.x, startMidpoint.y, rect);
+  const currentFocus = clientToViewBox(currentMidpoint.x, currentMidpoint.y, rect);
+  const contentFocus = viewBoxToContent(startFocus, startView);
+  const k = clampScale(startView.k * currentDistance / startDistance);
+  return clampTranslate({
+    x: currentFocus.x - contentFocus.x * k,
+    y: currentFocus.y - contentFocus.y * k,
+    k,
+  });
+}
+
 /**
  * Zoom about a fixed point, given in viewBox coordinates.
  *

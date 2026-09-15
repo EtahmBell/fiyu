@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { LANDING_MEASURE } from "@/components/landing-page/landingSystem";
+import { AuthRequestError, classifyAuthFailure } from "@/lib/auth/authErrors";
 import { authService } from "@/lib/auth/authService";
 import { clearAuthReturnPath, currentSafeNextPath, rememberAuthReturnPath } from "@/lib/navigation/safeRedirect";
 import { cn } from "@/lib/utils/cn";
@@ -19,7 +20,7 @@ export function AuthPage({ mode }: { mode: "signin" | "signup" }) {
   const [password, setPassword] = useState("");
   const [username, setUsername] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | AuthRequestError | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [verificationEmail, setVerificationEmail] = useState<string | null>(null);
   const [passwordRecovery, setPasswordRecovery] = useState(false);
@@ -78,7 +79,7 @@ export function AuthPage({ mode }: { mode: "signin" | "signup" }) {
         router.replace(nextPath);
       }
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Account access is unavailable.");
+      setError(classifyAuthFailure(cause));
     } finally {
       setSubmitting(false);
     }
@@ -94,7 +95,7 @@ export function AuthPage({ mode }: { mode: "signin" | "signup" }) {
       setError(null);
       setNotice("Check your email for a password reset link.");
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Password reset is unavailable.");
+      setError(classifyAuthFailure(cause));
     }
   };
 
@@ -108,7 +109,7 @@ export function AuthPage({ mode }: { mode: "signin" | "signup" }) {
       setNotice("Password updated. You can continue to Fiyu.");
       setPasswordRecovery(false);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Password reset is unavailable.");
+      setError(classifyAuthFailure(cause));
     } finally {
       setSubmitting(false);
     }
@@ -146,7 +147,7 @@ export function AuthPage({ mode }: { mode: "signin" | "signup" }) {
             <h1 className="mt-8 font-display text-4xl leading-tight text-ink sm:text-5xl">Choose a new password</h1>
             <label htmlFor="recovery-password" className="mt-8 block text-sm font-medium text-ink">New password</label>
             <input id="recovery-password" type="password" required autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} className={FIELD_CLASS} />
-            {error && <p role="alert" className="mt-4 text-sm text-rose-dust">{error}</p>}
+            {error && <p role="alert" className="mt-4 text-sm text-rose-dust">{typeof error === "string" ? error : error.message}</p>}
             <button type="submit" disabled={submitting} className="mt-6 inline-flex min-h-12 w-full items-center justify-center rounded-lg bg-plum px-5 text-sm font-medium text-white disabled:opacity-50">
               {submitting ? "Updating…" : "Update password"}
             </button>
@@ -227,7 +228,23 @@ export function AuthPage({ mode }: { mode: "signin" | "signup" }) {
               </div>
             )}
 
-            {error && <p role="alert" className="text-sm leading-6 text-rose-dust">{error}</p>}
+            {error && (
+              <div className="space-y-2">
+                <p role="alert" className="text-sm leading-6 text-rose-dust">
+                  {typeof error === "string" ? error : error.message}
+                </p>
+                {error instanceof AuthRequestError && error.isTransient ? (
+                  <button type="submit" className="min-h-11 text-sm font-semibold text-plum underline underline-offset-4">
+                    Try again
+                  </button>
+                ) : null}
+                {signup && error instanceof AuthRequestError && ["user_already_exists", "account_setup_incomplete"].includes(error.code) ? (
+                  <Link href={`/signin?next=${encodeURIComponent(nextPath)}`} className="inline-flex min-h-11 items-center text-sm font-semibold text-plum underline underline-offset-4">
+                    Sign in instead
+                  </Link>
+                ) : null}
+              </div>
+            )}
             {notice && <p role="status" className="text-sm leading-6 text-ink-muted">{notice}</p>}
             <button
               type="submit"

@@ -1,6 +1,7 @@
 import type { z } from "zod";
 
 import { authService } from "@/lib/auth/authService";
+import { logClientEvent } from "@/lib/clientLog";
 import {
   FiyuApiError,
   extractDetail,
@@ -176,6 +177,7 @@ export const PHOTO_REVALIDATE_SECONDS = 900;
 
 /** Anchors are operator-curated config and change rarely. */
 export const ANCHOR_REVALIDATE_SECONDS = 3600;
+export const API_REQUEST_TIMEOUT_MS = 15_000;
 
 async function requestRaw(
   url: string,
@@ -202,24 +204,31 @@ async function requestRaw(
   };
 
   let response: Response;
+  const timeoutSignal = AbortSignal.timeout(API_REQUEST_TIMEOUT_MS);
+  const requestSignal = signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal;
   try {
     response = await fetch(url, {
       method,
       headers: requestHeaders,
-      signal,
+      signal: requestSignal,
       ...(cache === undefined ? {} : { cache }),
       ...(body === undefined ? {} : { body }),
       ...(Object.keys(next).length === 0 ? {} : { next }),
     });
   } catch (cause) {
     // An abort is a caller-initiated cancellation, not a failure.
-    if (cause instanceof DOMException && cause.name === "AbortError") throw cause;
+    if (signal?.aborted) throw cause;
+    if (timeoutSignal.aborted || (cause instanceof DOMException && cause.name === "TimeoutError")) {
+      logClientEvent("api.request.timeout", { operation: method, errorCode: "timeout" });
+      throw new FiyuApiError({ kind: "timeout", endpoint });
+    }
     // The raw undici rejection is not attached as `cause`: its nested
     // TypeError -> ECONNREFUSED chain crashes the Next 16 dev error overlay.
+    const kind = kindForNetworkFailure();
+    logClientEvent("api.request.network_error", { operation: method, errorCode: kind });
     throw new FiyuApiError({
-      kind: kindForNetworkFailure(),
+      kind,
       endpoint,
-      detail: cause instanceof Error ? cause.message : undefined,
     });
   }
 

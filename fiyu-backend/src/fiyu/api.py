@@ -3107,6 +3107,39 @@ def _provision_profile_after_signin(
         raise shared_user_data.SharedUserDataError("Profile ownership mismatch")
 
 
+def _signup_provider_error(exc: SupabaseAuthError) -> HTTPException:
+    if exc.code == "user_already_exists":
+        return HTTPException(status_code=409, detail="An account already exists for this email")
+    if exc.code == "signup_disabled":
+        return HTTPException(status_code=403, detail="Account creation is temporarily disabled")
+    if exc.code == "rate_limited":
+        return HTTPException(status_code=429, detail="Too many account creation attempts")
+    if exc.code == "request_timeout":
+        return HTTPException(status_code=504, detail="Authentication provider timed out")
+    if exc.code == "service_unavailable":
+        return HTTPException(status_code=503, detail="Authentication provider is unavailable")
+    if exc.code == "bad_request":
+        return HTTPException(status_code=400, detail="Unable to create account with these details")
+    return HTTPException(status_code=502, detail="Authentication provider failed")
+
+
+def _signin_provider_error(exc: SupabaseAuthError) -> HTTPException:
+    if exc.code == "email_not_confirmed":
+        return HTTPException(
+            status_code=403,
+            detail="Please verify your email before signing in. Check your inbox for the verification link.",
+        )
+    if exc.code == "rate_limited":
+        return HTTPException(status_code=429, detail="Too many sign-in attempts")
+    if exc.code == "request_timeout":
+        return HTTPException(status_code=504, detail="Authentication provider timed out")
+    if exc.code == "service_unavailable":
+        return HTTPException(status_code=503, detail="Authentication provider is unavailable")
+    if exc.code == "invalid_credentials" or exc.code == "bad_request":
+        return HTTPException(status_code=401, detail="Incorrect email/username or password.")
+    return HTTPException(status_code=502, detail="Authentication provider failed")
+
+
 @app.post("/contact", response_model=ContactResponse, status_code=201)
 def submit_contact(payload: ContactRequest) -> ContactResponse:
     _ensure_database()
@@ -3177,12 +3210,7 @@ def signup(payload: SignupRequest) -> SignupResponse:
     except SupabaseConfigurationError:
         raise HTTPException(status_code=503, detail="Authentication is not configured") from None
     except SupabaseAuthError as exc:
-        message = str(exc).lower()
-        if "already" in message or "registered" in message:
-            raise HTTPException(
-                status_code=409, detail="An account already exists for this email"
-            ) from None
-        raise HTTPException(status_code=400, detail="Unable to create account") from None
+        raise _signup_provider_error(exc) from None
 
     user = _auth_user(result)
     if user is None:
@@ -3196,13 +3224,23 @@ def signup(payload: SignupRequest) -> SignupResponse:
             status_code=502, detail="Authentication provider returned an invalid response"
         ) from None
     email = str(user.get("email") or payload.email).strip().lower()
-    profile = _ensure_authenticated_profile(
-        user,
-        preferred_username=payload.username,
-        auth_email=email,
-    )
+    try:
+        profile = _ensure_authenticated_profile(
+            user,
+            preferred_username=payload.username,
+            auth_email=email,
+        )
+    except shared_user_data.SharedUserDataError:
+        logger.error("Profile setup failed after auth account creation")
+        raise HTTPException(
+            status_code=503,
+            detail="Account was created but profile setup is incomplete; sign in to retry",
+        ) from None
     if profile is None:
-        raise HTTPException(status_code=409, detail="Username is unavailable")
+        raise HTTPException(
+            status_code=409,
+            detail="Account was created but profile setup is incomplete; sign in to retry",
+        )
 
     session = _auth_session(result)
     return SignupResponse(
@@ -3237,16 +3275,7 @@ def signin(payload: SigninRequest) -> SigninResponse:
     except SupabaseConfigurationError:
         raise HTTPException(status_code=503, detail="Authentication is not configured") from None
     except SupabaseAuthError as exc:
-        message = str(exc).lower()
-        if "confirm" in message or "verif" in message:
-            raise HTTPException(
-                status_code=403,
-                detail="Please verify your email before signing in. Check your inbox for the verification link.",
-            ) from None
-        raise HTTPException(
-            status_code=401,
-            detail="Incorrect email/username or password.",
-        ) from None
+        raise _signin_provider_error(exc) from None
 
     user = _auth_user(result)
     session = _auth_session(result)

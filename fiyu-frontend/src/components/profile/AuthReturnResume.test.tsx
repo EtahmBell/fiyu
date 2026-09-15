@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AuthReturnResume } from "@/components/profile/AuthReturnResume";
 import { rememberAuthReturnPath } from "@/lib/navigation/safeRedirect";
+import { AuthRequestError } from "@/lib/auth/authErrors";
 
 const mocks = vi.hoisted(() => ({ replace: vi.fn(), getSession: vi.fn() }));
 vi.mock("next/navigation", () => ({
@@ -33,5 +34,24 @@ describe("AuthReturnResume", () => {
     mocks.getSession.mockResolvedValue({ userId: "invitee" });
     render(<AuthReturnResume />);
     await waitFor(() => expect(mocks.replace).toHaveBeenCalledWith("/picks"));
+  });
+
+  it("offers an explicit retry after callback connectivity fails", async () => {
+    rememberAuthReturnPath("/together/secure-token?join=1");
+    mocks.getSession.mockRejectedValueOnce(new AuthRequestError("network_unreachable"))
+      .mockResolvedValueOnce({ userId: "invitee" });
+    render(<AuthReturnResume />);
+    expect(await screen.findByText(/couldn’t finish signing you in/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    await waitFor(() => expect(mocks.replace).toHaveBeenCalledWith("/together/secure-token?join=1"));
+  });
+
+  it("identifies expired callback parameters without consuming the safe return path", async () => {
+    window.history.replaceState({}, "", "/?error_code=otp_expired");
+    rememberAuthReturnPath("/together/secure-token?join=1");
+    render(<AuthReturnResume />);
+    expect(await screen.findByText(/invalid or has expired/)).toBeTruthy();
+    expect(mocks.getSession).not.toHaveBeenCalled();
+    expect(mocks.replace).not.toHaveBeenCalled();
   });
 });

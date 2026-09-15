@@ -116,10 +116,11 @@ describe("TogetherPanel", () => {
   });
 
   it("counts people rather than rounds when one partner holds several", async () => {
+    const activeExpiry = new Date(Date.now() + 3 * 86_400_000).toISOString();
     const round = (id: string, generatedAt: string): TogetherSession => ({
       session_id: id, status: "generated", role: "initiator",
-      expires_at: "2026-09-15T00:00:00Z", cycle_expires_at: "2026-09-15T00:00:00Z",
-      expires_at_for_current_user: "2026-09-15T00:00:00Z",
+      expires_at: activeExpiry, cycle_expires_at: activeExpiry,
+      expires_at_for_current_user: activeExpiry,
       partner: { display_name: "Lianne", username: "lianne", avatar_url: null },
       partner_key: "partner-lianne", generated_at: generatedAt,
       restaurants: [], consumed_trial: false, invite_url: null,

@@ -96,7 +96,10 @@ describe("TogetherHub", () => {
     vi.clearAllMocks();
     mocks.fetch.mockResolvedValue(state([session("one", "Lianne"), session("two", "Mika")]));
   });
-  afterEach(() => cleanup());
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
 
   it("switches between multiple partner-specific sets", async () => {
     render(<TogetherHub />);
@@ -182,6 +185,10 @@ describe("TogetherHub", () => {
   });
 
   it("separates a partner's rounds by dateline and its own expiry", async () => {
+    // Fix the wall clock away from a Tokyo dateline boundary so "2h ago" and
+    // "30h ago" deterministically mean today and yesterday in every timezone.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(2026, 8, 13, 12));
     const hour = 3_600_000;
     const round = (id: string, generatedAgoMs: number, expiresInMs: number) => ({
       ...session(id, "Lianne", false, 3),

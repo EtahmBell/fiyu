@@ -26,8 +26,18 @@ export type FiyuErrorKind =
   | "provider-timeout"
   /** The browser reports no network connection. */
   | "offline"
+  /** The interactive request exceeded the client deadline. */
+  | "timeout"
   /** fetch() rejected: backend down, DNS, CORS, aborted connection. */
   | "network"
+  /** 429 - caller is being throttled. */
+  | "rate-limited"
+  /** 401 - the session is absent or invalid. */
+  | "unauthorized"
+  /** 403 - the session is valid but not permitted. */
+  | "forbidden"
+  /** An otherwise-unmapped 5xx response. */
+  | "server-error"
   /** Response did not match the expected schema. */
   | "invalid-response"
   /** Anything unmapped, including unexpected status codes. */
@@ -63,9 +73,11 @@ export class FiyuApiError extends Error {
     return (
       this.kind === "network" ||
       this.kind === "offline" ||
+      this.kind === "timeout" ||
       this.kind === "provider-failed" ||
       this.kind === "provider-timeout" ||
-      this.kind === "backend-unavailable"
+      this.kind === "backend-unavailable" ||
+      this.kind === "server-error"
     );
   }
 }
@@ -119,18 +131,24 @@ function isProviderEndpoint(endpoint: string): boolean {
 
 export function kindForStatus(status: number, endpoint: string): FiyuErrorKind {
   switch (status) {
+    case 401:
+      return "unauthorized";
+    case 403:
+      return "forbidden";
     case 404:
       return "not-found";
     case 422:
       return "invalid-request";
+    case 429:
+      return "rate-limited";
     case 502:
       return "provider-failed";
     case 503:
       return isProviderEndpoint(endpoint) ? "provider-unconfigured" : "backend-unavailable";
     case 504:
-      return "provider-timeout";
+      return isProviderEndpoint(endpoint) ? "provider-timeout" : "timeout";
     default:
-      return "unknown";
+      return status >= 500 ? "server-error" : "unknown";
   }
 }
 

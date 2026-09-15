@@ -24,6 +24,14 @@ describe("kindForStatus", () => {
   it("falls back to unknown for unexpected codes", () => {
     expect(kindForStatus(418, paths.restaurants)).toBe("unknown");
   });
+
+  it("classifies shared connectivity and authorization statuses", () => {
+    expect(kindForStatus(401, paths.restaurants)).toBe("unauthorized");
+    expect(kindForStatus(403, paths.restaurants)).toBe("forbidden");
+    expect(kindForStatus(429, paths.restaurants)).toBe("rate-limited");
+    expect(kindForStatus(500, paths.restaurants)).toBe("server-error");
+    expect(kindForStatus(504, paths.restaurants)).toBe("timeout");
+  });
 });
 
 describe("extractDetail", () => {

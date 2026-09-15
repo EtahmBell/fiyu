@@ -3,10 +3,11 @@
 import { useEffect, useSyncExternalStore } from "react";
 
 import { authService, type FiyuAccountProfile } from "@/lib/auth/authService";
+import { logClientEvent } from "@/lib/clientLog";
 import { browserProfileStorage } from "@/lib/profile/profileStorage";
 
 export interface ProfileIdentitySnapshot {
-  status: "loading" | "ready";
+  status: "loading" | "ready" | "unavailable";
   profile: FiyuAccountProfile | null;
   email: string | null;
   profileImage: string | null;
@@ -52,6 +53,11 @@ function ensureImageSubscription() {
       const pending = loading ?? Promise.resolve();
       void pending.finally(() => refreshProfileIdentity(true));
     });
+    const recover = () => {
+      if (snapshot.status === "unavailable") void refreshProfileIdentity(true);
+    };
+    window.addEventListener("online", recover);
+    window.addEventListener("focus", recover);
   }
 }
 
@@ -79,12 +85,12 @@ export function refreshProfileIdentity(force = false): Promise<void> {
         profileImage: profile?.avatar_url ?? null,
       });
     } catch {
-      emit({
-        status: "ready",
-        profile: null,
-        email: authenticatedEmail,
-        profileImage: authenticated ? null : profileImage,
-      });
+      logClientEvent("auth.session.failed", { operation: authenticated ? "profile" : "session", errorCode: "unavailable" });
+      if (snapshot.profile || snapshot.email) {
+        emit({ ...snapshot, status: "ready" });
+      } else {
+        emit({ status: "unavailable", profile: null, email: authenticatedEmail, profileImage });
+      }
     } finally {
       loading = null;
     }
