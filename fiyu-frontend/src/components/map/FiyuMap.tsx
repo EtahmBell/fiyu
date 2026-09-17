@@ -44,8 +44,10 @@ import {
   clientToViewBox,
   fitPointsIfOutsideView,
   fitToPoints,
+  gesturePair,
   normalizeView,
-  panBy,
+  panByClientDelta,
+  pinchView,
   viewBoxFor,
   viewForSelectedPoint,
   viewBoxToContent,
@@ -133,8 +135,11 @@ function easeOutCubic(progress: number): number {
   return 1 - (1 - progress) ** 3;
 }
 
-function distanceBetween(a: PointerEvent, b: PointerEvent): number {
-  return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+type GesturePoint = { x: number; y: number };
+
+function pointerPair(points: readonly GesturePoint[]) {
+  const [a, b] = points;
+  return gesturePair(a, b);
 }
 
 /**
@@ -194,13 +199,29 @@ export function FiyuMap({
   const sproutTimers = useRef<number[]>([]);
 
   /** Live pointers, for drag and pinch. */
-  const pointers = useRef(new Map<number, PointerEvent>());
-  const pinchDistance = useRef<number | null>(null);
+  const pointers = useRef(new Map<number, GesturePoint>());
+  const pinchStart = useRef<{
+    midpoint: GesturePoint;
+    distance: number;
+    view: MapView;
+  } | null>(null);
   const [dragging, setDragging] = useState(false);
   /** Where a gesture started, so a tap can be told apart from a pan. */
   const gestureStart = useRef<{ x: number; y: number } | null>(null);
   const lastTouchTap = useRef<{ at: number; x: number; y: number } | null>(null);
   const lastTouchZoomAt = useRef(0);
+
+  useEffect(() => {
+    const svg = svgRef.current;
+    const activePointers = pointers.current;
+    return () => {
+      for (const id of activePointers.keys()) {
+        if (svg?.hasPointerCapture?.(id)) svg.releasePointerCapture(id);
+      }
+      activePointers.clear();
+      pinchStart.current = null;
+    };
+  }, []);
 
   /*
    * Only restaurants inside the illustrated area are projected.
@@ -626,14 +647,19 @@ export function FiyuMap({
       markInteracted();
       onMapBackgroundClick?.();
 
-      pointers.current.set(event.pointerId, event.nativeEvent);
-      event.currentTarget.setPointerCapture(event.pointerId);
+      pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      if (event.currentTarget.setPointerCapture) event.currentTarget.setPointerCapture(event.pointerId);
       if (pointers.current.size === 1) {
         gestureStart.current = { x: event.clientX, y: event.clientY };
         setDragging(true);
-      } else {
+      } else if (pointers.current.size === 2) {
         // A second finger turns this into a pinch, never a tap.
         gestureStart.current = null;
+        pinchStart.current = {
+          ...pointerPair([...pointers.current.values()]),
+          view: viewRef.current,
+        };
+        setDragging(false);
       }
     },
     [interactive, markInteracted, onMapBackgroundClick],
@@ -645,43 +671,38 @@ export function FiyuMap({
       const previous = pointers.current.get(event.pointerId);
       if (!previous) return;
 
-      pointers.current.set(event.pointerId, event.nativeEvent);
+      pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
       const active = [...pointers.current.values()];
 
       if (active.length >= 2) {
-        // Pinch: zoom about the midpoint of the two pointers.
-        setDragging(false);
-        const [a, b] = active;
-        const spread = distanceBetween(a, b);
-        if (pinchDistance.current !== null && pinchDistance.current > 0) {
-          const factor = spread / pinchDistance.current;
-          const focus = toViewBox((a.clientX + b.clientX) / 2, (a.clientY + b.clientY) / 2);
-          const next = zoomAt(viewRef.current, factor, focus);
+        const start = pinchStart.current;
+        const rect = svgRef.current?.getBoundingClientRect();
+        if (start && rect) {
+          const current = pointerPair(active);
+          const next = pinchView(
+            start.view, start.midpoint, start.distance,
+            current.midpoint, current.distance, rect,
+          );
           if (!viewsEqual(viewRef.current, next)) {
-            markInteracted();
             viewRef.current = next;
             setView(next);
           }
         }
-        pinchDistance.current = spread;
         return;
       }
 
       // Single pointer: drag. Deltas are converted into viewBox units so the
       // map tracks the cursor exactly at any container size.
-      const from = toViewBox(previous.clientX, previous.clientY);
-      const to = toViewBox(event.clientX, event.clientY);
-      const dx = to.x - from.x;
-      const dy = to.y - from.y;
-      if (dx === 0 && dy === 0) return;
-
-      const next = panBy(viewRef.current, dx, dy);
+      const rect = svgRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const next = panByClientDelta(viewRef.current, previous, {
+        x: event.clientX, y: event.clientY,
+      }, rect);
       if (viewsEqual(viewRef.current, next)) return;
-      markInteracted();
       viewRef.current = next;
       setView(next);
     },
-    [interactive, markInteracted, toViewBox],
+    [interactive],
   );
 
   const endPointer = useCallback(
@@ -689,10 +710,22 @@ export function FiyuMap({
       const start = gestureStart.current;
       const wasTracked = pointers.current.has(event.pointerId);
       pointers.current.delete(event.pointerId);
-      if (pointers.current.size < 2) pinchDistance.current = null;
-      if (pointers.current.size === 0) setDragging(false);
+      if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      }
+      if (pointers.current.size < 2) {
+        pinchStart.current = null;
+        gestureStart.current = null;
+        setDragging(pointers.current.size === 1);
+      } else {
+        pinchStart.current = {
+          ...pointerPair([...pointers.current.values()]),
+          view: viewRef.current,
+        };
+      }
 
       if (!wasTracked) return;
+      if (event.type === "pointercancel") lastTouchTap.current = null;
       const travelled = start
         ? Math.hypot(event.clientX - start.x, event.clientY - start.y)
         : TAP_SLOP + 1;
@@ -847,7 +880,11 @@ export function FiyuMap({
   );
 
   return (
-    <div ref={containerRef} className={cn("relative h-full w-full overflow-hidden bg-[var(--map-bg)]", className)}>
+    <div ref={containerRef} className={cn(
+      "relative h-full w-full overflow-hidden bg-[var(--map-bg)] select-none",
+      surfaceMode === "inline" ? "touch-pan-y lg:touch-none" : "touch-none",
+      className,
+    )}>
       <svg
         ref={svgRef}
         viewBox={viewBoxFor(view)}
@@ -875,7 +912,6 @@ export function FiyuMap({
         onPointerMove={handlePointerMove}
         onPointerUp={endPointer}
         onPointerCancel={endPointer}
-        onPointerLeave={endPointer}
         onDoubleClick={handleDoubleClick}
       >
         {/*

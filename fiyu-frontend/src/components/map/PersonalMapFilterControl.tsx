@@ -41,7 +41,7 @@ export function PersonalMapFilterControl({
         role="tablist"
         aria-label="Map places"
         className={cn(
-          "grid grid-cols-4 rounded-chip border border-line/80 bg-subtle/80 p-0.5",
+          "grid min-w-0 grid-cols-4 rounded-chip border border-line/80 bg-subtle/80 p-0.5",
           showHeading && "mt-2.5",
         )}
         onKeyDown={(event) => {
@@ -67,7 +67,7 @@ export function PersonalMapFilterControl({
             tabIndex={value === filter ? 0 : -1}
             onClick={() => onChange(filter)}
             className={cn(
-              "min-h-10 rounded-chip px-1 text-[0.625rem] font-semibold tracking-[0.025em] transition-colors",
+              "min-h-11 min-w-0 rounded-chip px-0.5 text-[0.625rem] font-semibold tracking-[0.025em] transition-colors",
               "focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-lavender-500 min-[410px]:text-[0.6875rem]",
               value === filter
                 ? "bg-surface text-lavender-700 shadow-sm"

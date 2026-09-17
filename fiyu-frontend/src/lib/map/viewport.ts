@@ -151,6 +151,13 @@ export function panByClientDelta(
   return panBy(view, end.x - start.x, end.y - start.y);
 }
 
+export function gesturePair(a: Point, b: Point) {
+  return {
+    midpoint: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 },
+    distance: Math.hypot(a.x - b.x, a.y - b.y),
+  };
+}
+
 /** A pinch changes scale and translates the original focal point to its new midpoint. */
 export function pinchView(
   startView: MapView,
@@ -437,13 +444,14 @@ export function clientToViewBox(
   clientX: number,
   clientY: number,
   rect: { left: number; top: number; width: number; height: number },
+  viewportSize: { width: number; height: number } = { width: VIEWBOX_WIDTH, height: VIEWBOX_HEIGHT },
 ): Point {
   if (rect.width <= 0 || rect.height <= 0) return { x: 0, y: 0 };
 
   // "meet" scales uniformly by the smaller ratio and centres the remainder.
-  const scale = Math.min(rect.width / VIEWBOX_WIDTH, rect.height / VIEWBOX_HEIGHT);
-  const renderedWidth = VIEWBOX_WIDTH * scale;
-  const renderedHeight = VIEWBOX_HEIGHT * scale;
+  const scale = Math.min(rect.width / viewportSize.width, rect.height / viewportSize.height);
+  const renderedWidth = viewportSize.width * scale;
+  const renderedHeight = viewportSize.height * scale;
   const offsetX = (rect.width - renderedWidth) / 2;
   const offsetY = (rect.height - renderedHeight) / 2;
 

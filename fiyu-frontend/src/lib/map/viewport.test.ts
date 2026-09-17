@@ -13,8 +13,11 @@ import {
   fitPointsIfOutsideView,
   fitToCoordinates,
   fitToPoints,
+  gesturePair,
   normalizeView,
   panBy,
+  panByClientDelta,
+  pinchView,
   pointIsWithinPaddedView,
   viewForSelectedPoint,
   viewBoxFor,
@@ -24,6 +27,60 @@ import {
 } from "@/lib/map/viewport";
 
 const CENTRE = { x: VIEWBOX_WIDTH / 2, y: VIEWBOX_HEIGHT / 2 };
+
+describe("real-size client gestures", () => {
+  const rect = { left: 0, top: 0, width: 390, height: 500 };
+  const midpoint = { x: 195, y: 250 };
+
+  it("maps a 39px drag to 90 geographic units in a 900×700 viewBox", () => {
+    const viewportSize = { width: 900, height: 700 };
+    const from = clientToViewBox(195, 250, rect, viewportSize);
+    const to = clientToViewBox(234, 250, rect, viewportSize);
+    expect(to.x - from.x).toBeCloseTo(90);
+  });
+
+  it("converts 39 client pixels through the rendered SVG size at either zoom", () => {
+    const first = { x: -500, y: -513, k: 2 };
+    const second = { x: -1500, y: -1539, k: 4 };
+    const from = { x: 195, y: 250 };
+    const to = { x: 234, y: 289 };
+    const moved = panByClientDelta(first, from, to, rect);
+    expect(moved.x - first.x).toBe(100);
+    expect(moved.y - first.y).toBe(100);
+    const zoomed = panByClientDelta(second, from, to, rect);
+    expect(zoomed.x - second.x).toBe(100);
+    expect((zoomed.x - second.x) / zoomed.k).toBe(25);
+    expect((moved.x - first.x) / moved.k).toBe(50);
+  });
+
+  it("doubles canonical zoom for a 100-to-200 pinch while holding the geographic focus", () => {
+    const start = { x: -250, y: -256.5, k: 1.5 };
+    const focus = viewBoxToContent(clientToViewBox(midpoint.x, midpoint.y, rect), start);
+    const next = pinchView(start, midpoint, 100, midpoint, 200, rect);
+    expect(next.k).toBe(3);
+    const underFingers = viewBoxToContent(clientToViewBox(midpoint.x, midpoint.y, rect), next);
+    expect(underFingers.x).toBeCloseTo(focus.x, 2);
+    expect(underFingers.y).toBeCloseTo(focus.y, 2);
+    expect(viewBoxFor(next)).not.toBe(viewBoxFor(start));
+  });
+
+  it("combines midpoint translation with pinch and is independent of pointer order", () => {
+    const start = { x: -250, y: -256.5, k: 1.5 };
+    const movedMidpoint = { x: midpoint.x + 39, y: midpoint.y + 39 };
+    const next = pinchView(start, midpoint, 100, movedMidpoint, 200, rect);
+    const a = { x: movedMidpoint.x - 100, y: movedMidpoint.y };
+    const b = { x: movedMidpoint.x + 100, y: movedMidpoint.y };
+    const reversedPair = gesturePair(b, a);
+    const reversed = pinchView(start, midpoint, 100, reversedPair.midpoint, reversedPair.distance, rect);
+    expect(reversed).toEqual(next);
+    expect(next.k).toBe(3);
+    const focusBefore = viewBoxToContent(clientToViewBox(midpoint.x, midpoint.y, rect), start);
+    const focusAfter = viewBoxToContent(clientToViewBox(movedMidpoint.x, movedMidpoint.y, rect), next);
+    expect(focusAfter.x).toBeCloseTo(focusBefore.x, 2);
+    expect(focusAfter.y).toBeCloseTo(focusBefore.y, 2);
+    expect(next.x).toBeGreaterThan(pinchView(start, midpoint, 100, midpoint, 200, rect).x);
+  });
+});
 
 describe("viewBoxFor", () => {
   it("keeps the whole Tokyo canvas at the identity camera", () => {

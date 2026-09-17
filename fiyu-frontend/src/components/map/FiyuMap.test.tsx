@@ -301,6 +301,66 @@ describe("newly revealed map pins", () => {
 });
 
 describe("controls", () => {
+  it("pans with one touch, pinches with two, then continues cleanly after one lifts", () => {
+    saveMapViewportSession("touch-gesture", {
+      resultKey: "shibuya",
+      view: { x: -500, y: -513, k: 2 },
+    });
+    render(<FiyuMap restaurants={[SHIBUYA]} selectedPlaceId={null} onSelect={() => {}} viewportSessionKey="touch-gesture" />);
+    const surface = mapSurface();
+    const capture = vi.fn();
+    const release = vi.fn();
+    Object.defineProperty(surface, "setPointerCapture", { value: capture });
+    Object.defineProperty(surface, "hasPointerCapture", { value: () => true });
+    Object.defineProperty(surface, "releasePointerCapture", { value: release });
+    vi.spyOn(surface, "getBoundingClientRect").mockReturnValue({
+      left: 0, top: 0, width: 390, height: 500, right: 390, bottom: 500,
+      x: 0, y: 0, toJSON: () => ({}),
+    });
+
+    fireEvent.pointerDown(surface, { pointerId: 1, pointerType: "touch", clientX: 145, clientY: 250 });
+    fireEvent.pointerMove(surface, { pointerId: 1, pointerType: "touch", clientX: 184, clientY: 289 });
+    expect(Number(surface.getAttribute("data-camera-x"))).toBe(-400);
+    expect(Number(surface.getAttribute("data-camera-y"))).toBe(-413);
+
+    fireEvent.pointerDown(surface, { pointerId: 2, pointerType: "touch", clientX: 284, clientY: 289 });
+    expect(capture).toHaveBeenCalledTimes(2);
+    fireEvent.pointerMove(surface, { pointerId: 1, pointerType: "touch", clientX: 134, clientY: 289 });
+    expect(cameraScale(surface)).toBeGreaterThan(2);
+    const pinchCamera = cameraSnapshot(surface);
+    fireEvent.pointerMove(surface, { pointerId: 2, pointerType: "touch", clientX: 334, clientY: 328 });
+    expect(cameraSnapshot(surface)).not.toBe(pinchCamera);
+    expect(surface.getAttribute("viewBox")).not.toBe("250 256.5 500 513");
+
+    fireEvent.pointerUp(surface, { pointerId: 2, pointerType: "touch", clientX: 334, clientY: 328 });
+    const afterPinch = cameraSnapshot(surface);
+    fireEvent.pointerMove(surface, { pointerId: 1, pointerType: "touch", clientX: 124, clientY: 279 });
+    expect(cameraSnapshot(surface)).not.toBe(afterPinch);
+    fireEvent.pointerUp(surface, { pointerId: 1, pointerType: "touch", clientX: 124, clientY: 279 });
+    expect(release).toHaveBeenCalledTimes(2);
+  });
+
+  it("clears a cancelled pointer and accepts a fresh touch gesture", () => {
+    saveMapViewportSession("touch-cancel", {
+      resultKey: "shibuya",
+      view: { x: -500, y: -513, k: 2 },
+    });
+    render(<FiyuMap restaurants={[SHIBUYA]} selectedPlaceId={null} onSelect={() => {}} viewportSessionKey="touch-cancel" />);
+    const surface = mapSurface();
+    Object.defineProperty(surface, "setPointerCapture", { value: vi.fn() });
+    vi.spyOn(surface, "getBoundingClientRect").mockReturnValue({
+      left: 0, top: 0, width: 390, height: 500, right: 390, bottom: 500,
+      x: 0, y: 0, toJSON: () => ({}),
+    });
+    fireEvent.pointerDown(surface, { pointerId: 1, pointerType: "touch", clientX: 195, clientY: 250 });
+    fireEvent.pointerCancel(surface, { pointerId: 1, pointerType: "touch", clientX: 195, clientY: 250 });
+    expect(surface.getAttribute("class")).not.toContain("cursor-grabbing");
+    fireEvent.pointerDown(surface, { pointerId: 2, pointerType: "touch", clientX: 195, clientY: 250 });
+    fireEvent.pointerMove(surface, { pointerId: 2, pointerType: "touch", clientX: 234, clientY: 289 });
+    expect(Number(surface.getAttribute("data-camera-x"))).toBe(-400);
+    expect(Number(surface.getAttribute("data-camera-y"))).toBe(-413);
+  });
+
   it("uses the root SVG viewport as the sole camera and supports mouse double-click zoom", () => {
     const { container } = render(
       <FiyuMap restaurants={[SHIBUYA]} selectedPlaceId={null} onSelect={() => {}} />,
@@ -864,6 +924,26 @@ describe("clustering on the map", () => {
     expect(container.querySelector('[data-marker-kind="restaurant-cluster-ghost"]')).toBeNull();
     expect(container.querySelector('[data-cluster-appearing="true"]')).toBeNull();
     expect(cameraScale(surface)).toBeGreaterThan(1);
+  });
+
+  it("lets a touch pointer interrupt an in-flight cluster camera", () => {
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation(() => 99);
+    const cancellation = vi.spyOn(window, "cancelAnimationFrame");
+    const a = mappable("a", 35.6978436, 139.7741913);
+    const b = mappable("b", 35.69797502625716, 139.77817065934673);
+    saveMapViewportSession("touch-cancelled-cluster", {
+      resultKey: "a|b", view: { x: 0, y: 0, k: 1 },
+    });
+    const { container } = render(
+      <FiyuMap restaurants={[a, b]} selectedPlaceId={null} onSelect={() => {}}
+        viewportSessionKey="touch-cancelled-cluster" />,
+    );
+    const surface = mapSurface();
+    Object.defineProperty(surface, "setPointerCapture", { value: vi.fn() });
+    fireEvent.click(screen.getByRole("button", { name: /2 restaurants in this area/ }));
+    fireEvent.pointerDown(surface, { pointerId: 7, pointerType: "touch", clientX: 195, clientY: 250 });
+    expect(cancellation).toHaveBeenCalledWith(99);
+    expect(container.querySelector('[data-marker-kind="restaurant-cluster-ghost"]')).toBeNull();
   });
 
   it("waits for camera settlement before rendering spiderfied markers", () => {
