@@ -1,4 +1,4 @@
-import { AuthAwarePicksLink } from "@/components/landing-page/AuthAwarePicksLink";
+import { HeroOnboardingLink } from "@/components/landing-page/HeroOnboardingLink";
 import { IllustrativeNote } from "@/components/landing-page/ExamplePickCard";
 import { HERO_EXAMPLES } from "@/components/landing-page/fictionalRestaurantExamples";
 import { LANDING_MEASURE } from "@/components/landing-page/landingSystem";
@@ -111,9 +111,7 @@ export function HeroSection() {
             data-in="true"
             style={{ "--rise-delay": "320ms" } as React.CSSProperties}
           >
-            <AuthAwarePicksLink className="inline-flex min-h-12 items-center rounded-chip bg-plum px-7 text-sm font-medium text-white transition-colors duration-200 ease-(--ease-fiyu) hover:bg-lavender-700">
-              Explore Tokyo
-            </AuthAwarePicksLink>
+            <HeroOnboardingLink />
             <a
               href="#how-it-works"
               className="text-sm font-medium text-lavender-700 underline decoration-lavender-100 decoration-2 underline-offset-4 transition-colors duration-200 ease-(--ease-fiyu) hover:decoration-lavender-500"

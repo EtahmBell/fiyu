@@ -130,7 +130,9 @@ describe("public landing experience", () => {
     expect((await within(header).findByRole("link", { name: "Sign in" })).getAttribute("href")).toBe("/signin");
     expect(within(header).getByRole("link", { name: "Sign up" }).getAttribute("href")).toBe("/signup");
     const exploreActions = screen.getAllByRole("link", { name: "Explore Tokyo" });
-    expect(exploreActions.length).toBeGreaterThanOrEqual(3);
+    expect(exploreActions.length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByRole("link", { name: "Get your Fiyu Picks" })).toHaveLength(1);
+    expect(screen.getByRole("link", { name: "Get your Fiyu Picks" }).getAttribute("href")).toBe("/signup?next=/picks");
     expect(exploreActions.map((action) => action.getAttribute("href"))).toEqual(
       exploreActions.map(() => "/signin?next=/picks"),
     );
@@ -151,6 +153,9 @@ describe("public landing experience", () => {
     });
     render(<LandingPage />);
 
+    expect(screen.getAllByRole("link", { name: "See today’s Picks" })).toHaveLength(1);
+    expect(screen.getByRole("link", { name: "See today’s Picks" }).getAttribute("href")).toBe("/picks");
+    expect(screen.queryByRole("link", { name: "Get your Fiyu Picks" })).toBeNull();
     for (const action of screen.getAllByRole("link", { name: "Explore Tokyo" })) {
       expect(action.getAttribute("href")).toBe("/picks");
     }
