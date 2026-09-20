@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { RestaurantPhoto } from "@/components/restaurant/RestaurantPhoto";
 import { StarRatingInput } from "@/components/log/StarRatingInput";
@@ -21,6 +21,7 @@ import {
 } from "@/lib/api/client";
 import {
   accountQueryKey,
+  clearAccountQuery,
   loadAccountQuery,
   readAccountQuery,
   useAccountQuery,
@@ -31,6 +32,7 @@ import type {
   MapRestaurant,
   PublicRestaurant,
   RestaurantVisit,
+  UserFiyuSummary,
   VisitRating,
   VisitReaction,
 } from "@/lib/api/schemas";
@@ -110,6 +112,11 @@ function formatVisitDay(timestamp: string): string {
 
 function newestFirst(visits: RestaurantVisit[]): RestaurantVisit[] {
   return [...visits].sort((left, right) => right.visited_at.localeCompare(left.visited_at));
+}
+
+function noteExcerpt(note: string | null): string | null {
+  if (!note || note.length <= 120) return note;
+  return `${note.slice(0, 119).trimEnd()}…`;
 }
 
 /**
@@ -193,10 +200,15 @@ export function LogWorkspace({
   const [rating, setRating] = useState<VisitRating | null>(null);
   const [privateNote, setPrivateNote] = useState("");
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [saveConfirmation, setSaveConfirmation] = useState(false);
   const [validationAttempted, setValidationAttempted] = useState(false);
+  const editChanged = Boolean(editingVisit && (
+    rating !== editingVisit.rating ||
+    (privateNote.trim() || null) !== editingVisit.private_note
+  ));
   const savedPlaceIds = defaultList.savedPlaceIds;
   const loggedPlaceIdKey = useMemo(
     () => [...new Set(visits.map((visit) => visit.place_id))].sort().join("\u0000"),
@@ -277,6 +289,7 @@ export function LogWorkspace({
 
   const refreshYourFiyu = useCallback(async () => {
     if (!accountId) return;
+    clearAccountQuery(accountQueryKey("user-fiyu-summary", accountId));
     await loadAccountQuery(
       accountQueryKey("user-fiyu-summary", accountId),
       () => fetchUserFiyuSummary(),
@@ -328,25 +341,54 @@ export function LogWorkspace({
 
   const saveVisit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (savingRef.current || (editingVisit && !editChanged)) return;
     setValidationAttempted(true);
     if (!placeId || !visitDate || (!editingVisit && rating === null)) return;
+    savingRef.current = true;
     setSaving(true);
     setFormError(null);
     try {
       const note = privateNote.trim() || null;
       if (editingVisit) {
+        const ratingChanged = rating !== editingVisit.rating;
+        const noteChanged = note !== editingVisit.private_note;
         const updated = await updateRestaurantVisit(
           editingVisit.id,
           {
-            visited_at: visitTimestamp(visitDate),
-            ...(rating === null ? {} : { rating }),
-            private_note: note,
+            ...(ratingChanged && rating !== null ? { rating } : {}),
+            ...(noteChanged ? { private_note: note } : {}),
           },
           { clientId: getOrCreateAnonymousOwnerKey() },
         );
-        setVisits((current = []) =>
-          newestFirst(current.map((visit) => (visit.id === updated.id ? updated : visit))),
-        );
+        const nextVisits = newestFirst(visits.map((visit) => visit.id === updated.id ? updated : visit));
+        setVisits(nextVisits);
+        if (accountId && ratingChanged) {
+          const mapKey = accountQueryKey("map-restaurants", accountId);
+          const cached = readAccountQuery<MapRestaurant[]>(mapKey);
+          if (cached) {
+            const latestRating = nextVisits.find((visit) =>
+              visit.place_id === updated.place_id && visit.rating !== null
+            )?.rating ?? null;
+            writeAccountQuery(mapKey, cached.map((restaurant) =>
+              restaurant.place_id === updated.place_id
+                ? { ...restaurant, user_rating: latestRating }
+                : restaurant,
+            ));
+          }
+        }
+        if (accountId && noteChanged && !ratingChanged) {
+          const summaryKey = accountQueryKey("user-fiyu-summary", accountId);
+          const summary = readAccountQuery<UserFiyuSummary>(summaryKey);
+          if (summary) writeAccountQuery(summaryKey, {
+            ...summary,
+            recent_visits: summary.recent_visits.map((visit) =>
+              visit.id === updated.id
+                ? { ...visit, private_note_excerpt: noteExcerpt(updated.private_note) }
+                : visit,
+            ),
+          });
+        }
+        if (ratingChanged) await refreshYourFiyu();
       } else {
         const created = await createRestaurantVisit(
           { place_id: placeId, visited_at: visitTimestamp(visitDate), rating: rating!, private_note: note },
@@ -354,12 +396,10 @@ export function LogWorkspace({
         );
         setVisits((current = []) => newestFirst([created, ...current]));
         setCatalog((current) => current.filter((restaurant) => restaurant.place_id !== placeId));
-      }
-      if (accountId && rating !== null) {
-        const mapKey = accountQueryKey("map-restaurants", accountId);
-        const cached = readAccountQuery<MapRestaurant[]>(mapKey);
-        const selectedRestaurant = catalog.find((restaurant) => restaurant.place_id === placeId);
-        {
+        if (accountId) {
+          const mapKey = accountQueryKey("map-restaurants", accountId);
+          const cached = readAccountQuery<MapRestaurant[]>(mapKey);
+          const selectedRestaurant = catalog.find((restaurant) => restaurant.place_id === placeId);
           const current = cached ?? [];
           const next = current.some((restaurant) => restaurant.place_id === placeId)
             ? current.map((restaurant) =>
@@ -380,9 +420,9 @@ export function LogWorkspace({
               : current;
           writeAccountQuery(mapKey, next);
         }
+        await refreshYourFiyu();
       }
-      await refreshYourFiyu();
-      if (isDesktop) {
+      if (isDesktop || editingVisit) {
         setSheetOpen(false);
         setEditingVisit(null);
       } else {
@@ -401,6 +441,7 @@ export function LogWorkspace({
       const message = cause instanceof FiyuApiError ? cause.detail : null;
       setFormError(message ?? "We couldn’t save this visit.");
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   };
@@ -486,10 +527,10 @@ export function LogWorkspace({
       <Sheet
         open={sheetOpen || !isDesktop}
         onClose={isDesktop ? closeSheet : () => undefined}
-        title={!isDesktop && mobileMode === "history" ? "Visit history" : editingVisit ? "Edit visit" : "Log a visit"}
+        title={editingVisit ? "Edit visit" : !isDesktop && mobileMode === "history" ? "Visit history" : "Log a visit"}
         inlineOnMobile
       >
-        {!isDesktop && mobileMode === "history" ? (
+        {!isDesktop && mobileMode === "history" && !editingVisit ? (
           <MobileVisitHistory
             loadState={loadState}
             loadError={loadError}
@@ -510,7 +551,7 @@ export function LogWorkspace({
                 {editingVisit ? "Edit visit" : "Log a visit"}
               </h2>
             </div>
-            {isDesktop ? (
+            {isDesktop && !editingVisit ? (
               <button
                 type="button"
                 onClick={closeSheet}
@@ -518,6 +559,14 @@ export function LogWorkspace({
                 className="-mr-2 inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-full text-xl leading-none text-ink-muted transition-colors hover:bg-subtle hover:text-ink"
               >
                 ×
+              </button>
+            ) : editingVisit ? (
+              <button
+                type="button"
+                onClick={closeSheet}
+                className="inline-flex min-h-11 items-center px-2 text-sm font-medium text-plum"
+              >
+                Cancel
               </button>
             ) : (
               <Link
@@ -696,17 +745,28 @@ export function LogWorkspace({
             </div>
 
             <div>
-              <label htmlFor="log-visit-date" className={`block ${FIELD_LABEL_CLASS}`}>
-                Visit date
-              </label>
-              <input
-                id="log-visit-date"
-                required
-                type="date"
-                value={visitDate}
-                onChange={(event) => setVisitDate(event.target.value)}
-                className={FIELD_CLASS}
-              />
+              {editingVisit ? (
+                <>
+                  <p className={FIELD_LABEL_CLASS}>Visit date</p>
+                  <time dateTime={editingVisit.visited_at} className="mt-2 block text-sm text-ink">
+                    {formatVisitDate(editingVisit.visited_at)}
+                  </time>
+                </>
+              ) : (
+                <>
+                  <label htmlFor="log-visit-date" className={`block ${FIELD_LABEL_CLASS}`}>
+                    Visit date
+                  </label>
+                  <input
+                    id="log-visit-date"
+                    required
+                    type="date"
+                    value={visitDate}
+                    onChange={(event) => setVisitDate(event.target.value)}
+                    className={FIELD_CLASS}
+                  />
+                </>
+              )}
             </div>
 
             <fieldset>
@@ -767,9 +827,9 @@ export function LogWorkspace({
               type="submit"
               variant="primary"
               className="w-full"
-              disabled={saving || (!editingVisit && catalogLoading)}
+              disabled={saving || (editingVisit ? !editChanged : catalogLoading)}
             >
-              {saving ? "Saving…" : "Save visit"}
+              {saving ? "Saving…" : editingVisit ? "Save changes" : "Save visit"}
             </Button>
           </footer>
         </form>
@@ -1065,7 +1125,7 @@ function VisitEntry({
               <span>View restaurant</span>
               <span aria-hidden="true">→</span>
             </Link>
-            {!compact && <div className="flex items-center">
+            <div className="flex items-center">
               <button
                 type="button"
                 onClick={onEdit}
@@ -1073,6 +1133,7 @@ function VisitEntry({
               >
                 Edit
               </button>
+              {!compact && <>
               <span aria-hidden="true" className="text-ink-faint">
                 ·
               </span>
@@ -1084,7 +1145,8 @@ function VisitEntry({
               >
                 {deleting ? "Deleting…" : "Delete"}
               </button>
-            </div>}
+              </>}
+            </div>
           </div>
         </div>
       </article>

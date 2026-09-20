@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from copy import deepcopy
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
@@ -1584,3 +1585,62 @@ def test_your_fiyu_summary_uses_public_catalog_facets_after_ten_ratings(
     assert other_account.status_code == 409
     assert phrase_calls == [10]
     assert {user_id for user_id, _ in state["taste_snapshots"]} == {user_ids["token-a"]}
+
+
+def test_rating_edit_refreshes_live_taste_but_preserves_historical_milestone(
+    shared_account_api, monkeypatch
+):
+    client, user_ids, _ = shared_account_api
+    state = client.fiyu_test_state
+    user_id = user_ids["token-a"]
+    monkeypatch.setattr(api.taste_phrasing, "phrase_taste_snapshot", api.taste_phrasing.with_deterministic_copy)
+
+    def get_visit(*, user_id, visit_id):
+        return next((row for row in state["visits"][user_id] if row["id"] == visit_id), None)
+
+    updates = []
+
+    def update_visit(*, user_id, visit_id, changes):
+        row = get_visit(user_id=user_id, visit_id=visit_id)
+        if row is not None:
+            updates.append(changes)
+            row.update(changes)
+            row["updated_at"] = datetime.now(UTC).isoformat()
+        return row
+
+    monkeypatch.setattr(api.shared_user_data, "get_visit", get_visit)
+    monkeypatch.setattr(api.shared_user_data, "update_visit", update_visit)
+    for index in range(10):
+        state["visits"][user_id].append({
+            "id": str(uuid4()), "place_id": f"tokyo-{index % 4}",
+            "visited_at": f"2026-08-{20 + index:02d}T18:37:21+00:00",
+            "rating": 5, "reaction": "love_it", "private_note": "Account A only",
+            "created_at": "2026-08-30T12:00:00+00:00",
+            "updated_at": "2026-08-30T12:00:00+00:00",
+        })
+    before = client.get("/profiles/me/fiyu-summary", headers=_auth("token-a")).json()
+    client.post("/profiles/me/fiyu-summary/taste-acknowledge", headers=_auth("token-a"), json={"milestone": 10})
+    history = deepcopy(state["taste_snapshots"])
+    original = deepcopy(state["visits"][user_id][-1])
+    path = f"/log/{original['id']}"
+    assert client.patch(path, headers=_auth("token-b"), json={"rating": 2}).status_code == 404
+    assert client.get(path, headers=_auth("token-b")).status_code == 404
+    edited = client.patch(path, headers=_auth("token-a"), json={"rating": 2}).json()
+    after = client.get("/profiles/me/fiyu-summary", headers=_auth("token-a")).json()
+    assert edited["id"] == original["id"]
+    assert edited["visited_at"] == original["visited_at"]
+    assert edited["created_at"] == original["created_at"]
+    assert after["rated_visit_count"] == before["rated_visit_count"] == 10
+    assert after["taste_current_milestone"] == 10
+    assert after["taste_has_unseen_update"] is False
+    assert after["taste_insights"] != before["taste_insights"]
+    assert after["recent_visits"][0]["rating"] == 2
+    assert state["taste_snapshots"] == history
+    assert len(state["visits"][user_id]) == 10
+    client.patch(path, headers=_auth("token-a"), json={"rating": 2})
+    assert len(updates) == 1
+    client.patch(path, headers=_auth("token-a"), json={"private_note": ""})
+    note_only = client.get("/profiles/me/fiyu-summary", headers=_auth("token-a")).json()
+    assert note_only["taste_insights"] == after["taste_insights"]
+    assert note_only["recent_visits"][0]["private_note_excerpt"] is None
+    assert state["taste_snapshots"] == history

@@ -240,6 +240,32 @@ def test_visits_and_private_notes_are_owner_isolated(log_db):
     assert "reaction" not in public
     assert "rating" not in public
     assert "For my eyes only" not in str(public)
+    assert client.patch(
+        f"/log/{created['id']}", headers=_headers(owner_b),
+        json={"rating": 2, "private_note": "not mine"},
+    ).status_code == 404
+    assert client.get(f"/log/{created['id']}", headers=_headers(owner_a)).json() == created
+
+
+def test_rating_and_note_edits_preserve_identity_dates_and_count(log_db):
+    client = TestClient(api.app)
+    owner = _owner_id()
+    original = _create_visit(
+        client, owner, rating=5, private_note="Original", visited_at="2026-08-08T18:37:21Z"
+    ).json()
+    path = f"/log/{original['id']}"
+    edited = client.patch(path, headers=_headers(owner), json={"rating": 2}).json()
+    assert edited["rating"] == 2
+    for field in ("id", "created_at", "visited_at", "private_note"):
+        assert edited[field] == original[field]
+    no_op = client.patch(path, headers=_headers(owner), json={"rating": 2}).json()
+    assert no_op == edited
+    cleared = client.patch(path, headers=_headers(owner), json={"private_note": "  "}).json()
+    assert cleared["private_note"] is None
+    assert cleared["rating"] == 2
+    assert len(client.get("/log", headers=_headers(owner)).json()) == 1
+    for rating in (0, 6, 2.5, True, "2", None):
+        assert client.patch(path, headers=_headers(owner), json={"rating": rating}).status_code == 422
 
 
 def test_visit_requires_valid_published_restaurant(log_db):

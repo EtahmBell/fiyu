@@ -3335,6 +3335,23 @@ def _ensure_taste_snapshot_copy(
     return stored
 
 
+def _taste_snapshot_signals(snapshot: dict[str, Any]) -> tuple[object, ...]:
+    """Compare findings without treating historical phrasing as mutable analytics."""
+
+    signal_fields = (
+        "facet_key", "type", "direction", "support_count", "average_rating",
+        "delta_from_user_average", "save_affinity", "visit_affinity", "change_status",
+    )
+    insights = snapshot.get("insights") or []
+    return (
+        snapshot.get("overall_average"),
+        tuple(
+            tuple(insight.get(field) for field in signal_fields)
+            for insight in insights if isinstance(insight, dict)
+        ),
+    )
+
+
 @app.get("/profiles/me/fiyu-summary", response_model=UserFiyuSummaryResponse)
 def get_my_fiyu_summary(
     user_id: Annotated[str, Depends(_authenticated_user_id)],
@@ -3387,9 +3404,18 @@ def get_my_fiyu_summary(
         )
         stored_snapshot = stored.get("snapshot")
         if isinstance(stored_snapshot, dict):
-            summary["taste_insights"] = stored_snapshot.get("insights", [])
-            summary["taste_tags"] = stored_snapshot.get("tags", [])
-            summary["taste_type"] = stored_snapshot.get("taste_type")
+            # The stored milestone is a historical artifact. A later rating edit
+            # changes the live signal without creating or rewriting a milestone.
+            # Use deterministic copy for the live findings so old phrasing cannot
+            # contradict the newly rated visits.
+            current = (
+                stored_snapshot
+                if _taste_snapshot_signals(stored_snapshot) == _taste_snapshot_signals(snapshot)
+                else taste_phrasing.with_deterministic_copy(snapshot)
+            )
+            summary["taste_insights"] = current.get("insights", [])
+            summary["taste_tags"] = current.get("tags", [])
+            summary["taste_type"] = current.get("taste_type")
         summary["taste_has_unseen_update"] = stored.get("acknowledged_at") is None
     return UserFiyuSummaryResponse.model_validate(summary)
 
@@ -3635,14 +3661,28 @@ def update_restaurant_log_visit(
     )
     if existing is None:
         raise HTTPException(status_code=404, detail="Visit not found")
+    next_visited_at = (
+        payload.visited_at.astimezone(UTC).isoformat()
+        if payload.visited_at is not None else None
+    )
+    update_visited_at = update_visited_at and next_visited_at != str(existing["visited_at"])
+    update_rating = update_rating and payload.rating != existing.get("rating")
+    update_note = (
+        "private_note" in payload.model_fields_set
+        and payload.private_note != existing.get("private_note")
+    )
+    if not (update_visited_at or update_rating or update_note):
+        return _visit_response_from_row(
+            _catalog_enriched([existing])[0] if _shared_owner(owner_id) else existing
+        )
     if _shared_owner(owner_id):
         changes: dict[str, object] = {}
         if update_visited_at:
-            changes["visited_at"] = payload.visited_at.astimezone(UTC).isoformat()
+            changes["visited_at"] = next_visited_at
         if update_rating:
             changes["rating"] = payload.rating
             changes["reaction"] = _compatibility_reaction_for_rating(payload.rating)
-        if "private_note" in payload.model_fields_set:
+        if update_note:
             changes["private_note"] = payload.private_note
         row = shared_user_data.update_visit(
             user_id=str(owner_id), visit_id=visit_id, changes=changes
@@ -3654,11 +3694,7 @@ def update_restaurant_log_visit(
             DB_PATH,
             owner_id=owner_id,
             visit_id=visit_id,
-            visited_at=(
-                payload.visited_at.astimezone(UTC).isoformat()
-                if payload.visited_at is not None
-                else None
-            ),
+            visited_at=next_visited_at,
             reaction=(
                 _compatibility_reaction_for_rating(payload.rating)
                 if payload.rating is not None
@@ -3669,7 +3705,7 @@ def update_restaurant_log_visit(
             update_visited_at=update_visited_at,
             update_reaction=update_rating,
             update_rating=update_rating,
-            update_private_note="private_note" in payload.model_fields_set,
+            update_private_note=update_note,
         )
     if row is None:
         raise HTTPException(status_code=404, detail="Visit not found")

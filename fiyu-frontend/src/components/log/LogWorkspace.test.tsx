@@ -8,8 +8,9 @@ import {
   accountQueryKey,
   clearAccountQueries,
   readAccountQuery,
+  writeAccountQuery,
 } from "@/lib/accountQueryCache";
-import type { MapRestaurant, RestaurantVisit } from "@/lib/api/schemas";
+import type { MapRestaurant, RestaurantVisit, UserFiyuSummary } from "@/lib/api/schemas";
 import {
   createRestaurantVisit,
   deleteRestaurantVisit,
@@ -442,7 +443,7 @@ describe("LogWorkspace", () => {
     fireEvent.change(within(dialog).getByLabelText(/Private note/), {
       target: { value: "Still private." },
     });
-    fireEvent.click(within(dialog).getByRole("button", { name: "Save visit" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save changes" }));
 
     await waitFor(() => expect(updateRestaurantVisit).toHaveBeenCalledWith(
       "visit-a",
@@ -483,7 +484,7 @@ describe("LogWorkspace", () => {
     fireEvent.change(within(editDialog).getByLabelText(/Private note/), {
       target: { value: "Late lunch." },
     });
-    fireEvent.click(within(editDialog).getByRole("button", { name: "Save visit" }));
+    fireEvent.click(within(editDialog).getByRole("button", { name: "Save changes" }));
     expect(await screen.findByText("Late lunch.")).toBeTruthy();
     expect(updateRestaurantVisit).toHaveBeenCalledWith(
       "newer",
@@ -496,6 +497,104 @@ describe("LogWorkspace", () => {
     await waitFor(() => expect(deleteRestaurantVisit).toHaveBeenCalled());
     expect(screen.queryByText("上野麺")).toBeNull();
     expect(screen.getByRole("heading", { name: "東京鮨" })).toBeTruthy();
+  });
+
+  it("edits the selected mobile history visit with prefilled stars and note, preserving its timestamp", async () => {
+    desktopViewport = false;
+    const original = visit({ rating: 5, visited_at: "2026-08-08T18:37:21+00:00" });
+    vi.mocked(fetchRestaurantLog).mockResolvedValue([original]);
+    vi.mocked(updateRestaurantVisit).mockResolvedValue({ ...original, rating: 2, private_note: "Revised note" });
+    render(<LogWorkspace mobileMode="history" />);
+    fireEvent.click(await screen.findByRole("button", { name: "Edit" }));
+    expect(screen.getByRole("radio", { name: "5 out of 5 stars" }).getAttribute("aria-checked")).toBe("true");
+    expect((screen.getByLabelText(/Private note/) as HTMLTextAreaElement).value).toBe(original.private_note);
+    expect((screen.getByRole("button", { name: "Save changes" }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByRole("radio", { name: "2 out of 5 stars" }));
+    fireEvent.change(screen.getByLabelText(/Private note/), { target: { value: "Revised note" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    await screen.findByRole("heading", { name: "History" });
+    expect(updateRestaurantVisit).toHaveBeenCalledWith(original.id,
+      { rating: 2, private_note: "Revised note" }, expect.anything());
+    expect(createRestaurantVisit).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("2 out of 5 stars")).toBeTruthy();
+    expect(screen.getByText("Revised note")).toBeTruthy();
+    expect(screen.queryByText("Visit saved.")).toBeNull();
+    expect(readAccountQuery<RestaurantVisit[]>(accountQueryKey("restaurant-log", null))?.[0].visited_at).toBe(original.visited_at);
+  });
+
+  it("cancels unsaved mobile changes and opens the persisted values again", async () => {
+    desktopViewport = false;
+    vi.mocked(fetchRestaurantLog).mockResolvedValue([visit()]);
+    render(<LogWorkspace mobileMode="history" />);
+    fireEvent.click(await screen.findByRole("button", { name: "Edit" }));
+    fireEvent.change(screen.getByLabelText(/Private note/), { target: { value: "Discard me" } });
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByText("Discard me")).toBeNull();
+    expect(updateRestaurantVisit).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+    expect((screen.getByLabelText(/Private note/) as HTMLTextAreaElement).value).toBe(visit().private_note);
+  });
+
+  it("keeps failed edits recoverable and only submits once while saving", async () => {
+    desktopViewport = false;
+    vi.mocked(fetchRestaurantLog).mockResolvedValue([visit()]);
+    let rejectSave: (reason: Error) => void = () => {};
+    vi.mocked(updateRestaurantVisit).mockImplementation(() => new Promise((_, reject) => { rejectSave = reject; }));
+    render(<LogWorkspace mobileMode="history" />);
+    fireEvent.click(await screen.findByRole("button", { name: "Edit" }));
+    fireEvent.change(screen.getByLabelText(/Private note/), { target: { value: "Unsaved" } });
+    const save = screen.getByRole("button", { name: "Save changes" });
+    fireEvent.click(save);
+    fireEvent.click(save);
+    expect(updateRestaurantVisit).toHaveBeenCalledTimes(1);
+    rejectSave(new Error("offline"));
+    expect(await screen.findByRole("alert")).toBeTruthy();
+    expect((screen.getByLabelText(/Private note/) as HTMLTextAreaElement).value).toBe("Unsaved");
+    expect(readAccountQuery<RestaurantVisit[]>(accountQueryKey("restaurant-log", null))?.[0].private_note).toBe(visit().private_note);
+    vi.mocked(updateRestaurantVisit).mockResolvedValue(visit({ private_note: null }));
+    fireEvent.change(screen.getByLabelText(/Private note/), { target: { value: "  " } });
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    await screen.findByRole("heading", { name: "History" });
+    expect(updateRestaurantVisit).toHaveBeenLastCalledWith("visit-a", { private_note: null }, expect.anything());
+    expect(fetchUserFiyuSummary).not.toHaveBeenCalled();
+  });
+
+  it("updates a private note in cached Recent Visits without requesting Taste", async () => {
+    desktopViewport = false;
+    publishProfileIdentity({ user_id: "account-a", username: "tester", display_name: "Tester",
+      bio: null, avatar_url: null, created_at: "2026-08-01T00:00:00Z", updated_at: "2026-08-01T00:00:00Z" });
+    const key = accountQueryKey("user-fiyu-summary", "account-a");
+    const summary = { recent_visits: [{ id: "visit-a", rating: 4, private_note_excerpt: "Old" }], taste_insights: [{ headline: "Existing Taste" }] } as UserFiyuSummary;
+    writeAccountQuery(key, summary);
+    vi.mocked(fetchRestaurantLog).mockResolvedValue([visit()]);
+    vi.mocked(updateRestaurantVisit).mockResolvedValue(visit({ private_note: null }));
+    render(<LogWorkspace mobileMode="history" />);
+    fireEvent.click(await screen.findByRole("button", { name: "Edit" }));
+    fireEvent.change(screen.getByLabelText(/Private note/), { target: { value: "" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    await screen.findByRole("heading", { name: "History" });
+    expect(readAccountQuery<UserFiyuSummary>(key)?.recent_visits[0].private_note_excerpt).toBeNull();
+    expect(readAccountQuery<UserFiyuSummary>(key)?.taste_insights).toEqual(summary.taste_insights);
+    expect(fetchUserFiyuSummary).not.toHaveBeenCalled();
+  });
+
+  it("retains the latest visit rating on Map when an older visit is edited", async () => {
+    desktopViewport = false;
+    publishProfileIdentity({ user_id: "account-a", username: "tester", display_name: "Tester",
+      bio: null, avatar_url: null, created_at: "2026-08-01T00:00:00Z", updated_at: "2026-08-01T00:00:00Z" });
+    const older = visit({ id: "older", rating: 5, visited_at: "2026-08-01T12:00:00Z" });
+    vi.mocked(fetchRestaurantLog).mockResolvedValue([visit({ rating: 4 }), older]);
+    vi.mocked(updateRestaurantVisit).mockResolvedValue({ ...older, rating: 2 });
+    vi.mocked(fetchUserFiyuSummary).mockResolvedValue({} as UserFiyuSummary);
+    const key = accountQueryKey("map-restaurants", "account-a");
+    writeAccountQuery(key, [{ ...catalogRestaurant, is_visited: true, is_saved: true, is_discovered: true, user_rating: 4 }]);
+    render(<LogWorkspace mobileMode="history" />);
+    fireEvent.click((await screen.findAllByRole("button", { name: "Edit" }))[1]);
+    fireEvent.click(screen.getByRole("radio", { name: "2 out of 5 stars" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    await screen.findByRole("heading", { name: "History" });
+    expect(readAccountQuery<MapRestaurant[]>(key)?.[0]).toMatchObject({ user_rating: 4, is_saved: true, is_discovered: true, is_visited: true });
+    expect(fetchUserFiyuSummary).toHaveBeenCalledTimes(1);
   });
 
   it("shows a retryable load error", async () => {
