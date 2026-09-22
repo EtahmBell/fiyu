@@ -64,6 +64,21 @@ afterEach(() => {
 });
 
 describe("compact restaurant card content", () => {
+  it("adds a compact evidence hint to the existing detail action without intercepting card or save actions", () => {
+    const details = vi.fn();
+    const open = vi.fn();
+    const save = vi.fn();
+    render(<CompactRestaurantCard restaurant={restaurant()} saved={false} onToggleSaved={save} onOpen={open} onViewDetails={details} />);
+    const hint = screen.getByText("Why Fiyu found it");
+    const action = screen.getByRole("button", { name: "View restaurant" });
+    expect(action.getAttribute("aria-describedby")).toBe(hint.id);
+    fireEvent.click(hint);
+    expect(details).toHaveBeenCalledTimes(1);
+    expect(open).not.toHaveBeenCalled();
+    expect(save).not.toHaveBeenCalled();
+    expect(action.querySelectorAll("button, a")).toHaveLength(0);
+  });
+
   it("renders known budget ranges without changing the card structure", () => {
     render(
       <CompactRestaurantCard

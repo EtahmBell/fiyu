@@ -135,6 +135,31 @@ def test_google_operational_fields_are_absent_publicly(public_db):
     assert TestClient(api.app).get("/public/restaurants/eligible/live-details").status_code == 404
 
 
+def test_detail_explanation_is_allowlisted_and_does_not_change_catalog(public_db):
+    client = TestClient(api.app)
+    before = client.get("/public/restaurants").json()
+    with connect(public_db) as connection:
+        connection.execute(
+            """UPDATE public_restaurants SET score_version='public-v3-local-discovery',
+            quality_signal=91.23, hiddenness_signal=80, independence_signal=94,
+            local_discovery_score=75, confidence_band='high', evidence_json=?
+            WHERE place_id='eligible'""",
+            (json.dumps({"matched_restaurant": True, "identity_confidence": 0.95,
+                         "total_evidence_sources": 5, "japanese_source_count": 4,
+                         "english_tourist_source_count": 1, "raw_prompt": "PRIVATE_SENTINEL"}),),
+        )
+    detail = client.get("/public/restaurants/eligible").json()
+    assert detail["fiyu_score"] == 91
+    assert detail["score_transparency"]["signals"][0]["value"] == 9.1
+    assert "English-language coverage" in str(detail["score_transparency"])
+    assert "PRIVATE_SENTINEL" not in json.dumps(detail)
+    assert "evidence_json" not in detail and "structured_research_json" not in detail
+    assert "Internal why_fiyu" not in json.dumps(detail)
+    assert client.get("/public/restaurants").json() == before
+    assert client.get("/public/restaurants/hidden").status_code == 404
+    assert client.get("/public/restaurants/unknown").json()["score_transparency"]["signals"] == []
+
+
 def test_public_display_area_is_canonical_without_overwriting_precise_location(public_db):
     with connect(public_db) as connection:
         connection.execute(

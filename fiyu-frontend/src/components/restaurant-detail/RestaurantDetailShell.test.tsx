@@ -77,6 +77,7 @@ describe("restaurant detail view", () => {
     expect(screen.getByText("東京都港区六本木1丁目")).toBeTruthy();
     expect(screen.getByText("Cuisine").nextElementSibling?.textContent).toContain("Sushi");
     expect(screen.getByRole("heading", { level: 2, name: "Overview" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Why Fiyu found it" })).toBeTruthy();
     expect(screen.getByRole("heading", { level: 2, name: "Signature dishes" })).toBeTruthy();
     expect(screen.getByText("Seasonal nigiri")).toBeTruthy();
     expect(screen.getByRole("heading", { level: 2, name: "Menu and format" })).toBeTruthy();

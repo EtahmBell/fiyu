@@ -135,6 +135,7 @@ export function CompactRestaurantCard({
   const [descriptionTruncated, setDescriptionTruncated] = useState(false);
   const descriptionRef = useRef<HTMLParagraphElement>(null);
   const descriptionId = useId();
+  const transparencyHintId = useId();
   const pointerStart = useRef<{ pointerId: number; x: number; y: number } | null>(null);
   const lastTap = useRef<TapPoint | null>(null);
 
@@ -375,13 +376,18 @@ export function CompactRestaurantCard({
             {onViewDetails && (
             <button
               type="button"
+              aria-label="View restaurant"
+              aria-describedby={tone !== "together" ? transparencyHintId : undefined}
               onClick={(event) => {
                 event.stopPropagation();
                 onViewDetails(restaurant);
               }}
               className="relative z-10 inline-flex min-h-9 min-w-0 items-center gap-1 py-0.5 pr-1 text-left text-sm font-semibold whitespace-nowrap text-plum underline decoration-transparent underline-offset-4 transition-colors hover:decoration-lavender-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600 lg:min-h-11 lg:gap-1.5 lg:py-2 lg:pr-3"
             >
-              <span>View restaurant</span>
+              <span className="flex min-w-0 flex-col">
+                <span>View restaurant</span>
+                {tone !== "together" && <span id={transparencyHintId} className="text-[0.6875rem] font-normal leading-4 text-ink-muted">Why Fiyu found it</span>}
+              </span>
               <span aria-hidden="true">→</span>
             </button>
             )}

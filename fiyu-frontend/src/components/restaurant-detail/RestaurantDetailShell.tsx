@@ -9,6 +9,7 @@ import { OutboundMapActions } from "@/components/restaurant/OutboundMapActions";
 import { TagList } from "@/components/restaurant/TagList";
 import { RestaurantPhotoGallery } from "@/components/restaurant-detail/RestaurantPhotoGallery";
 import { RestaurantShareAction } from "@/components/restaurant-detail/RestaurantShareAction";
+import { ScoreTransparency } from "@/components/restaurant-detail/ScoreTransparency";
 import { ScoreMark } from "@/components/ui/ScoreMark";
 import type { GooglePhoto, PublicRestaurant, PublicRestaurantDetail } from "@/lib/api/schemas";
 import { canonicalCardDescription } from "@/lib/daily-picks/cardContent";
@@ -406,6 +407,8 @@ function RestaurantDetailContent({
           )}
         </section>
       )}
+
+      <ScoreTransparency restaurant={restaurant} />
 
       {hasPracticalInfo && (
         <section aria-labelledby="practical-info-heading" className="border-t border-line pt-5">

@@ -1673,6 +1673,22 @@ def get_public_restaurant_detail(db_path: str | Path, place_id: str) -> dict[str
         return None
 
     with connect(db_path) as connection:
+        # Keep raw evidence inside the backend and off the summary/card contract.
+        from .score_transparency import explain_score
+
+        score_row = connection.execute(
+            """
+            SELECT p.fiyu_score, p.score_version, p.quality_signal, p.hiddenness_signal,
+                   p.independence_signal, p.local_signal, p.local_discovery_score,
+                   p.confidence_band, p.evidence_json, p.card_description, p.description_en,
+                   (SELECT rr.structured_research_json FROM restaurant_research_runs rr
+                    WHERE rr.public_restaurant_id=p.place_id AND rr.is_current=1
+                    AND rr.status='complete' ORDER BY rr.id DESC LIMIT 1) AS structured_research_json
+            FROM public_restaurants p WHERE p.place_id=?
+            """,
+            (place_id,),
+        ).fetchone()
+        restaurant["score_transparency"] = explain_score(dict(score_row)).model_dump() if score_row else None
         row = connection.execute(
             """
             SELECT restaurant_type_en, cuisine_terms_en_json,

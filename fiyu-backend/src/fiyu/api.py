@@ -91,6 +91,7 @@ from .restaurant_visits import (
     list_visits,
     update_visit,
 )
+from .score_transparency import ScoreTransparency
 from .smart_views import (
     SMART_VIEW_KEYS,
     SMART_VIEW_META,
@@ -265,6 +266,7 @@ class MapRestaurantSummary(PublicRestaurantSummary):
 
 
 class PublicRestaurantDetail(PublicRestaurantSummary):
+    score_transparency: ScoreTransparency | None = None
     restaurant_type_en: str | None = None
     cuisine_terms_en: list[str] = Field(default_factory=list)
     signature_dishes_en: list[str] = Field(default_factory=list)

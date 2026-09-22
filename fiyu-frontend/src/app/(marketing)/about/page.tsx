@@ -123,6 +123,26 @@ export default function AboutPage() {
             ))}
           </div>
         </section>
+
+        <section id="how-fiyu-scores" aria-labelledby="scoring-heading" className="mt-16 max-w-3xl scroll-mt-24 border-t border-line pt-8">
+          <SectionEyebrow>Our methodology</SectionEyebrow>
+          <h2 id="scoring-heading" className="mt-3 font-display text-3xl text-ink">How Fiyu scores places</h2>
+          <div className="mt-5 space-y-4 text-sm leading-7 text-ink-body">
+            <p>Fiyu is a curated selection, not a directory. The Fiyu Score is a provisional discovery score, not a public review rating or proof of local authenticity. It helps identify worthwhile places that may deserve more attention.</p>
+            <p>The current model combines rating-based quality, underexposure, independence and distinctiveness, and local discovery evidence. Local-language sources add context, but their language does not prove who eats at a restaurant. Low exposure alone does not establish quality, and popularity alone does not make a Fiyu discovery.</p>
+            <p>Automated publication checks venue eligibility and chain classification, requires completed research, and uses a minimum score of 7.5. Restricted-access venues and excluded chains do not qualify. Older or manually published records can reflect earlier rules.</p>
+            <details className="border-y border-line">
+              <summary className="min-h-11 cursor-pointer py-3 font-medium text-plum focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600">The factors and weights</summary>
+              <div className="space-y-3 pb-4">
+                <p>The current model weights quality at 45%, underexposure at 15%, independence and distinctiveness at 15%, and local discovery at 25%. Quality starts with ratings adjusted for review volume. Underexposure considers review volume relative to peers alongside recorded tourist and web visibility. Local discovery combines overlapping visibility, audience, independence and specialization signals.</p>
+                <p>The inputs use smoothing, bounded scales and neutral defaults for some unknowns. Eligibility rules and model-specific caps also apply, so the displayed signals are not a simple average. Scores are stored on a 0–100 scale and shown divided by ten, rounded to one decimal.</p>
+                <p>Historical models used 30% Japanese-language web signal, 30% underexposure, 25% quality and 15% independence, with additional evidence and identity caps. Historical scores stay as recorded; we do not apply current weights to their breakdown.</p>
+              </div>
+            </details>
+            <p>Research confidence describes identity matching, source coverage, available review-language evidence and consistency. It is separate from the current score and is not a guarantee of restaurant quality. Missing research is not evidence of obscurity.</p>
+            <p>Your private ratings and Taste are separate from this restaurant-level score. The Fiyu Score is not a prediction of your personal rating.</p>
+          </div>
+        </section>
       </div>
     </main>
   );

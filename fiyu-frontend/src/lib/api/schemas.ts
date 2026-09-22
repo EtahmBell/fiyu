@@ -287,6 +287,14 @@ export const mapRestaurantListSchema = z.array(mapRestaurantSchema);
  * response, and every section that consumes them must tolerate their absence.
  */
 export const publicRestaurantDetailSchema = publicRestaurantSchema.extend({
+  score_transparency: z.object({
+    reasons: z.array(z.string()).default([]),
+    signals: z.array(z.object({
+      key: z.string(), label: z.string(), value: z.number().min(0).max(10), description: z.string(),
+    })).default([]),
+    model_label: z.string(),
+    evidence_confidence: z.string().nullable().optional(),
+  }).nullish(),
   restaurant_type_en: nullableString,
   cuisine_terms_en: stringArray,
   signature_dishes_en: stringArray,
