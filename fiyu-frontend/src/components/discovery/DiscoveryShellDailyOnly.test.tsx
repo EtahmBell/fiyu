@@ -304,7 +304,9 @@ describe("daily-only discovery shell", () => {
       vi.advanceTimersByTime(1_500);
       await Promise.resolve();
     });
-    fireEvent.click(screen.getByRole("button", { name: "Tap to reveal restaurant 1" }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Reveal Fiyu Pick 1" }));
+    });
 
     const state = parseDailyPicksState(window.localStorage.getItem(DAILY_PICKS_STORAGE_KEY));
     expect(state.selection?.revealedIds).toEqual([state.selection?.restaurantIds[0]]);
@@ -346,7 +348,7 @@ describe("daily-only discovery shell", () => {
 
     expect(container.querySelector('[data-place-id="two"]')).toBeNull();
     expect(container.querySelector('[data-place-id="three"]')).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Tap to reveal restaurant 2" }));
+    fireEvent.click(screen.getByRole("button", { name: "Reveal Fiyu Pick 2" }));
     const concealedPin = container.querySelector('[data-place-id="two"]') as HTMLElement;
     expect(concealedPin).toBeTruthy();
     expect(container.querySelector('[data-place-id="three"]')).toBeNull();
@@ -634,7 +636,7 @@ describe("daily-only discovery shell", () => {
       vi.advanceTimersByTime(1_500);
       await Promise.resolve();
     });
-    fireEvent.click(screen.getByRole("button", { name: "Tap to reveal restaurant 1" }));
+    fireEvent.click(screen.getByRole("button", { name: "Reveal Fiyu Pick 1" }));
 
     expect(screen.queryByTestId("mobile-map-region")).toBeNull();
   });
@@ -1110,7 +1112,7 @@ describe("daily-only discovery shell", () => {
     publishProfileIdentity(accountProfile("account-a", "accounta"));
     render(<DiscoveryShell restaurants={catalog} areaAnchors={[]} />);
 
-    fireEvent.click(await screen.findByRole("button", { name: "Tap to reveal restaurant 1" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Reveal Fiyu Pick 1" }));
     await waitFor(() => {
       expect(dailyApi.revealDailyPicks).toHaveBeenCalledTimes(1);
     });

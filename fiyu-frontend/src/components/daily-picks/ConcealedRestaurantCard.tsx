@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-
 import { CompactRestaurantCard } from "@/components/daily-picks/CompactRestaurantCard";
 import type { PublicRestaurant } from "@/lib/api/schemas";
 import { hasGoldFiyuTreatment } from "@/lib/format/score";
-import { cn } from "@/lib/utils/cn";
+import { useMediaQuery } from "@/lib/hooks/useMediaQuery";
+import styles from "./PickReveal.module.css";
 
 export interface ConcealedRestaurantCardProps {
   restaurant: PublicRestaurant;
@@ -13,144 +13,80 @@ export interface ConcealedRestaurantCardProps {
   revealed: boolean;
   saved: boolean;
   savePending?: boolean;
+  revealPending?: boolean;
   onReveal(): void;
   onToggleSaved(): void;
   onOpen?: (restaurant: PublicRestaurant) => void;
   onViewDetails?: (restaurant: PublicRestaurant) => void;
 }
 
-/**
- * The concealed face is deliberately bare: a pale field, the card's own border,
- * and two centred lines of type. Anything patterned here competes with the
- * revealed card for attention and starts to read as packaging.
- *
- * A fixed height rather than a minimum: the fading copy of this face is
- * absolutely positioned over the revealed card, and the two must match exactly
- * or the cross-fade jumps on its first frame.
- */
-const FACE_SURFACE =
-  "relative flex h-44 items-center justify-center overflow-hidden rounded-card border bg-lavender-50 px-6 py-8 text-center";
+export const PICK_FLIP_MS = 500;
 
-/**
- * One source of truth for the fade, used both to drive the animation and to
- * drop the spent layer. A timer rather than `animationend`: the layer is inert
- * once it reaches zero, so exact frame accuracy buys nothing, and reduced-motion
- * users collapse the animation to 0.01ms without an event either way.
- */
-const CONCEAL_FADE_MS = 160;
-
-/**
- * The exceptional-score edge is a hairline and nothing more. It used to carry a
- * champagne glow behind it, which read as a metallic effect and made this the
- * loudest gold in the product -- on a Current Picks surface, where champagne now
- * means the opposite of current.
- */
-function faceEdge(gold: boolean): string {
-  return gold ? "border-gold" : "border-line-strong";
-}
-
-function RevealPrompt() {
-  return (
-    <>
-      <span className="font-display text-2xl text-plum">Fiyu</span>
-      <span className="mt-2 text-xs font-medium tracking-[0.12em] text-lavender-700 uppercase">
-        Tap to reveal
-      </span>
-    </>
-  );
-}
-
-/** Conceals all identifying content until the user deliberately reveals it. */
+/** Persistent reveal truth comes from the parent; motion exists only on this mount. */
 export function ConcealedRestaurantCard({
-  restaurant,
-  position,
-  revealed,
-  saved,
-  savePending = false,
-  onReveal,
-  onToggleSaved,
-  onOpen,
-  onViewDetails,
+  restaurant, position, revealed, saved, savePending = false, revealPending = false,
+  onReveal, onToggleSaved, onOpen, onViewDetails,
 }: ConcealedRestaurantCardProps) {
-  const gold = hasGoldFiyuTreatment(restaurant.fiyu_score);
-  // Only a reveal that happens in front of the user animates. A card restored
-  // from storage as already revealed renders straight into its final state.
-  const wasConcealed = useRef(!revealed);
-  const [fadingOut, setFadingOut] = useState(false);
-  const [entering, setEntering] = useState(false);
-
-  useEffect(() => {
-    if (!revealed || !wasConcealed.current) return;
-    wasConcealed.current = false;
-    setFadingOut(true);
-    setEntering(true);
-  }, [revealed]);
-
-  useEffect(() => {
-    if (!fadingOut) return;
-    const timer = window.setTimeout(() => setFadingOut(false), CONCEAL_FADE_MS);
-    return () => window.clearTimeout(timer);
-  }, [fadingOut]);
-
-  if (!revealed) {
-    return (
-      <article
-        data-testid="concealed-restaurant-card"
-        data-gold-treatment={gold ? "true" : "false"}
-        className={cn(FACE_SURFACE, faceEdge(gold))}
-      >
-        <button
-          type="button"
-          onClick={onReveal}
-          aria-label={`Tap to reveal restaurant ${position}`}
-          className="relative z-10 flex min-h-24 w-full flex-col items-center justify-center rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600"
-        >
-          <RevealPrompt />
-        </button>
-      </article>
-    );
+  const reducedMotion = useMediaQuery("(prefers-reduced-motion: reduce)");
+  const [previousRevealed, setPreviousRevealed] = useState(revealed);
+  const [animating, setAnimating] = useState(false);
+  const frontRef = useRef<HTMLDivElement>(null);
+  const restoreFocus = useRef(false);
+  // Derive the transition before paint, avoiding a one-frame front flash.
+  if (revealed !== previousRevealed) {
+    setPreviousRevealed(revealed);
+    setAnimating(revealed && !reducedMotion);
   }
+  const moving = animating && !reducedMotion;
+  const gold = revealed && hasGoldFiyuTreatment(restaurant.fiyu_score);
+
+  useEffect(() => {
+    if (!animating) return;
+    const timer = window.setTimeout(() => setAnimating(false), reducedMotion ? 0 : PICK_FLIP_MS);
+    return () => window.clearTimeout(timer);
+  }, [animating, reducedMotion]);
+
+  useEffect(() => {
+    if (revealed && !moving && restoreFocus.current) {
+      restoreFocus.current = false;
+      const front = frontRef.current;
+      const target = front?.querySelector<HTMLElement>('button[aria-label="View restaurant"]')
+        ?? front?.querySelector<HTMLElement>("button, a, [tabindex='0']");
+      target?.focus({ preventScroll: true });
+    }
+  }, [revealed, moving]);
 
   return (
-    <div
-      data-testid="revealed-restaurant-card"
+    <div className={styles.scene}
+      data-testid={revealed ? "revealed-restaurant-card" : "concealed-restaurant-card"}
       data-gold-treatment={gold ? "true" : "false"}
-      className="relative"
+      data-reveal-motion={moving ? "flipping" : "resting"}
+      onClickCapture={(event) => { if (moving) { event.preventDefault(); event.stopPropagation(); } }}
     >
-      {/*
-       * The restaurant card mounts immediately, so its photo request starts at
-       * the moment of the tap rather than after the transition. The concealed
-       * face simply fades off the top of it.
-       */}
-      <div
-        style={
-          entering ? { animation: "fiyu-reveal-in 260ms var(--ease-fiyu) 40ms both" } : undefined
-        }
-      >
-        <CompactRestaurantCard
-          restaurant={restaurant}
-          saved={saved}
-          savePending={savePending}
-          onOpen={onOpen}
-          onViewDetails={onViewDetails}
-          onToggleSaved={onToggleSaved}
-        />
-      </div>
-
-      {fadingOut && (
-        <div
-          aria-hidden="true"
-          data-testid="conceal-fade-out"
-          className="pointer-events-none absolute inset-x-0 top-0 z-20"
-          style={{ animation: `fiyu-fade-out ${CONCEAL_FADE_MS}ms var(--ease-fiyu) forwards` }}
-        >
-          <div className={cn(FACE_SURFACE, faceEdge(gold))}>
-            <div className="relative z-10 flex min-h-24 w-full flex-col items-center justify-center">
-              <RevealPrompt />
-            </div>
-          </div>
+      <div className={styles.rotor} data-front={revealed} data-moving={moving}>
+        {(!revealed || moving) && <div className={styles.back} aria-hidden={revealed} inert={revealed}>
+          <button type="button" disabled={revealPending} aria-busy={revealPending}
+            aria-label={`Reveal Fiyu Pick ${position}`}
+            onClick={(event) => {
+              if (revealPending) return;
+              restoreFocus.current = event.detail === 0;
+              onReveal();
+            }}
+            className="flex size-full select-none flex-col items-center justify-center rounded-card text-center focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600 disabled:cursor-wait"
+          >
+            <span className="text-[0.625rem] tracking-[0.2em] text-lavender-700 uppercase">Fiyu Pick</span>
+            <span className="mt-3 font-display text-3xl text-plum">Fiyu</span>
+            <span className="mt-3 text-xs font-medium text-lavender-700">{revealPending ? "Revealing…" : "Tap to reveal"}</span>
+          </button>
+        </div>}
+        <div ref={frontRef} className={styles.front} aria-hidden={!revealed || moving} inert={!revealed || moving}>
+          {revealed && <CompactRestaurantCard
+            restaurant={restaurant} saved={saved} savePending={savePending}
+            onOpen={onOpen} onViewDetails={onViewDetails} onToggleSaved={onToggleSaved}
+          />}
         </div>
-      )}
+      </div>
+      {moving && <span aria-hidden="true" className={styles.sheen} />}
     </div>
   );
 }

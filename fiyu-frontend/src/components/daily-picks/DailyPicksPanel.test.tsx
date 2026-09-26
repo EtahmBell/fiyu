@@ -203,7 +203,7 @@ describe("Today’s Fiyu Picks panel", () => {
     expect(selectedIds).toHaveLength(3);
     expect(new Set(selectedIds).size).toBe(3);
 
-    fireEvent.click(screen.getByRole("button", { name: "Tap to reveal restaurant 1" }));
+    fireEvent.click(screen.getByRole("button", { name: "Reveal Fiyu Pick 1" }));
     expect(screen.getAllByTestId("revealed-restaurant-card")).toHaveLength(1);
     expect(screen.getAllByTestId("concealed-restaurant-card")).toHaveLength(2);
     const firstId = selectedIds?.[0] ?? "";
@@ -224,10 +224,10 @@ describe("Today’s Fiyu Picks panel", () => {
     expect(screen.getAllByTestId("revealed-restaurant-card")).toHaveLength(1);
     expect(screen.getByText(`店 ${firstId}`)).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("button", { name: "Tap to reveal restaurant 2" }));
+    fireEvent.click(screen.getByRole("button", { name: "Reveal Fiyu Pick 2" }));
     expect(screen.getAllByTestId("revealed-restaurant-card")).toHaveLength(2);
     expect(screen.getAllByTestId("concealed-restaurant-card")).toHaveLength(1);
-    fireEvent.click(screen.getByRole("button", { name: "Tap to reveal restaurant 3" }));
+    fireEvent.click(screen.getByRole("button", { name: "Reveal Fiyu Pick 3" }));
     expect(screen.getAllByTestId("revealed-restaurant-card")).toHaveLength(3);
     expect(screen.queryByTestId("concealed-restaurant-card")).toBeNull();
 
@@ -452,12 +452,12 @@ describe("Today’s Fiyu Picks panel", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Tap to reveal restaurant 1" }));
+    fireEvent.click(screen.getByRole("button", { name: "Reveal Fiyu Pick 1" }));
     expect(revealEvents).toEqual([{ newIds: ["one"], revealedIds: ["one"] }]);
     expect(screen.getByRole("status").textContent).toBe(
       "1 new place added to your map",
     );
-    expect(screen.getAllByRole("button", { name: /Tap to reveal restaurant/ })).toHaveLength(2);
+    expect(screen.getAllByRole("button", { name: /Reveal Fiyu Pick/ })).toHaveLength(2);
 
     act(() => vi.advanceTimersByTime(3_200));
     expect(screen.queryByTestId("new-map-place-notification")).toBeNull();

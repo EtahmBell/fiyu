@@ -221,6 +221,11 @@ export function DailyPicksPanel({
     ? readAccountQuery<DailyPicksHydration>(hydrationKey)
     : undefined;
   const [inventoryMessage, setInventoryMessage] = useState<string | null>(null);
+  const [revealPending, setRevealPending] = useState(false);
+  const [revealingAll, setRevealingAll] = useState(false);
+  const revealLock = useRef(false);
+  const revealAllLock = useRef(false);
+  const reducedRevealMotion = useMediaQuery("(prefers-reduced-motion: reduce)");
   const [phase, setPhase] = useState<DiscoveryPhase>("idle");
   const [searchLocation, setSearchLocation] = useState<ActivePicksDiscoveryLocation | null>(null);
   const [newMapPlaceCount, setNewMapPlaceCount] = useState(0);
@@ -325,7 +330,7 @@ export function DailyPicksPanel({
       if (findingTimerRef.current !== null) window.clearTimeout(findingTimerRef.current);
       if (mapNoticeTimerRef.current !== null) window.clearTimeout(mapNoticeTimerRef.current);
     },
-    [],
+    [storage],
   );
 
   useEffect(
@@ -616,19 +621,26 @@ export function DailyPicksPanel({
     );
   };
 
-  const reveal = (placeId: string, revealedAt: number) => {
-    if (!currentSelection || currentSelection.revealedIds.includes(placeId)) return;
-    const previousState = state;
-    const revealedPlaceIds = [...currentSelection.revealedIds, placeId];
-    const discoveries = recordRevealedDiscovery(state.discoveries, placeId, revealedAt);
-    persist({
-      ...state,
-      discoveries,
-      selection: {
-        ...currentSelection,
-        revealedIds: revealedPlaceIds,
-      },
-    });
+  const reveal = async (placeId: string, revealedAt: number): Promise<boolean> => {
+    const initial = storage.getSnapshot();
+    if (revealLock.current || !currentSelection || !initial?.selection ||
+        initial.selection.generatedAt !== currentSelection.generatedAt ||
+        initial.selection.revealedIds.includes(placeId)) return false;
+    revealLock.current = true;
+    setRevealPending(true);
+    const generation = assignmentGenerationRef.current;
+    let revealedPlaceIds = [...initial.selection.revealedIds, placeId];
+    const commit = () => {
+      const latest = storage.getSnapshot();
+      if (generation !== assignmentGenerationRef.current || !latest?.selection ||
+          latest.selection.generatedAt !== initial.selection!.generatedAt) return false;
+      revealedPlaceIds = [...new Set([...latest.selection.revealedIds, placeId])];
+      persist({ ...latest,
+        discoveries: recordRevealedDiscovery(latest.discoveries, placeId, revealedAt),
+        selection: { ...latest.selection, revealedIds: revealedPlaceIds },
+      });
+      return true;
+    };
     const revealedRestaurant = restaurantById.get(placeId);
     const mappableRevealed = revealedRestaurant && isMappable(revealedRestaurant)
       ? [revealedRestaurant]
@@ -671,9 +683,10 @@ export function DailyPicksPanel({
     const roundId = assignmentLocation?.accountId === accountId
       ? assignmentLocation.roundId
       : null;
-    if (injectedStorage === undefined && roundId) {
-      void revealDailyPicks(roundId, placeId, { clientId: getOrCreateAnonymousOwnerKey() })
-        .then((result) => {
+    try {
+      if (injectedStorage === undefined && roundId) {
+          const result = await revealDailyPicks(roundId, placeId, { clientId: getOrCreateAnonymousOwnerKey() });
+          if (!commit()) return false;
           publishMapReveal();
           if (hydrationKey) {
             const hydration = readAccountQuery<DailyPicksHydration>(hydrationKey);
@@ -692,13 +705,46 @@ export function DailyPicksPanel({
               });
             }
           }
-        })
-        .catch(() => {
-          persist(previousState);
-          setInventoryMessage("We couldn’t save the reveal. Try again.");
-        });
-    } else {
-      publishMapReveal();
+      } else {
+        if (!commit()) return false;
+        publishMapReveal();
+      }
+      return true;
+    } catch {
+      if (generation === assignmentGenerationRef.current) {
+        setInventoryMessage("We couldn’t save the reveal. Try again.");
+      }
+      return false;
+    } finally {
+      revealLock.current = false;
+      setRevealPending(false);
+    }
+  };
+
+  const remainingRevealIds = selectedRestaurants
+    .filter((restaurant) => !currentSelection?.revealedIds.includes(restaurant.place_id) &&
+      !visitsByPlaceId.has(restaurant.place_id))
+    .map((restaurant) => restaurant.place_id);
+
+  const revealAll = async () => {
+    if (revealAllLock.current || revealLock.current) return;
+    revealAllLock.current = true;
+    setRevealingAll(true);
+    setInventoryMessage(null);
+    const generation = assignmentGenerationRef.current;
+    try {
+      for (const [index, placeId] of remainingRevealIds.entries()) {
+        if (generation !== assignmentGenerationRef.current) break;
+        // The same persistence pathway as a single reveal; no rollback of
+        // earlier successes when a later request fails. Stop so retry is clear.
+        if (!await reveal(placeId, Date.now())) break;
+        if (!reducedRevealMotion && index < remainingRevealIds.length - 1) {
+          await new Promise<void>((resolve) => window.setTimeout(resolve, 150));
+        }
+      }
+    } finally {
+      revealAllLock.current = false;
+      setRevealingAll(false);
     }
   };
 
@@ -828,6 +874,15 @@ export function DailyPicksPanel({
           </div>
         ) : (
           <div className="mt-4 space-y-4">
+            {hasActivePicks && (
+              <div className="flex justify-end">
+                <button type="button" aria-label={remainingRevealIds.length ? "Reveal all Fiyu Picks" : "All Picks revealed"}
+                  disabled={!remainingRevealIds.length || revealPending || revealingAll}
+                  onClick={() => { void revealAll(); }}
+                  className="min-h-11 px-2 text-sm font-medium text-plum underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-lavender-600 disabled:opacity-60"
+                >{!remainingRevealIds.length ? "All Picks revealed" : revealingAll ? "Revealing…" : "Reveal all"}</button>
+              </div>
+            )}
             {hasActivePicks && currentSelection && (
               <div
                 // Slightly closer together than the surrounding blocks, so the
@@ -860,7 +915,12 @@ export function DailyPicksPanel({
                       revealed={currentSelection.revealedIds.includes(restaurant.place_id)}
                       saved={savedRestaurantIds.includes(restaurant.place_id)}
                       savePending={defaultList.pendingPlaceIds.includes(restaurant.place_id)}
-                      onReveal={() => reveal(restaurant.place_id, Date.now())}
+                      revealPending={revealPending || revealingAll}
+                      onReveal={() => {
+                        if (revealAllLock.current) return;
+                        setInventoryMessage(null);
+                        void reveal(restaurant.place_id, Date.now());
+                      }}
                       onToggleSaved={() => toggleSaved(restaurant.place_id)}
                       onOpen={onOpenRestaurant}
                       onViewDetails={onViewRestaurant}

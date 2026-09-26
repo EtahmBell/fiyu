@@ -1,0 +1,56 @@
+/* Shared geometry: no identifying front content mounts before success.
+   Expanded copy scrolls inside the front instead of moving other Picks. */
+.scene {
+  position: relative;
+  height: 17rem;
+  min-width: 0;
+  perspective: 1100px;
+  --reveal-accent: var(--color-lavender-500);
+  --reveal-lift: -3px;
+}
+.rotor { position: relative; height: 100%; transform-style: preserve-3d; }
+.rotor[data-front="true"] { transform: rotateY(180deg); }
+.rotor[data-moving="true"] { animation: flip 500ms cubic-bezier(.2,.7,.25,1) both; }
+.back, .front {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-card);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+.back { border: 1px solid var(--color-line-strong); background: var(--color-lavender-50); }
+.front { transform: rotateY(180deg); overflow: auto; }
+.front > article { min-height: 100%; animation: none !important; }
+.scene[data-gold-treatment="true"] { --reveal-accent: var(--color-gold); --reveal-lift: -5px; }
+.scene[data-gold-treatment="true"] .front > article { border-color: var(--color-gold-line); border-top-color: var(--color-gold); }
+.sheen {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: var(--radius-card);
+  border: 1px solid var(--reveal-accent);
+  animation: edge 500ms ease-out both;
+}
+.sheen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(110deg, transparent 25%, color-mix(in srgb, var(--reveal-accent) 22%, transparent) 50%, transparent 75%);
+  animation: sweep 500ms ease-out both;
+}
+@keyframes flip {
+  0% { transform: translateY(0) rotateY(0); }
+  45% { transform: translateY(var(--reveal-lift)) rotateY(88deg); }
+  100% { transform: translateY(0) rotateY(180deg); }
+}
+@keyframes sweep { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+@keyframes edge { 0%, 100% { opacity: 0; } 55% { opacity: .75; } }
+@media (min-width: 64rem) { .scene { height: 21rem; } }
+@media (prefers-reduced-motion: reduce) {
+  .scene { perspective: none; }
+  .rotor, .rotor[data-front="true"], .rotor[data-moving="true"], .front { animation: none; transform: none; }
+  .rotor[data-front="true"] .back { display: none; }
+  .rotor[data-front="false"] .front { display: none; }
+  .sheen { display: none; }
+}
