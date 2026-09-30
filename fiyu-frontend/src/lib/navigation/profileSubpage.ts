@@ -1,5 +1,5 @@
-/** The two parents in the Profile tree. Edit profile and Settings hang off Your
- * Fiyu; the deeper settings screens hang off Settings. */
+/** Settings belongs to Your Fiyu; Edit profile and all Settings children
+ * return to Settings, including direct links. */
 export const PROFILE_HOME = "/profile";
 export const PROFILE_SETTINGS = "/profile/settings";
 
@@ -22,8 +22,7 @@ export const PROFILE_SETTINGS = "/profile/settings";
  * child of Settings it can effectively only answer false, because reaching such
  * a child means Settings was already the first subpage this document rendered --
  * so those screens always push. That is the right trade rather than a gap:
- * Settings is one screen tall, so restoring its scroll position is worth
- * nothing, while Your Fiyu runs several screens and is where the pop pays.
+ * The fallback prioritizes the declared parent over unknown browser history.
  *
  * Recorded per document rather than per mount, and idempotent, so a remount
  * (React's development double-invoke, a route the reader returns to) cannot

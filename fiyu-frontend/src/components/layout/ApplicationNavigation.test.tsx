@@ -177,6 +177,7 @@ describe("application navigation", () => {
     }
     expect(screen.queryByLabelText("Notifications")).toBeNull();
     expect(screen.getByLabelText("Open menu")).toBeTruthy();
+    fireEvent.click(screen.getByLabelText("Open menu"));
     expect(screen.getByRole("link", { name: "Settings" }).getAttribute("href")).toBe(
       "/profile/settings",
     );
@@ -233,6 +234,36 @@ describe("application navigation", () => {
         .getByRole("link", { name: "Lists" })
         .getAttribute("aria-current"),
     ).toBe("page");
+  });
+
+  it("dismisses every menu link, outside pointers, Escape, route changes, and unmount", () => {
+    const view = render(<ApplicationNavigation />);
+    for (const [label, href] of [["Settings", "/profile/settings"], ["Help", "/profile/help"], ["Privacy", "/profile/privacy"]]) {
+      fireEvent.click(screen.getByLabelText("Open menu"));
+      expect(screen.getByLabelText("Open menu").getAttribute("aria-expanded")).toBe("true");
+      const menu = screen.getByRole("navigation", { name: "More" });
+      fireEvent.pointerDown(menu);
+      expect(screen.getByRole("navigation", { name: "More" })).toBeTruthy();
+      const link = within(menu).getByRole("link", { name: label });
+      expect(link.getAttribute("href")).toBe(href);
+      fireEvent.click(link);
+      expect(screen.queryByRole("navigation", { name: "More" })).toBeNull();
+    }
+    fireEvent.click(screen.getByLabelText("Open menu"));
+    fireEvent.pointerDown(document.body);
+    expect(screen.queryByRole("navigation", { name: "More" })).toBeNull();
+    fireEvent.click(screen.getByLabelText("Open menu"));
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(document.activeElement).toBe(screen.getByLabelText("Open menu"));
+    expect(screen.getByLabelText("Open menu").getAttribute("aria-expanded")).toBe("false");
+    fireEvent.click(screen.getByLabelText("Open menu"));
+    route.pathname = "/profile/settings";
+    view.rerender(<ApplicationNavigation />);
+    expect(screen.queryByRole("navigation", { name: "More" })).toBeNull();
+    fireEvent.click(screen.getByLabelText("Open menu"));
+    view.unmount();
+    expect(document.body.style.overflow).toBe("");
+    expect(screen.queryByRole("navigation", { name: "More" })).toBeNull();
   });
 
   it("keeps coming-soon editions disabled and dismisses the selector accessibly", () => {

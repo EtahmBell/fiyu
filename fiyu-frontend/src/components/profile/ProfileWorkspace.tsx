@@ -8,7 +8,7 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "reac
 import packageJson from "../../../package.json";
 import { FiyuLoadingScreen } from "@/components/states/FiyuLoadingScreen";
 import { Button } from "@/components/ui/Button";
-import { authService } from "@/lib/auth/authService";
+import { authService, DeletedAccountSessionError } from "@/lib/auth/authService";
 import { useIsDesktop } from "@/lib/hooks/useMediaQuery";
 import {
   browserProfileStorage,
@@ -23,7 +23,6 @@ import { prepareAvatarImage } from "@/lib/profile/avatarImage";
 import {
   PROFILE_HOME,
   PROFILE_SETTINGS,
-  canPopToProfileParent,
   noteProfileSubpage,
 } from "@/lib/navigation/profileSubpage";
 import { cn } from "@/lib/utils/cn";
@@ -57,7 +56,7 @@ const MICRO_CAPS = "text-[0.625rem] font-semibold tracking-[0.16em] uppercase";
 /**
  * The one step up from a Profile subpage.
  *
- * Edit profile and Settings answer to Your Fiyu. Everything under Settings
+ * Settings answers to Your Fiyu. Edit profile and everything under Settings
  * answers to Settings, so its Back names and reaches the screen it was actually
  * opened from rather than skipping a level.
  */
@@ -78,9 +77,9 @@ type ProfileParent = keyof typeof PROFILE_PARENTS;
  *
  * A real link, not a button. Back always resolves to the subpage's parent, so
  * the href is honest, the label matches where it lands, and cmd- or
- * middle-clicking still opens that parent in a new tab. The click handler only
- * upgrades a plain click to a history pop where that provably returns to the
- * same place.
+ * middle-clicking still opens that parent in a new tab. A plain click always
+ * navigates to the declared parent: the initial document URL cannot prove what
+ * intervening routes are now behind this page in browser history.
  */
 function ProfileSubpageHeader({
   title,
@@ -104,8 +103,7 @@ function ProfileSubpageHeader({
       event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0;
     if (event.defaultPrevented || modified) return;
     event.preventDefault();
-    if (canPopToProfileParent(pathname, href)) router.back();
-    else router.push(href);
+    router.push(href);
   };
 
   return (
@@ -146,16 +144,16 @@ export function ProfileWorkspace({
 }) {
   const isDesktop = useIsDesktop();
 
-  if (isDesktop) return <DesktopProfile section={section} />;
+  if (isDesktop) return <DesktopProfile section={section} settingsHome={mobileHome} title={mobileTitle} />;
   if (mobileHome) return <MobileProfileHome />;
   return <MobileProfileDetail section={section} title={mobileTitle} />;
 }
 
-function DesktopProfile({ section }: { section: ProfileSection }) {
+function DesktopProfile({ section, settingsHome, title }: { section: ProfileSection; settingsHome: boolean; title?: string }) {
   return (
     <main className="flex-1 px-6 py-10 pb-14 sm:px-8 lg:py-12">
       <div className="mx-auto w-full max-w-6xl">
-        <ProfileSubpageHeader title="Settings" large />
+        <ProfileSubpageHeader title={settingsHome ? "Settings" : title ?? SECTIONS.find(item => item.id === section)?.label ?? "Settings"} parent={settingsHome ? "home" : "settings"} large />
         <div className="mt-8 grid items-start gap-8 lg:grid-cols-[14rem_minmax(0,1fr)]">
           <nav aria-label="Profile settings" className="space-y-1">
             {SECTIONS.map((item) => (
@@ -176,6 +174,7 @@ function DesktopProfile({ section }: { section: ProfileSection }) {
           </nav>
           <section className="min-h-[32rem] rounded-card border border-line bg-surface px-7 py-7 lg:px-9 lg:py-8">
             <SectionContent section={section} />
+            {settingsHome && section !== "account" && <div className="mt-10"><AccountSection mobile={false} settingsHome /></div>}
           </section>
         </div>
       </div>
@@ -201,17 +200,10 @@ function MobileProfileHome() {
       }
     : profile;
 
-  if (identity.status === "loading") {
-    return (
-      <main className="flex-1 px-5 pb-[calc(var(--spacing-mobile-nav)+2rem)]">
-        <FiyuLoadingScreen contained className="min-h-[60dvh]" />
-      </main>
-    );
-  }
-
   return (
     <main className="flex-1 px-5 pt-5 pb-[calc(var(--spacing-mobile-nav)+2rem)]">
       <div className="mx-auto w-full max-w-xl">
+        {identity.status === "loading" ? <FiyuLoadingScreen contained className="min-h-[60dvh]" /> : <>
         <ProfileSubpageHeader title="Settings" />
         {/*
          * Identity as context, not as a hero.
@@ -247,6 +239,8 @@ function MobileProfileHome() {
           <MobileNavigationRow href="/profile/help" label="Help & support" />
           <MobileNavigationRow href="/profile/about" label="About Fiyu" />
         </MobileGroup>
+        </>}
+        <div className="mt-10"><AccountSection mobile={false} settingsHome /></div>
       </div>
     </main>
   );
@@ -254,16 +248,10 @@ function MobileProfileHome() {
 
 function MobileProfileDetail({ section, title }: { section: ProfileSection; title?: string }) {
   const heading = title ?? SECTIONS.find((item) => item.id === section)?.label ?? "Profile";
-  /*
-   * `profile` is the Edit profile route, which is opened from the Your Fiyu
-   * masthead and belongs to it. Every other section is opened from the Settings
-   * list, so Settings is the screen its Back names and returns to.
-   */
-  const parent = section === "profile" ? "home" : "settings";
   return (
     <main className="flex-1 px-5 pt-5 pb-[calc(var(--spacing-mobile-nav)+2rem)]">
       <div className="mx-auto w-full max-w-xl">
-        <ProfileSubpageHeader title={heading} parent={parent} />
+        <ProfileSubpageHeader title={heading} parent="settings" />
         <div className="mt-7">
           <SectionContent section={section} mobile />
         </div>
@@ -565,27 +553,40 @@ function ProfileForm({ mobile }: { mobile: boolean }) {
   );
 }
 
-function AccountSection({ mobile }: { mobile: boolean }) {
+function AccountSection({ mobile, settingsHome = false }: { mobile: boolean; settingsHome?: boolean }) {
   const router = useRouter();
   const [email, setEmail] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [sessionAttempt, setSessionAttempt] = useState(0);
+  const [sessionError, setSessionError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
+  const actionLock = useRef(false);
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const cancelDelete = useRef<HTMLButtonElement>(null);
+  const deleteTrigger = useRef<HTMLButtonElement>(null);
   const [deletePassword, setDeletePassword] = useState("");
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [accountDeleted, setAccountDeleted] = useState(false);
 
   useEffect(() => {
     let active = true;
     authService.getSession().then((session) => {
       if (active) setEmail(session?.email ?? null);
-    }).catch(() => undefined).finally(() => {
+    }).catch(() => {
+      if (active) setSessionError("Unable to load your account. Please retry.");
+    }).finally(() => {
       if (active) setLoading(false);
     });
     return () => { active = false; };
-  }, []);
+  }, [sessionAttempt]);
 
   const signOut = async () => {
+    if (actionLock.current) return;
+    actionLock.current = true;
+    setSigningOut(true);
     setError(null);
     try {
       await authService.signOut();
@@ -593,30 +594,58 @@ function AccountSection({ mobile }: { mobile: boolean }) {
       router.replace("/");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unable to sign out.");
+    } finally {
+      actionLock.current = false;
+      setSigningOut(false);
     }
   };
 
   const closeDeleteDialog = () => {
-    if (deleting) return;
+    if (deleting || accountDeleted) return;
+    // Leave the native modal's inert scope before restoring trigger focus.
+    dialogRef.current?.close();
     setDeleteDialogOpen(false);
     setDeletePassword("");
     setDeleteError(null);
+    deleteTrigger.current?.focus();
   };
 
   const deleteAccount = async () => {
-    if (!deletePassword || deleting) return;
+    if ((!deletePassword && !accountDeleted) || actionLock.current) return;
+    actionLock.current = true;
     setDeleting(true);
     setDeleteError(null);
     try {
-      await authService.deleteAccount(deletePassword);
+      if (accountDeleted) await authService.finishDeletedAccountSession();
+      else await authService.deleteAccount(deletePassword);
       clearProfileIdentity();
       setDeleteDialogOpen(false);
       router.replace("/");
     } catch (cause) {
+      if (cause instanceof DeletedAccountSessionError) {
+        setAccountDeleted(true);
+        setDeletePassword("");
+        clearProfileIdentity();
+      }
       setDeleteError(cause instanceof Error ? cause.message : "Unable to delete your account.");
       setDeleting(false);
+    } finally {
+      actionLock.current = false;
     }
   };
+
+  useEffect(() => {
+    if (!deleteDialogOpen) return;
+    const dialog = dialogRef.current;
+    dialog?.showModal();
+    cancelDelete.current?.focus();
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      dialog?.close();
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [deleteDialogOpen]);
 
   return (
     <div className="max-w-xl">
@@ -624,13 +653,22 @@ function AccountSection({ mobile }: { mobile: boolean }) {
       <div className="mt-8 border-y border-line py-5">
         {loading ? (
           <p className="text-sm text-ink-muted">Loading account…</p>
+        ) : sessionError ? (
+          <div>
+            <p role="alert" className="text-sm text-rose-dust">{sessionError}</p>
+            <Button type="button" variant="secondary" onClick={() => {
+              setSessionError(null);
+              setLoading(true);
+              setSessionAttempt((attempt) => attempt + 1);
+            }}>Retry account</Button>
+          </div>
         ) : email ? (
           <div className="flex flex-wrap items-center justify-between gap-5">
             <div>
               <p className="text-sm font-semibold text-ink">Signed in as</p>
               <p className="mt-1 text-sm text-ink-muted">{email}</p>
             </div>
-            <Button type="button" variant="secondary" onClick={() => void signOut()}>Sign out</Button>
+            <Button type="button" variant="secondary" className="min-h-11 w-full" disabled={signingOut || deleting} onClick={() => void signOut()}>{signingOut ? "Logging out…" : "Log out"}</Button>
           </div>
         ) : (
           <div className="flex flex-wrap items-center justify-between gap-5">
@@ -640,16 +678,18 @@ function AccountSection({ mobile }: { mobile: boolean }) {
         )}
       </div>
       {error && <p role="alert" className="mt-3 text-sm text-rose-dust">{error}</p>}
-      {email && <DeveloperTools />}
+      {email && !settingsHome && <DeveloperTools />}
       {email && (
         <section className="mt-10 border-t border-line pt-7" aria-labelledby="delete-account-title">
-          <h3 id="delete-account-title" className="text-sm font-semibold text-ink">Delete account</h3>
+          <h3 id="delete-account-title" className="text-sm font-semibold text-ink">Danger zone</h3>
           <p className="mt-2 max-w-lg text-sm leading-6 text-ink-muted">
             Permanently delete your Fiyu account and associated account data.
           </p>
           <button
             type="button"
             onClick={() => setDeleteDialogOpen(true)}
+            ref={deleteTrigger}
+            disabled={signingOut}
             className="mt-4 inline-flex min-h-11 items-center rounded-lg border border-rose-dust/60 bg-surface px-4 text-sm font-semibold text-rose-dust transition-colors hover:border-rose-dust hover:bg-rose-dust/5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-dust"
           >
             Delete account
@@ -658,21 +698,21 @@ function AccountSection({ mobile }: { mobile: boolean }) {
       )}
 
       {deleteDialogOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-plum/25 px-4 py-8"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) closeDeleteDialog();
+        <dialog
+          ref={dialogRef}
+          aria-labelledby="delete-account-dialog-title"
+          aria-describedby="delete-account-dialog-description"
+          className="fixed inset-0 m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-md overflow-y-auto rounded-card border border-line bg-surface p-0 backdrop:bg-plum/25"
+          onCancel={(event) => {
+            event.preventDefault();
+            closeDeleteDialog();
           }}
         >
           <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="delete-account-dialog-title"
-            aria-describedby="delete-account-dialog-description"
-            className="w-full max-w-md rounded-card border border-line bg-surface px-6 py-7 shadow-[0_12px_36px_-28px_rgba(49,40,61,0.45)] sm:px-8"
+            className="px-6 py-7 sm:px-8"
           >
             <h2 id="delete-account-dialog-title" className="font-display text-2xl leading-tight text-ink">
-              Delete your account?
+              {accountDeleted ? "Account deleted" : "Delete your account?"}
             </h2>
             <p id="delete-account-dialog-description" className="mt-3 text-sm leading-6 text-ink-muted">
               This permanently deletes your Fiyu account, profile, saved restaurants, Lists,
@@ -688,25 +728,25 @@ function AccountSection({ mobile }: { mobile: boolean }) {
               value={deletePassword}
               onChange={(event) => setDeletePassword(event.target.value)}
               autoComplete="current-password"
-              disabled={deleting}
+              disabled={deleting || accountDeleted}
               className="mt-2 min-h-11 w-full rounded-lg border border-line-strong bg-canvas px-3 text-sm text-ink focus:border-rose-dust"
             />
             {deleteError && <p role="alert" className="mt-3 text-sm text-rose-dust">{deleteError}</p>}
             <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-              <Button type="button" variant="secondary" disabled={deleting} onClick={closeDeleteDialog}>
+              <button ref={cancelDelete} type="button" className="inline-flex min-h-11 items-center justify-center rounded-lg border border-line bg-surface px-5 text-sm font-medium text-ink hover:bg-subtle disabled:opacity-40" disabled={deleting || accountDeleted} onClick={closeDeleteDialog}>
                 Cancel
-              </Button>
+              </button>
               <button
                 type="button"
-                disabled={!deletePassword || deleting}
+                disabled={(!deletePassword && !accountDeleted) || deleting}
                 onClick={() => void deleteAccount()}
                 className="inline-flex min-h-11 items-center justify-center rounded-lg bg-rose-dust px-4 text-sm font-semibold text-white transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
               >
-                {deleting ? "Deleting…" : "Permanently delete account"}
+                {accountDeleted ? (deleting ? "Finishing…" : "Retry session cleanup") : (deleting ? "Deleting…" : "Permanently delete account")}
               </button>
             </div>
           </div>
-        </div>
+        </dialog>
       )}
     </div>
   );

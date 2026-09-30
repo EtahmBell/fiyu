@@ -4,6 +4,7 @@ from io import BytesIO
 from urllib.error import HTTPError
 from uuid import uuid4
 
+import pytest
 from fastapi.testclient import TestClient
 
 from fiyu import api, supabase_user_data
@@ -20,7 +21,12 @@ def _auth(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 
-def test_missing_avatar_storage_response_is_nonfatal(monkeypatch):
+@pytest.mark.parametrize("body", [
+    b'{"statusCode":"404","error":"not_found","code":"NoSuchKey"}',
+    b'{"statusCode": 404, "error": "not_found"}',
+    b'{"code": "NoSuchKey"}',
+])
+def test_missing_avatar_storage_response_is_nonfatal(monkeypatch, body):
     monkeypatch.setenv("SUPABASE_URL", "https://project.supabase.co")
     monkeypatch.setenv("SUPABASE_SERVICE_ROLE_KEY", "service-key")
 
@@ -30,7 +36,7 @@ def test_missing_avatar_storage_response_is_nonfatal(monkeypatch):
             400,
             "Bad Request",
             {},
-            BytesIO(b'{"statusCode":"404","error":"not_found","code":"NoSuchKey"}'),
+            BytesIO(body),
         )
 
     monkeypatch.setattr(supabase_user_data, "urlopen", missing_avatar)
@@ -138,6 +144,45 @@ def test_account_deletion_requires_verified_bearer(tmp_path, monkeypatch):
     response = TestClient(api.app).delete("/profiles/me/account")
 
     assert response.status_code == 401
+
+
+def test_deletion_ignores_caller_target_and_retries_partial_cleanup(tmp_path, monkeypatch):
+    db_path = tmp_path / "retry.db"
+    with connect(db_path) as connection:
+        connection.executescript(SCHEMA)
+    owner, victim = str(uuid4()), str(uuid4())
+    alive = True
+    calls = []
+
+    def authenticate(_header):
+        if not alive:
+            raise api.SupabaseAuthError("invalid")
+        return {"id": owner}
+
+    def avatar(*, user_id):
+        calls.append(("avatar", user_id))
+        if len(calls) == 1:
+            raise supabase_user_data.SharedUserDataError("storage unavailable")
+        return False
+
+    def identity(*, user_id):
+        nonlocal alive
+        calls.append(("auth", user_id))
+        alive = False
+
+    monkeypatch.setattr(api, "DB_PATH", db_path)
+    monkeypatch.setattr(api, "authenticated_supabase_user", authenticate)
+    monkeypatch.setattr(api.shared_user_data, "delete_avatar_object", avatar)
+    monkeypatch.setattr(api.shared_user_data, "delete_auth_user", identity)
+    client = TestClient(api.app)
+    failed = client.request("DELETE", "/profiles/me/account", headers=_auth("token"), json={"user_id": victim})
+    assert failed.status_code == 503
+    assert calls == [("avatar", owner)]  # Auth must survive storage failure.
+    retried = client.request("DELETE", "/profiles/me/account", headers=_auth("token"), json={"user_id": victim})
+    assert retried.status_code == 200
+    assert calls == [("avatar", owner), ("avatar", owner), ("auth", owner)]
+    assert client.get("/profiles/me", headers=_auth("token")).status_code == 401
+    assert client.delete("/profiles/me/account", headers=_auth("token")).status_code == 401
 
 
 def test_account_deletion_does_not_report_success_when_auth_deletion_fails(

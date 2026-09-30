@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 import { CityHeaderMark } from "@/components/city-signature/CitySignature";
 import { NotificationsMenu } from "@/components/layout/NotificationsMenu";
@@ -134,16 +134,45 @@ function CitySelector({
 }
 
 function MobileMenu() {
+  const [open, setOpen] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const menuId = useId();
+  useEffect(() => {
+    if (!open) return;
+    const outside = (event: PointerEvent) => {
+      if (!root.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const escape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setOpen(false);
+      trigger.current?.focus();
+    };
+    const desktop = window.matchMedia?.("(min-width: 64rem)");
+    const resize = () => { if (desktop?.matches) setOpen(false); };
+    document.addEventListener("pointerdown", outside, true);
+    document.addEventListener("keydown", escape);
+    desktop?.addEventListener("change", resize);
+    return () => {
+      document.removeEventListener("pointerdown", outside, true);
+      document.removeEventListener("keydown", escape);
+      desktop?.removeEventListener("change", resize);
+    };
+  }, [open]);
   return (
-    <details className="group relative lg:hidden">
-      <summary
+    <div ref={root} className="group relative lg:hidden">
+      <button type="button" ref={trigger}
         aria-label="Open menu"
+        aria-expanded={open}
+        aria-controls={menuId}
+        onClick={() => setOpen((value) => !value)}
         className="flex size-11 cursor-pointer list-none items-center justify-center rounded-full text-ink-muted transition-colors hover:bg-subtle hover:text-ink [&::-webkit-details-marker]:hidden"
       >
         <MenuIcon />
-      </summary>
-      <nav
+      </button>
+      {open && <nav id={menuId}
         aria-label="More"
+        onClick={(event) => { if ((event.target as Element).closest("a")) setOpen(false); }}
         className="absolute top-[calc(100%+0.5rem)] right-0 z-50 w-48 rounded-card border border-line bg-surface p-2 shadow-xl"
       >
         <Link href="/profile/settings" className="flex min-h-11 items-center rounded-lg px-3 text-sm text-ink hover:bg-subtle">
@@ -155,8 +184,8 @@ function MobileMenu() {
         <Link href="/profile/privacy" className="flex min-h-11 items-center rounded-lg px-3 text-sm text-ink hover:bg-subtle">
           Privacy
         </Link>
-      </nav>
-    </details>
+      </nav>}
+    </div>
   );
 }
 
@@ -251,7 +280,7 @@ export function ApplicationNavigation() {
 
           <div className="ml-auto flex items-center gap-1">
             <NotificationsMenu />
-            <MobileMenu />
+            <MobileMenu key={pathname} />
             {(() => {
               const profile = navigationItem("profile");
               const active = navigationIsActive(pathname, profile);

@@ -5,6 +5,7 @@ import { logClientEvent } from "@/lib/clientLog";
 import { getApiBaseUrl } from "@/lib/config/env";
 import { dailyPicksStorageKey } from "@/lib/daily-picks/storage";
 import { clearPicksReturnState } from "@/lib/navigation/restaurantDetail";
+import { clearAuthReturnPath } from "@/lib/navigation/safeRedirect";
 import { PROFILE_STORAGE_KEY } from "@/lib/profile/profileStorage";
 
 export interface AuthSession {
@@ -53,7 +54,15 @@ class ProfileRequestError extends Error {
   }
 }
 
+export class DeletedAccountSessionError extends Error {
+  constructor() {
+    super("Your account was deleted. Retry clearing this browser session to finish.");
+    this.name = "DeletedAccountSessionError";
+  }
+}
+
 let browserClient: SupabaseClient | null = null;
+let deletedAccountPendingCleanup: string | null = null;
 const AVATAR_BUCKET = "avatars";
 export const AUTH_REQUEST_TIMEOUT_MS = 12_000;
 const SESSION_RESTORE_DEADLINE_MS = 20_000;
@@ -73,6 +82,8 @@ export function clearDeletedAccountBrowserState(userId: string): void {
   if (typeof window === "undefined") return;
   window.localStorage.removeItem(dailyPicksStorageKey(userId));
   window.localStorage.removeItem(PROFILE_STORAGE_KEY);
+  clearAuthReturnPath();
+  window.dispatchEvent(new Event("fiyu:profile-changed"));
   clearPicksReturnState();
 }
 
@@ -240,8 +251,27 @@ export const authService = {
 
   async signOut(): Promise<void> {
     if (!this.isConfigured()) return;
-    const { error } = await supabaseClient().auth.signOut();
-    if (error) throw classifyAuthFailure(error);
+    const session = await this.getSession();
+    try {
+      const { error } = await supabaseClient().auth.signOut();
+      if (error) throw error;
+    } catch (cause) {
+      throw classifyAuthFailure(cause);
+    }
+    if (session) clearDeletedAccountBrowserState(session.userId);
+    announceAccountChange();
+  },
+
+  async finishDeletedAccountSession(): Promise<void> {
+    try {
+      if (deletedAccountPendingCleanup) clearDeletedAccountBrowserState(deletedAccountPendingCleanup);
+      const { error } = await supabaseClient().auth.signOut({ scope: "local" });
+      if (error) throw error;
+      deletedAccountPendingCleanup = null;
+    } catch {
+      announceAccountChange();
+      throw new DeletedAccountSessionError();
+    }
     announceAccountChange();
   },
 
@@ -250,23 +280,31 @@ export const authService = {
     if (!session) throw new ProfileRequestError("Sign in to delete your account.");
     if (!session.email) throw new ProfileRequestError("This account cannot be reauthenticated with a password.");
     const { data: reauthenticated, error: reauthenticationError } =
-      await supabaseClient().auth.signInWithPassword({ email: session.email, password });
+      await supabaseClient().auth.signInWithPassword({ email: session.email, password })
+        .catch((cause: unknown) => { throw classifyAuthFailure(cause); });
     if (reauthenticationError || !reauthenticated.session) {
-      throw new ProfileRequestError("Current password is incorrect.");
+      const error = classifyAuthFailure(reauthenticationError);
+      if (error.code === "invalid_credentials") {
+        throw new ProfileRequestError("Current password is incorrect.");
+      }
+      throw error;
     }
-    const response = await fetch(`${getApiBaseUrl()}/profiles/me/account`, {
-      method: "DELETE",
-      headers: { Authorization: `Bearer ${reauthenticated.session.access_token}` },
-    });
+    let response: Response;
+    try {
+      response = await fetch(`${getApiBaseUrl()}/profiles/me/account`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${reauthenticated.session.access_token}` },
+        signal: AbortSignal.timeout(45_000),
+      });
+    } catch (cause) {
+      throw classifyAuthFailure(cause);
+    }
     if (!response.ok) {
       throw new ProfileRequestError(await responseDetail(response, "Unable to delete your account."));
     }
-    const { error } = await supabaseClient().auth.signOut({ scope: "local" });
-    clearDeletedAccountBrowserState(session.userId);
-    announceAccountChange();
-    if (error) {
-      throw new ProfileRequestError("Your account was deleted, but this browser session could not be cleared.");
-    }
+    // From here onward, retries must only clear local state, never DELETE again.
+    deletedAccountPendingCleanup = session.userId;
+    await this.finishDeletedAccountSession();
   },
 
   async requestPasswordReset(email: string): Promise<void> {

@@ -74,6 +74,7 @@ export class DefaultListStore {
   private readonly listeners = new Set<() => void>();
   private snapshot: DefaultListSnapshot;
   private loadingPromise: Promise<void> | null = null;
+  private accountGeneration = 0;
   private mutationInFlight = new Set<string>();
 
   constructor(cityId: string, accountId: string | null = null) {
@@ -109,6 +110,7 @@ export class DefaultListStore {
   };
 
   resetAccountState(): void {
+    this.accountGeneration += 1;
     this.loadingPromise = null;
     this.mutationInFlight.clear();
     this.snapshot = { ...this.serverSnapshot };
@@ -193,13 +195,16 @@ export class DefaultListStore {
     if (this.cityId !== TOKYO_CITY_ID) return;
     if (this.snapshot.status === "ready") return;
     if (this.loadingPromise) return this.loadingPromise;
+    const generation = this.accountGeneration;
 
     this.update({ status: "loading", error: null, operationError: null });
     this.loadingPromise = (async () => {
       const identity = this.identity();
       try {
         await this.migrateLegacySaves(identity);
+        if (generation !== this.accountGeneration) return;
         const list = await fetchDefaultList(this.cityId, identity);
+        if (generation !== this.accountGeneration) return;
         const savedPlaceIds = sortedSavedIds(list);
         if (!this.accountId) writeLegacySavedIds(savedPlaceIds);
         this.update({
@@ -210,6 +215,7 @@ export class DefaultListStore {
           operationError: null,
         });
       } catch (error) {
+        if (generation !== this.accountGeneration) return;
         const resolved =
           error instanceof FiyuApiError
             ? error
@@ -221,7 +227,7 @@ export class DefaultListStore {
               });
         this.update({ status: "error", error: resolved, operationError: null });
       } finally {
-        this.loadingPromise = null;
+        if (generation === this.accountGeneration) this.loadingPromise = null;
       }
     })();
 
@@ -283,6 +289,7 @@ export class DefaultListStore {
   async toggle(placeId: string): Promise<void> {
     if (this.cityId !== TOKYO_CITY_ID) return;
     if (this.mutationInFlight.has(placeId)) return;
+    const generation = this.accountGeneration;
 
     const clickedSaved = this.isSaved(placeId);
     const previous = this.snapshot;
@@ -299,6 +306,7 @@ export class DefaultListStore {
 
     try {
       await this.ensureLoaded();
+      if (generation !== this.accountGeneration) return;
       if (this.snapshot.status !== "ready" || !this.snapshot.list) {
         throw this.snapshot.error ??
           new FiyuApiError({
@@ -317,6 +325,7 @@ export class DefaultListStore {
       const mutation = clickedSaved
         ? await removeRestaurantFromDefaultList(this.cityId, placeId, identity)
         : await addRestaurantToDefaultList(this.cityId, placeId, identity);
+      if (generation !== this.accountGeneration) return;
       const sorted = sortedSavedIds(mutation.list);
       if (!this.accountId) writeLegacySavedIds(sorted);
       this.update({ list: mutation.list, savedPlaceIds: sorted, operationError: null });
@@ -328,6 +337,7 @@ export class DefaultListStore {
         ).catch(() => undefined);
       }
     } catch (error) {
+      if (generation !== this.accountGeneration) return;
       const resolved =
         error instanceof FiyuApiError
           ? error
@@ -360,8 +370,10 @@ export class DefaultListStore {
       });
       this.updateMapSavedState(placeId, clickedSaved);
     } finally {
-      this.mutationInFlight.delete(placeId);
-      this.update({});
+      if (generation === this.accountGeneration) {
+        this.mutationInFlight.delete(placeId);
+        this.update({});
+      }
     }
   }
 }

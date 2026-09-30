@@ -22,6 +22,7 @@ const SERVER_SNAPSHOT: ProfileIdentitySnapshot = {
 
 let snapshot = SERVER_SNAPSHOT;
 let loading: Promise<void> | null = null;
+let generation = 0;
 let storageUnsubscribe: (() => void) | null = null;
 let accountChangeSubscribed = false;
 const listeners = new Set<() => void>();
@@ -49,7 +50,8 @@ function ensureImageSubscription() {
   if (!accountChangeSubscribed) {
     accountChangeSubscribed = true;
     window.addEventListener("fiyu:account-changed", () => {
-      emit({ ...snapshot, status: "loading" });
+      generation += 1;
+      emit({ ...SERVER_SNAPSHOT });
       const pending = loading ?? Promise.resolve();
       void pending.finally(() => refreshProfileIdentity(true));
     });
@@ -66,11 +68,13 @@ export function refreshProfileIdentity(force = false): Promise<void> {
   if (loading) return loading;
   if (!force && snapshot.status === "ready") return Promise.resolve();
   const profileImage = browserProfileStorage().getSnapshot().profile_image;
+  const requestGeneration = generation;
   loading = (async () => {
     let authenticated = false;
     let authenticatedEmail: string | null = null;
     try {
       const session = await authService.getSession();
+      if (requestGeneration !== generation) return;
       if (!session) {
         emit({ status: "ready", profile: null, email: null, profileImage });
         return;
@@ -78,6 +82,7 @@ export function refreshProfileIdentity(force = false): Promise<void> {
       authenticated = true;
       authenticatedEmail = session.email || "";
       const profile = await authService.getProfile();
+      if (requestGeneration !== generation) return;
       emit({
         status: "ready",
         profile,
@@ -85,6 +90,7 @@ export function refreshProfileIdentity(force = false): Promise<void> {
         profileImage: profile?.avatar_url ?? null,
       });
     } catch {
+      if (requestGeneration !== generation) return;
       logClientEvent("auth.session.failed", { operation: authenticated ? "profile" : "session", errorCode: "unavailable" });
       if (snapshot.profile || snapshot.email) {
         emit({ ...snapshot, status: "ready" });
@@ -106,6 +112,7 @@ export function publishProfileIdentity(
 }
 
 export function clearProfileIdentity() {
+  generation += 1;
   emit({ status: "ready", profile: null, email: null, profileImage: null });
 }
 

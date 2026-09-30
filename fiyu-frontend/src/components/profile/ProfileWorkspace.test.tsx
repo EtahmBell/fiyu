@@ -17,7 +17,7 @@ vi.mock("next/navigation", () => ({
 
 import { ProfileWorkspace } from "@/components/profile/ProfileWorkspace";
 import { ApplicationNavigation } from "@/components/layout/ApplicationNavigation";
-import { authService, clearDeletedAccountBrowserState } from "@/lib/auth/authService";
+import { authService, clearDeletedAccountBrowserState, DeletedAccountSessionError } from "@/lib/auth/authService";
 import { dailyPicksStorageKey } from "@/lib/daily-picks/storage";
 import {
   clearProfileIdentity,
@@ -33,6 +33,8 @@ vi.mock("@/lib/profile/avatarImage", () => ({
 let desktopViewport = false;
 
 beforeEach(() => {
+  HTMLDialogElement.prototype.showModal = function () { this.setAttribute("open", ""); };
+  HTMLDialogElement.prototype.close = function () { this.removeAttribute("open"); };
   desktopViewport = false;
   pathname.current = "/profile";
   navigation.replace.mockReset();
@@ -100,7 +102,7 @@ describe("ProfileWorkspace", () => {
     expect(screen.queryByText(/Account features are intentionally absent/)).toBeNull();
   });
 
-  it("offers a labelled way back to Your Fiyu from Settings and Edit profile", () => {
+  it("returns Settings to Your Fiyu and direct-loaded Edit profile to Settings", () => {
     pathname.current = "/profile/settings";
     const settings = render(<ProfileWorkspace mobileHome />);
     const settingsBack = screen.getByRole("link", { name: "Back to Your Fiyu" });
@@ -111,14 +113,14 @@ describe("ProfileWorkspace", () => {
 
     pathname.current = "/profile/edit";
     render(<ProfileWorkspace section="profile" mobileTitle="Edit profile" />);
-    const editBack = screen.getByRole("link", { name: "Back to Your Fiyu" });
-    expect(editBack.getAttribute("href")).toBe("/profile");
+    const editBack = screen.getByRole("link", { name: "Back to Settings" });
+    expect(editBack.getAttribute("href")).toBe("/profile/settings");
     expect(screen.getByRole("heading", { name: "Edit profile" })).toBeTruthy();
 
-    // No provable Your Fiyu entry behind this one, so Back pushes the reliable
+    // No provable Settings entry behind this one, so Back pushes the reliable
     // destination rather than popping into whatever preceded it.
     fireEvent.click(editBack);
-    expect(navigation.push).toHaveBeenCalledWith("/profile");
+    expect(navigation.push).toHaveBeenCalledWith("/profile/settings");
     expect(navigation.back).not.toHaveBeenCalled();
   });
 
@@ -154,7 +156,7 @@ describe("ProfileWorkspace", () => {
     expect(screen.queryByRole("link", { name: "Back to Your Fiyu" })).toBeNull();
   });
 
-  it("pops history only where Your Fiyu is provably the entry behind the subpage", () => {
+  it("uses the declared parent even when the original document URL matches it", () => {
     vi.spyOn(window.performance, "getEntriesByType").mockReturnValue([
       { name: "http://localhost:3000/profile" } as unknown as PerformanceEntry,
     ]);
@@ -162,17 +164,19 @@ describe("ProfileWorkspace", () => {
     pathname.current = "/profile/settings";
     const settings = render(<ProfileWorkspace mobileHome />);
     fireEvent.click(screen.getByRole("link", { name: "Back to Your Fiyu" }));
-    expect(navigation.back).toHaveBeenCalledOnce();
-    expect(navigation.push).not.toHaveBeenCalled();
+    // The document could have visited Picks or another route in between.
+    // Performance's initial URL is not evidence about the previous entry.
+    expect(navigation.back).not.toHaveBeenCalled();
+    expect(navigation.push).toHaveBeenCalledWith("/profile");
     settings.unmount();
 
     // A second subpage in the same document has Settings behind it, not Your
     // Fiyu, so Back pushes the destination its label promises.
     pathname.current = "/profile/edit";
     render(<ProfileWorkspace section="profile" mobileTitle="Edit profile" />);
-    fireEvent.click(screen.getByRole("link", { name: "Back to Your Fiyu" }));
-    expect(navigation.push).toHaveBeenCalledWith("/profile");
-    expect(navigation.back).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByRole("link", { name: "Back to Settings" }));
+    expect(navigation.push).toHaveBeenCalledWith("/profile/settings");
+    expect(navigation.back).not.toHaveBeenCalled();
   });
 
   it("shows neutral loading instead of a default identity while profile state hydrates", async () => {
@@ -394,6 +398,56 @@ describe("ProfileWorkspace", () => {
     expect(window.localStorage.getItem(PROFILE_STORAGE_KEY)).toBeNull();
     expect(window.sessionStorage.getItem("fiyu.picks-detail-return.v1")).toBeNull();
     expect(window.localStorage.getItem("fiyu.lists.owner-key.v1")).toBe("anonymous-owner");
+  });
+
+  it.each([false, true])("offers direct logout on Settings (desktop=%s) with recoverable failures", async (desktop) => {
+    desktopViewport = desktop;
+    vi.spyOn(authService, "getSession").mockResolvedValue({ userId: "qa", email: "qa@example.com", accessToken: "qa-token" });
+    const logout = vi.spyOn(authService, "signOut").mockRejectedValueOnce(new Error("Connection unavailable. Retry.")).mockResolvedValue();
+    render(<ProfileWorkspace mobileHome />);
+    fireEvent.click(await screen.findByRole("button", { name: "Log out" }));
+    await screen.findByText("Connection unavailable. Retry.");
+    expect(navigation.replace).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Log out" }));
+    await waitFor(() => expect(navigation.replace).toHaveBeenCalledWith("/"));
+    expect(logout).toHaveBeenCalledTimes(2);
+  });
+
+  it("requires confirmation, supports Cancel/Escape, and restores scroll on unmount", async () => {
+    vi.spyOn(authService, "getSession").mockResolvedValue({ userId: "qa", email: "qa@example.com", accessToken: "qa-token" });
+    const deletion = vi.spyOn(authService, "deleteAccount").mockResolvedValue();
+    const view = render(<ProfileWorkspace mobileHome />);
+    const trigger = await screen.findByRole("button", { name: "Delete account" });
+    expect(screen.getByRole("heading", { name: "Danger zone" })).toBeTruthy();
+    fireEvent.click(trigger);
+    expect(screen.getByRole("dialog")).toBeTruthy();
+    expect(deletion).not.toHaveBeenCalled();
+    expect(document.body.style.overflow).toBe("hidden");
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+    expect(document.body.style.overflow).toBe("");
+    fireEvent.click(trigger);
+    fireEvent(screen.getByRole("dialog"), new Event("cancel", { cancelable: true }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    fireEvent.click(trigger);
+    view.unmount();
+    expect(document.body.style.overflow).toBe("");
+    expect(deletion).not.toHaveBeenCalled();
+  });
+
+  it("retries only local session cleanup when the server account is already deleted", async () => {
+    vi.spyOn(authService, "getSession").mockResolvedValue({ userId: "qa", email: "qa@example.com", accessToken: "qa-token" });
+    const deletion = vi.spyOn(authService, "deleteAccount").mockRejectedValue(new DeletedAccountSessionError());
+    const finish = vi.spyOn(authService, "finishDeletedAccountSession").mockResolvedValue();
+    render(<ProfileWorkspace mobileHome />);
+    fireEvent.click(await screen.findByRole("button", { name: "Delete account" }));
+    fireEvent.change(screen.getByLabelText("CURRENT PASSWORD"), { target: { value: "qa-password" } });
+    fireEvent.click(screen.getByRole("button", { name: "Permanently delete account" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Retry session cleanup" }));
+    await waitFor(() => expect(navigation.replace).toHaveBeenCalledWith("/"));
+    expect(deletion).toHaveBeenCalledOnce();
+    expect(finish).toHaveBeenCalledOnce();
   });
 
   it("describes persisted account location and cross-device private Logs accurately", () => {

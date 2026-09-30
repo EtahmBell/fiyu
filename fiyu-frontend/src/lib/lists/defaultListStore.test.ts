@@ -284,4 +284,18 @@ describe("default list store", () => {
     expect(store.getSnapshot().error?.detail).toContain("Unsupported city");
     expect(fetchMock).not.toHaveBeenCalled();
   });
+
+  it("does not repopulate private saved data when an old request completes after logout", async () => {
+    let finish: (response: Response) => void = () => undefined;
+    const request = vi.spyOn(globalThis, "fetch").mockReturnValue(new Promise(resolve => { finish = resolve; }));
+    const store = new DefaultListStore("tokyo", "old-account");
+    const loading = store.ensureLoaded();
+    await vi.waitFor(() => expect(request).toHaveBeenCalledOnce());
+    store.resetAccountState();
+    finish(json(200, listBody([{ place_id: "private-save", added_at: "now" }])));
+    await loading;
+    expect(store.getSnapshot().list).toBeNull();
+    expect(store.getSnapshot().savedPlaceIds).toEqual([]);
+    expect(store.getSnapshot().status).toBe("idle");
+  });
 });

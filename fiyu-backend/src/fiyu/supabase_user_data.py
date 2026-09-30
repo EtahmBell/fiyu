@@ -45,11 +45,16 @@ def _delete_service_resource(path: str, *, missing_ok: bool = False) -> bool:
             return True
     except HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")
+        try:
+            payload = json.loads(detail)
+        except (ValueError, TypeError):
+            payload = None
         if missing_ok and (
             exc.code == 404
             or (
                 exc.code == 400
-                and ('"statusCode":"404"' in detail or '"code":"NoSuchKey"' in detail)
+                and isinstance(payload, dict)
+                and (str(payload.get("statusCode")) == "404" or payload.get("code") == "NoSuchKey")
             )
         ):
             return False

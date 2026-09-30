@@ -7,6 +7,7 @@ type CacheEntry<T> = {
 };
 
 const entries = new Map<string, CacheEntry<unknown>>();
+let accountGeneration = 0;
 const listeners = new Map<string, Set<() => void>>();
 
 function notify(key: string): void {
@@ -61,7 +62,7 @@ export function loadAccountQuery<T>(
     .then((value) => {
       entry.value = value;
       entry.updatedAt = Date.now();
-      notify(key);
+      if (entries.get(key) === entry) notify(key);
       return value;
     })
     .finally(() => {
@@ -71,7 +72,9 @@ export function loadAccountQuery<T>(
 }
 
 export function clearAccountQueries(): void {
+  accountGeneration += 1;
   entries.clear();
+  for (const key of listeners.keys()) notify(key);
 }
 
 export function clearAccountQuery(key: string): void {
@@ -124,12 +127,15 @@ export function useAccountQuery<T>({
   const refresh = useCallback(
     (force = true) => {
       if (!key || !enabled) return Promise.resolve(undefined);
+      const generation = accountGeneration;
       return loadAccountQuery(key, loader, { force, maxAgeMs })
         .then((data) => {
+          if (generation !== accountGeneration) return undefined;
           setState({ key, status: "ready", data });
           return data;
         })
         .catch((error) => {
+          if (generation !== accountGeneration) return undefined;
           const fallback = readAccountQuery<T>(key);
           setState(
             fallback === undefined

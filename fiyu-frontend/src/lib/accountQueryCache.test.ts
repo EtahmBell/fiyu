@@ -84,4 +84,19 @@ describe("account query cache", () => {
     expect(result.current.status).toBe("ready");
     if (result.current.status === "ready") expect(result.current.data).toEqual(["one", "two"]);
   });
+
+  it("removes mounted personal data and ignores pending old-account responses after logout", async () => {
+    let resolve: (value: string[]) => void = () => undefined;
+    const loader = vi.fn(() => new Promise<string[]>((done) => { resolve = done; }));
+    const { result, unmount } = renderHook(() => useAccountQuery({ resource: "map-restaurants", accountId: "account-a", loader }));
+    act(() => writeAccountQuery("map-restaurants:account-a", ["private"]));
+    expect(result.current.data).toEqual(["private"]);
+    act(() => window.dispatchEvent(new Event("fiyu:account-changed")));
+    expect(result.current.data).toBeUndefined();
+    await act(async () => { resolve(["stale private"]); });
+    expect(result.current.data).toBeUndefined();
+    expect(readAccountQuery("map-restaurants:account-a")).toBeUndefined();
+    expect(readAccountQuery("map-restaurants:account-b")).toBeUndefined();
+    unmount();
+  });
 });
