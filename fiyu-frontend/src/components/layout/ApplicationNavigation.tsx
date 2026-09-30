@@ -233,7 +233,7 @@ export function ApplicationNavigation() {
           detailRoute && "hidden lg:block",
         )}
       >
-        <div className="mx-auto flex h-full w-full max-w-[1560px] items-center px-4 pt-[env(safe-area-inset-top)] sm:px-8">
+        <div className="mx-auto flex h-full w-full max-w-[1560px] items-center px-page pt-[env(safe-area-inset-top)]">
           <div className="flex min-w-0 items-center gap-1 lg:hidden">
             <Link
               href="/picks"
@@ -311,8 +311,10 @@ export function ApplicationNavigation() {
               aria-label={item.accessibleLabel}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "relative flex min-h-12 min-w-0 flex-col items-center justify-center gap-1.5 rounded-lg px-1 text-[0.8125rem] font-medium transition-colors duration-200 ease-(--ease-fiyu)",
-                active ? "text-lavender-700" : "text-ink-muted hover:text-ink",
+                "relative flex min-h-12 min-w-0 flex-col items-center justify-center gap-1.5 rounded-lg px-1 text-[0.8125rem] transition-colors duration-150 ease-(--ease-fiyu)",
+                // Active is carried three ways -- colour, weight and the rail
+                // -- so it never rests on colour alone.
+                active ? "font-semibold text-lavender-700" : "font-medium text-ink-body hover:text-ink",
                 // Log keeps a quiet tinted field instead of a raised centre
                 // action: enough to find by thumb, not enough to shout.
                 log &&
@@ -325,15 +327,23 @@ export function ApplicationNavigation() {
                * conditionally: passing `strokeWidth={undefined}` would override
                * the shared icon default rather than leave it alone.
                */}
+              {/*
+               * The active icon is the same outline with a pale tint of its own
+               * colour laid into its closed shapes, and a slightly firmer
+               * stroke: a filled variant drawn from the existing glyphs rather
+               * than a second icon set. The Log cross has no closed shape, so
+               * only its stroke firms up.
+               */}
               <item.icon
                 className="size-6"
+                {...(active ? { fill: "currentColor", fillOpacity: 0.16, strokeWidth: 2 } : {})}
                 {...(log ? { strokeWidth: 2.1 } : {})}
               />
               <span className="whitespace-nowrap leading-4">{item.label}</span>
               {active && (
                 <span
                   aria-hidden="true"
-                  className="absolute top-0 h-[0.1875rem] w-8 rounded-b-full bg-lavender-600"
+                  className="absolute top-0 h-1 w-10 rounded-b-full bg-lavender-600"
                 />
               )}
             </Link>

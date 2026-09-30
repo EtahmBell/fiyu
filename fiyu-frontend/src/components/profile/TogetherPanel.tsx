@@ -52,7 +52,7 @@ import { cn } from "@/lib/utils/cn";
  * is waiting to be revealed. Nothing is inferred and nothing is dramatised.
  */
 
-const MEASURE = "mx-auto w-full max-w-[74rem] px-5 sm:px-8 lg:px-12";
+const MEASURE = "mx-auto w-full max-w-[74rem] px-page lg:px-12";
 
 /**
  * One entry per person, not per round.

@@ -64,15 +64,16 @@ afterEach(() => {
 });
 
 describe("compact restaurant card content", () => {
-  it("adds a compact evidence hint to the existing detail action without intercepting card or save actions", () => {
+  it("offers Why Fiyu found it as its own disclosure-style action without intercepting card or save actions", () => {
     const details = vi.fn();
     const open = vi.fn();
     const save = vi.fn();
     render(<CompactRestaurantCard restaurant={restaurant()} saved={false} onToggleSaved={save} onOpen={open} onViewDetails={details} />);
-    const hint = screen.getByText("Why Fiyu found it");
+    const why = screen.getByRole("button", { name: "Why Fiyu found it" });
     const action = screen.getByRole("button", { name: "View restaurant" });
-    expect(action.getAttribute("aria-describedby")).toBe(hint.id);
-    fireEvent.click(hint);
+    expect(why.querySelector("svg")).not.toBeNull();
+    expect(action.compareDocumentPosition(why) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    fireEvent.click(why);
     expect(details).toHaveBeenCalledTimes(1);
     expect(open).not.toHaveBeenCalled();
     expect(save).not.toHaveBeenCalled();
@@ -174,10 +175,12 @@ describe("compact restaurant card content", () => {
     );
     expect(screen.getByLabelText("Fiyu score 8.7 out of 10")).toBeTruthy();
     expect(screen.getByText("8.7").textContent).toContain("/10");
-    // Present and unmistakable, but no longer taller than the restaurant's name.
-    expect(screen.getByText("8.7").className).toContain("text-[1.75rem]");
-    expect(screen.getByRole("heading", { level: 3 }).className).toContain("text-xl");
-    expect(screen.getByText("Fiyu Score").className).toContain("text-[0.5rem]");
+    // The name leads at 22px; the score sits in its own zone at a readable size.
+    expect(screen.getByText("8.7").className).toContain("text-[1.875rem]");
+    expect(screen.getByText("8.7").className).toContain("font-display");
+    expect(screen.getByRole("heading", { level: 3 }).className).toContain("text-[1.375rem]");
+    expect(screen.getByText("Fiyu Score").className).toContain("text-[0.625rem]");
+    expect(screen.getByLabelText("Fiyu score 8.7 out of 10").className).toContain("bg-lavender-50");
     expect(screen.getByText("Fiyu Score")).toBeTruthy();
     expect(screen.queryByText("Approximate area")).toBeNull();
   });
@@ -205,28 +208,26 @@ describe("compact restaurant card content", () => {
     expect(japaneseName.className).not.toContain("truncate");
     expect(japaneseName.className).toContain("break-words");
     const englishName = screen.getByText(/A deliberately long restaurant name/);
-    expect(englishName.className).toContain("line-clamp-2");
+    expect(englishName.className).toContain("line-clamp-1");
     expect(englishName.className).toContain("break-words");
     const photo = screen.getByTestId("restaurant-photo-region");
     expect(photo.className).toContain("h-24");
     expect(photo.className).toContain("w-full");
     const description = screen.getByText(/A long discovery-card description/);
-    expect(description.className).toContain("line-clamp-2");
-    expect(description.className).toContain("lg:line-clamp-3");
+    expect(description.className).toContain("line-clamp-3");
     setDescriptionLayout(80, 40);
     const readMore = screen.getByRole("button", { name: "Read more" });
     expect(readMore.getAttribute("aria-expanded")).toBe("false");
     fireEvent.click(readMore);
     expect(photo.className).toContain("float-left");
     expect(photo.className).toContain("w-[6.75rem]");
-    expect(description.className).not.toContain("line-clamp-2");
+    expect(description.className).not.toContain("line-clamp-3");
     expect(screen.getByRole("button", { name: "Read less" }).getAttribute("aria-expanded")).toBe(
       "true",
     );
     expect(screen.getByLabelText("Fiyu score 8.7 out of 10")).toBeTruthy();
     const googleLink = screen.getByRole("link", { name: "Open in Google Maps" });
-    expect(googleLink.className).toContain("break-words");
-    expect(googleLink.closest("ul")?.className).toContain("flex-wrap");
+    expect(googleLink.className).toContain("whitespace-nowrap");
     expect(googleLink.closest("ul")?.className).toContain("max-w-full");
   });
 
@@ -240,7 +241,7 @@ describe("compact restaurant card content", () => {
         onToggleSaved={() => {}}
       />,
     );
-    expect(screen.getByText(researched).className).toContain("line-clamp-2");
+    expect(screen.getByText(researched).className).toContain("line-clamp-3");
   });
 
   it("shows Read more only for actual rendered clamp overflow and remeasures width changes", () => {
@@ -261,7 +262,7 @@ describe("compact restaurant card content", () => {
     expect(screen.queryByRole("button", { name: "Read more" })).toBeNull();
   });
 
-  it("keeps Read more with the description and separates budget below it", () => {
+  it("keeps Read more with the description and sets the price beside it without letting it shrink", () => {
     render(
       <CompactRestaurantCard
         restaurant={restaurant({
@@ -284,7 +285,11 @@ describe("compact restaurant card content", () => {
     const readMore = screen.getByRole("button", { name: "Read more" });
     const budget = screen.getByTestId("compact-card-budget");
     expect(readMore.compareDocumentPosition(budget) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(budget.className).toContain("border-t");
+    expect(budget.parentElement).toBe(readMore.parentElement);
+    for (const token of ["shrink-0", "whitespace-nowrap", "tabular-nums"]) {
+      expect(budget.className).toContain(token);
+    }
+    expect(budget.className).not.toContain("truncate");
 
     fireEvent.click(readMore);
     const readLess = screen.getByRole("button", { name: "Read less" });
@@ -349,7 +354,7 @@ describe("compact restaurant card content", () => {
     expect(screen.queryByTestId("photo-attribution-overlay")).toBeNull();
   });
 
-  it("uses lavender for current cards and brass for recent-history score accents", () => {
+  it("uses lavender for current cards and champagne for recent-history score accents", () => {
     const { rerender } = render(
       <CompactRestaurantCard
         restaurant={restaurant()}
@@ -360,9 +365,9 @@ describe("compact restaurant card content", () => {
     );
     const card = screen.getByTestId("compact-restaurant-card");
     const score = screen.getByLabelText("Fiyu score 8.7 out of 10");
-    expect(card.className).toContain("border-t-lavender-500/45");
+    expect(card.className).toContain("before:bg-lavender-500");
     expect(card.className).toContain("focus-visible:outline-lavender-600");
-    expect(screen.getByText("Fiyu Score").className).toContain("text-lavender-700");
+    expect(screen.getByText("Fiyu Score").className).toContain("text-lavender-800");
     expect((score.lastElementChild as HTMLElement).className).toContain("bg-lavender-500");
 
     rerender(
@@ -374,10 +379,39 @@ describe("compact restaurant card content", () => {
         onToggleSaved={() => {}}
       />,
     );
-    expect(card.className).toContain("border-t-gold/50");
+    expect(card.className).toContain("before:bg-gold/70");
     expect(card.className).toContain("focus-visible:outline-gold");
     expect(screen.getByText("Fiyu Score").className).toContain("text-gold-700");
     expect((score.lastElementChild as HTMLElement).className).toContain("bg-gold");
+  });
+
+  it("does not repeat a romanization that only restates the title", () => {
+    render(
+      <CompactRestaurantCard
+        restaurant={restaurant({ name_ja: "SILVER SPOON", name_en: "Silver Spoon" })}
+        saved={false}
+        onToggleSaved={() => {}}
+      />,
+    );
+    expect(screen.getByRole("heading", { level: 3 }).textContent).toBe("SILVER SPOON");
+    expect(screen.queryByText("Silver Spoon")).toBeNull();
+    expect(screen.getByText("Izakaya / standing bar · Jingumae")).toBeTruthy();
+  });
+
+  it("gives an exceptional current Pick brass in the same structure", () => {
+    const { rerender } = render(
+      <CompactRestaurantCard restaurant={restaurant({ fiyu_score: 90 })} saved={false} onToggleSaved={() => {}} />,
+    );
+    const card = screen.getByTestId("compact-restaurant-card");
+    expect(card.dataset.scoreTreatment).toBe("exceptional");
+    expect(card.className).toContain("before:bg-gold");
+    expect(screen.getByLabelText("Fiyu score 9.0 out of 10").className).toContain("bg-gold-soft");
+
+    rerender(
+      <CompactRestaurantCard restaurant={restaurant({ fiyu_score: 89.99 })} saved={false} onToggleSaved={() => {}} />,
+    );
+    expect(card.dataset.scoreTreatment).toBe("standard");
+    expect(card.className).toContain("before:bg-lavender-500");
   });
 
   it("never renders an internal why_fiyu value", () => {
@@ -582,10 +616,11 @@ describe("compact card interaction", () => {
     const viewRestaurant = screen.getByRole("button", { name: "View restaurant" });
     const saveRestaurant = screen.getByRole("button", { name: "Save restaurant" });
 
-    expect(screen.getByTestId("compact-card-footer").className).toContain("border-t");
-    expect(screen.getByTestId("compact-card-footer").firstElementChild?.className).toContain("flex");
+    const actionRow = screen.getByTestId("compact-card-footer").firstElementChild;
+    expect(actionRow?.className).toContain("border-t");
+    expect(actionRow?.className).toContain("flex");
     for (const mapLink of [googleMaps, appleMaps]) {
-      expect(mapLink.className).toContain("min-h-11");
+      expect(mapLink.className).toContain("min-h-10");
       expect(mapLink.className).not.toContain("rounded-chip");
       expect(mapLink.className).not.toContain("bg-surface");
       expect(mapLink.className).not.toContain("border-line");
@@ -594,18 +629,17 @@ describe("compact card interaction", () => {
     expect(viewRestaurant.className).toContain("text-plum");
     expect(viewRestaurant.className).not.toContain("rounded-chip");
     // Hierarchy: the primary action leads the footer in the DOM, at a larger
-    // size than the two map hand-offs that follow it, which stay muted. `lg:order`
-    // reverses the two rows for desktop without changing this order.
+    // size than the two map hand-offs that follow it, which stay muted.
     expect(
       viewRestaurant.compareDocumentPosition(googleMaps) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
-    expect(viewRestaurant.className).toContain("text-sm");
+    expect(viewRestaurant.className).toContain("text-[0.9375rem]");
+    expect(viewRestaurant.className).toContain("min-h-12");
     expect(viewRestaurant.className).toContain("font-semibold");
-    expect(googleMaps.className).toContain("text-[0.6875rem]");
+    expect(googleMaps.className).toContain("text-[0.8125rem]");
     expect(googleMaps.className).toContain("text-ink-muted");
     expect(appleMaps.closest("li")?.textContent).toContain("·");
     expect(saveRestaurant.className).toContain("size-11");
-    expect(saveRestaurant.className).toContain("size-9");
     expect(saveRestaurant.className).not.toContain("rounded-chip");
     expect(saveRestaurant.querySelector("svg")?.getAttribute("fill")).toBe("none");
 

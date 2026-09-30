@@ -36,6 +36,7 @@
  *   plum-500      5.07:1 on white  -> marks and rules
  *   plum-700      8.10:1 on white, 7.44:1 on canvas -> AA for small text
  *   plum-mist    10.20:1 on plum-900 -> AA for body text on the deep ground
+ *   lavender-800 10.1:1 on white, 9.3:1 on canvas, 9.0:1 on lavender-50 -> eyebrows, score wordmark
  *   white        16.10:1 on plum-900
  * Never set text in lavender-500 or in gold, and never fill a button with
  * either.
@@ -46,6 +47,8 @@
   --color-subtle: #f3f0f8;
   --color-line: #e6e1e9;
   --color-line-strong: #d8d2dd;
+  /* The warm edge of a sheet of card paper, a half-step off the cool --line. */
+  --color-paper-line: #e7e1da;
 
   --color-ink: #19171d;
   /* Readable long-form copy; metadata and controls may remain ink-muted. */
@@ -58,6 +61,13 @@
   --color-lavender-500: #8b6cf6;
   --color-lavender-600: #7657e8;
   --color-lavender-700: #6044c8;
+  /*
+   * The identity text step: the deep blue-violet "plum" of the editorial
+   * eyebrow and the Fiyu Score wordmark. Kept in the lavender family, turned
+   * well away from Together's red-violet, and dark enough that tracked 10-11px
+   * caps stay comfortably legible on paper and on the pale score wash.
+   */
+  --color-lavender-800: #45308f;
   --color-plum: #31283d;
 
   /*
@@ -92,7 +102,8 @@
    *
    *   gold-line  the warm peer of --color-line. Swapped in for a neutral
    *              hairline where that line separates past from present.
-   *   gold-soft  the only permitted champagne fill, and only at chip scale.
+   *   gold-soft  the only permitted champagne fill: chip scale, plus the
+   *              score zone of an exceptional (9+) Pick.
    *   gold       marks and rules: map pins for visited places, accent rules.
    *   gold-700   the text step. Datelines, expiry, visited status.
    */
@@ -113,6 +124,13 @@
     sans-serif;
 
   --radius-card: 0.875rem;
+
+  /*
+   * Paper depth: a hairline of contact shadow and one soft, very short fall.
+   * It should barely register -- a sheet resting on a sheet, not a panel
+   * floating over a dashboard.
+   */
+  --shadow-paper: 0 1px 0 rgb(49 40 61 / 0.035), 0 10px 22px -20px rgb(49 40 61 / 0.4);
   --radius-chip: 999px;
 
   /* The app chrome includes device safe areas without changing desktop height. */
@@ -284,6 +302,21 @@
   --fiyu-tint-surface: #fdfcfa;
   --fiyu-tint-disk: #f3effb;
   --fiyu-tint-edge: #e9e4e4;
+}
+
+/*
+ * The page inset. One gutter for every full-width mobile page: 20px on a
+ * 360-399px phone, 24px from 400px (the 430px class), 32px from the small
+ * tablet up. Headers and cards share it, so their left edges always align.
+ */
+@utility px-page {
+  padding-inline: 1.25rem;
+  @media (width >= 25rem) {
+    padding-inline: 1.5rem;
+  }
+  @media (width >= 40rem) {
+    padding-inline: 2rem;
+  }
 }
 
 html {

@@ -10,6 +10,7 @@ import { useAccountQuery } from "@/lib/accountQueryCache";
 import { acknowledgeTasteUpdate, fetchUserFiyuSummary } from "@/lib/api/client";
 import type { UserFiyuSummary } from "@/lib/api/schemas";
 import { useProfileIdentity } from "@/lib/profile/profileIdentity";
+import { Eyebrow } from "@/components/ui/Eyebrow";
 import { cn } from "@/lib/utils/cn";
 
 /**
@@ -39,7 +40,7 @@ import { cn } from "@/lib/utils/cn";
  */
 
 /** One measure for every band, so the bleeding backgrounds never break the column. */
-const MEASURE = "mx-auto w-full max-w-[74rem] px-5 sm:px-8 lg:px-12";
+const MEASURE = "mx-auto w-full max-w-[74rem] px-page lg:px-12";
 
 /** The recurring micro-caps mark. Colour is left to the caller. */
 const MICRO_CAPS = "text-[0.625rem] font-semibold tracking-[0.16em] uppercase";
@@ -84,34 +85,6 @@ function visitDate(value: string): string {
     day: "numeric",
     year: "numeric",
   }).format(date);
-}
-
-/** A tracked label with a short rule leading into it: the mark that opens a band. */
-function Eyebrow({
-  children,
-  tone = "lavender",
-  className,
-}: {
-  children: React.ReactNode;
-  tone?: "lavender" | "champagne";
-  className?: string;
-}) {
-  return (
-    <p
-      className={cn(
-        "flex items-center gap-3",
-        MICRO_CAPS,
-        tone === "champagne" ? "text-gold-700" : "text-lavender-700",
-        className,
-      )}
-    >
-      <span
-        aria-hidden="true"
-        className={cn("h-px w-6 shrink-0", tone === "champagne" ? "bg-gold" : "bg-lavender-500")}
-      />
-      {children}
-    </p>
-  );
 }
 
 /**

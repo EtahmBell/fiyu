@@ -321,7 +321,9 @@ describe("dedicated user map", () => {
     expect(scoreSection.textContent).toContain("Fiyu Score");
     expect(scoreSection.textContent).toContain("8.0");
     expect(scoreSection.className).toContain("border-t");
-    expect(screen.getByText("8.0").className).toContain("text-lavender-700");
+    expect(screen.getByText("8.0").className).toContain("font-display");
+    expect(screen.getByText("8.0").className).toContain("text-plum");
+    expect(screen.getByLabelText("Fiyu score 8.0 out of 10")).toBeTruthy();
     expect(screen.getByRole("link", { name: "View restaurant →" }).getAttribute("href")).toBe(
       "/restaurants/ChIJAZOKBEyPGGARWoSCCwgRm8E",
     );

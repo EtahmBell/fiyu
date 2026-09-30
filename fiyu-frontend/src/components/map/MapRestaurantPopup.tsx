@@ -8,6 +8,7 @@ import { VIEWBOX_HEIGHT, VIEWBOX_WIDTH } from "@/lib/map/projection";
 import type { MapView } from "@/lib/map/viewport";
 import { restaurantDetailHref } from "@/lib/navigation/restaurantDetail";
 import { restaurantMetadataParts } from "@/lib/restaurant/displayArea";
+import { ScoreLine } from "@/components/ui/ScoreMark";
 import { cn } from "@/lib/utils/cn";
 
 const PREFERRED_WIDTH = 272;
@@ -71,7 +72,6 @@ export function MapRestaurantPopup({
     ? restaurant.name_en
     : null;
   const metadata = restaurantMetadataParts(restaurant.category, restaurant).join(" · ");
-  const score = restaurant.fiyu_score === null ? null : (restaurant.fiyu_score / 10).toFixed(1);
   /*
    * A visited pin, a champagne popup edge and a champagne caret are all colour.
    * The status is spelled out here as well, so the state survives for anyone who
@@ -146,15 +146,9 @@ export function MapRestaurantPopup({
           {metadata && <span className="truncate">{metadata}</span>}
         </p>
       )}
-      {score && (
-        <div
-          data-testid="map-popup-score"
-          className="mt-2 flex items-baseline justify-between gap-3 border-t border-line pt-1.5"
-        >
-          <span className="text-[0.6875rem] font-medium tracking-wide text-ink-muted">
-            Fiyu Score
-          </span>
-          <span className="text-lg leading-none font-semibold text-lavender-700">{score}</span>
+      {restaurant.fiyu_score !== null && (
+        <div data-testid="map-popup-score" className="mt-2 border-t border-line pt-2">
+          <ScoreLine score={restaurant.fiyu_score} />
         </div>
       )}
       <Link

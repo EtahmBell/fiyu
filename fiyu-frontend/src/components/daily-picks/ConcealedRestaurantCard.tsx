@@ -72,11 +72,17 @@ export function ConcealedRestaurantCard({
               restoreFocus.current = event.detail === 0;
               onReveal();
             }}
-            className="flex size-full select-none flex-col items-center justify-center rounded-card text-center focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600 disabled:cursor-wait"
+            className="group/back flex size-full select-none flex-col items-center justify-center rounded-card text-center transition-[background-color,transform] duration-150 ease-(--ease-fiyu) hover:bg-lavender-100/35 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600 active:scale-[0.99] active:bg-lavender-100/60 disabled:cursor-wait"
           >
-            <span className="text-[0.625rem] tracking-[0.2em] text-lavender-700 uppercase">Fiyu Pick</span>
-            <span className="mt-3 font-display text-3xl text-plum">Fiyu</span>
-            <span className="mt-3 text-xs font-medium text-lavender-700">{revealPending ? "Revealing…" : "Tap to reveal"}</span>
+            <span className="flex items-center gap-2.5 text-[0.6875rem] font-semibold tracking-[0.18em] text-lavender-800 uppercase">
+              <span aria-hidden="true" className="h-0.5 w-5 rounded-full bg-lavender-500" />
+              Fiyu Pick {String(position).padStart(2, "0")}
+              <span aria-hidden="true" className="h-0.5 w-5 rounded-full bg-lavender-500" />
+            </span>
+            <span className="mt-4 font-display text-[2.75rem] leading-none text-plum">Fiyu</span>
+            <span className="mt-5 inline-flex min-h-9 items-center gap-1.5 rounded-chip border border-lavender-500/35 bg-surface/70 px-4 text-[0.8125rem] font-semibold text-lavender-800 transition-colors duration-150 group-hover/back:border-lavender-500/60">
+              {revealPending ? "Revealing…" : "Tap to reveal"}
+            </span>
           </button>
         </div>}
         <div ref={frontRef} className={styles.front} aria-hidden={!revealed || moving} inert={!revealed || moving}>

@@ -85,7 +85,7 @@ function SavedRow({
     <li className="min-w-0">
       <article
         data-testid="saved-restaurant-card"
-        className="min-w-0 overflow-hidden rounded-card border border-line bg-surface p-2.5 shadow-[0_6px_20px_-18px_rgba(49,40,61,0.35)] min-[480px]:p-3.5"
+        className="min-w-0 overflow-hidden rounded-card border border-line bg-surface p-3 shadow-paper min-[480px]:p-4"
         aria-labelledby={`saved-${item.place_id}`}
       >
         <div
@@ -156,7 +156,7 @@ function SavedRow({
                 className="inline-flex min-h-9 min-w-0 items-center gap-1 text-xs font-semibold text-plum underline decoration-transparent underline-offset-4 transition-colors hover:decoration-lavender-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600 min-[480px]:min-h-11 min-[480px]:gap-1.5 min-[480px]:text-sm"
               >
                 <span>View restaurant</span>
-                <span aria-hidden="true">→</span>
+                <span aria-hidden="true" className="text-lavender-600">→</span>
               </Link>
             </div>
           </div>

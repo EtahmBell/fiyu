@@ -39,7 +39,7 @@ async function loadCatalog(): Promise<CatalogResult> {
  */
 function StateColumn({ children }: { children: React.ReactNode }) {
   return (
-    <div className="mx-auto w-full max-w-[38rem] px-5 pb-20 sm:px-8">
+    <div className="mx-auto w-full max-w-[38rem] px-page pb-20">
       <div className="hidden lg:block">
         <PageIntro />
       </div>
@@ -100,7 +100,7 @@ export default async function HomePage() {
     <main>
       <h2 className="sr-only">Restaurants</h2>
       {rejected.length > 0 && (
-        <div className="mx-auto w-full max-w-[38rem] px-5 pt-6 sm:px-8">
+        <div className="mx-auto w-full max-w-[38rem] px-page pt-6">
           <MalformedDataNotice rejected={rejected} accepted={restaurants.length} />
         </div>
       )}

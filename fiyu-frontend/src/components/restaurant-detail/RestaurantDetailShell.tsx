@@ -359,7 +359,7 @@ function RestaurantDetailContent({
             </h1>
             {names.secondary && <p lang={names.secondary.lang} className="mt-1.5 text-base text-ink-muted">{names.secondary.text}</p>}
           </div>
-          <ScoreMark score={restaurant.fiyu_score} size="lg" />
+          <ScoreMark score={restaurant.fiyu_score} size="lg" zone className="-mt-1 rounded-xl" />
         </div>
         {summaryFacts.length > 0 && (
           <dl className="grid grid-cols-2 gap-x-5 gap-y-3 border-y border-line py-3 text-sm sm:grid-cols-3">
@@ -393,7 +393,7 @@ function RestaurantDetailContent({
       </section>
 
       {(displayDescription || reviewThemes.length > 0) && (
-        <section aria-labelledby="overview-heading" className="border-t border-line pt-5">
+        <section aria-labelledby="overview-heading" className="relative border-t border-line pt-5 before:absolute before:-top-px before:left-0 before:h-0.5 before:w-10 before:rounded-full before:bg-lavender-500">
           <h2 id="overview-heading" className="font-display text-2xl text-ink">Overview</h2>
           {displayDescription && <p className="mt-3 max-w-prose whitespace-pre-line text-[0.9375rem] leading-6 text-ink/85">{displayDescription}</p>}
           {reviewThemes.length > 0 && (
@@ -411,7 +411,7 @@ function RestaurantDetailContent({
       <ScoreTransparency restaurant={restaurant} />
 
       {hasPracticalInfo && (
-        <section aria-labelledby="practical-info-heading" className="border-t border-line pt-5">
+        <section aria-labelledby="practical-info-heading" className="relative border-t border-line pt-5 before:absolute before:-top-px before:left-0 before:h-0.5 before:w-10 before:rounded-full before:bg-lavender-500">
           <h2 id="practical-info-heading" className="font-display text-2xl text-ink">Practical info</h2>
           <dl className="mt-3 divide-y divide-line border-y border-line text-sm leading-5">
             {budget && <div className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-3 py-2.5"><dt className="text-ink-muted">Budget</dt><dd className="text-ink/85">{budget}</dd></div>}
@@ -436,7 +436,7 @@ function RestaurantDetailContent({
       )}
 
       {hasHours && (
-        <section aria-labelledby="hours-heading" className="border-t border-line pt-5">
+        <section aria-labelledby="hours-heading" className="relative border-t border-line pt-5 before:absolute before:-top-px before:left-0 before:h-0.5 before:w-10 before:rounded-full before:bg-lavender-500">
           <h2 id="hours-heading" className="font-display text-2xl text-ink">Hours</h2>
           {hours.length > 0 && (
             <dl className="mt-3 grid max-w-lg grid-cols-[4.5rem_minmax(0,1fr)] gap-x-4 gap-y-1.5 text-sm leading-5">
@@ -453,7 +453,7 @@ function RestaurantDetailContent({
       )}
 
       {restaurant.signature_dishes_en.length > 0 && (
-        <section aria-labelledby="signature-dishes-heading" className="border-t border-line pt-6">
+        <section aria-labelledby="signature-dishes-heading" className="relative border-t border-line pt-5 before:absolute before:-top-px before:left-0 before:h-0.5 before:w-10 before:rounded-full before:bg-lavender-500">
           <h2 id="signature-dishes-heading" className="font-display text-2xl text-ink">Signature dishes</h2>
           <ul className="mt-3 space-y-2 text-sm leading-6 text-ink/85">
             {restaurant.signature_dishes_en.map((dish) => <li key={dish}>{dish}</li>)}
@@ -462,7 +462,7 @@ function RestaurantDetailContent({
       )}
 
       {formatDetails.length > 0 && (
-        <section aria-labelledby="menu-format-heading" className="border-t border-line pt-6">
+        <section aria-labelledby="menu-format-heading" className="relative border-t border-line pt-5 before:absolute before:-top-px before:left-0 before:h-0.5 before:w-10 before:rounded-full before:bg-lavender-500">
           <h2 id="menu-format-heading" className="font-display text-2xl text-ink">Menu and format</h2>
           <ul className="mt-3 flex flex-wrap gap-2">
             {formatDetails.map((detail) => <li key={detail} className="rounded-chip border border-line bg-subtle px-3 py-1.5 text-xs text-ink-muted">{formatTagForDisplay(detail)}</li>)}
@@ -471,7 +471,7 @@ function RestaurantDetailContent({
       )}
 
       {(restaurant.verified_core_address || restaurant.map_display_eligible) && (
-        <section aria-labelledby="location-heading" className="border-t border-line pt-6">
+        <section aria-labelledby="location-heading" className="relative border-t border-line pt-5 before:absolute before:-top-px before:left-0 before:h-0.5 before:w-10 before:rounded-full before:bg-lavender-500">
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
               <h2 id="location-heading" className="font-display text-2xl text-ink">Location</h2>

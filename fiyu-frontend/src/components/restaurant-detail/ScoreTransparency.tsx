@@ -5,7 +5,7 @@ import type { PublicRestaurantDetail } from "@/lib/api/schemas";
 export function ScoreTransparency({ restaurant }: { restaurant: PublicRestaurantDetail }) {
   const explanation = restaurant.score_transparency;
   return (
-    <section id="why-fiyu-found-it" aria-labelledby="why-fiyu-heading" className="min-w-0 scroll-mt-20 border-t border-line pt-5">
+    <section id="why-fiyu-found-it" aria-labelledby="why-fiyu-heading" className="relative min-w-0 scroll-mt-20 border-t border-line pt-5 before:absolute before:-top-px before:left-0 before:h-0.5 before:w-10 before:rounded-full before:bg-lavender-500">
       <h2 id="why-fiyu-heading" className="font-display text-2xl text-ink">Why Fiyu found it</h2>
       {explanation?.reasons.length ? (
         <p className="mt-3 text-sm leading-6 text-ink-body">{explanation.reasons.join(" ")}</p>

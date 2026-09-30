@@ -18,19 +18,23 @@ export interface OutboundMapActionsProps {
 /**
  * Shortened visible text for restaurant surfaces. The full label stays as the
  * accessible name, and contains the visible text verbatim, so WCAG 2.5.3 holds
- * and voice control still matches what is on screen.
+ * and voice control still matches what is on screen. On a narrow card footer
+ * the trailing "Maps" drops away, which keeps both names inside the label.
  */
 const SHORT_LABELS: Record<OutboundMapLink["id"], string> = {
-  google: "Google Maps",
-  apple: "Apple Maps",
+  google: "Google",
+  apple: "Apple",
 };
 
-function ExternalArrow() {
+function ExternalArrow({ accent = false }: { accent?: boolean }) {
   return (
     <svg
       aria-hidden="true"
       viewBox="0 0 12 12"
-      className="size-3 shrink-0 fill-none stroke-current opacity-70"
+      className={cn(
+        "size-3 shrink-0 fill-none",
+        accent ? "stroke-lavender-600" : "stroke-current opacity-70",
+      )}
     >
       <path d="M4 8 8 4M4.5 4H8v3.5" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
@@ -62,21 +66,20 @@ export function OutboundMapActions({
   return (
     <ul
       className={cn(
-        "flex min-w-0 max-w-full flex-wrap",
-        footer ? "flex-nowrap gap-x-2 gap-y-0 lg:flex-wrap lg:gap-x-3" : "gap-x-4 gap-y-1",
+        "flex max-w-full",
+        footer ? "shrink-0 flex-nowrap gap-x-1" : "min-w-0 flex-wrap gap-x-4 gap-y-1",
         className,
       )}
     >
       {links.map((link, index) => (
         <li key={link.id} className={cn("min-w-0 max-w-full", footer && "flex items-center")}>
           {/*
-            On a card footer the pair sits on its own line under the primary
-            action, so a point between them makes it read as one secondary
-            aside rather than as two more buttons. The desktop footer keeps its
-            wider gap and no separator.
+            On a card footer the pair sits in the utility row, so a point
+            between them makes it read as one secondary aside rather than as
+            two more buttons.
           */}
           {footer && index > 0 && (
-            <span aria-hidden="true" className="mr-2 text-ink-faint lg:hidden">·</span>
+            <span aria-hidden="true" className="mr-1 text-ink-faint">·</span>
           )}
           <a
             href={link.href}
@@ -88,12 +91,15 @@ export function OutboundMapActions({
             className={cn(
               "relative z-10 break-words transition-colors duration-200 ease-(--ease-fiyu)",
               footer
-                ? "inline-flex min-h-9 items-center gap-0.5 py-0.5 pr-1 text-[0.6875rem] font-medium whitespace-nowrap text-ink-muted underline decoration-transparent underline-offset-4 hover:text-plum hover:decoration-line-strong lg:min-h-11 lg:gap-1.5 lg:py-2 lg:pr-3 lg:text-xs"
+                ? "inline-flex min-h-10 items-center gap-1 rounded-md px-1.5 text-[0.8125rem] font-medium whitespace-nowrap text-ink-muted transition-[background-color,color] duration-150 hover:bg-lavender-50 hover:text-plum focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-lavender-600 active:bg-lavender-100/70"
                 : "inline-flex min-h-11 items-center gap-1.5 py-2 pr-3 text-xs font-medium text-lavender-700 underline decoration-line underline-offset-2 hover:text-plum hover:decoration-lavender-500",
             )}
           >
-            {SHORT_LABELS[link.id]}
-            <ExternalArrow />
+            <span>
+              {SHORT_LABELS[link.id]}
+              <span className={footer ? "hidden min-[25rem]:inline" : undefined}> Maps</span>
+            </span>
+            <ExternalArrow accent={footer} />
           </a>
         </li>
       ))}

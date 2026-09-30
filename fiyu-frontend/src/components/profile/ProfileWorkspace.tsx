@@ -201,7 +201,7 @@ function MobileProfileHome() {
     : profile;
 
   return (
-    <main className="flex-1 px-5 pt-5 pb-[calc(var(--spacing-mobile-nav)+2rem)]">
+    <main className="flex-1 px-page pt-5 pb-[calc(var(--spacing-mobile-nav)+2rem)]">
       <div className="mx-auto w-full max-w-xl">
         {identity.status === "loading" ? <FiyuLoadingScreen contained className="min-h-[60dvh]" /> : <>
         <ProfileSubpageHeader title="Settings" />
@@ -249,7 +249,7 @@ function MobileProfileHome() {
 function MobileProfileDetail({ section, title }: { section: ProfileSection; title?: string }) {
   const heading = title ?? SECTIONS.find((item) => item.id === section)?.label ?? "Profile";
   return (
-    <main className="flex-1 px-5 pt-5 pb-[calc(var(--spacing-mobile-nav)+2rem)]">
+    <main className="flex-1 px-page pt-5 pb-[calc(var(--spacing-mobile-nav)+2rem)]">
       <div className="mx-auto w-full max-w-xl">
         <ProfileSubpageHeader title={heading} parent="settings" />
         <div className="mt-7">

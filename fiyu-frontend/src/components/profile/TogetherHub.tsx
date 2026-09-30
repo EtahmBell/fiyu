@@ -19,7 +19,7 @@ import { consumeTogetherRevealArrival } from "@/lib/profile/togetherRevealArriva
 import { useProfileIdentity } from "@/lib/profile/profileIdentity";
 import { cn } from "@/lib/utils/cn";
 
-const MEASURE = "mx-auto w-full max-w-[64rem] px-5 sm:px-8 lg:px-12";
+const MEASURE = "mx-auto w-full max-w-[64rem] px-page lg:px-12";
 const STAGGER_MS = 150;
 
 const DAY_MS = 86_400_000;

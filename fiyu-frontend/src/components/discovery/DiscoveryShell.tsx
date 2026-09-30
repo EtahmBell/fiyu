@@ -519,7 +519,7 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
       <section
         className="contents lg:block lg:min-h-0 lg:min-w-0 lg:overflow-y-auto lg:overscroll-contain"
       >
-        <div data-testid="desktop-page-intro" className="hidden px-5 sm:px-8 lg:block">
+        <div data-testid="desktop-page-intro" className="hidden px-page lg:block">
           <PageIntro />
         </div>
 
@@ -531,7 +531,7 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
         >
           <div
             className={cn(
-              "relative isolate mx-auto min-w-0 w-full max-w-[38rem] px-5 sm:px-8 lg:mx-0 lg:max-w-none lg:pb-10",
+              "relative isolate mx-auto min-w-0 w-full max-w-[38rem] px-page lg:mx-0 lg:max-w-none lg:pb-10",
               "pb-[calc(var(--spacing-mobile-nav)+1.5rem)] lg:mx-auto lg:max-w-[48rem] lg:pb-10",
             )}
           >

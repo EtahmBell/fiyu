@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { RestaurantPhoto } from "@/components/restaurant/RestaurantPhoto";
 import { StarRatingInput } from "@/components/log/StarRatingInput";
 import { Button } from "@/components/ui/Button";
+import { Eyebrow } from "@/components/ui/Eyebrow";
 import { Sheet } from "@/components/ui/Sheet";
 import { Skeleton } from "@/components/ui/Skeleton";
 import {
@@ -544,9 +545,9 @@ export function LogWorkspace({
         <form onSubmit={saveVisit} className="flex min-h-full flex-col">
           <header className="flex items-start justify-between gap-3 border-b border-line px-5 py-4 sm:px-6">
             <div className="min-w-0">
-              <p className="text-[0.6875rem] font-semibold tracking-[0.14em] text-lavender-700 uppercase">
+              <Eyebrow>
                 {isDesktop ? (editingVisit ? "Edit entry" : "New entry") : "Tokyo edition"}
-              </p>
+              </Eyebrow>
               <h2 className="mt-1.5 font-display text-2xl leading-tight text-ink">
                 {editingVisit ? "Edit visit" : "Log a visit"}
               </h2>
@@ -914,9 +915,7 @@ function MobileVisitHistory({
           <span aria-hidden="true">←</span>
           <span>Back to Log a visit</span>
         </Link>
-        <p className="mt-2 text-[0.6875rem] font-semibold tracking-[0.14em] text-lavender-700 uppercase">
-          Tokyo edition
-        </p>
+        <Eyebrow className="mt-2">Tokyo edition</Eyebrow>
         <h2 className="mt-1.5 font-display text-3xl leading-tight text-ink">History</h2>
       </header>
       <div className="flex-1 px-5 py-6">

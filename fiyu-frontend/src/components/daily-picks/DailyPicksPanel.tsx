@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 
 import { ConcealedRestaurantCard } from "@/components/daily-picks/ConcealedRestaurantCard";
 import { DailyPicksCountdown } from "@/components/daily-picks/DailyPicksCountdown";
+import { Eyebrow } from "@/components/ui/Eyebrow";
 import {
   DailyCardFrame,
   type DailyCardRefRegistrar,
@@ -808,7 +809,10 @@ export function DailyPicksPanel({
           aria-live="polite"
           aria-atomic="true"
           data-testid="new-map-place-notification"
-          className="fixed top-[calc(var(--spacing-header)+0.75rem)] right-4 z-50 max-w-[calc(100vw-2rem)] rounded-chip border border-lavender-100 bg-plum px-4 py-2.5 text-sm font-medium text-white"
+          // Above the mobile nav (bottom-left of the list column on desktop):
+          // clear of the masthead, the countdown and the navigation.
+          className="fixed inset-x-0 bottom-[calc(var(--spacing-mobile-nav)+0.75rem)] z-50 mx-auto w-fit max-w-[calc(100vw-2.5rem)] rounded-chip border border-white/10 bg-plum px-4 py-2.5 text-sm font-medium text-white shadow-[0_10px_24px_-14px_rgb(49_40_61/0.6)] lg:right-auto lg:bottom-6 lg:left-8 lg:mx-0"
+          style={{ animation: "fiyu-reveal-in 200ms var(--ease-fiyu) both" }}
         >
           {newMapPlaceCount === 1
             ? "1 new place added to your map"
@@ -821,28 +825,24 @@ export function DailyPicksPanel({
         data-testid="daily-picks-section"
         className="mt-4 mb-5 min-w-0 w-full lg:my-5"
       >
+        {/*
+          The masthead: rule and eyebrow, serif title, then a second line that
+          carries the location and the reveal control together. The single
+          hairline beneath opens with a short violet segment -- the same rule
+          as the eyebrow, closing the block it opened.
+        */}
         <div
           data-testid="daily-picks-header"
-          className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-x-4 border-b border-line pb-3"
+          className="relative grid grid-cols-[minmax(0,1fr)_auto] items-end gap-x-4 border-b border-line pb-2 after:absolute after:-bottom-px after:left-0 after:h-0.5 after:w-10 after:rounded-full after:bg-lavender-500"
         >
           <div className="min-w-0">
-            <p className="text-[0.6875rem] font-semibold tracking-[0.16em] text-plum-700 uppercase">
-              Today
-            </p>
+            <Eyebrow>Today</Eyebrow>
             <h1
               id="daily-picks-heading"
-              className="mt-1 min-w-0 font-display text-[clamp(1.65rem,7vw,2rem)] leading-[1.05] text-ink"
+              className="mt-2 min-w-0 font-display text-[clamp(1.75rem,7.5vw,2.125rem)] leading-[1.05] text-ink"
             >
               Today’s Fiyu Picks
             </h1>
-            {headerLocationCopy ? (
-              <p
-                data-testid="picks-location-context"
-                className="mt-1.5 min-w-0 truncate text-[0.8125rem] leading-5 text-ink-muted"
-              >
-                {headerLocationCopy}
-              </p>
-            ) : null}
           </div>
           {hasActivePicks && selection && !UNLIMITED_PICKS_DEV_MODE ? (
             <DailyPicksCountdown expiresAt={selection.expiresAt} now={now} />
@@ -853,6 +853,44 @@ export function DailyPicksPanel({
               </span>
               <span className="mt-1 block text-sm font-semibold text-plum">Daily</span>
             </p>
+          )}
+          {(headerLocationCopy || (hasActivePicks && phase !== "finding")) && (
+            <div className="col-span-2 mt-1 flex min-h-11 min-w-0 items-center justify-between gap-3">
+              {headerLocationCopy ? (
+                <p
+                  data-testid="picks-location-context"
+                  className="min-w-0 truncate text-[0.8125rem] leading-5 text-ink-muted"
+                >
+                  {headerLocationCopy}
+                </p>
+              ) : <span />}
+              {hasActivePicks && phase !== "finding" && (
+                remainingRevealIds.length ? (
+                  <button
+                    type="button"
+                    aria-label="Reveal all Fiyu Picks"
+                    disabled={revealPending || revealingAll}
+                    onClick={() => { void revealAll(); }}
+                    className="-mr-2 inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-lg px-2 text-[0.8125rem] font-semibold text-lavender-700 transition-[background-color,color,transform] duration-150 ease-(--ease-fiyu) hover:bg-lavender-50 hover:text-plum focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600 active:scale-[0.99] active:bg-lavender-100/70 disabled:opacity-60"
+                  >
+                    {revealingAll ? "Revealing…" : "Reveal all"}
+                    <span aria-hidden="true" className="text-lavender-600">→</span>
+                  </button>
+                ) : (
+                  // A status, not a link: no underline, no hover, and a mark so
+                  // colour is not the only signal.
+                  <p
+                    role="status"
+                    className="inline-flex shrink-0 items-center gap-1.5 text-[0.8125rem] font-medium text-ink-muted"
+                  >
+                    <svg aria-hidden="true" viewBox="0 0 12 12" className="size-3 fill-none stroke-lavender-600">
+                      <path d="m2.5 6.25 2.25 2.25L9.5 3.75" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                    All Picks revealed
+                  </p>
+                )
+              )}
+            </div>
           )}
         </div>
 
@@ -874,15 +912,6 @@ export function DailyPicksPanel({
           </div>
         ) : (
           <div className="mt-4 space-y-4">
-            {hasActivePicks && (
-              <div className="flex justify-end">
-                <button type="button" aria-label={remainingRevealIds.length ? "Reveal all Fiyu Picks" : "All Picks revealed"}
-                  disabled={!remainingRevealIds.length || revealPending || revealingAll}
-                  onClick={() => { void revealAll(); }}
-                  className="min-h-11 px-2 text-sm font-medium text-plum underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-lavender-600 disabled:opacity-60"
-                >{!remainingRevealIds.length ? "All Picks revealed" : revealingAll ? "Revealing…" : "Reveal all"}</button>
-              </div>
-            )}
             {hasActivePicks && currentSelection && (
               <div
                 // Slightly closer together than the surrounding blocks, so the

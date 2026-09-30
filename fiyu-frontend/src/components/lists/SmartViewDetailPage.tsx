@@ -59,7 +59,7 @@ function SmartViewItemRow({
   return (
     <li
       data-testid="smart-list-restaurant-card"
-      className="min-w-0 rounded-card border border-line bg-surface p-2.5 min-[480px]:p-3.5"
+      className="min-w-0 rounded-card border border-line bg-surface p-3 shadow-paper min-[480px]:p-4"
     >
       <article
         data-testid="smart-list-card-layout"
@@ -108,7 +108,7 @@ function SmartViewItemRow({
               className="inline-flex min-h-9 items-center gap-1 text-xs font-semibold text-plum underline decoration-transparent underline-offset-4 transition-colors hover:decoration-lavender-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600 min-[480px]:min-h-11 min-[480px]:gap-1.5 min-[480px]:text-sm"
             >
               <span>View restaurant</span>
-              <span aria-hidden="true">→</span>
+              <span aria-hidden="true" className="text-lavender-600">→</span>
             </Link>
           </div>
         </div>
@@ -121,7 +121,7 @@ function SmartViewItemsSkeleton() {
   return (
     <ul aria-hidden="true" className="space-y-3">
       {Array.from({ length: 3 }).map((_, index) => (
-        <li key={index} className="min-w-0 rounded-card border border-line bg-surface p-2.5 min-[480px]:p-3.5">
+        <li key={index} className="min-w-0 rounded-card border border-line bg-surface p-3 shadow-paper min-[480px]:p-4">
           <div className="grid min-w-0 grid-cols-[6.75rem_minmax(0,1fr)] items-stretch gap-2.5 min-[480px]:grid-cols-[minmax(8.5rem,30%)_minmax(0,1fr)] min-[480px]:gap-4">
             <Skeleton className="h-24 w-full rounded-lg min-[480px]:h-full min-[480px]:min-h-36" />
             <div className="space-y-3">
