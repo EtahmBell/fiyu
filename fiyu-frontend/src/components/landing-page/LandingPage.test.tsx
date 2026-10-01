@@ -124,11 +124,15 @@ describe("public landing experience", () => {
     render(landingRoute());
 
     const header = screen.getByRole("banner");
+    const desktopNavigation = within(header).getByRole("navigation", { name: "Landing page" });
+    const mobileActions = within(header).getByTestId("landing-mobile-actions");
     expect(within(header).getByRole("link", { name: "Fiyu home" }).getAttribute("href")).toBe("/");
     expect(within(header).getByRole("link", { name: "About" }).getAttribute("href")).toBe("/about");
     expect(within(header).getByRole("link", { name: "Contact" }).getAttribute("href")).toBe("/contact");
-    expect((await within(header).findByRole("link", { name: "Sign in" })).getAttribute("href")).toBe("/signin");
-    expect(within(header).getByRole("link", { name: "Sign up" }).getAttribute("href")).toBe("/signup");
+    expect((await within(desktopNavigation).findByRole("link", { name: "Sign in" })).getAttribute("href")).toBe("/signin");
+    expect(within(desktopNavigation).getByRole("link", { name: "Sign up" }).getAttribute("href")).toBe("/signup");
+    expect(within(mobileActions).getByRole("link", { name: "Sign in" }).getAttribute("href")).toBe("/signin");
+    expect(within(mobileActions).getByRole("link", { name: "Sign up" }).getAttribute("href")).toBe("/signup");
     const exploreActions = screen.getAllByRole("link", { name: "Explore Tokyo" });
     expect(exploreActions.length).toBeGreaterThanOrEqual(2);
     expect(screen.getAllByRole("link", { name: "Get your Fiyu Picks" })).toHaveLength(1);

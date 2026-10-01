@@ -118,33 +118,52 @@ export function LandingHeader() {
           )}
         </nav>
 
-        <button
-          ref={menuButtonRef}
-          type="button"
-          aria-label={menuOpen ? "Close menu" : "Open menu"}
-          aria-expanded={menuOpen}
-          aria-controls="landing-mobile-menu"
-          onClick={() => setMenuOpen((open) => !open)}
-          className="ml-2 flex size-11 items-center justify-center rounded-full text-plum md:hidden"
-        >
-          <span aria-hidden="true" className="relative block h-4 w-5">
-            <span
-              className={`absolute left-0 h-px w-5 bg-current transition-transform duration-200 ${
-                menuOpen ? "top-2 rotate-45" : "top-1"
-              }`}
-            />
-            <span
-              className={`absolute left-0 top-2 h-px w-5 bg-current transition-opacity duration-200 ${
-                menuOpen ? "opacity-0" : "opacity-100"
-              }`}
-            />
-            <span
-              className={`absolute left-0 h-px w-5 bg-current transition-transform duration-200 ${
-                menuOpen ? "top-2 -rotate-45" : "top-3"
-              }`}
-            />
-          </span>
-        </button>
+        <div data-testid="landing-mobile-actions" className="ml-auto flex items-center md:hidden">
+          {identity.status !== "loading" && !signedIn ? (
+            <div className="flex items-center gap-1">
+              <Link
+                href="/signin"
+                className="inline-flex min-h-11 items-center whitespace-nowrap px-2 text-sm font-medium text-ink-muted underline decoration-transparent underline-offset-4 transition-colors duration-200 ease-(--ease-fiyu) hover:text-ink hover:decoration-rose-dust"
+              >
+                Sign in
+              </Link>
+              <Link
+                href="/signup"
+                className="inline-flex min-h-11 items-center whitespace-nowrap rounded-chip bg-plum px-3 text-sm font-medium text-white transition-colors duration-200 ease-(--ease-fiyu) hover:bg-lavender-700"
+              >
+                Sign up
+              </Link>
+            </div>
+          ) : null}
+
+          <button
+            ref={menuButtonRef}
+            type="button"
+            aria-label={menuOpen ? "Close menu" : "Open menu"}
+            aria-expanded={menuOpen}
+            aria-controls="landing-mobile-menu"
+            onClick={() => setMenuOpen((open) => !open)}
+            className="ml-1 flex size-11 shrink-0 items-center justify-center rounded-full text-plum"
+          >
+            <span aria-hidden="true" className="relative block h-4 w-5">
+              <span
+                className={`absolute left-0 h-px w-5 bg-current transition-transform duration-200 ${
+                  menuOpen ? "top-2 rotate-45" : "top-1"
+                }`}
+              />
+              <span
+                className={`absolute left-0 top-2 h-px w-5 bg-current transition-opacity duration-200 ${
+                  menuOpen ? "opacity-0" : "opacity-100"
+                }`}
+              />
+              <span
+                className={`absolute left-0 h-px w-5 bg-current transition-transform duration-200 ${
+                  menuOpen ? "top-2 -rotate-45" : "top-3"
+                }`}
+              />
+            </span>
+          </button>
+        </div>
       </div>
 
       <nav
@@ -183,24 +202,7 @@ export function LandingHeader() {
               <ProfileIdentityAvatar identity={identity} className="size-7 text-sm" />
               <span className="truncate">{profileLabel}</span>
             </Link>
-          ) : (
-            <>
-              <Link
-                href="/signin"
-                onClick={closeMenu}
-                className="flex min-h-12 items-center border-t border-line text-base text-ink"
-              >
-                Sign in
-              </Link>
-              <Link
-                href="/signup"
-                onClick={closeMenu}
-                className="mt-5 inline-flex min-h-12 items-center justify-center rounded-chip bg-plum px-6 text-sm font-medium text-white"
-              >
-                Sign up
-              </Link>
-            </>
-          )}
+          ) : null}
         </div>
       </nav>
     </header>

@@ -130,6 +130,16 @@ describe("public account milestone", () => {
     });
   });
 
+  it("links signup to signin with the safe next destination intact", () => {
+    window.history.replaceState({}, "", "/signup?next=/picks%3Fday%3Dtomorrow");
+    render(<AuthPage mode="signup" />);
+
+    expect(screen.getByText("Already have an account?")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Sign in" }).getAttribute("href")).toBe(
+      "/signin?next=%2Fpicks%3Fday%3Dtomorrow",
+    );
+  });
+
   it("signs in with an email or username identifier and routes into Picks", async () => {
     mocks.signIn.mockResolvedValue({
       userId: "user",
@@ -139,6 +149,7 @@ describe("public account milestone", () => {
     render(<AuthPage mode="signin" />);
 
     expect(screen.getByRole("button", { name: "Forgot password?" })).toBeTruthy();
+    expect(screen.getByText("New to Fiyu?")).toBeTruthy();
     expect(screen.getByRole("link", { name: "Sign up" }).getAttribute("href")).toBe("/signup?next=%2Fpicks");
     expect(screen.getByPlaceholderText("Email or username")).toBeTruthy();
     expect(screen.getByPlaceholderText("Email or username").className).toContain("text-base");

@@ -27,14 +27,26 @@ afterEach(() => {
 });
 
 describe("marketing header identity", () => {
-  it("shows the public auth actions while signed out", () => {
+  it("shows compact public auth actions in the mobile header while signed out", () => {
     clearProfileIdentity();
     render(<LandingHeader />);
 
+    const mobileActions = screen.getByTestId("landing-mobile-actions");
+    expect(mobileActions.className).toContain("md:hidden");
     expect(screen.getByRole("link", { name: "About" }).getAttribute("href")).toBe("/about");
     expect(screen.getByRole("link", { name: "Contact" }).getAttribute("href")).toBe("/contact");
-    expect(screen.getByRole("link", { name: "Sign in" }).getAttribute("href")).toBe("/signin");
-    expect(screen.getByRole("link", { name: "Sign up" }).getAttribute("href")).toBe("/signup");
+    expect(within(mobileActions).getByRole("link", { name: "Sign in" }).getAttribute("href")).toBe(
+      "/signin",
+    );
+    expect(within(mobileActions).getByRole("link", { name: "Sign up" }).getAttribute("href")).toBe(
+      "/signup",
+    );
+    expect(within(mobileActions).getByRole("link", { name: "Sign in" }).className).toContain(
+      "whitespace-nowrap",
+    );
+    expect(within(mobileActions).getByRole("link", { name: "Sign up" }).className).toContain(
+      "whitespace-nowrap",
+    );
   });
 
   it("uses the shared identity presentation and reacts to profile, avatar, account, and sign-out changes", () => {
@@ -111,7 +123,7 @@ describe("marketing header identity", () => {
 
     vi.spyOn(authService, "getSession").mockResolvedValueOnce(null);
     act(() => window.dispatchEvent(new Event("fiyu:account-changed")));
-    expect(await screen.findByRole("link", { name: "Sign in" })).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Sign up" })).toBeTruthy();
+    expect(await screen.findAllByRole("link", { name: "Sign in" })).toHaveLength(2);
+    expect(screen.getAllByRole("link", { name: "Sign up" })).toHaveLength(2);
   });
 });
