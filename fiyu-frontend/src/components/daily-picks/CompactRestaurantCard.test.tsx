@@ -175,12 +175,17 @@ describe("compact restaurant card content", () => {
     );
     expect(screen.getByLabelText("Fiyu score 8.7 out of 10")).toBeTruthy();
     expect(screen.getByText("8.7").textContent).toContain("/10");
-    // The name leads at 22px; the score sits in its own zone at a readable size.
+    // The name leads at 22px; the score is set on the card's own paper --
+    // plum wordmark, serif numeral, a short lavender rule -- with no panel.
+    const mark = screen.getByLabelText("Fiyu score 8.7 out of 10");
     expect(screen.getByText("8.7").className).toContain("text-[1.875rem]");
     expect(screen.getByText("8.7").className).toContain("font-display");
     expect(screen.getByRole("heading", { level: 3 }).className).toContain("text-[1.375rem]");
     expect(screen.getByText("Fiyu Score").className).toContain("text-[0.625rem]");
-    expect(screen.getByLabelText("Fiyu score 8.7 out of 10").className).toContain("bg-lavender-50");
+    expect(screen.getByText("Fiyu Score").className).toContain("text-lavender-800");
+    expect(mark.className).not.toMatch(/\bbg-/);
+    expect((mark.lastElementChild as HTMLElement).className).toContain("h-0.5");
+    expect((mark.lastElementChild as HTMLElement).className).toContain("bg-lavender-500");
     expect(screen.getByText("Fiyu Score")).toBeTruthy();
     expect(screen.queryByText("Approximate area")).toBeNull();
   });
@@ -405,13 +410,35 @@ describe("compact restaurant card content", () => {
     const card = screen.getByTestId("compact-restaurant-card");
     expect(card.dataset.scoreTreatment).toBe("exceptional");
     expect(card.className).toContain("before:bg-gold");
-    expect(screen.getByLabelText("Fiyu score 9.0 out of 10").className).toContain("bg-gold-soft");
+    // Brass only in the small accents: wordmark and rule, never a fill.
+    const mark = screen.getByLabelText("Fiyu score 9.0 out of 10");
+    expect(mark.className).not.toMatch(/\bbg-/);
+    expect(screen.getByText("Fiyu Score").className).toContain("text-gold-700");
+    expect((mark.lastElementChild as HTMLElement).className).toContain("bg-gold");
 
     rerender(
       <CompactRestaurantCard restaurant={restaurant({ fiyu_score: 89.99 })} saved={false} onToggleSaved={() => {}} />,
     );
     expect(card.dataset.scoreTreatment).toBe("standard");
     expect(card.className).toContain("before:bg-lavender-500");
+  });
+
+  it("keeps keyboard focus flush with the card edge so it never doubles the top accent", () => {
+    render(
+      <CompactRestaurantCard restaurant={restaurant()} saved={false} onOpen={() => {}} onToggleSaved={() => {}} />,
+    );
+    const card = screen.getByTestId("compact-restaurant-card");
+    for (const token of [
+      "focus-visible:outline-2",
+      "focus-visible:outline-offset-0!",
+      "focus-visible:border-lavender-600",
+      "focus-visible:outline-lavender-600",
+    ]) {
+      expect(card.className).toContain(token);
+    }
+    // Pointer interaction adds no persistent outline: focus styles are
+    // :focus-visible only.
+    expect(card.className).not.toMatch(/(^|\s)focus:outline/);
   });
 
   it("never renders an internal why_fiyu value", () => {

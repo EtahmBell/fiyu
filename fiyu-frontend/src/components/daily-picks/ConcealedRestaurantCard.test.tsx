@@ -35,6 +35,20 @@ describe("Pick flip", () => {
     expect(screen.queryByTestId("revealed-restaurant-card")).toBeNull();
   });
 
+  it("sizes each Pick with a text-free replica that stays mounted after reveal", () => {
+    const { rerender } = render(<ConcealedRestaurantCard {...props} revealed={false} />);
+    const sizer = screen.getByTestId("compact-card-sizer");
+    // Nothing identifying: no name, no score, no text at all beyond spacing.
+    expect(sizer.textContent?.replace(/\s|\u00a0/g, "")).toBe("");
+    expect(sizer.closest("[aria-hidden='true']")).not.toBeNull();
+    expect(sizer.querySelector("a, button")).toBeNull();
+    expect(screen.queryByLabelText(/Fiyu score/)).toBeNull();
+    rerender(<ConcealedRestaurantCard {...props} revealed />);
+    settle();
+    // Still present once revealed, so the cell cannot shrink when the back unmounts.
+    expect(screen.getByTestId("compact-card-sizer")).toBe(sizer);
+  });
+
   it("keeps pending requests concealed and disabled", () => {
     render(<ConcealedRestaurantCard {...props} revealed={false} revealPending />);
     const button = screen.getByRole("button", { name: "Reveal Fiyu Pick 1" });

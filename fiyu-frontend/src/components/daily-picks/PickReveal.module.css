@@ -1,17 +1,17 @@
 /*
- * Shared geometry: no identifying front content mounts before success.
+ * Shared geometry, per Pick: no identifying front content mounts before
+ * success, and nothing ever scrolls inside the card.
  *
- * Both faces share one grid cell, so the scene is as tall as its tallest face
- * and nothing ever scrolls inside the card. The floor below is the tallest the
- * resting front can be -- two-line name, one-line romanization, clamped copy
- * and one utility row -- so the concealed back already occupies the revealed
- * card's footprint and the reveal never moves the Picks beneath it. Only an
- * explicit Read more lets a card grow past it.
+ * The sizer, both faces and nothing else share one grid cell. The sizer is an
+ * invisible, text-free replica of this Pick's revealed card (see
+ * CompactCardSizer), so the cell is already the revealed card's height while
+ * the Pick is concealed, and it stays mounted afterwards so the cell cannot
+ * shrink when the back face unmounts. The reveal therefore never moves the
+ * Picks beneath it; only an explicit Read more lets a card grow.
  */
 .scene {
   position: relative;
   min-width: 0;
-  min-height: 20.375rem;
   perspective: 1100px;
   --reveal-accent: var(--color-lavender-500);
   --reveal-lift: -3px;
@@ -19,8 +19,13 @@
 .rotor {
   position: relative;
   display: grid;
-  min-height: inherit;
   transform-style: preserve-3d;
+}
+.sizer {
+  grid-area: 1 / 1;
+  min-width: 0;
+  visibility: hidden;
+  pointer-events: none;
 }
 .rotor[data-front="true"] { transform: rotateY(180deg); }
 .rotor[data-moving="true"] { animation: flip 500ms cubic-bezier(.2,.7,.25,1) both; }
@@ -75,13 +80,6 @@
 }
 @keyframes sweep { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
 @keyframes edge { 0%, 100% { opacity: 0; } 55% { opacity: .75; } }
-/*
- * Narrow phones: below 390px the price shares less room with Read more, and
- * below 360px the utility row may wrap, so the floor rises to match.
- */
-@media (max-width: 24.37rem) { .scene { min-height: 22.125rem; } }
-@media (max-width: 22.49rem) { .scene { min-height: 24.75rem; } }
-@media (min-width: 64rem) { .scene { min-height: 24.25rem; } }
 @media (prefers-reduced-motion: reduce) {
   .scene { perspective: none; }
   .rotor, .rotor[data-front="true"], .rotor[data-moving="true"], .front { animation: none; transform: none; }

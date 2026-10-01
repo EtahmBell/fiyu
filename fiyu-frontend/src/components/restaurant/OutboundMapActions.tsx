@@ -12,6 +12,11 @@ export type OutboundMapActionsVariant = "inline" | "footer";
 export interface OutboundMapActionsProps {
   restaurant: PublicRestaurant;
   variant?: OutboundMapActionsVariant;
+  /**
+   * Geometry only, for the Pick reveal sizer: the same boxes at the same size,
+   * with no links and no text nodes (labels are drawn by CSS `content`).
+   */
+  placeholder?: boolean;
   className?: string;
 }
 
@@ -41,6 +46,15 @@ function ExternalArrow({ accent = false }: { accent?: boolean }) {
   );
 }
 
+function linkClasses(footer: boolean): string {
+  return cn(
+    "relative z-10 break-words transition-colors duration-200 ease-(--ease-fiyu)",
+    footer
+      ? "inline-flex min-h-10 items-center gap-1 rounded-md px-1.5 text-[0.8125rem] font-medium whitespace-nowrap text-ink-muted transition-[background-color,color] duration-150 hover:bg-lavender-50 hover:text-plum focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-lavender-600 active:bg-lavender-100/70"
+      : "inline-flex min-h-11 items-center gap-1.5 py-2 pr-3 text-xs font-medium text-lavender-700 underline decoration-line underline-offset-2 hover:text-plum hover:decoration-lavender-500",
+  );
+}
+
 /**
  * Hand off to the user's own map app.
  *
@@ -56,6 +70,7 @@ function ExternalArrow({ accent = false }: { accent?: boolean }) {
 export function OutboundMapActions({
   restaurant,
   variant = "inline",
+  placeholder = false,
   className,
 }: OutboundMapActionsProps) {
   const links = outboundMapLinks(restaurant);
@@ -79,28 +94,37 @@ export function OutboundMapActions({
             two more buttons.
           */}
           {footer && index > 0 && (
-            <span aria-hidden="true" className="mr-1 text-ink-faint">·</span>
-          )}
-          <a
-            href={link.href}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label={link.label}
-            // The card's stretched control covers the whole surface, so these
-            // need to sit above it to stay clickable.
-            className={cn(
-              "relative z-10 break-words transition-colors duration-200 ease-(--ease-fiyu)",
-              footer
-                ? "inline-flex min-h-10 items-center gap-1 rounded-md px-1.5 text-[0.8125rem] font-medium whitespace-nowrap text-ink-muted transition-[background-color,color] duration-150 hover:bg-lavender-50 hover:text-plum focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-lavender-600 active:bg-lavender-100/70"
-                : "inline-flex min-h-11 items-center gap-1.5 py-2 pr-3 text-xs font-medium text-lavender-700 underline decoration-line underline-offset-2 hover:text-plum hover:decoration-lavender-500",
-            )}
-          >
-            <span>
-              {SHORT_LABELS[link.id]}
-              <span className={footer ? "hidden min-[25rem]:inline" : undefined}> Maps</span>
+            <span
+              aria-hidden="true"
+              className={cn("mr-1 text-ink-faint", placeholder && "before:content-['·']")}
+            >
+              {placeholder ? null : "·"}
             </span>
-            <ExternalArrow accent={footer} />
-          </a>
+          )}
+          {placeholder ? (
+            <span aria-hidden="true" className={linkClasses(footer)}>
+              <span data-label={SHORT_LABELS[link.id]} className="before:content-[attr(data-label)]">
+                <span className={cn(footer ? "hidden min-[25rem]:inline" : undefined, "before:content-['_Maps']")} />
+              </span>
+              <ExternalArrow accent={footer} />
+            </span>
+          ) : (
+            <a
+              href={link.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={link.label}
+              // The card's stretched control covers the whole surface, so these
+              // need to sit above it to stay clickable.
+              className={linkClasses(footer)}
+            >
+              <span>
+                {SHORT_LABELS[link.id]}
+                <span className={footer ? "hidden min-[25rem]:inline" : undefined}> Maps</span>
+              </span>
+              <ExternalArrow accent={footer} />
+            </a>
+          )}
         </li>
       ))}
     </ul>

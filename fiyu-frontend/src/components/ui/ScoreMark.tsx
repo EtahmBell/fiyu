@@ -8,21 +8,41 @@ export type ScoreMarkSize = "sm" | "md" | "lg" | "card";
  * 8-9px it was the least legible text on the card while naming the most
  * important thing on it.
  */
-const SIZES: Record<ScoreMarkSize, { numeral: string; label: string; rule: string; zone: string }> = {
-  sm: { numeral: "text-[1.375rem]", label: "text-[0.625rem]", rule: "w-5", zone: "px-2.5 pt-2 pb-2.5" },
-  md: { numeral: "text-[1.75rem]", label: "text-[0.6875rem]", rule: "w-6", zone: "px-3 pt-2.5 pb-3" },
-  lg: { numeral: "text-[2.5rem]", label: "text-[0.6875rem]", rule: "w-8", zone: "px-4 pt-3 pb-3.5" },
+type SizeSpec = {
+  numeral: string;
+  label: string;
+  rule: string;
+  zone: string;
+  /** Space above the numeral, then above the rule. */
+  numeralGap: string;
+  ruleGap: string;
+};
+
+const SIZES: Record<ScoreMarkSize, SizeSpec> = {
+  sm: {
+    numeral: "text-[1.375rem]", label: "text-[0.625rem]", rule: "w-5", zone: "px-2.5 pt-2 pb-2.5",
+    numeralGap: "mt-1 lg:mt-1.5", ruleGap: "mt-1.5 lg:mt-2",
+  },
+  md: {
+    numeral: "text-[1.75rem]", label: "text-[0.6875rem]", rule: "w-6", zone: "px-3 pt-2.5 pb-3",
+    numeralGap: "mt-1 lg:mt-1.5", ruleGap: "mt-1.5 lg:mt-2",
+  },
+  lg: {
+    numeral: "text-[2.5rem]", label: "text-[0.6875rem]", rule: "w-8", zone: "px-4 pt-3 pb-3.5",
+    numeralGap: "mt-1 lg:mt-1.5", ruleGap: "mt-1.5 lg:mt-2",
+  },
   /*
-   * The discovery card. 30px on a phone: with the zone behind it the numeral
-   * can be a touch larger than the old free-floating 28px without out-shouting
-   * the restaurant's 22px name, because the wash, not the size, is what now
-   * sets it apart.
+   * The discovery card: set on the card's paper beside the name, so the
+   * wordmark, numeral and rule are packed to the name block's own height (the
+   * rule lands level with the romanization line) instead of adding a row.
    */
   card: {
     numeral: "text-[1.875rem] lg:text-[2.25rem]",
     label: "text-[0.625rem] lg:text-[0.6875rem]",
     rule: "w-5 lg:w-6",
     zone: "px-3 pt-2.5 pb-2.5 lg:px-4 lg:pt-3.5 lg:pb-3",
+    numeralGap: "mt-0.5 lg:mt-1",
+    ruleGap: "mt-1 lg:mt-1.5",
   },
 };
 
@@ -44,8 +64,9 @@ const TONES: Record<ScoreMarkTone, Palette> = {
 
 /**
  * An exceptional score (9.0+) is the one place brass meets the present tense.
- * Same type, same geometry -- only the wash and the rule turn champagne, so it
- * reads as the same mark quietly distinguished rather than as a badge.
+ * Same type, same geometry -- only the wordmark and the rule (and the wash,
+ * where a surface uses one) turn champagne, so it reads as the same mark
+ * quietly distinguished rather than as a badge.
  */
 const EXCEPTIONAL: Palette = { label: "text-gold-700", rule: "bg-gold", zone: "bg-gold-soft" };
 
@@ -54,13 +75,18 @@ export interface ScoreMarkProps {
   size?: ScoreMarkSize;
   tone?: ScoreMarkTone;
   /**
-   * Sit the mark on its tinted zone. The caller shapes the zone (usually by
-   * anchoring it into a corner of the card) so it reads as part of the card's
-   * construction rather than as a floating chip.
+   * Sit the mark on a tinted band. Off by default: on Pick cards the mark is
+   * set straight onto the paper, and the card's top accent carries the colour.
    */
   zone?: boolean;
   /** Left-aligned for inline rows; right-aligned (the default) for corners. */
   align?: "start" | "end";
+  /**
+   * Geometry only: the same boxes with no score, no role and no text in the
+   * DOM. Used by the Pick reveal sizer, which must match the mark's footprint
+   * before the score may be shown.
+   */
+  decorative?: boolean;
   className?: string;
 }
 
@@ -80,6 +106,7 @@ export function ScoreMark({
   tone = "current",
   zone = false,
   align = "end",
+  decorative = false,
   className,
 }: ScoreMarkProps) {
   const sizes = SIZES[size];
@@ -98,8 +125,9 @@ export function ScoreMark({
         zone && sizes.zone,
         className,
       )}
-      role="img"
-      aria-label={scoreAccessibleLabel(score)}
+      role={decorative ? undefined : "img"}
+      aria-label={decorative ? undefined : scoreAccessibleLabel(score)}
+      aria-hidden={decorative ? true : undefined}
       data-score-treatment={exceptional ? "exceptional" : "standard"}
     >
       <span
@@ -109,9 +137,10 @@ export function ScoreMark({
           palette.label,
           !hasScore && "opacity-60",
           sizes.label,
+          decorative && "before:content-['Fiyu_Score']",
         )}
       >
-        Fiyu Score
+        {decorative ? null : "Fiyu Score"}
       </span>
       {/*
        * The numeral and its denominator share one line box so `/10` sits on the
@@ -120,12 +149,13 @@ export function ScoreMark({
       <span
         aria-hidden="true"
         className={cn(
-          "mt-1 font-display leading-none whitespace-nowrap tabular-nums lg:mt-1.5",
+          "font-display leading-none whitespace-nowrap tabular-nums",
+          sizes.numeralGap,
           hasScore ? "text-plum" : "text-ink-faint",
           sizes.numeral,
         )}
       >
-        {formatFiyuScore(score)}
+        {decorative ? "\u00a0" : formatFiyuScore(score)}
         {hasScore && (
           <span className="ml-0.5 align-baseline font-sans text-[0.4em] tracking-normal text-ink-muted">
             /10
@@ -134,7 +164,7 @@ export function ScoreMark({
       </span>
       <span
         aria-hidden="true"
-        className={cn("mt-1.5 h-0.5 rounded-full lg:mt-2", palette.rule, sizes.rule, !hasScore && "opacity-30")}
+        className={cn("h-0.5 rounded-full", sizes.ruleGap, palette.rule, sizes.rule, !hasScore && "opacity-30")}
       />
     </div>
   );

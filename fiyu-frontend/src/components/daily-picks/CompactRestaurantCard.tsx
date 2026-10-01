@@ -14,6 +14,7 @@ import {
 import { OutboundMapActions } from "@/components/restaurant/OutboundMapActions";
 import { RestaurantPhoto } from "@/components/restaurant/RestaurantPhoto";
 import { TagList } from "@/components/restaurant/TagList";
+import { CARD_LAYOUT } from "@/components/daily-picks/compactCardLayout";
 import { ScoreMark } from "@/components/ui/ScoreMark";
 import type { PublicRestaurant } from "@/lib/api/schemas";
 import {
@@ -45,6 +46,33 @@ function sameDisplayName(first: string, second: string): boolean {
   return normalize(first) === normalize(second);
 }
 
+/**
+ * What a compact card shows, derived once so the card and its reveal sizer
+ * always agree on which rows exist.
+ */
+export function compactCardContent(restaurant: PublicRestaurant) {
+  const englishName = englishStructuredValue(restaurant.name_en);
+  const title = restaurant.name_ja?.trim() || englishName || "Unnamed restaurant";
+  const titleLang: "ja" | "en" = restaurant.name_ja?.trim() ? "ja" : "en";
+  const subtitle = englishName && !sameDisplayName(englishName, title) ? englishName : null;
+  // With no distinct romanization -- no English name, or one that only repeats
+  // the title (SILVER SPOON / Silver Spoon) -- the secondary line carries the
+  // cuisine and area the card already has instead.
+  const metadata = restaurantMetadataParts(englishStructuredValue(restaurant.category), {
+    display_area: englishStructuredValue(restaurant.display_area),
+    neighborhood: englishStructuredValue(restaurant.neighborhood),
+    discovery_area: englishStructuredValue(restaurant.discovery_area),
+  }).join(" · ");
+  return {
+    title,
+    titleLang,
+    secondaryLine: subtitle ?? (metadata || null),
+    description: compactDescription(restaurant),
+    tags: englishCardTags(restaurant),
+    budget: formatRestaurantBudget(restaurant.budget),
+  };
+}
+
 function BookmarkIcon({ filled }: { filled: boolean }) {
   return (
     <svg
@@ -74,10 +102,11 @@ function BookmarkIcon({ filled }: { filled: boolean }) {
  * that belongs to a pair, and takes plum in the same two places.
  *
  * All three stay on white paper with the same structure. The tense is carried
- * by the accent across the top edge and by the score zone, never by the card's
- * fill: three identically-shaped restaurants have to be equally readable
- * whichever section a reader is in. An exceptional (9+) current Pick swaps that
- * accent and zone for brass and changes nothing else.
+ * by the accent across the top edge and by the score's wordmark and rule,
+ * never by the card's fill or a tinted panel: three identically-shaped
+ * restaurants have to be equally readable whichever section a reader is in. An
+ * exceptional (9+) current Pick swaps that accent and rule for brass and
+ * changes nothing else.
  */
 export type CompactCardTone = "current" | "history" | "together";
 
@@ -88,10 +117,16 @@ const TONE_EDGE: Record<CompactCardTone, string> = {
   together: "before:bg-plum-500",
 };
 
+/*
+ * Keyboard focus sits flush on the card (offset 0) and takes the border with
+ * it, so outline, border and the inset top accent read as one continuous band
+ * rather than two parallel lines. `:focus-visible` only: a pointer press
+ * leaves no outline behind.
+ */
 const TONE_FOCUS: Record<CompactCardTone, string> = {
-  current: "focus-visible:outline-lavender-600",
-  history: "focus-visible:outline-gold",
-  together: "focus-visible:outline-plum-700",
+  current: "focus-visible:border-lavender-600 focus-visible:outline-lavender-600",
+  history: "focus-visible:border-gold focus-visible:outline-gold",
+  together: "focus-visible:border-plum-700 focus-visible:outline-plum-700",
 };
 
 export interface CompactRestaurantCardProps {
@@ -147,22 +182,9 @@ export function CompactRestaurantCard({
   onToggleSaved,
 }: CompactRestaurantCardProps) {
   const history = tone === "history";
-  const englishName = englishStructuredValue(restaurant.name_en);
-  const title = restaurant.name_ja?.trim() || englishName || "Unnamed restaurant";
-  const subtitle = englishName && !sameDisplayName(englishName, title) ? englishName : null;
-  // With no distinct romanization -- no English name, or one that only repeats
-  // the title (SILVER SPOON / Silver Spoon) -- the secondary line carries the
-  // cuisine and area the card already has instead.
-  const metadata = restaurantMetadataParts(englishStructuredValue(restaurant.category), {
-    display_area: englishStructuredValue(restaurant.display_area),
-    neighborhood: englishStructuredValue(restaurant.neighborhood),
-    discovery_area: englishStructuredValue(restaurant.discovery_area),
-  }).join(" · ");
-  const secondaryLine = subtitle ?? (metadata || null);
+  const { title, titleLang, secondaryLine, description, tags, budget } =
+    compactCardContent(restaurant);
   const exceptional = tone === "current" && hasGoldFiyuTreatment(restaurant.fiyu_score);
-  const description = compactDescription(restaurant);
-  const tags = englishCardTags(restaurant);
-  const budget = formatRestaurantBudget(restaurant.budget);
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
   const [descriptionTruncated, setDescriptionTruncated] = useState(false);
   const descriptionRef = useRef<HTMLParagraphElement>(null);
@@ -269,7 +291,8 @@ export function CompactRestaurantCard({
       className={cn(
         // A sheet of card paper: warm hairline edge, one barely-there fall of
         // shadow, and 16px of breathing room (20px on desktop).
-        "relative flex min-w-0 w-full flex-col overflow-hidden rounded-card border border-paper-line bg-surface px-4 pt-[1.1875rem] pb-1.5 shadow-paper lg:px-5 lg:pt-[1.4375rem] lg:pb-2",
+        CARD_LAYOUT.frame,
+        "border-paper-line bg-surface shadow-paper",
         // The one coloured edge: a 3px accent across the top, clipped by the
         // card's own radius, so it reads as a printed rule rather than an
         // outline. The other three sides stay neutral.
@@ -278,7 +301,10 @@ export function CompactRestaurantCard({
         "transition-[border-color] duration-150 ease-(--ease-fiyu)",
         onOpen &&
           cn(
-            "cursor-pointer hover:border-line-strong focus-visible:outline-2 focus-visible:outline-offset-2",
+            // `!`: the global focus rule in globals.css is unlayered and would
+            // otherwise restore its 2px offset, re-opening a gap (a second
+            // line) between the outline and the card edge.
+            "cursor-pointer hover:border-line-strong focus-visible:outline-2 focus-visible:outline-offset-0! focus-visible:rounded-card!",
             TONE_FOCUS[tone],
           ),
       )}
@@ -288,44 +314,41 @@ export function CompactRestaurantCard({
         data-testid="compact-card-layout"
         className="min-w-0"
       >
-        <div className="flex min-w-0 items-start justify-between gap-3">
-          <div className="min-w-0 flex-1 pt-0.5">
+        <div className={CARD_LAYOUT.header}>
+          <div className={CARD_LAYOUT.titleBlock}>
             <h3
-              lang={restaurant.name_ja?.trim() ? "ja" : "en"}
+              lang={titleLang}
               // The strongest text on the card, at a size that holds Japanese
               // glyphs with confidence.
-              className="line-clamp-2 break-words font-display text-[1.375rem] leading-[1.15] text-ink lg:text-[1.5rem]"
+              className={cn(CARD_LAYOUT.title, "text-ink")}
             >
               {title}
             </h3>
             {secondaryLine && (
-              <p className="mt-0.5 line-clamp-1 break-words text-[0.8125rem] leading-5 text-ink-muted">
+              <p className={cn(CARD_LAYOUT.secondary, "text-ink-muted")}>
                 {secondaryLine}
               </p>
             )}
           </div>
 
           {/*
-            The score zone is anchored into the card's top-right corner: the
-            negative margins cancel the card's padding, so the wash shares the
-            card's radius and reads as part of its construction rather than as
-            a chip floating on it.
+            Set on the card's own paper, level with the name: the tracked
+            wordmark aligns with the title's cap line and the rule closes the
+            name block. The top accent already carries the colour mass, so the
+            score needs no panel of its own.
           */}
           <ScoreMark
             score={restaurant.fiyu_score}
             size="card"
             tone={tone}
-            zone
-            className="-mt-[1.1875rem] -mr-4 rounded-bl-xl lg:-mt-[1.4375rem] lg:-mr-5"
+            className={CARD_LAYOUT.score}
           />
         </div>
 
         <div
           className={cn(
-            "mt-3 min-w-0",
-            descriptionExpanded
-              ? "flow-root"
-              : "grid grid-cols-[6.75rem_minmax(0,1fr)] gap-3 lg:grid-cols-[34%_minmax(0,1fr)] lg:gap-4",
+            CARD_LAYOUT.body,
+            descriptionExpanded ? "flow-root" : CARD_LAYOUT.bodyGrid,
           )}
         >
           <RestaurantPhoto
@@ -333,19 +356,20 @@ export function CompactRestaurantCard({
             restaurantName={title}
             fill
             className={cn(
-              "h-24 min-w-0 lg:h-28",
+              CARD_LAYOUT.photo,
               descriptionExpanded
                 ? "float-left mr-3 mb-1 w-[6.75rem] lg:mr-4 lg:w-[34%]"
                 : "w-full",
             )}
           />
-          <div className={cn("flex min-w-0 flex-col", !descriptionExpanded && "min-h-24 lg:min-h-28")}>
+          <div className={cn(CARD_LAYOUT.textColumn, !descriptionExpanded && CARD_LAYOUT.textColumnResting)}>
             {description && (
               <p
                 ref={descriptionRef}
                 id={descriptionId}
                 className={cn(
-                  "text-[0.90625rem] leading-[1.375rem] text-ink-body",
+                  CARD_LAYOUT.description,
+                  "text-ink-body",
                   !descriptionExpanded && "line-clamp-3",
                 )}
               >
@@ -359,7 +383,7 @@ export function CompactRestaurantCard({
               visually so the price leads on the left.
             */}
             {(budget || showReadToggle) && (
-              <div className="mt-auto flex min-w-0 flex-row-reverse flex-wrap items-center justify-between gap-x-3 pt-1">
+              <div className={CARD_LAYOUT.bodyRow}>
                 {showReadToggle && (
                   <button
                     type="button"
@@ -371,7 +395,12 @@ export function CompactRestaurantCard({
                       event.stopPropagation();
                       setDescriptionExpanded((expanded) => !expanded);
                     }}
-                    className="-mr-1 inline-flex min-h-8 shrink-0 items-center rounded-md px-1 text-[0.8125rem] font-medium text-lavender-700 underline decoration-lavender-500/40 underline-offset-[3px] transition-colors duration-150 hover:text-plum hover:decoration-lavender-600 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-lavender-600"
+                    className={cn(
+                      CARD_LAYOUT.readMore,
+                      // A 28px row, with the hit area extended past it by an
+                      // invisible pseudo-element rather than by more height.
+                      "relative rounded-md text-lavender-700 underline decoration-lavender-500/40 underline-offset-[3px] transition-colors duration-150 before:absolute before:-inset-x-1 before:-inset-y-2 before:content-[''] hover:text-plum hover:decoration-lavender-600 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-lavender-600",
+                    )}
                   >
                     {descriptionExpanded ? "Read less" : "Read more"}
                   </button>
@@ -381,7 +410,7 @@ export function CompactRestaurantCard({
                   // digit is a wrong price.
                   <p
                     data-testid="compact-card-budget"
-                    className="mr-auto shrink-0 py-1 text-[0.8125rem] leading-5 font-medium whitespace-nowrap text-ink-body tabular-nums"
+                    className={cn(CARD_LAYOUT.price, "text-ink-body")}
                   >
                     {budget}
                   </p>
@@ -410,21 +439,23 @@ export function CompactRestaurantCard({
       </div>
 
       {tags.length > 0 && (
-        <TagList tags={tags} max={3} className="mt-3 hidden lg:flex" />
+        // One row only: a wrapping second row of chips would make the card's
+        // height depend on tag text the concealed face cannot know.
+        <TagList tags={tags} max={3} className={CARD_LAYOUT.tags} />
       )}
 
       {/*
         Three tiers. The primary action owns a full row with Save at its right
         edge; Why Fiyu found it and the two map hand-offs sit in a quieter
-        utility row beneath. `mt-auto` lets any spare height from the shared
-        reveal geometry fall above the actions rather than below them.
+        utility row beneath. `mt-auto` keeps the actions on the card's bottom
+        edge when an expanded neighbour-free layout leaves spare height.
       */}
       <div
         data-testid="compact-card-footer"
-        className="relative z-10 mt-auto min-w-0 pt-2"
+        className={CARD_LAYOUT.footer}
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="flex min-w-0 items-center gap-2 border-t border-line pt-1">
+        <div className={cn(CARD_LAYOUT.actionRow, "border-line")}>
           {onViewDetails && (
             <button
               type="button"
@@ -461,7 +492,8 @@ export function CompactRestaurantCard({
               event.stopPropagation();
             }}
             className={cn(
-              "relative z-10 -mr-2 ml-auto inline-flex size-11 shrink-0 items-center justify-center rounded-lg",
+              "relative z-10 -mr-2 ml-auto inline-flex items-center justify-center rounded-lg",
+              CARD_LAYOUT.saveAction,
               "transition-[background-color,color,transform] duration-150",
               "ease-(--ease-fiyu) active:scale-[0.97]",
               "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600",
@@ -474,7 +506,7 @@ export function CompactRestaurantCard({
             <BookmarkIcon filled={saved} />
           </button>
         </div>
-        <div className="flex min-w-0 flex-wrap items-center gap-x-3 min-[22.5rem]:flex-nowrap">
+        <div className={CARD_LAYOUT.utilityRow}>
           {onViewDetails && tone !== "together" && (
             <button
               type="button"
@@ -482,7 +514,10 @@ export function CompactRestaurantCard({
                 event.stopPropagation();
                 onViewDetails(restaurant);
               }}
-              className="-ml-2 inline-flex min-h-10 shrink-0 items-center gap-1 rounded-md px-2 text-[0.8125rem] font-medium whitespace-nowrap text-ink-body transition-colors duration-150 ease-(--ease-fiyu) hover:bg-lavender-50 hover:text-plum focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600 active:bg-lavender-100/70"
+              className={cn(
+                CARD_LAYOUT.why,
+                "rounded-md text-ink-body transition-colors duration-150 ease-(--ease-fiyu) hover:bg-lavender-50 hover:text-plum focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600 active:bg-lavender-100/70",
+              )}
             >
               Why Fiyu found it
               <ChevronIcon />

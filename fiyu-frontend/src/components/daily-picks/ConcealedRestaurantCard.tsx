@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { CompactCardSizer } from "@/components/daily-picks/CompactCardSizer";
 import { CompactRestaurantCard } from "@/components/daily-picks/CompactRestaurantCard";
 import type { PublicRestaurant } from "@/lib/api/schemas";
 import { hasGoldFiyuTreatment } from "@/lib/format/score";
@@ -64,6 +65,9 @@ export function ConcealedRestaurantCard({
       onClickCapture={(event) => { if (moving) { event.preventDefault(); event.stopPropagation(); } }}
     >
       <div className={styles.rotor} data-front={revealed} data-moving={moving}>
+        <div className={styles.sizer} aria-hidden="true" inert>
+          <CompactCardSizer restaurant={restaurant} hasDetails={Boolean(onViewDetails)} />
+        </div>
         {(!revealed || moving) && <div className={styles.back} aria-hidden={revealed} inert={revealed}>
           <button type="button" disabled={revealPending} aria-busy={revealPending}
             aria-label={`Reveal Fiyu Pick ${position}`}

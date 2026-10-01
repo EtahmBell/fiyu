@@ -23,4 +23,16 @@ describe("DailyCardFrame semantic selection accents", () => {
     );
     expect(screen.getByText("History").parentElement?.className).toContain("--color-gold");
   });
+
+  it("draws selection flush with the card so it never reads as a second line", () => {
+    render(
+      <DailyCardFrame placeId="one" selected>
+        <article>Card</article>
+      </DailyCardFrame>,
+    );
+    const frame = screen.getByText("Card").parentElement;
+    expect(frame?.className).toContain("shadow-[0_0_0_1px_var(--color-lavender-500)]");
+    expect(frame?.className).toContain("[&_article]:border-lavender-500!");
+    expect(frame?.className).not.toContain("0_0_0_3px");
+  });
 });
