@@ -2,6 +2,13 @@ const PICKS_RETURN_STATE_KEY = "fiyu.picks-detail-return.v1";
 
 export const WHY_FIYU_FOUND_IT_SECTION = "why-fiyu-found-it";
 export type RestaurantDetailSection = typeof WHY_FIYU_FOUND_IT_SECTION;
+export const SCORE_BREAKDOWN_QUERY_PARAM = "score-breakdown";
+const SCORE_BREAKDOWN_OPEN_VALUE = "open";
+
+export type RestaurantDetailSearchParams = Record<
+  string,
+  string | string[] | undefined
+>;
 
 export interface PicksReturnState {
   placeId: string;
@@ -63,5 +70,13 @@ export function restaurantDetailHref(
   section?: RestaurantDetailSection,
 ): string {
   const href = `/restaurants/${encodeURIComponent(placeId)}`;
-  return section ? `${href}#${section}` : href;
+  return section
+    ? `${href}?${SCORE_BREAKDOWN_QUERY_PARAM}=${SCORE_BREAKDOWN_OPEN_VALUE}#${section}`
+    : href;
+}
+
+export function scoreBreakdownInitiallyOpen(
+  searchParams: RestaurantDetailSearchParams,
+): boolean {
+  return searchParams[SCORE_BREAKDOWN_QUERY_PARAM] === SCORE_BREAKDOWN_OPEN_VALUE;
 }

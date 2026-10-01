@@ -247,12 +247,14 @@ function RestaurantDetailContent({
   saveError,
   onToggleSaved,
   mapRestaurants,
+  initialScoreBreakdownOpen,
 }: {
   restaurant: PublicRestaurantDetail;
   saved: boolean;
   saveError: string | null;
   onToggleSaved(): void;
   mapRestaurants: PublicRestaurant[];
+  initialScoreBreakdownOpen: boolean;
 }) {
   const names = resolveNames(restaurant);
   const title = names.primary?.text ?? "Restaurant";
@@ -408,7 +410,10 @@ function RestaurantDetailContent({
         </section>
       )}
 
-      <ScoreTransparency restaurant={restaurant} />
+      <ScoreTransparency
+        restaurant={restaurant}
+        initiallyOpen={initialScoreBreakdownOpen}
+      />
 
       {hasPracticalInfo && (
         <section aria-labelledby="practical-info-heading" className="relative border-t border-line pt-5 before:absolute before:-top-px before:left-0 before:h-0.5 before:w-10 before:rounded-full before:bg-lavender-500">
@@ -494,9 +499,11 @@ function RestaurantDetailContent({
 export function RestaurantDetailShell({
   restaurant,
   restaurants,
+  initialScoreBreakdownOpen = false,
 }: {
   restaurant: PublicRestaurantDetail;
   restaurants: PublicRestaurant[];
+  initialScoreBreakdownOpen?: boolean;
 }) {
   const router = useRouter();
   const focusRef = useRef<HTMLElement>(null);
@@ -576,6 +583,7 @@ export function RestaurantDetailShell({
             saveError={defaultList.operationError}
             onToggleSaved={toggleSaved}
             mapRestaurants={visibleRestaurants}
+            initialScoreBreakdownOpen={initialScoreBreakdownOpen}
           />
         </div>
       </section>

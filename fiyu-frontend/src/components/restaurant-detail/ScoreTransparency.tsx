@@ -1,10 +1,18 @@
 import Link from "next/link";
+import { useState } from "react";
 
 import type { PublicRestaurantDetail } from "@/lib/api/schemas";
 import { WHY_FIYU_FOUND_IT_SECTION } from "@/lib/navigation/restaurantDetail";
 
-export function ScoreTransparency({ restaurant }: { restaurant: PublicRestaurantDetail }) {
+export function ScoreTransparency({
+  restaurant,
+  initiallyOpen = false,
+}: {
+  restaurant: PublicRestaurantDetail;
+  initiallyOpen?: boolean;
+}) {
   const explanation = restaurant.score_transparency;
+  const [breakdownOpen, setBreakdownOpen] = useState(initiallyOpen);
   return (
     <section id={WHY_FIYU_FOUND_IT_SECTION} aria-labelledby="why-fiyu-heading" className="relative min-w-0 scroll-mt-20 border-t border-line pt-5 before:absolute before:-top-px before:left-0 before:h-0.5 before:w-10 before:rounded-full before:bg-lavender-500">
       <h2 id="why-fiyu-heading" className="font-display text-2xl text-ink">Why Fiyu found it</h2>
@@ -13,7 +21,11 @@ export function ScoreTransparency({ restaurant }: { restaurant: PublicRestaurant
       ) : (
         <p className="mt-3 text-sm leading-6 text-ink-muted">Detailed discovery evidence is not available for this restaurant.</p>
       )}
-      <details className="mt-4 border-y border-line">
+      <details
+        open={breakdownOpen}
+        onToggle={(event) => setBreakdownOpen(event.currentTarget.open)}
+        className="mt-4 border-y border-line"
+      >
         <summary className="min-h-11 cursor-pointer py-3 text-sm font-medium text-plum focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600">
           Signals behind the score
         </summary>

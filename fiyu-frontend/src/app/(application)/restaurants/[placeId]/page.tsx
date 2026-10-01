@@ -6,15 +6,24 @@ import { BackendUnavailable } from "@/components/states/BackendUnavailable";
 import { fetchRestaurant, fetchRestaurants } from "@/lib/api/client";
 import { isFiyuApiError } from "@/lib/api/errors";
 import type { PublicRestaurant } from "@/lib/api/schemas";
+import {
+  scoreBreakdownInitiallyOpen,
+  type RestaurantDetailSearchParams,
+} from "@/lib/navigation/restaurantDetail";
 
 export const metadata: Metadata = { title: "Restaurant" };
 
 export default async function RestaurantDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ placeId: string }>;
+  searchParams?: Promise<RestaurantDetailSearchParams>;
 }) {
   const { placeId } = await params;
+  const initialScoreBreakdownOpen = scoreBreakdownInitiallyOpen(
+    searchParams ? await searchParams : {},
+  );
 
   let restaurant;
   try {
@@ -42,5 +51,11 @@ export default async function RestaurantDetailPage({
     // unavailable. Its own selected pin still renders when it is eligible.
   }
 
-  return <RestaurantDetailShell restaurant={restaurant} restaurants={restaurants} />;
+  return (
+    <RestaurantDetailShell
+      restaurant={restaurant}
+      restaurants={restaurants}
+      initialScoreBreakdownOpen={initialScoreBreakdownOpen}
+    />
+  );
 }

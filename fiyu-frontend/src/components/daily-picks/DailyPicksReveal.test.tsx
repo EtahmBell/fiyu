@@ -53,11 +53,54 @@ describe("canonical Pick reveals", () => {
     const button = screen.getByRole("button", { name: "Reveal Fiyu Pick 1" });
     fireEvent.click(button); fireEvent.click(button);
     expect(api.revealDailyPicks).toHaveBeenCalledTimes(1);
+    expect(button.textContent).toContain("Revealing…");
+    for (const position of [2, 3]) {
+      const other = screen.getByRole("button", { name: `Reveal Fiyu Pick ${position}` });
+      expect(other.textContent).toContain("Tap to reveal");
+      expect(other.getAttribute("aria-busy")).toBe("false");
+    }
     expect(screen.queryByTestId("revealed-restaurant-card")).toBeNull();
     expect(browserDailyPicksStorage("reveal-test").getSnapshot()?.discoveries).toEqual([]);
     await act(async () => resolve(result("1")));
     expect(screen.getByTestId("revealed-restaurant-card").dataset.revealMotion).toBe("flipping");
+    expect(screen.getByRole("button", { name: "Reveal Fiyu Pick 2" }).textContent)
+      .toContain("Tap to reveal");
     expect(browserDailyPicksStorage("reveal-test").getSnapshot()?.selection?.revealedIds).toEqual(["1"]);
+  });
+
+  it("marks every participating concealed card busy during Reveal all", async () => {
+    let resolve!: (value: ReturnType<typeof result>) => void;
+    vi.mocked(api.revealDailyPicks).mockReturnValue(new Promise((done) => { resolve = done; }));
+    await mount();
+
+    fireEvent.click(screen.getByRole("button", { name: "Reveal all Fiyu Picks" }));
+
+    for (const position of [1, 2, 3]) {
+      const button = screen.getByRole("button", { name: `Reveal Fiyu Pick ${position}` });
+      expect(button.textContent).toContain("Revealing…");
+      expect(button.getAttribute("aria-busy")).toBe("true");
+    }
+
+    await act(async () => resolve(result("1")));
+    await act(async () => { await vi.advanceTimersByTimeAsync(700); });
+    expect(screen.queryByRole("button", { name: /Reveal Fiyu Pick/ })).toBeNull();
+  });
+
+  it("returns every card to its normal state after an individual reveal fails", async () => {
+    let reject!: (reason: Error) => void;
+    vi.mocked(api.revealDailyPicks).mockReturnValue(new Promise((_resolve, fail) => {
+      reject = fail;
+    }));
+    await mount();
+
+    fireEvent.click(screen.getByRole("button", { name: "Reveal Fiyu Pick 2" }));
+    expect(screen.getByRole("button", { name: "Reveal Fiyu Pick 2" }).textContent)
+      .toContain("Revealing…");
+
+    await act(async () => reject(new Error("offline")));
+
+    expect(screen.getAllByText("Tap to reveal")).toHaveLength(3);
+    expect(screen.getByText("We couldn’t save the reveal. Try again.")).toBeTruthy();
   });
 
   it("uses the same requests with a 150ms stagger and preserves round timing", async () => {
@@ -100,6 +143,7 @@ describe("canonical Pick reveals", () => {
     expect(api.revealDailyPicks).toHaveBeenCalledTimes(2);
     expect(screen.getAllByTestId("revealed-restaurant-card")).toHaveLength(1);
     expect(screen.getByText("We couldn’t save the reveal. Try again.")).toBeTruthy();
+    expect(screen.getAllByText("Tap to reveal")).toHaveLength(2);
     vi.mocked(api.revealDailyPicks).mockImplementation(async (_round, id) => result(id));
     await clickAll(); await act(async () => { await vi.advanceTimersByTimeAsync(700); });
     expect(vi.mocked(api.revealDailyPicks).mock.calls.map((call) => call[1])).toEqual(["1", "2", "2", "3"]);

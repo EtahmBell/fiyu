@@ -38,6 +38,18 @@ it("shows evidence separately from a native, keyboard-accessible signal disclosu
   expect(disclosure.open).toBe(false);
 });
 
+it("can start open from dedicated navigation and still be collapsed and reopened", () => {
+  render(<ScoreTransparency restaurant={restaurant} initiallyOpen />);
+  const summary = screen.getByText("Signals behind the score");
+  const disclosure = summary.closest("details")!;
+
+  expect(disclosure.open).toBe(true);
+  fireEvent.click(summary);
+  expect(disclosure.open).toBe(false);
+  fireEvent.click(summary);
+  expect(disclosure.open).toBe(true);
+});
+
 it.each([undefined, null])("handles absent legacy explanation without inventing evidence (%s)", (value) => {
   const legacy = publicRestaurantDetailSchema.parse({ place_id: "legacy", score_transparency: value });
   render(<ScoreTransparency restaurant={legacy} />);

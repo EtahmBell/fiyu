@@ -222,7 +222,7 @@ export function DailyPicksPanel({
     ? readAccountQuery<DailyPicksHydration>(hydrationKey)
     : undefined;
   const [inventoryMessage, setInventoryMessage] = useState<string | null>(null);
-  const [revealPending, setRevealPending] = useState(false);
+  const [revealingPlaceId, setRevealingPlaceId] = useState<string | null>(null);
   const [revealingAll, setRevealingAll] = useState(false);
   const revealLock = useRef(false);
   const revealAllLock = useRef(false);
@@ -628,7 +628,7 @@ export function DailyPicksPanel({
         initial.selection.generatedAt !== currentSelection.generatedAt ||
         initial.selection.revealedIds.includes(placeId)) return false;
     revealLock.current = true;
-    setRevealPending(true);
+    setRevealingPlaceId(placeId);
     const generation = assignmentGenerationRef.current;
     let revealedPlaceIds = [...initial.selection.revealedIds, placeId];
     const commit = () => {
@@ -718,7 +718,7 @@ export function DailyPicksPanel({
       return false;
     } finally {
       revealLock.current = false;
-      setRevealPending(false);
+      setRevealingPlaceId(null);
     }
   };
 
@@ -869,7 +869,7 @@ export function DailyPicksPanel({
                   <button
                     type="button"
                     aria-label="Reveal all Fiyu Picks"
-                    disabled={revealPending || revealingAll}
+                    disabled={revealingPlaceId !== null || revealingAll}
                     onClick={() => { void revealAll(); }}
                     className="-mr-2 inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-lg px-2 text-[0.8125rem] font-semibold text-lavender-700 transition-[background-color,color,transform] duration-150 ease-(--ease-fiyu) hover:bg-lavender-50 hover:text-plum focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600 active:scale-[0.99] active:bg-lavender-100/70 disabled:opacity-60"
                   >
@@ -944,7 +944,7 @@ export function DailyPicksPanel({
                       revealed={currentSelection.revealedIds.includes(restaurant.place_id)}
                       saved={savedRestaurantIds.includes(restaurant.place_id)}
                       savePending={defaultList.pendingPlaceIds.includes(restaurant.place_id)}
-                      revealPending={revealPending || revealingAll}
+                      revealPending={revealingAll || revealingPlaceId === restaurant.place_id}
                       onReveal={() => {
                         if (revealAllLock.current) return;
                         setInventoryMessage(null);

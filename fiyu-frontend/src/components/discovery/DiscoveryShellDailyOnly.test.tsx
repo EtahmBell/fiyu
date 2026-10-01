@@ -483,7 +483,9 @@ describe("daily-only discovery shell", () => {
 
     fireEvent.click(within(frame).getByRole("button", { name: "Why Fiyu found it" }));
 
-    expect(router.push).toHaveBeenCalledWith("/restaurants/one#why-fiyu-found-it");
+    expect(router.push).toHaveBeenCalledWith(
+      "/restaurants/one?score-breakdown=open#why-fiyu-found-it",
+    );
     expect(JSON.parse(window.sessionStorage.getItem("fiyu.picks-detail-return.v1") ?? "null"))
       .toMatchObject({ placeId: "one" });
   });
