@@ -109,7 +109,12 @@ from .supabase_auth import (
     sign_in_with_supabase,
     sign_up_with_supabase,
 )
-from .taste_affinity import UserTasteProfile, build_user_taste_profile
+from .taste_affinity import (
+    BudgetPreferenceProfile,
+    UserTasteProfile,
+    build_budget_preference_profile,
+    build_user_taste_profile,
+)
 from .together import select_together_pick_plan
 from .user_accounts import (
     create_city_poll_vote,
@@ -1576,6 +1581,7 @@ def _plan_shared_daily_picks(
     }
     visits = shared_user_data.list_visits(user_id=owner_id)
     taste_profile: UserTasteProfile | None = None
+    budget_profile: BudgetPreferenceProfile | None = None
     if any(
         isinstance(visit.get("rating"), int)
         and not isinstance(visit.get("rating"), bool)
@@ -1589,6 +1595,13 @@ def _plan_shared_daily_picks(
             visits=visits,
             catalog={str(item["place_id"]): item for item in taste_catalog_rows},
         )
+        try:
+            budget_profile = build_budget_preference_profile(
+                visits=visits,
+                catalog={str(item["place_id"]): item for item in taste_catalog_rows},
+            )
+        except Exception:  # noqa: BLE001 - optional policy must fail closed.
+            budget_profile = None
     with connect(DB_PATH) as connection:
         place_ids, metadata = select_daily_pick_plan(
             connection,
@@ -1603,6 +1616,7 @@ def _plan_shared_daily_picks(
             requested_count=3,
             seed=seed,
             taste_profile=taste_profile,
+            budget_profile=budget_profile,
         )
     metadata.update(
         {

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 import random
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
@@ -11,6 +12,7 @@ from uuid import uuid4
 
 from .database import connect
 from .taste_affinity import (
+    BudgetPreferenceProfile,
     UserTasteProfile,
     blend_affinity_and_quality,
     normalized_fiyu_quality,
@@ -26,6 +28,8 @@ ACTIVE_SNAPSHOT_DURATION = timedelta(hours=24)
 RECENT_DISCOVERY_DURATION = timedelta(hours=72)
 CHOME_ALLOWANCE_KM = 0.75
 NEIGHBORHOOD_ALLOWANCE_KM = 1.5
+MATERIALLY_NEGATIVE_AFFINITY = -0.10
+MAX_AFFORDABILITY_SACRIFICE = 1.0
 
 DAILY_PICKS_SCHEMA = """
 CREATE TABLE IF NOT EXISTS daily_pick_rounds (
@@ -359,6 +363,80 @@ def _sample_with_affordable_slot(
     return selected, True
 
 
+def _safe_relaxation_strength(profile: BudgetPreferenceProfile | None) -> float:
+    """Fail closed unless a complete price-specific profile is unquestionably valid."""
+
+    try:
+        if profile is None or not profile.valid:
+            return 0.0
+        counts = (
+            profile.affordable_rated_count,
+            profile.higher_price_rated_count,
+            profile.known_price_rated_count,
+        )
+        if any(
+            not isinstance(count, int) or isinstance(count, bool) or count < 0
+            for count in counts
+        ):
+            return 0.0
+        if (
+            profile.known_price_rated_count
+            != profile.affordable_rated_count + profile.higher_price_rated_count
+            or profile.known_price_rated_count < 6
+        ):
+            return 0.0
+        numeric = (
+            float(profile.affordable_affinity),
+            float(profile.higher_price_affinity),
+            float(profile.confidence),
+            float(profile.affordability_relaxation_strength),
+        )
+        if not all(math.isfinite(value) for value in numeric):
+            return 0.0
+        affordable_affinity, higher_affinity, confidence, relaxation = numeric
+        if not (
+            -1.0 <= affordable_affinity <= 1.0
+            and -1.0 <= higher_affinity <= 1.0
+            and 0.0 <= confidence <= 1.0
+            and 0.0 <= relaxation <= 1.0
+        ):
+            return 0.0
+        return relaxation
+    except Exception:  # noqa: BLE001 - optional policy must fail closed.
+        return 0.0
+
+
+def _interpolated_choice(
+    candidates: list[dict[str, object]],
+    *,
+    personalization_strength: float,
+    personalized_key: Any,
+) -> dict[str, object]:
+    """Continuously blend stable legacy ordering into a mature role ranking."""
+
+    if len(candidates) == 1:
+        return candidates[0]
+    legacy = sorted(candidates, key=lambda candidate: int(candidate["legacy_rank"]))
+    personalized = sorted(candidates, key=personalized_key)
+    legacy_rank = {id(candidate): index for index, candidate in enumerate(legacy)}
+    personalized_rank = {
+        id(candidate): index for index, candidate in enumerate(personalized)
+    }
+    denominator = len(candidates) - 1
+    return min(
+        candidates,
+        key=lambda candidate: (
+            (1.0 - personalization_strength)
+            * legacy_rank[id(candidate)]
+            / denominator
+            + personalization_strength
+            * personalized_rank[id(candidate)]
+            / denominator,
+            float(candidate["tiebreak"]),
+        ),
+    )
+
+
 def _personalized_selection(
     rows: list[dict[str, object]],
     count: int,
@@ -366,6 +444,7 @@ def _personalized_selection(
     rng: random.Random | random.SystemRandom,
     *,
     apply_affordable_slot: bool,
+    budget_profile: BudgetPreferenceProfile | None,
 ) -> tuple[list[dict[str, object]], list[dict[str, object]], bool] | None:
     """Compose strong, varied, and exploratory Picks from one eligible pool.
 
@@ -390,8 +469,36 @@ def _personalized_selection(
         )
     if not candidates or not any(candidate["affinity"] != 0 for candidate in candidates):
         return None
+    personalization_strength = max(0.0, min(float(profile.confidence), 1.0))
+    legacy_rows: list[dict[str, object]] = []
+    try:
+        legacy_rng = random.Random()
+        legacy_rng.setstate(rng.getstate())
+        if apply_affordable_slot:
+            legacy_rows, _ = _sample_with_affordable_slot(rows, count, legacy_rng)
+        else:
+            legacy_rows = legacy_rng.sample(rows, count)
+    except (AttributeError, NotImplementedError):
+        # SystemRandom has no cloneable state; seeded production paths do.
+        legacy_rows = []
     for candidate in candidates:
         candidate["tiebreak"] = rng.random()
+    legacy_place_ids = [str(row["place_id"]) for row in legacy_rows]
+    remaining_legacy = sorted(
+        (
+            candidate
+            for candidate in candidates
+            if str(candidate["row"]["place_id"]) not in legacy_place_ids
+        ),
+        key=lambda candidate: float(candidate["tiebreak"]),
+    )
+    legacy_order = [
+        *legacy_place_ids,
+        *(str(candidate["row"]["place_id"]) for candidate in remaining_legacy),
+    ]
+    legacy_rank = {place_id: index for index, place_id in enumerate(legacy_order)}
+    for candidate in candidates:
+        candidate["legacy_rank"] = legacy_rank[str(candidate["row"]["place_id"])]
 
     def match_key(candidate: dict[str, object]) -> tuple[float, float, float]:
         return (
@@ -403,15 +510,25 @@ def _personalized_selection(
     selected: list[dict[str, object]] = []
     reasons: list[dict[str, object]] = []
 
-    strong = min(candidates, key=match_key)
+    strong = _interpolated_choice(
+        candidates,
+        personalization_strength=personalization_strength,
+        personalized_key=match_key,
+    )
     selected.append(strong)
     reasons.append({"role": "strong_affinity", "affordable_constraint": False})
 
     if len(selected) < count:
         remaining = [candidate for candidate in candidates if candidate not in selected]
         used_facets = set(strong["facets"])
-        varied = [candidate for candidate in remaining if set(candidate["facets"]) - used_facets]
-        moderate = min(varied or remaining, key=match_key)
+        moderate = _interpolated_choice(
+            remaining,
+            personalization_strength=personalization_strength,
+            personalized_key=lambda candidate: (
+                not bool(set(candidate["facets"]) - used_facets),
+                *match_key(candidate),
+            ),
+        )
         selected.append(moderate)
         reasons.append({"role": "moderate_or_novel", "affordable_constraint": False})
 
@@ -426,18 +543,27 @@ def _personalized_selection(
             for key, value in profile.facet_affinities.items()
             if strongest_affinity is not None and value == strongest_affinity
         }
-        outside_dominant = [
-            candidate
-            for candidate in remaining
-            if not set(candidate["facets"]).intersection(dominant_facets)
-        ]
-        exploration_pool = outside_dominant or remaining
-        exploration = min(
-            exploration_pool,
-            key=lambda candidate: (
-                -float(candidate["quality"]),
-                float(candidate["tiebreak"]),
-            ),
+        def exploration_key(candidate: dict[str, object]) -> tuple[object, ...]:
+            outside_dominant = not set(candidate["facets"]).intersection(dominant_facets)
+            affinity = float(candidate["affinity"])
+            if outside_dominant and affinity >= 0:
+                tier = 0
+            elif outside_dominant and affinity > MATERIALLY_NEGATIVE_AFFINITY:
+                tier = 1
+            elif not outside_dominant and affinity >= 0:
+                tier = 2
+            elif not outside_dominant and affinity > MATERIALLY_NEGATIVE_AFFINITY:
+                tier = 3
+            elif outside_dominant:
+                tier = 4
+            else:
+                tier = 5
+            return tier, -float(candidate["quality"]), float(candidate["tiebreak"])
+
+        exploration = _interpolated_choice(
+            remaining,
+            personalization_strength=personalization_strength,
+            personalized_key=exploration_key,
         )
         selected.append(exploration)
         reasons.append({"role": "exploration", "affordable_constraint": False})
@@ -465,9 +591,20 @@ def _personalized_selection(
         if selected_affordable is None:
             required = min(affordable, key=match_key)
             replacement_index = 1 if len(selected) > 1 else len(selected) - 1
-            selected[replacement_index] = required
-            selected_affordable = replacement_index
-        reasons[selected_affordable]["affordable_constraint"] = True
+            relaxation = _safe_relaxation_strength(budget_profile)
+            sacrifice = max(
+                0.0,
+                float(selected[replacement_index]["suitability"])
+                - float(required["suitability"]),
+            )
+            allowed_sacrifice = MAX_AFFORDABILITY_SACRIFICE * (1.0 - relaxation)
+            if sacrifice <= allowed_sacrifice:
+                selected[replacement_index] = required
+                selected_affordable = replacement_index
+            else:
+                affordable_slot_applied = False
+        if selected_affordable is not None:
+            reasons[selected_affordable]["affordable_constraint"] = True
 
     paired = list(zip(selected, reasons, strict=True))
     rng.shuffle(paired)
@@ -499,6 +636,7 @@ def select_daily_pick_plan(
     allow_partial: bool = False,
     apply_affordable_slot: bool = True,
     taste_profile: UserTasteProfile | None = None,
+    budget_profile: BudgetPreferenceProfile | None = None,
 ) -> tuple[tuple[str, ...], dict[str, object]]:
     """Plan one V1 selection from the complete canonical catalog without writing."""
     catalog = _published_catalog(connection)
@@ -550,6 +688,7 @@ def select_daily_pick_plan(
                 taste_profile,
                 rng,
                 apply_affordable_slot=apply_affordable_slot,
+                budget_profile=budget_profile,
             )
             if taste_profile is not None
             else None
@@ -646,6 +785,7 @@ def select_daily_pick_plan(
             _known_affordable_budget(row) for row in selectable_rows
         ),
         "affordable_slot_applied": affordable_slot_applied,
+        "affordability_relaxation_strength": _safe_relaxation_strength(budget_profile),
         "chosen_place_ids": list(chosen_ids),
         "precision_distribution": precision_distribution,
     }

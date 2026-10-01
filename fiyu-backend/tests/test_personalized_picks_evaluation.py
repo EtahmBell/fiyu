@@ -9,8 +9,10 @@ from fiyu.daily_picks import select_daily_pick_plan
 from fiyu.database import SCHEMA, connect
 from fiyu.public_catalog import ensure_public_schema
 from fiyu.taste_affinity import (
+    BudgetPreferenceProfile,
     UserTasteProfile,
     blend_affinity_and_quality,
+    build_budget_preference_profile,
     build_user_taste_profile,
     normalized_fiyu_quality,
     score_candidate_for_user,
@@ -198,6 +200,7 @@ def _plan(
     *,
     seed: int,
     profile: UserTasteProfile | None,
+    budget_profile: BudgetPreferenceProfile | None = None,
     saved: set[str] | None = None,
     history: dict[str, datetime] | None = None,
 ) -> tuple[tuple[str, ...], dict[str, object]]:
@@ -213,6 +216,7 @@ def _plan(
             requested_count=3,
             seed=seed,
             taste_profile=profile,
+            budget_profile=budget_profile,
         )
 
 
@@ -314,6 +318,101 @@ def _role_positions(path: Path, profile: UserTasteProfile) -> dict[str, set[int]
                     position_by_id[str(slot["place_id"])]
                 )
     return positions
+
+
+def build_second_pass_evaluation_report(base_dir: Path) -> dict[str, object]:
+    """Exercise activation and budget confidence with real profile builders."""
+
+    pool = _main_pool()
+    path = base_dir / "second-pass-evaluation.db"
+    _create_pool(path, pool)
+    history_catalog: list[dict[str, Any]] = []
+    expensive_visits: list[dict[str, Any]] = []
+    for index in range(10):
+        source = pool[0]
+        place_id = f"rated-expensive-{index}"
+        history_catalog.append(_history_restaurant(place_id, source))
+        expensive_visits.append(
+            {
+                "id": f"visit-expensive-{index}",
+                "place_id": place_id,
+                "rating": 5,
+                "visited_at": f"2026-01-{index + 1:02d}",
+            }
+        )
+
+    activation = []
+    for count in (0, 1, 2, 4, 6, 10):
+        visits = expensive_visits[:count]
+        profile = _profile(visits, history_catalog)
+        budget_profile = build_budget_preference_profile(
+            visits=visits,
+            catalog={str(row["place_id"]): row for row in history_catalog},
+        )
+        selected, metadata = _plan(
+            path,
+            seed=SEED,
+            profile=profile,
+            budget_profile=budget_profile,
+        )
+        activation.append(
+            {
+                "rated_count": count,
+                "confidence": profile.confidence,
+                "budget_confidence": budget_profile.confidence,
+                "relaxation": budget_profile.affordability_relaxation_strength,
+                "selected": list(selected),
+                "roles": metadata["personalization_slots"],
+                "affordable_slot_applied": metadata["affordable_slot_applied"],
+            }
+        )
+
+    cheap_catalog = []
+    cheap_visits = []
+    for index in range(10):
+        place_id = f"rated-cheap-{index}"
+        cheap_catalog.append(_history_restaurant(place_id, pool[2]))
+        cheap_visits.append(
+            {
+                "id": f"visit-cheap-{index}",
+                "place_id": place_id,
+                "rating": 5,
+                "visited_at": f"2026-02-{index + 1:02d}",
+            }
+        )
+    both_catalog = [*history_catalog[:5], *cheap_catalog]
+    both_visits = [*expensive_visits[:5], *cheap_visits]
+    both_budget = build_budget_preference_profile(
+        visits=both_visits,
+        catalog={str(row["place_id"]): row for row in both_catalog},
+    )
+    mixed_six_catalog = [*history_catalog[:3], *cheap_catalog[:3]]
+    mixed_six_visits = [*expensive_visits[:3], *cheap_visits[:3]]
+    mixed_six_budget = build_budget_preference_profile(
+        visits=mixed_six_visits,
+        catalog={str(row["place_id"]): row for row in mixed_six_catalog},
+    )
+    affordable_budget = build_budget_preference_profile(
+        visits=cheap_visits,
+        catalog={str(row["place_id"]): row for row in cheap_catalog},
+    )
+    return {
+        "activation": activation,
+        "likes_both": {
+            "confidence": both_budget.confidence,
+            "relaxation": both_budget.affordability_relaxation_strength,
+            "affordable_affinity": both_budget.affordable_affinity,
+            "higher_price_affinity": both_budget.higher_price_affinity,
+        },
+        "mixed_six": {
+            "confidence": mixed_six_budget.confidence,
+            "relaxation": mixed_six_budget.affordability_relaxation_strength,
+        },
+        "strong_affordable": {
+            "confidence": affordable_budget.confidence,
+            "relaxation": affordable_budget.affordability_relaxation_strength,
+        },
+    }
 
 
 def test_synthetic_profiles_use_real_affinity_and_selector(tmp_path):
@@ -494,3 +593,24 @@ def test_affordability_stress_cases_preserve_hard_precedence(tmp_path):
     assert case6_metadata["repeat_selected_count"] == 1
     assert case6_metadata["affordable_slot_applied"] is True
     assert case6_metadata["personalization_applied"] is False
+
+
+def test_second_pass_evaluation_covers_gradual_activation_and_budget_profiles(tmp_path):
+    report = build_second_pass_evaluation_report(tmp_path)
+    activation = {item["rated_count"]: item for item in report["activation"]}
+
+    assert activation[0]["confidence"] == 0
+    assert activation[0]["roles"] == []
+    assert activation[1]["confidence"] == 0.1
+    assert activation[2]["confidence"] == 0.2
+    assert activation[4]["confidence"] == 0.4
+    assert activation[6]["confidence"] == 0.6
+    assert activation[10]["confidence"] == 1
+    assert activation[1]["relaxation"] == activation[2]["relaxation"] == 0
+    assert activation[4]["relaxation"] == 0
+    assert 0 < activation[6]["relaxation"] < activation[10]["relaxation"]
+    assert activation[0]["affordable_slot_applied"] is True
+    assert report["likes_both"]["confidence"] == 1
+    assert report["likes_both"]["relaxation"] == 0
+    assert report["mixed_six"] == {"confidence": 0.2, "relaxation": 0.0}
+    assert report["strong_affordable"] == {"confidence": 1.0, "relaxation": 0.0}

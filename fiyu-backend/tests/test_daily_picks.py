@@ -23,7 +23,7 @@ from fiyu.daily_picks import (
 )
 from fiyu.database import SCHEMA, connect
 from fiyu.public_catalog import ensure_public_schema
-from fiyu.taste_affinity import UserTasteProfile
+from fiyu.taste_affinity import BudgetPreferenceProfile, UserTasteProfile
 
 NOW = datetime(2026, 8, 21, 12, tzinfo=UTC)
 LATITUDE = 35.658
@@ -481,6 +481,167 @@ def test_personalized_plan_is_deterministic_and_differs_by_user_taste(daily_pick
     assert first != other_user
     assert any(place_id.startswith("seafood-") for place_id in first)
     assert any(place_id.startswith("noodles-") for place_id in other_user)
+
+
+def test_personalization_strength_grows_continuously_from_distinct_rating_confidence(
+    daily_picks_db,
+):
+    with connect(daily_picks_db) as connection:
+        connection.execute("UPDATE public_restaurants SET is_published = 0")
+        for index in range(5):
+            _insert(connection, f"match-{index}", category="sushi", score=90 - index)
+            _insert(connection, f"outside-{index}", category="ramen", score=95 - index)
+        connection.commit()
+
+    baseline, baseline_metadata = _plan(daily_picks_db, seed=29)
+    results = {}
+    for rated_count in (1, 2, 4, 6, 10):
+        confidence = rated_count / 10
+        selected, metadata = _plan(
+            daily_picks_db,
+            seed=29,
+            taste_profile=UserTasteProfile(
+                {"seafood": 1.0, "noodles": -1.0}, confidence, rated_count
+            ),
+        )
+        results[rated_count] = selected
+        assert metadata["personalization_confidence"] == confidence
+
+    assert baseline_metadata["personalization_applied"] is False
+    assert results[1] != results[10]
+    assert sum(place_id.startswith("match-") for place_id in results[1]) <= sum(
+        place_id.startswith("match-") for place_id in results[6]
+    )
+    assert sum(place_id.startswith("match-") for place_id in results[6]) <= sum(
+        place_id.startswith("match-") for place_id in results[10]
+    )
+    assert baseline == _plan(daily_picks_db, seed=29)[0]
+
+
+def test_exploration_prefers_high_quality_neutral_over_material_dislike(daily_picks_db):
+    with connect(daily_picks_db) as connection:
+        connection.execute("UPDATE public_restaurants SET is_published = 0")
+        for index in range(4):
+            _insert(connection, f"match-{index}", category="sushi", score=90 - index)
+        for index in range(5):
+            _insert(connection, f"neutral-{index}", category="ramen", score=91 - index)
+        _insert(connection, "negative-95", category="french", score=95)
+        connection.commit()
+
+    _, metadata = _plan(
+        daily_picks_db,
+        seed=13,
+        taste_profile=UserTasteProfile(
+            {"seafood": 1.0, "cuisine_french": -1.0}, 1.0, 10
+        ),
+    )
+    slots = {item["role"]: item["place_id"] for item in metadata["personalization_slots"]}
+
+    assert slots["strong_affinity"].startswith("match-")
+    assert slots["exploration"].startswith("neutral-")
+    assert slots["exploration"] != slots["strong_affinity"]
+
+
+def test_exploration_material_dislike_remains_last_resort(daily_picks_db):
+    with connect(daily_picks_db) as connection:
+        connection.execute("UPDATE public_restaurants SET is_published = 0")
+        for index in range(1):
+            _insert(connection, f"match-{index}", category="sushi", score=90 - index)
+        for index in range(9):
+            _insert(connection, f"negative-{index}", category="french", score=95 - index)
+        connection.commit()
+
+    selected, metadata = _plan(
+        daily_picks_db,
+        seed=13,
+        taste_profile=UserTasteProfile(
+            {"seafood": 1.0, "cuisine_french": -1.0}, 1.0, 10
+        ),
+    )
+    slots = {item["role"]: item["place_id"] for item in metadata["personalization_slots"]}
+
+    assert len(selected) == 3
+    assert slots["exploration"].startswith("negative-")
+
+
+def test_affordability_relaxation_uses_continuous_sacrifice_and_fails_closed(
+    daily_picks_db,
+):
+    with connect(daily_picks_db) as connection:
+        connection.execute("UPDATE public_restaurants SET is_published = 0")
+        expensive_categories = (
+            "french",
+            "italian",
+            "sushi",
+            "yakitori",
+            "chinese",
+            "indian",
+            "thai",
+            "korean",
+            "okinawa",
+        )
+        for index, category in enumerate(expensive_categories):
+            _insert(
+                connection,
+                f"expensive-{index}",
+                category=category,
+                score=96 - index,
+                budget_maximum=12000,
+            )
+        _insert(
+            connection,
+            "poor-affordable",
+            category="ramen",
+            score=60,
+            budget_maximum=2000,
+        )
+        connection.commit()
+
+    taste = UserTasteProfile(
+        {
+            "cuisine_french": 1.0,
+            "cuisine_italian": 1.0,
+            "cuisine_sushi": 1.0,
+            "seafood": 1.0,
+            "grilled": 1.0,
+            "cuisine_chinese": 1.0,
+            "cuisine_indian": 1.0,
+            "cuisine_thai": 1.0,
+            "cuisine_korean": 1.0,
+            "cuisine_okinawan": 1.0,
+            "noodles": -1.0,
+        },
+        1.0,
+        10,
+    )
+    hard, hard_metadata = _plan(daily_picks_db, seed=7, taste_profile=taste)
+    below_floor, below_floor_metadata = _plan(
+        daily_picks_db,
+        seed=7,
+        taste_profile=taste,
+        budget_profile=BudgetPreferenceProfile(0, 1, 0, 5, 5, 1, 1),
+    )
+    relaxed, relaxed_metadata = _plan(
+        daily_picks_db,
+        seed=7,
+        taste_profile=taste,
+        budget_profile=BudgetPreferenceProfile(0, 0.833333, 0, 10, 10, 1, 0.833333),
+    )
+    invalid, invalid_metadata = _plan(
+        daily_picks_db,
+        seed=7,
+        taste_profile=taste,
+        budget_profile=BudgetPreferenceProfile(0, 1, 0, 10, 10, 1, float("nan")),
+    )
+
+    assert "poor-affordable" in hard
+    assert "poor-affordable" in below_floor
+    assert "poor-affordable" not in relaxed
+    assert "poor-affordable" in invalid
+    assert hard_metadata["affordable_slot_applied"] is True
+    assert below_floor_metadata["affordability_relaxation_strength"] == 0
+    assert relaxed_metadata["affordable_slot_applied"] is False
+    assert invalid_metadata["affordability_relaxation_strength"] == 0
 
 
 def test_active_snapshot_is_reused_and_history_is_atomic(daily_picks_db):

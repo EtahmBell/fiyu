@@ -44,6 +44,21 @@ def test_taste_profile_uses_ratings_and_never_private_notes():
     assert score_candidate_for_user(first, restaurant("other", "sushi")) > 0
 
 
+def test_together_profile_uses_latest_distinct_restaurant_rating():
+    catalog = {"sushi": restaurant("sushi", "sushi")}
+    profile = build_user_taste_profile(
+        visits=[
+            {**visit("sushi", 5), "visited_at": "2026-01-01", "id": "old"},
+            {**visit("sushi", 1), "visited_at": "2026-01-02", "id": "new"},
+        ],
+        catalog=catalog,
+    )
+
+    assert profile.rated_count == 1
+    assert profile.confidence == 0.1
+    assert score_candidate_for_user(profile, restaurant("other", "sushi")) < 0
+
+
 def test_shared_fit_rewards_agreement_and_penalizes_disagreement():
     mutual = combine_user_affinities(0.8, 0.8)
     neutral = combine_user_affinities(0.8, 0.0)

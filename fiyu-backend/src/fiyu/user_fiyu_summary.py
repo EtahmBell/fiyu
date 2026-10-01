@@ -139,7 +139,11 @@ def _note_excerpt(value: object, *, limit: int = 120) -> str | None:
 
 
 def _rating(value: object) -> int | None:
-    return value if isinstance(value, int) and 1 <= value <= 5 else None
+    return (
+        value
+        if isinstance(value, int) and not isinstance(value, bool) and 1 <= value <= 5
+        else None
+    )
 
 
 def _confidence_for_type(insight_type: str) -> str:
@@ -347,6 +351,19 @@ def _rated_visits_oldest_first(visits: Iterable[dict[str, Any]]) -> list[dict[st
     )
 
 
+def latest_rated_visits_by_place(
+    visits: Iterable[dict[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    """Return each restaurant's latest explicit rating using snapshot semantics."""
+
+    latest: dict[str, dict[str, Any]] = {}
+    for visit in _rated_visits_oldest_first(visits):
+        place_id = str(visit.get("place_id") or "")
+        if place_id:
+            latest[place_id] = visit
+    return latest
+
+
 def _snapshot_insights(
     rated_visits: list[dict[str, Any]],
     behavioral_visits: list[dict[str, Any]],
@@ -357,11 +374,7 @@ def _snapshot_insights(
     if not rated_visits:
         return [], [], None
     baseline = sum(int(visit["rating"]) for visit in rated_visits) / len(rated_visits)
-    latest_by_place: dict[str, dict[str, Any]] = {}
-    for visit in rated_visits:
-        place_id = str(visit.get("place_id") or "")
-        if place_id:
-            latest_by_place[place_id] = visit
+    latest_by_place = latest_rated_visits_by_place(rated_visits)
 
     observations: dict[TasteFacet, list[int]] = defaultdict(list)
     for place_id, visit in latest_by_place.items():
