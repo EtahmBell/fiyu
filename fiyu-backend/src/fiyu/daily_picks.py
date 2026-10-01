@@ -10,6 +10,13 @@ from typing import Any
 from uuid import uuid4
 
 from .database import connect
+from .taste_affinity import (
+    UserTasteProfile,
+    blend_affinity_and_quality,
+    normalized_fiyu_quality,
+    score_candidate_for_user,
+)
+from .user_fiyu_summary import restaurant_taste_facets
 from .utils import haversine_km
 
 PICKS_RADII_KM = (1.5, 2.0, 3.0, 5.0, 8.0)
@@ -287,23 +294,36 @@ def _admitted_at_radius(
 
 
 def _published_catalog(connection: Any) -> list[dict[str, object]]:
-    return [
-        dict(row)
-        for row in connection.execute(
-            """
-            SELECT place_id, latitude, longitude, budget_json,
-                   COALESCE(map_location_precision, location_precision) AS location_precision,
-                   discovery_area, discovery_areas_json
-            FROM public_restaurants
-            WHERE is_published = 1
-              AND product_eligible = 1
-              AND map_display_eligible = 1
-              AND latitude IS NOT NULL
-              AND longitude IS NOT NULL
-            ORDER BY place_id
-            """
-        ).fetchall()
-    ]
+    rows = connection.execute(
+        """
+        SELECT place_id, latitude, longitude, budget_json, fiyu_score,
+               primary_category, review_themes_json, practical_info_json,
+               COALESCE(map_location_precision, location_precision) AS location_precision,
+               discovery_area, discovery_areas_json
+        FROM public_restaurants
+        WHERE is_published = 1
+          AND product_eligible = 1
+          AND map_display_eligible = 1
+          AND latitude IS NOT NULL
+          AND longitude IS NOT NULL
+        ORDER BY place_id
+        """
+    ).fetchall()
+    catalog: list[dict[str, object]] = []
+    for source in rows:
+        row = dict(source)
+        for target, source_key, expected_type, fallback in (
+            ("budget", "budget_json", dict, None),
+            ("review_themes", "review_themes_json", list, []),
+            ("practical_info", "practical_info_json", dict, {}),
+        ):
+            try:
+                decoded = json.loads(str(row.get(source_key) or "null"))
+            except json.JSONDecodeError:
+                decoded = fallback
+            row[target] = decoded if isinstance(decoded, expected_type) else fallback
+        catalog.append(row)
+    return catalog
 
 
 def _known_affordable_budget(row: Mapping[str, object]) -> bool:
@@ -339,6 +359,131 @@ def _sample_with_affordable_slot(
     return selected, True
 
 
+def _personalized_selection(
+    rows: list[dict[str, object]],
+    count: int,
+    profile: UserTasteProfile,
+    rng: random.Random | random.SystemRandom,
+    *,
+    apply_affordable_slot: bool,
+) -> tuple[list[dict[str, object]], list[dict[str, object]], bool] | None:
+    """Compose strong, varied, and exploratory Picks from one eligible pool.
+
+    Returning ``None`` preserves the existing selector exactly when the profile
+    has no candidate-relevant signal. Affinity never changes pool eligibility.
+    """
+
+    candidates: list[dict[str, object]] = []
+    for row in rows:
+        affinity = score_candidate_for_user(profile, row)
+        facets = {facet.key for facet in restaurant_taste_facets(dict(row))}
+        candidates.append(
+            {
+                "row": row,
+                "affinity": affinity,
+                "quality": normalized_fiyu_quality(row),
+                "suitability": blend_affinity_and_quality(
+                    affinity, normalized_fiyu_quality(row)
+                ),
+                "facets": facets,
+            }
+        )
+    if not candidates or not any(candidate["affinity"] != 0 for candidate in candidates):
+        return None
+    for candidate in candidates:
+        candidate["tiebreak"] = rng.random()
+
+    def match_key(candidate: dict[str, object]) -> tuple[float, float, float]:
+        return (
+            -float(candidate["suitability"]),
+            -float(candidate["affinity"]),
+            float(candidate["tiebreak"]),
+        )
+
+    selected: list[dict[str, object]] = []
+    reasons: list[dict[str, object]] = []
+
+    strong = min(candidates, key=match_key)
+    selected.append(strong)
+    reasons.append({"role": "strong_affinity", "affordable_constraint": False})
+
+    if len(selected) < count:
+        remaining = [candidate for candidate in candidates if candidate not in selected]
+        used_facets = set(strong["facets"])
+        varied = [candidate for candidate in remaining if set(candidate["facets"]) - used_facets]
+        moderate = min(varied or remaining, key=match_key)
+        selected.append(moderate)
+        reasons.append({"role": "moderate_or_novel", "affordable_constraint": False})
+
+    if len(selected) < count:
+        remaining = [candidate for candidate in candidates if candidate not in selected]
+        positive_affinities = [
+            value for value in profile.facet_affinities.values() if value > 0
+        ]
+        strongest_affinity = max(positive_affinities, default=None)
+        dominant_facets = {
+            key
+            for key, value in profile.facet_affinities.items()
+            if strongest_affinity is not None and value == strongest_affinity
+        }
+        outside_dominant = [
+            candidate
+            for candidate in remaining
+            if not set(candidate["facets"]).intersection(dominant_facets)
+        ]
+        exploration_pool = outside_dominant or remaining
+        exploration = min(
+            exploration_pool,
+            key=lambda candidate: (
+                -float(candidate["quality"]),
+                float(candidate["tiebreak"]),
+            ),
+        )
+        selected.append(exploration)
+        reasons.append({"role": "exploration", "affordable_constraint": False})
+
+    while len(selected) < min(count, len(candidates)):
+        remaining = [candidate for candidate in candidates if candidate not in selected]
+        selected.append(min(remaining, key=match_key))
+        reasons.append({"role": "additional_match", "affordable_constraint": False})
+
+    affordable = [
+        candidate
+        for candidate in candidates
+        if _known_affordable_budget(candidate["row"])
+    ]
+    affordable_slot_applied = apply_affordable_slot and count == 3 and bool(affordable)
+    if affordable_slot_applied:
+        selected_affordable = next(
+            (
+                index
+                for index, candidate in enumerate(selected)
+                if _known_affordable_budget(candidate["row"])
+            ),
+            None,
+        )
+        if selected_affordable is None:
+            required = min(affordable, key=match_key)
+            replacement_index = 1 if len(selected) > 1 else len(selected) - 1
+            selected[replacement_index] = required
+            selected_affordable = replacement_index
+        reasons[selected_affordable]["affordable_constraint"] = True
+
+    paired = list(zip(selected, reasons, strict=True))
+    rng.shuffle(paired)
+    return (
+        [candidate["row"] for candidate, _ in paired],
+        [
+            {
+                "place_id": str(candidate["row"]["place_id"]),
+                **reason,
+            }
+            for candidate, reason in paired
+        ],
+        affordable_slot_applied,
+    )
+
+
 def select_daily_pick_plan(
     connection: Any,
     *,
@@ -353,6 +498,7 @@ def select_daily_pick_plan(
     excluded_place_ids: set[str] | None = None,
     allow_partial: bool = False,
     apply_affordable_slot: bool = True,
+    taste_profile: UserTasteProfile | None = None,
 ) -> tuple[tuple[str, ...], dict[str, object]]:
     """Plan one V1 selection from the complete canonical catalog without writing."""
     catalog = _published_catalog(connection)
@@ -394,8 +540,24 @@ def select_daily_pick_plan(
 
     rng = random.Random(seed) if seed is not None else random.SystemRandom()
     affordable_slot_applied = False
+    personalization_slots: list[dict[str, object]] = []
+    personalization_applied = False
     if len(final_unseen) >= requested_count:
-        if apply_affordable_slot:
+        personalized = (
+            _personalized_selection(
+                final_unseen,
+                requested_count,
+                taste_profile,
+                rng,
+                apply_affordable_slot=apply_affordable_slot,
+            )
+            if taste_profile is not None
+            else None
+        )
+        if personalized is not None:
+            selected_rows, personalization_slots, affordable_slot_applied = personalized
+            personalization_applied = True
+        elif apply_affordable_slot:
             selected_rows, affordable_slot_applied = _sample_with_affordable_slot(
                 final_unseen, requested_count, rng
             )
@@ -456,7 +618,15 @@ def select_daily_pick_plan(
         precision = _precision_group(row.get("location_precision"))
         precision_distribution[precision] = precision_distribution.get(precision, 0) + 1
     metadata: dict[str, object] = {
-        "algorithm": "location-v1",
+        "algorithm": "personalized-solo-v1" if personalization_applied else "location-v1",
+        "personalization_applied": personalization_applied,
+        "personalization_rated_count": (
+            taste_profile.rated_count if personalization_applied and taste_profile else 0
+        ),
+        "personalization_confidence": (
+            taste_profile.confidence if personalization_applied and taste_profile else 0.0
+        ),
+        "personalization_slots": personalization_slots,
         "initial_radius_km": PICKS_RADII_KM[0],
         "final_radius_km": final_radius,
         "target_unseen_pool": TARGET_UNSEEN_POOL,

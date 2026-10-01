@@ -3,9 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
-from collections import defaultdict
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
@@ -15,64 +13,24 @@ from .daily_picks import (
     _admitted_at_radius,
     _known_affordable_budget,
 )
+from .taste_affinity import (
+    UserTasteProfile,
+    blend_affinity_and_quality,
+    build_user_taste_profile,
+    normalized_fiyu_quality,
+    score_candidate_for_user,
+)
 from .user_fiyu_summary import restaurant_taste_facets
 
 TOGETHER_PICK_COUNT = 3
 
-
-@dataclass(frozen=True)
-class UserTasteProfile:
-    """Private, deterministic affinities. This object is never returned by the API."""
-
-    facet_affinities: Mapping[str, float]
-    confidence: float
-    rated_count: int
-
-
-def build_user_taste_profile(
-    *,
-    visits: Iterable[dict[str, Any]],
-    catalog: Mapping[str, dict[str, Any]],
-) -> UserTasteProfile:
-    """Build reusable per-facet affinity from explicit ratings only.
-
-    Private notes are deliberately never read. Ratings are centred on neutral
-    (3 stars), averaged by facet, and shrunk toward neutral for sparse evidence.
-    """
-
-    observations: dict[str, list[float]] = defaultdict(list)
-    rated_count = 0
-    for visit in visits:
-        rating = visit.get("rating")
-        if not isinstance(rating, int) or isinstance(rating, bool) or not 1 <= rating <= 5:
-            continue
-        rated_count += 1
-        restaurant = catalog.get(str(visit.get("place_id") or ""), {})
-        for facet in restaurant_taste_facets(dict(restaurant)):
-            observations[facet.key].append((rating - 3) / 2)
-
-    affinities: dict[str, float] = {}
-    for key, values in observations.items():
-        mean = sum(values) / len(values)
-        # Two neutral pseudo-observations keep one rating from becoming certainty.
-        affinities[key] = round(mean * (len(values) / (len(values) + 2)), 6)
-    return UserTasteProfile(
-        facet_affinities=affinities,
-        confidence=round(min(rated_count / 10, 1.0), 6),
-        rated_count=rated_count,
-    )
-
-
-def score_candidate_for_user(
-    profile: UserTasteProfile, restaurant: Mapping[str, Any]
-) -> float:
-    """Return a confidence-bounded affinity in [-1, 1]."""
-
-    facets = restaurant_taste_facets(dict(restaurant))
-    values = [profile.facet_affinities[facet.key] for facet in facets if facet.key in profile.facet_affinities]
-    if not values:
-        return 0.0
-    return round((sum(values) / len(values)) * profile.confidence, 6)
+__all__ = [
+    "UserTasteProfile",
+    "build_user_taste_profile",
+    "combine_user_affinities",
+    "score_candidate_for_user",
+    "select_together_pick_plan",
+]
 
 
 def combine_user_affinities(affinity_a: float, affinity_b: float) -> float:
@@ -119,14 +77,9 @@ def _score_row(
     affinity_a = score_candidate_for_user(profile_a, row)
     affinity_b = score_candidate_for_user(profile_b, row)
     shared_fit = combine_user_affinities(affinity_a, affinity_b)
-    raw_quality = row.get("fiyu_score")
-    quality = (
-        max(0.0, min(float(raw_quality) / 100, 1.0))
-        if isinstance(raw_quality, (int, float)) and not isinstance(raw_quality, bool)
-        else 0.5
-    )
+    quality = normalized_fiyu_quality(row)
     # Personal evidence earns at most 70%; global quality and exploration remain.
-    total = 0.7 * ((shared_fit + 1) / 2) + 0.3 * quality
+    total = blend_affinity_and_quality(shared_fit, quality)
     return {**row, "_affinity_a": affinity_a, "_affinity_b": affinity_b, "_shared_fit": shared_fit, "_together_score": total}
 
 

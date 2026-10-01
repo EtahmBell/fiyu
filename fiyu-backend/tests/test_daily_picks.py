@@ -23,6 +23,7 @@ from fiyu.daily_picks import (
 )
 from fiyu.database import SCHEMA, connect
 from fiyu.public_catalog import ensure_public_schema
+from fiyu.taste_affinity import UserTasteProfile
 
 NOW = datetime(2026, 8, 21, 12, tzinfo=UTC)
 LATITUDE = 35.658
@@ -39,6 +40,7 @@ def _insert(
     map_eligible: int = 1,
     score: float = 70.0,
     budget_maximum: int | None = None,
+    category: str = "restaurant",
 ) -> None:
     connection.execute(
         """
@@ -48,11 +50,12 @@ def _insert(
             fiyu_score, local_discovery_score, is_published,
             map_display_eligible, latitude, longitude, map_location_precision,
             budget_json, created_at, updated_at
-        ) VALUES (?, ?, 'restaurant', '[]', '[]', 'Shibuya', '[]', ?, ?, ?, ?, ?, ?, ?, ?, 'now', 'now')
+        ) VALUES (?, ?, ?, '[]', '[]', 'Shibuya', '[]', ?, ?, ?, ?, ?, ?, ?, ?, 'now', 'now')
         """,
         (
             place_id,
             place_id,
+            category,
             score,
             100.0 - score,
             published,
@@ -364,6 +367,120 @@ def test_random_seed_is_reproducible_and_score_signals_do_not_rank(daily_picks_d
     assert first == second
     assert first != third
     assert first != tuple(sorted(first))
+
+
+def test_personalized_plan_composes_affinity_novelty_and_exploration(daily_picks_db):
+    with connect(daily_picks_db) as connection:
+        connection.execute("UPDATE public_restaurants SET is_published = 0")
+        for index in range(4):
+            _insert(
+                connection,
+                f"seafood-{index}",
+                category="sushi",
+                score=82 - index,
+            )
+        for index, category in enumerate(("ramen", "yakitori", "tempura", "izakaya", "curry", "soba")):
+            _insert(
+                connection,
+                f"outside-{index}",
+                category=category,
+                score=90 - index,
+            )
+        connection.commit()
+
+    selected, metadata = _plan(
+        daily_picks_db,
+        seed=17,
+        taste_profile=UserTasteProfile({"seafood": 1.0}, 1.0, 10),
+    )
+
+    slots = {item["role"]: item["place_id"] for item in metadata["personalization_slots"]}
+    assert metadata["algorithm"] == "personalized-solo-v1"
+    assert metadata["personalization_applied"] is True
+    assert metadata["personalization_rated_count"] == 10
+    assert slots["strong_affinity"].startswith("seafood-")
+    assert not slots["exploration"].startswith("seafood-")
+    assert sum(place_id.startswith("seafood-") for place_id in selected) < 3
+
+
+def test_personalization_falls_back_exactly_when_taste_has_no_candidate_signal(
+    daily_picks_db,
+):
+    baseline, _ = _plan(daily_picks_db, seed=23)
+    sparse, metadata = _plan(
+        daily_picks_db,
+        seed=23,
+        taste_profile=UserTasteProfile({}, 0.1, 1),
+    )
+
+    assert sparse == baseline
+    assert metadata["algorithm"] == "location-v1"
+    assert metadata["personalization_applied"] is False
+    assert metadata["personalization_slots"] == []
+
+
+def test_personalization_preserves_eligibility_cooldown_location_and_affordability(
+    daily_picks_db,
+):
+    with connect(daily_picks_db) as connection:
+        connection.execute("UPDATE public_restaurants SET is_published = 0")
+        _insert(connection, "saved-match", category="sushi", score=100)
+        _insert(connection, "recent-match", category="sushi", score=99)
+        _insert(connection, "far-match", category="sushi", score=98, distance_km=20)
+        _insert(connection, "unpublished-match", category="sushi", score=100, published=0)
+        _insert(connection, "product-blocked-match", category="sushi", score=100)
+        connection.execute(
+            "UPDATE public_restaurants SET product_eligible = 0 "
+            "WHERE place_id = 'product-blocked-match'"
+        )
+        _insert(connection, "affordable", category="ramen", score=72, budget_maximum=3000)
+        for index, category in enumerate(("sushi", "sushi", "ramen", "yakitori", "tempura", "curry", "soba", "izakaya", "udon")):
+            _insert(connection, f"eligible-{index}", category=category, score=90 - index)
+        connection.commit()
+
+    selected, metadata = _plan(
+        daily_picks_db,
+        seed=11,
+        saved_place_ids={"saved-match"},
+        served_history={"recent-match": NOW - timedelta(days=1)},
+        taste_profile=UserTasteProfile({"seafood": 1.0}, 1.0, 10),
+    )
+
+    assert set(selected).isdisjoint(
+        {
+            "saved-match",
+            "recent-match",
+            "far-match",
+            "unpublished-match",
+            "product-blocked-match",
+        }
+    )
+    assert "affordable" in selected
+    assert metadata["affordable_slot_applied"] is True
+    affordable_reason = next(
+        item for item in metadata["personalization_slots"] if item["place_id"] == "affordable"
+    )
+    assert affordable_reason["affordable_constraint"] is True
+
+
+def test_personalized_plan_is_deterministic_and_differs_by_user_taste(daily_picks_db):
+    with connect(daily_picks_db) as connection:
+        connection.execute("UPDATE public_restaurants SET is_published = 0")
+        for index in range(5):
+            _insert(connection, f"seafood-{index}", category="sushi", score=85 - index)
+            _insert(connection, f"noodles-{index}", category="ramen", score=85 - index)
+        connection.commit()
+
+    seafood_profile = UserTasteProfile({"seafood": 1.0, "noodles": -0.5}, 1.0, 10)
+    noodle_profile = UserTasteProfile({"seafood": -0.5, "noodles": 1.0}, 1.0, 10)
+    first, _ = _plan(daily_picks_db, seed=31, taste_profile=seafood_profile)
+    repeated, _ = _plan(daily_picks_db, seed=31, taste_profile=seafood_profile)
+    other_user, _ = _plan(daily_picks_db, seed=31, taste_profile=noodle_profile)
+
+    assert first == repeated
+    assert first != other_user
+    assert any(place_id.startswith("seafood-") for place_id in first)
+    assert any(place_id.startswith("noodles-") for place_id in other_user)
 
 
 def test_active_snapshot_is_reused_and_history_is_atomic(daily_picks_db):

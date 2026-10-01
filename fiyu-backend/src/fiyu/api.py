@@ -109,7 +109,8 @@ from .supabase_auth import (
     sign_in_with_supabase,
     sign_up_with_supabase,
 )
-from .together import build_user_taste_profile, select_together_pick_plan
+from .taste_affinity import UserTasteProfile, build_user_taste_profile
+from .together import select_together_pick_plan
 from .user_accounts import (
     create_city_poll_vote,
     create_contact_submission,
@@ -1573,6 +1574,21 @@ def _plan_shared_daily_picks(
         for place_id, value in shared_user_data.seen_history(user_id=owner_id).items()
         if (parsed := _parse_pick_datetime(value)) is not None
     }
+    visits = shared_user_data.list_visits(user_id=owner_id)
+    taste_profile: UserTasteProfile | None = None
+    if any(
+        isinstance(visit.get("rating"), int)
+        and not isinstance(visit.get("rating"), bool)
+        and 1 <= int(visit["rating"]) <= 5
+        for visit in visits
+    ):
+        taste_catalog_rows = [
+            dict(item) for item in list_published_restaurants(DB_PATH, limit=10_000)
+        ]
+        taste_profile = build_user_taste_profile(
+            visits=visits,
+            catalog={str(item["place_id"]): item for item in taste_catalog_rows},
+        )
     with connect(DB_PATH) as connection:
         place_ids, metadata = select_daily_pick_plan(
             connection,
@@ -1586,6 +1602,7 @@ def _plan_shared_daily_picks(
             now=now,
             requested_count=3,
             seed=seed,
+            taste_profile=taste_profile,
         )
     metadata.update(
         {
