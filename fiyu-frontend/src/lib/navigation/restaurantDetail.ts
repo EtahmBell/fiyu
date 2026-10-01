@@ -1,5 +1,8 @@
 const PICKS_RETURN_STATE_KEY = "fiyu.picks-detail-return.v1";
 
+export const WHY_FIYU_FOUND_IT_SECTION = "why-fiyu-found-it";
+export type RestaurantDetailSection = typeof WHY_FIYU_FOUND_IT_SECTION;
+
 export interface PicksReturnState {
   placeId: string;
   scrollTop: number;
@@ -55,6 +58,10 @@ export function clearPicksReturnState(): void {
   window.sessionStorage.removeItem(PICKS_RETURN_STATE_KEY);
 }
 
-export function restaurantDetailHref(placeId: string): string {
-  return `/restaurants/${encodeURIComponent(placeId)}`;
+export function restaurantDetailHref(
+  placeId: string,
+  section?: RestaurantDetailSection,
+): string {
+  const href = `/restaurants/${encodeURIComponent(placeId)}`;
+  return section ? `${href}#${section}` : href;
 }

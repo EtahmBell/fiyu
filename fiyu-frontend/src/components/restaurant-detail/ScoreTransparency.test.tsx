@@ -19,7 +19,9 @@ const restaurant = publicRestaurantDetailSchema.parse({
 
 it("shows evidence separately from a native, keyboard-accessible signal disclosure", () => {
   render(<ScoreTransparency restaurant={restaurant} />);
-  expect(screen.getByRole("heading", { name: "Why Fiyu found it" })).toBeTruthy();
+  const section = screen.getByRole("heading", { name: "Why Fiyu found it" }).closest("section");
+  expect(section?.id).toBe("why-fiyu-found-it");
+  expect(section?.className).toContain("scroll-mt-20");
   expect(screen.getByText(restaurant.score_transparency!.reasons[0])).toBeTruthy();
   const summary = screen.getByText("Signals behind the score");
   expect(summary.tagName).toBe("SUMMARY");

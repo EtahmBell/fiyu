@@ -34,6 +34,7 @@ import {
 import {
   consumePicksReturnState,
   restaurantDetailHref,
+  type RestaurantDetailSection,
   savePicksReturnState,
 } from "@/lib/navigation/restaurantDetail";
 import { PICKS_DETAIL_MAP_SESSION_KEY } from "@/lib/map/viewportSession";
@@ -412,7 +413,7 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
     }));
   }, []);
   const openRestaurantDetail = useCallback(
-    (restaurant: PublicRestaurant) => {
+    (restaurant: PublicRestaurant, section?: RestaurantDetailSection) => {
       savePicksReturnState({
         placeId: restaurant.place_id,
         scrollTop: scrollRegionRef.current?.scrollTop ?? 0,
@@ -423,7 +424,9 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
         source: "feed",
         navigationKey: (current?.navigationKey ?? 0) + 1,
       }));
-      router.push(restaurantDetailHref(restaurant.place_id), { scroll: false });
+      const href = restaurantDetailHref(restaurant.place_id, section);
+      if (section) router.push(href);
+      else router.push(href, { scroll: false });
     },
     [router],
   );

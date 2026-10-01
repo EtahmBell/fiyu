@@ -26,6 +26,10 @@ import { hasGoldFiyuTreatment } from "@/lib/format/score";
 import { cn } from "@/lib/utils/cn";
 import { formatRestaurantBudget } from "@/lib/restaurant/budget";
 import { restaurantMetadataParts } from "@/lib/restaurant/displayArea";
+import {
+  WHY_FIYU_FOUND_IT_SECTION,
+  type RestaurantDetailSection,
+} from "@/lib/navigation/restaurantDetail";
 
 function ChevronIcon() {
   return (
@@ -136,7 +140,10 @@ export interface CompactRestaurantCardProps {
   expirationLabel?: string;
   tone?: CompactCardTone;
   onOpen?: (restaurant: PublicRestaurant) => void;
-  onViewDetails?: (restaurant: PublicRestaurant) => void;
+  onViewDetails?: (
+    restaurant: PublicRestaurant,
+    section?: RestaurantDetailSection,
+  ) => void;
   onToggleSaved(): void;
 }
 
@@ -512,7 +519,7 @@ export function CompactRestaurantCard({
               type="button"
               onClick={(event) => {
                 event.stopPropagation();
-                onViewDetails(restaurant);
+                onViewDetails(restaurant, WHY_FIYU_FOUND_IT_SECTION);
               }}
               className={cn(
                 CARD_LAYOUT.why,

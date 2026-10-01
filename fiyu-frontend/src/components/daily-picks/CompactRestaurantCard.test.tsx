@@ -68,13 +68,14 @@ describe("compact restaurant card content", () => {
     const details = vi.fn();
     const open = vi.fn();
     const save = vi.fn();
-    render(<CompactRestaurantCard restaurant={restaurant()} saved={false} onToggleSaved={save} onOpen={open} onViewDetails={details} />);
+    const value = restaurant();
+    render(<CompactRestaurantCard restaurant={value} saved={false} onToggleSaved={save} onOpen={open} onViewDetails={details} />);
     const why = screen.getByRole("button", { name: "Why Fiyu found it" });
     const action = screen.getByRole("button", { name: "View restaurant" });
     expect(why.querySelector("svg")).not.toBeNull();
     expect(action.compareDocumentPosition(why) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     fireEvent.click(why);
-    expect(details).toHaveBeenCalledTimes(1);
+    expect(details).toHaveBeenCalledWith(value, "why-fiyu-found-it");
     expect(open).not.toHaveBeenCalled();
     expect(save).not.toHaveBeenCalled();
     expect(action.querySelectorAll("button, a")).toHaveLength(0);

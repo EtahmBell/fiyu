@@ -463,6 +463,31 @@ describe("daily-only discovery shell", () => {
     });
   });
 
+  it("opens Why Fiyu found it at the score-transparency fragment", () => {
+    const now = Date.now();
+    window.localStorage.setItem(
+      DAILY_PICKS_STORAGE_KEY,
+      JSON.stringify({
+        version: 2,
+        preferences: { categories: [], nonJapanese: "occasionally" },
+        selection: {
+          ...createDailySelection(["one", "two", "three"], now - 1_000),
+          revealedIds: ["one"],
+        },
+        discoveries: [{ restaurantId: "one", revealedAt: new Date(now - 1_000).toISOString() }],
+        savedRestaurantIds: [],
+      }),
+    );
+    render(<DiscoveryShell restaurants={catalog} areaAnchors={[]} />);
+    const frame = document.querySelector('[data-daily-card-place-id="one"]') as HTMLElement;
+
+    fireEvent.click(within(frame).getByRole("button", { name: "Why Fiyu found it" }));
+
+    expect(router.push).toHaveBeenCalledWith("/restaurants/one#why-fiyu-found-it");
+    expect(JSON.parse(window.sessionStorage.getItem("fiyu.picks-detail-return.v1") ?? "null"))
+      .toMatchObject({ placeId: "one" });
+  });
+
   it("hydrates the onboarding and daily feed without a mismatch", async () => {
     const element = <DiscoveryShell restaurants={catalog} areaAnchors={[]} />;
     const container = document.createElement("div");
