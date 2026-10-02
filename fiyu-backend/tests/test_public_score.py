@@ -5,6 +5,7 @@ from fiyu.public_score import (
     FiyuEvidence,
     InternalSignals,
     assess_chain_classification,
+    assess_critical_publication_contradiction,
     assess_publication_conflict,
     calculate_fiyu_score,
 )
@@ -380,6 +381,43 @@ def test_no_conflict_never_blocks():
     evidence = _conflicting_evidence()
     evidence.conflicting_evidence = False
     assert not assess_publication_conflict(evidence, {}).blocking_conflict
+
+
+@pytest.mark.parametrize(
+    "warning",
+    [
+        "Current official evidence confirms that the restaurant is permanently closed.",
+        "Current sources confirm that the business was replaced by another restaurant.",
+        "Research evidence belongs to a different restaurant and the candidate identity conflicts.",
+        "Candidate branch is Ebisu but the research evidence belongs to the different Ginza branch.",
+        "The source mismatch is a confirmed evidence integrity failure.",
+    ],
+)
+def test_affirmative_identity_correctness_failures_are_critical(warning):
+    result = assess_critical_publication_contradiction(
+        _conflicting_evidence(), _structured(warning)
+    )
+    assert result.contradicted
+    assert result.reasons
+
+
+@pytest.mark.parametrize(
+    ("warning", "address"),
+    [
+        ("Only one source was found.", {}),
+        ("No official website or exact address was found.", {}),
+        ("The branch could not be determined from sparse evidence.", {"branch_name": "unknown"}),
+        ("The exact location remains unresolved.", {"identity_status": "ambiguous"}),
+        ("The restaurant was temporarily closed and has reopened.", {}),
+        ("No evidence of permanent closure was found.", {}),
+    ],
+)
+def test_unknown_sparse_or_temporary_findings_are_not_critical(warning, address):
+    result = assess_critical_publication_contradiction(
+        _conflicting_evidence(), _structured(warning, **address)
+    )
+    assert not result.contradicted
+    assert result.reasons == ()
 
 
 def test_numeric_score_is_independent_from_conflict_publication_gate():

@@ -11,6 +11,7 @@ from .database import connect
 from .discovery_areas import TOKYO_WARD_NAMES, canonical_tokyo_ward
 from .location_names import normalize_location_name
 from .public_catalog import AUTO_PIPELINE_RESEARCH_STATUSES, ensure_public_schema
+from .utils import normalize_name
 
 PIPELINE_VERSION = "catalog-pipeline-v1"
 
@@ -360,12 +361,83 @@ def publish_readiness(
     )
 
 
-def _score_policy_publishable(
-    db_path: str | Path, row: dict[str, object]
-) -> bool:
-    """Evaluate current policy while preserving the historical scoring output."""
+def _strong_published_duplicate_ids(
+    connection, row: dict[str, object]
+) -> tuple[str, ...]:
+    """Return already-published exact-identity duplicates, never fuzzy matches."""
 
-    return bool(_current_score_policy_decision(db_path, row)["publishable"])
+    current_names = {
+        normalized
+        for value in (
+            row.get("name_ja"),
+            row.get("name_en"),
+            row.get("candidate_title"),
+        )
+        if (normalized := normalize_name(str(value or "")))
+    }
+    if not current_names:
+        return ()
+
+    candidates = connection.execute(
+        """
+        SELECT p.*, r.title AS candidate_title
+        FROM public_restaurants p
+        LEFT JOIN restaurants r ON r.place_id=p.place_id
+        WHERE p.place_id!=? AND p.is_published=1
+        ORDER BY p.created_at, p.place_id
+        """,
+        (row["place_id"],),
+    ).fetchall()
+    duplicates: list[str] = []
+    for candidate_row in candidates:
+        candidate = dict(candidate_row)
+        candidate_names = {
+            normalized
+            for value in (
+                candidate.get("name_ja"),
+                candidate.get("name_en"),
+                candidate.get("candidate_title"),
+            )
+            if (normalized := normalize_name(str(value or "")))
+        }
+        if not current_names.intersection(candidate_names):
+            continue
+
+        same_exact_osm_object = bool(
+            row.get("map_display_eligible")
+            and candidate.get("map_display_eligible")
+            and not row.get("map_location_approximate")
+            and not candidate.get("map_location_approximate")
+            and row.get("location_osm_type")
+            and row.get("location_osm_type") == candidate.get("location_osm_type")
+            and row.get("location_osm_id") is not None
+            and row.get("location_osm_id") == candidate.get("location_osm_id")
+        )
+        current_address = normalize_name(str(row.get("verified_core_address") or ""))
+        candidate_address = normalize_name(
+            str(candidate.get("verified_core_address") or "")
+        )
+        same_verified_address = bool(
+            row.get("core_address_verified")
+            and candidate.get("core_address_verified")
+            and current_address
+            and current_address == candidate_address
+        )
+        same_exact_coordinates = bool(
+            row.get("map_display_eligible")
+            and candidate.get("map_display_eligible")
+            and not row.get("map_location_approximate")
+            and not candidate.get("map_location_approximate")
+            and row.get("location_precision") == "exact"
+            and candidate.get("location_precision") == "exact"
+            and row.get("latitude") is not None
+            and row.get("longitude") is not None
+            and row.get("latitude") == candidate.get("latitude")
+            and row.get("longitude") == candidate.get("longitude")
+        )
+        if same_exact_osm_object or same_verified_address or same_exact_coordinates:
+            duplicates.append(str(candidate["place_id"]))
+    return tuple(duplicates)
 
 
 _PROTECTED_CONFLICT = re.compile(
@@ -653,6 +725,7 @@ def _current_score_policy_decision(
             PUBLICATION_SCORE_THRESHOLD,
             FiyuEvidence,
             InternalSignals,
+            assess_critical_publication_contradiction,
             assess_publication_conflict,
             evaluate_fiyu_candidate,
         )
@@ -682,6 +755,18 @@ def _current_score_policy_decision(
                     value = []
                 effective_structured[field] = value if isinstance(value, list) else []
         conflict = assess_publication_conflict(evidence, effective_structured)
+        critical = assess_critical_publication_contradiction(
+            evidence, effective_structured
+        )
+        duplicate_place_ids = _strong_published_duplicate_ids(connection, row)
+        critical_reasons = tuple(
+            dict.fromkeys(
+                [
+                    *critical.reasons,
+                    *(f"duplicate_of_published:{item}" for item in duplicate_place_ids),
+                ]
+            )
+        )
         current_score = evaluate_fiyu_candidate(
             evidence,
             InternalSignals(
@@ -721,6 +806,7 @@ def _current_score_policy_decision(
             current_score.fiyu_score >= PUBLICATION_SCORE_THRESHOLD
         ),
         "chain_not_excluded": not current_score.chain_excluded,
+        "no_critical_publication_contradiction": not critical_reasons,
     }
     return {
         "publishable": all(conditions.values()),
@@ -736,6 +822,9 @@ def _current_score_policy_decision(
         "historical_score_publishable": score.get("publishable") is True,
         "conflict_classification": conflict.classification,
         "conflict_reasons": conflict.reasons,
+        "critical_publication_contradiction": bool(critical_reasons),
+        "critical_contradiction_reasons": critical_reasons,
+        "duplicate_place_ids": duplicate_place_ids,
         "conflict_superseded": superseded,
         "supersession_reasons": supersession_reasons,
         "chain_classification": current_score.chain_classification,
@@ -748,11 +837,20 @@ def auto_publish_readiness(db_path: str | Path, place_id: str) -> PublishReadine
 
     row = _row(db_path, place_id)
     base = publish_readiness(db_path, place_id, require_approval=False)
+    decision = _current_score_policy_decision(db_path, row)
+    return _auto_publish_readiness_from_decision(base, decision)
+
+
+def _auto_publish_readiness_from_decision(
+    base: PublishReadiness, decision: dict[str, object]
+) -> PublishReadiness:
     missing = list(base.missing)
-    if not _score_policy_publishable(db_path, row):
+    if decision.get("critical_publication_contradiction"):
+        missing.append("critical_publication_contradiction")
+    elif not decision.get("publishable"):
         missing.append("deterministic_score_policy")
     return PublishReadiness(
-        place_id=place_id,
+        place_id=base.place_id,
         publishable=not missing,
         map_eligible=base.map_eligible,
         location_attempted=base.location_attempted,
@@ -764,12 +862,26 @@ def auto_publish_readiness(db_path: str | Path, place_id: str) -> PublishReadine
 def apply_automatic_publication(
     db_path: str | Path, place_id: str
 ) -> dict[str, object]:
-    readiness = auto_publish_readiness(db_path, place_id)
+    row = dict(_row(db_path, place_id))
+    base = publish_readiness(db_path, place_id, require_approval=False)
+    decision = _current_score_policy_decision(db_path, row)
+    readiness = _auto_publish_readiness_from_decision(
+        base, decision
+    )
     now = _utc_now()
     if readiness.publishable:
         status = "auto_published"
         published = True
         reason = None
+    elif "critical_publication_contradiction" in readiness.missing:
+        published = False
+        contradiction_reasons = tuple(
+            str(item) for item in decision.get("critical_contradiction_reasons", ())
+        )
+        reason = "critical_publication_contradiction:" + ",".join(
+            contradiction_reasons
+        )
+        status = "needs_review"
     else:
         published = False
         reason = (
@@ -793,6 +905,9 @@ def apply_automatic_publication(
         "published": published,
         "outcome": status,
         "reason": reason,
+        "critical_contradiction_reasons": decision.get(
+            "critical_contradiction_reasons", ()
+        ),
         "readiness": readiness.to_dict(),
     }
 
@@ -1803,7 +1918,11 @@ def run_pipeline_batch(
             WHERE (
                     (? IS NOT NULL AND p.place_id=?)
                     OR (? IS NULL AND p.is_published=0
-                        AND p.review_status!='auto_rejected')
+                        AND p.review_status!='auto_rejected'
+                        AND NOT (
+                            p.review_status='needs_review'
+                            AND p.review_notes LIKE 'critical_publication_contradiction:%'
+                        ))
                   )
               AND p.research_status IN ({status_placeholders})
             ORDER BY CASE WHEN p.research_status='complete' THEN 0 ELSE 1 END,

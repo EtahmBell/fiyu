@@ -19,6 +19,7 @@ from .public_catalog import (
     recalculate_from_stored_evidence,
     recover_research_for_retry,
     seed_public_queue,
+    seed_unseeded_public_queue,
 )
 
 
@@ -34,6 +35,16 @@ def _parser() -> argparse.ArgumentParser:
     seed = commands.add_parser("import-candidates")
     seed.add_argument("--limit", type=int, default=25)
     seed.add_argument("--min-score", type=float, default=60.0)
+
+    seed_unseeded = commands.add_parser(
+        "seed-unseeded",
+        help="Deterministically randomize and seed eligible candidates not yet public",
+    )
+    seed_unseeded.add_argument("--limit", type=int, default=500)
+    seed_unseeded.add_argument("--min-score", type=float, default=60.0)
+    seed_unseeded.add_argument("--seed", required=True)
+    seed_unseeded.add_argument("--dry-run", action="store_true")
+    seed_unseeded.add_argument("--manifest-out")
 
     research = commands.add_parser("research")
     research.add_argument("--place-id")
@@ -154,6 +165,24 @@ def main() -> None:
         result = {
             "seeded": seed_public_queue(db, limit=args.limit, min_internal_score=args.min_score)
         }
+    elif args.command == "seed-unseeded":
+        manifest_path = Path(args.manifest_out) if args.manifest_out else None
+        if manifest_path is not None and manifest_path.exists():
+            raise FileExistsError(f"Manifest already exists: {manifest_path}")
+        result = seed_unseeded_public_queue(
+            db,
+            limit=args.limit,
+            min_internal_score=args.min_score,
+            seed=args.seed,
+            dry_run=args.dry_run,
+        )
+        if manifest_path is not None:
+            manifest_path.parent.mkdir(parents=True, exist_ok=True)
+            manifest_path.write_text(
+                json.dumps(result, ensure_ascii=False, indent=2, default=str) + "\n",
+                encoding="utf-8",
+            )
+            result["manifest_out"] = str(manifest_path)
     elif args.command == "research":
         from .research_worker import run_research_batch
 

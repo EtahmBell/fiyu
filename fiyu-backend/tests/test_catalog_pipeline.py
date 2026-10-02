@@ -685,6 +685,222 @@ def test_automatic_publication_ignores_location_and_web_identity_diagnostic(tmp_
     assert apply_automatic_publication(score_rejected, "place-1")["published"] is True
 
 
+def _set_publication_conflict(
+    path,
+    text,
+    *,
+    matched_restaurant=True,
+    identity_status="confirmed",
+    branch_name=None,
+):
+    with connect(path) as connection:
+        row = connection.execute(
+            """
+            SELECT p.evidence_json, r.id, r.structured_research_json
+            FROM public_restaurants p
+            JOIN restaurant_research_runs r ON r.public_restaurant_id=p.place_id
+            WHERE p.place_id='place-1' AND r.is_current=1
+            """
+        ).fetchone()
+        evidence = json.loads(row["evidence_json"])
+        evidence["matched_restaurant"] = matched_restaurant
+        evidence["conflicting_evidence"] = True
+        structured = json.loads(row["structured_research_json"])
+        structured["address_evidence"] = {
+            "identity_status": identity_status,
+            "identity_confidence": 0.95,
+            "branch_name": branch_name,
+            "conflicting_address_candidates": [],
+            "warnings": [text],
+            "recommended_action": text,
+            "research_summary": text,
+        }
+        connection.execute(
+            "UPDATE public_restaurants SET evidence_json=? WHERE place_id='place-1'",
+            (json.dumps(evidence),),
+        )
+        connection.execute(
+            "UPDATE restaurant_research_runs SET structured_research_json=? WHERE id=?",
+            (json.dumps(structured), row["id"]),
+        )
+        connection.commit()
+
+
+def test_sparse_unknown_optional_fields_and_low_confidence_remain_publishable(tmp_path):
+    path = _db(tmp_path)
+    _make_auto_publishable(path, map_eligible=False)
+    with connect(path) as connection:
+        row = connection.execute(
+            "SELECT evidence_json FROM public_restaurants WHERE place_id='place-1'"
+        ).fetchone()
+        evidence = json.loads(row[0])
+        evidence.update(
+            {
+                "identity_confidence": 0.20,
+                "total_evidence_sources": 1,
+                "official_website_found": False,
+            }
+        )
+        connection.execute(
+            """
+            UPDATE public_restaurants
+            SET evidence_json=?, budget_json=NULL, opening_hours_json='{}',
+                reservation_status='unknown'
+            WHERE place_id='place-1'
+            """,
+            (json.dumps(evidence),),
+        )
+        connection.commit()
+
+    result = apply_automatic_publication(path, "place-1")
+    assert result["published"] is True
+    assert result["critical_contradiction_reasons"] == ()
+    assert result["readiness"]["warnings"] == (
+        "location_unresolved_or_map_unavailable",
+    )
+
+
+def test_ambiguous_branch_without_contradictory_evidence_remains_publishable(tmp_path):
+    path = _db(tmp_path)
+    _make_auto_publishable(path)
+    _set_publication_conflict(
+        path,
+        "The branch could not be determined from the available sparse evidence.",
+        identity_status="ambiguous",
+        branch_name="unknown",
+    )
+    decision = _current_score_policy_decision(path, dict(_row(path, "place-1")))
+    assert decision["diagnostics"]["research_conflict"] is True
+    assert decision["critical_publication_contradiction"] is False
+    assert apply_automatic_publication(path, "place-1")["published"] is True
+
+
+@pytest.mark.parametrize(
+    ("text", "matched_restaurant", "identity_status", "branch_name", "reason"),
+    [
+        (
+            "Current official evidence confirms that the restaurant is permanently closed.",
+            True,
+            "confirmed",
+            None,
+            "confirmed_permanent_closure",
+        ),
+        (
+            "Candidate branch is Ebisu but the research evidence belongs to the different Ginza branch.",
+            True,
+            "conflicting",
+            "Ginza",
+            "confirmed_branch_identity_conflict",
+        ),
+        (
+            "Research evidence belongs to a different restaurant and the candidate identity conflicts.",
+            False,
+            "conflicting",
+            None,
+            "confirmed_wrong_restaurant_identity",
+        ),
+        (
+            "Current sources confirm that this business was replaced by another restaurant.",
+            True,
+            "confirmed",
+            None,
+            "confirmed_business_replacement",
+        ),
+    ],
+)
+def test_critical_contradictions_block_auto_publication_for_review(
+    tmp_path, text, matched_restaurant, identity_status, branch_name, reason
+):
+    path = _db(tmp_path)
+    _make_auto_publishable(path)
+    _set_publication_conflict(
+        path,
+        text,
+        matched_restaurant=matched_restaurant,
+        identity_status=identity_status,
+        branch_name=branch_name,
+    )
+
+    result = apply_automatic_publication(path, "place-1")
+
+    assert result["published"] is False
+    assert result["outcome"] == "needs_review"
+    assert reason in result["critical_contradiction_reasons"]
+    assert result["reason"].startswith("critical_publication_contradiction:")
+
+
+def test_later_permanent_closure_unpublishes_existing_restaurant(tmp_path):
+    path = _db(tmp_path)
+    _make_auto_publishable(path)
+    assert apply_automatic_publication(path, "place-1")["published"] is True
+    _set_publication_conflict(
+        path,
+        "Current official evidence confirms that the restaurant is permanently closed.",
+    )
+
+    result = apply_automatic_publication(path, "place-1")
+
+    assert result["published"] is False
+    with connect(path) as connection:
+        row = connection.execute(
+            "SELECT is_published, review_status, review_notes "
+            "FROM public_restaurants WHERE place_id='place-1'"
+        ).fetchone()
+    assert row["is_published"] == 0
+    assert row["review_status"] == "needs_review"
+    assert "confirmed_permanent_closure" in row["review_notes"]
+
+
+def test_similar_name_without_exact_identity_evidence_does_not_block(tmp_path):
+    path = _db(tmp_path)
+    _make_auto_publishable(path)
+    with connect(path) as connection:
+        connection.execute(
+            """
+            INSERT INTO public_restaurants (
+                place_id, name_en, primary_category, research_status,
+                is_published, product_eligible, created_at, updated_at
+            ) VALUES ('place-2', 'Restaurant', 'Sushi', 'complete', 1, 1, 'old', 'old')
+            """
+        )
+        connection.commit()
+    assert apply_automatic_publication(path, "place-1")["published"] is True
+
+
+def test_same_name_and_exact_osm_object_blocks_duplicate_publication(tmp_path):
+    path = _db(tmp_path)
+    _make_auto_publishable(path)
+    with connect(path) as connection:
+        connection.execute(
+            """
+            UPDATE public_restaurants
+            SET name_en='Restaurant', map_display_eligible=1,
+                map_location_approximate=0, location_osm_type='node',
+                location_osm_id=12345, location_precision='exact'
+            WHERE place_id='place-1'
+            """
+        )
+        connection.execute(
+            """
+            INSERT INTO public_restaurants (
+                place_id, name_en, primary_category, research_status,
+                is_published, product_eligible, map_display_eligible,
+                map_location_approximate, location_osm_type, location_osm_id,
+                location_precision, created_at, updated_at
+            ) VALUES (
+                'place-2', 'Restaurant', 'Sushi', 'complete', 1, 1, 1, 0,
+                'node', 12345, 'exact', 'old', 'old'
+            )
+            """
+        )
+        connection.commit()
+
+    result = apply_automatic_publication(path, "place-1")
+
+    assert result["published"] is False
+    assert "duplicate_of_published:place-2" in result["critical_contradiction_reasons"]
+
+
 def _add_effective_address_resolution(path, *, add_audit=True):
     agreement = json.dumps({
         "material_conflicting_components": [],
@@ -880,7 +1096,7 @@ def test_current_policy_rejects_affirmatively_supported_members_only_access(tmp_
         (
             "The identity conflict includes a confirmed permanent closure.",
             "protected_non_address_conflict_domain",
-            True,
+            False,
         ),
         (
             "The address conflict includes an unresolved evidence integrity problem.",
@@ -949,6 +1165,17 @@ def test_retry_blocked_candidates_do_not_consume_batch_limit(monkeypatch, tmp_pa
         )
         connection.commit()
     _add_pipeline_candidate(path, "blocked-failed", status="failed")
+    _add_pipeline_candidate(path, "blocked-contradiction", status="complete")
+    with connect(path) as connection:
+        connection.execute(
+            """
+            UPDATE public_restaurants
+            SET review_status='needs_review',
+                review_notes='critical_publication_contradiction:confirmed_permanent_closure'
+            WHERE place_id='blocked-contradiction'
+            """
+        )
+        connection.commit()
     _add_pipeline_candidate(path, "queue-3", updated_at="2026-01-03")
     _add_pipeline_candidate(path, "queue-1", updated_at="2026-01-01")
     _add_pipeline_candidate(path, "queue-2", updated_at="2026-01-02")
@@ -981,10 +1208,14 @@ def test_retry_blocked_candidates_do_not_consume_batch_limit(monkeypatch, tmp_pa
         statuses = dict(
             connection.execute(
                 "SELECT place_id, research_status FROM public_restaurants "
-                "WHERE place_id IN ('place-1', 'blocked-failed')"
+                "WHERE place_id IN ('place-1', 'blocked-failed', 'blocked-contradiction')"
             ).fetchall()
         )
-    assert statuses == {"place-1": "needs_retry", "blocked-failed": "failed"}
+    assert statuses == {
+        "place-1": "needs_retry",
+        "blocked-failed": "failed",
+        "blocked-contradiction": "complete",
+    }
 
 
 def test_pipeline_selection_is_deterministic_and_uses_available_queue(monkeypatch, tmp_path):

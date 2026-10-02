@@ -4,6 +4,7 @@ import csv
 import hashlib
 import json
 import os
+import sqlite3
 from collections.abc import Iterable
 from datetime import UTC, datetime
 from pathlib import Path
@@ -898,19 +899,170 @@ def seed_public_queue(
             """,
             parameters,
         ).fetchall()
-        connection.executemany(
-            """
-            INSERT INTO public_restaurants (
-                place_id, source_restaurant_id, created_at, updated_at
-            ) VALUES (?, ?, ?, ?)
-            ON CONFLICT(place_id) DO UPDATE SET
-                source_restaurant_id = excluded.source_restaurant_id,
-                updated_at = excluded.updated_at
-            """,
-            ((row["place_id"], row["id"], now, now) for row in rows),
+        _insert_public_queue_rows(
+            connection, rows, now=now, preserve_existing=False
         )
         connection.commit()
     return len(rows)
+
+
+def _insert_public_queue_rows(
+    connection: sqlite3.Connection,
+    rows: Iterable[sqlite3.Row | dict[str, object]],
+    *,
+    now: str,
+    preserve_existing: bool,
+) -> int:
+    """Create standard pending public rows through one shared initialization path."""
+
+    rows = list(rows)
+    conflict_clause = (
+        "ON CONFLICT(place_id) DO NOTHING"
+        if preserve_existing
+        else """
+        ON CONFLICT(place_id) DO UPDATE SET
+            source_restaurant_id = excluded.source_restaurant_id,
+            updated_at = excluded.updated_at
+        """
+    )
+    before = connection.total_changes
+    connection.executemany(
+        f"""
+        INSERT INTO public_restaurants (
+            place_id, source_restaurant_id, created_at, updated_at
+        ) VALUES (?, ?, ?, ?)
+        {conflict_clause}
+        """,
+        ((row["place_id"], row["id"], now, now) for row in rows),
+    )
+    return connection.total_changes - before
+
+
+def _unseeded_candidate_rows(
+    connection: sqlite3.Connection, *, min_internal_score: float
+) -> list[dict[str, object]]:
+    rows = connection.execute(
+        """
+        SELECT r.id, r.place_id, r.title, r.internal_fiyu_score,
+               r.search_area, r.source_areas_json, r.category, r.broad_category
+        FROM restaurants r
+        WHERE r.candidate_eligible=1
+          AND r.place_id IS NOT NULL
+          AND TRIM(r.place_id)!=''
+          AND r.internal_fiyu_score>=?
+          AND NOT EXISTS (
+              SELECT 1 FROM public_restaurants p WHERE p.place_id=r.place_id
+          )
+        ORDER BY r.place_id, r.internal_fiyu_score DESC, r.id
+        """,
+        (min_internal_score,),
+    ).fetchall()
+    unique: dict[str, dict[str, object]] = {}
+    for raw in rows:
+        row = dict(raw)
+        place_id = str(row["place_id"])
+        if place_id not in unique:
+            unique[place_id] = row
+    return list(unique.values())
+
+
+def _stable_seed_order(seed: str, place_id: str) -> bytes:
+    return hashlib.sha256(f"{seed}\0{place_id}".encode()).digest()
+
+
+def _candidate_seed_summary(row: dict[str, object]) -> dict[str, object]:
+    try:
+        source_areas = json.loads(str(row.get("source_areas_json") or "[]"))
+    except json.JSONDecodeError:
+        source_areas = []
+    if not isinstance(source_areas, list):
+        source_areas = []
+    return {
+        "place_id": row["place_id"],
+        "title": row.get("title"),
+        "internal_score": row.get("internal_fiyu_score"),
+        "source_area": row.get("search_area"),
+        "source_areas": source_areas,
+        "category": row.get("category") or row.get("broad_category"),
+    }
+
+
+def seed_unseeded_public_queue(
+    db_path: str | Path,
+    *,
+    limit: int = 500,
+    min_internal_score: float = 60.0,
+    seed: str | int,
+    dry_run: bool = False,
+) -> dict[str, object]:
+    """Deterministically select and seed eligible candidates absent from the queue."""
+
+    if limit < 1:
+        raise ValueError("limit must be at least 1")
+    stable_seed = str(seed)
+    if not stable_seed:
+        raise ValueError("seed must not be empty")
+
+    if dry_run:
+        uri = Path(db_path).resolve().as_uri() + "?mode=ro"
+        connection = sqlite3.connect(uri, uri=True)
+        connection.row_factory = sqlite3.Row
+    else:
+        ensure_public_schema(db_path)
+        connection = connect(db_path)
+
+    try:
+        if not dry_run:
+            connection.execute("BEGIN IMMEDIATE")
+        pool = _unseeded_candidate_rows(
+            connection, min_internal_score=min_internal_score
+        )
+        ordered = sorted(
+            pool,
+            key=lambda row: (
+                _stable_seed_order(stable_seed, str(row["place_id"])),
+                str(row["place_id"]),
+            ),
+        )
+        selected = ordered[:limit]
+        seeded = 0
+        if not dry_run:
+            seeded = _insert_public_queue_rows(
+                connection,
+                selected,
+                now=_utc_now(),
+                preserve_existing=True,
+            )
+            remaining = len(
+                _unseeded_candidate_rows(
+                    connection, min_internal_score=min_internal_score
+                )
+            )
+            connection.commit()
+        else:
+            remaining = len(pool)
+    except Exception:
+        if not dry_run:
+            connection.rollback()
+        raise
+    finally:
+        connection.close()
+
+    selected_count = len(selected)
+    return {
+        "dry_run": dry_run,
+        "eligible_unseeded_pool_before": len(pool),
+        "requested_count": limit,
+        "selected_count": selected_count,
+        "seeded_count": seeded,
+        "already_existing_race_skips": 0 if dry_run else selected_count - seeded,
+        "eligible_unseeded_pool_remaining": remaining,
+        "seed": stable_seed,
+        "min_score": min_internal_score,
+        "fewer_than_requested": selected_count < limit,
+        "selected_place_ids": [str(row["place_id"]) for row in selected],
+        "selected_candidates": [_candidate_seed_summary(row) for row in selected],
+    }
 
 
 AUTO_RESEARCH_QUEUE_STATUSES = ("pending",)

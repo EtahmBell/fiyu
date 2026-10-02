@@ -162,6 +162,19 @@ class ConflictAssessment:
 
 
 @dataclass(frozen=True, slots=True)
+class CriticalPublicationContradiction:
+    """Affirmative evidence that publishing would misrepresent the restaurant.
+
+    Sparse evidence, low confidence, and unresolved location are deliberately not
+    represented here.  Callers may add deterministic catalog-level contradictions,
+    such as an exact duplicate of an already-published record.
+    """
+
+    contradicted: bool
+    reasons: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
 class ChainAssessment:
     classification: ChainClassification
     group_affiliated: bool
@@ -363,6 +376,48 @@ _UNRESOLVED_BRANCH = re.compile(
     r"(?:ambiguous|conflicting|unresolved)\b",
     re.IGNORECASE,
 )
+_AFFIRMATIVE_PERMANENT_CLOSURE = re.compile(
+    r"\b(?:confirmed|currently|now|is|was|has been|appears to be)?\s*"
+    r"(?:permanently closed|permanent closure|closed permanently|"
+    r"ceased trading|ceased operations?)\b|"
+    r"(?:閉店|閉業|廃業|営業終了)",
+    re.IGNORECASE,
+)
+_REOPENED_OR_TEMPORARY_CLOSURE = re.compile(
+    r"\b(?:temporar(?:y|ily) closed|reopened|has reopened|open again)\b|"
+    r"臨時休業|一時休業|営業再開",
+    re.IGNORECASE,
+)
+_AFFIRMATIVE_REPLACEMENT = re.compile(
+    r"\b(?:has been|was|is|now)\s+(?:replaced by|converted into)\b|"
+    r"\b(?:no longer represents?|is no longer)\b[^.!?]{0,100}"
+    r"\b(?:candidate|restaurant|business)\b|"
+    r"(?:別店舗に変更|別の店に変更|業態転換)",
+    re.IGNORECASE,
+)
+_AFFIRMATIVE_WRONG_ENTITY = re.compile(
+    r"\b(?:research|evidence|sources?)\b[^.!?]{0,100}"
+    r"\b(?:belongs? to|describes?|resolves? to|matches?)\b[^.!?]{0,80}"
+    r"\b(?:another|a different|the wrong)\s+(?:restaurant|business|venue)\b|"
+    r"\b(?:candidate|restaurant) identity\b[^.!?]{0,80}"
+    r"\b(?:mismatch|conflict|is wrong|does not match)\b|"
+    r"\bsource mismatch\b|別店舗|別の店",
+    re.IGNORECASE,
+)
+_AFFIRMATIVE_BRANCH_CONTRADICTION = re.compile(
+    r"\b(?:candidate|restaurant)\b[^.!?]{0,100}\bbranch\b[^.!?]{0,100}"
+    r"\b(?:but|while|whereas|conflict|mismatch|different|wrong)\b|"
+    r"\bbranch (?:identity|mapping)\b[^.!?]{0,80}"
+    r"\b(?:conflict|mismatch|contradict|wrong)\b|"
+    r"\b(?:evidence|research|sources?)\b[^.!?]{0,100}\b(?:different|wrong) branch\b|"
+    r"支店(?:の)?(?:不一致|矛盾|相違)",
+    re.IGNORECASE,
+)
+_AFFIRMATIVE_EVIDENCE_INTEGRITY_FAILURE = re.compile(
+    r"\b(?:evidence integrity failure|fabricated evidence|source mismatch)\b|"
+    r"証拠(?:の)?(?:捏造|不整合)",
+    re.IGNORECASE,
+)
 
 
 def _is_non_address_candidate(value: object) -> bool:
@@ -411,6 +466,20 @@ def _has_protected_material_risk(text: str) -> bool:
     """Ignore explicit negative findings while preserving real protected risks."""
 
     return bool(_PROTECTED_MATERIAL_RISK.search(_NEGATED_CLOSURE_RISK.sub("", text)))
+
+
+def _affirmative_current_context(text: str) -> str:
+    """Remove explicit negative, temporary, and reopened findings."""
+
+    without_negated_closure = _NEGATED_CLOSURE_RISK.sub("", text)
+    without_negated_conflict = _NEGATED_CONFLICT_FINDING.sub(
+        "", without_negated_closure
+    )
+    return " ".join(
+        sentence
+        for sentence in re.split(r"(?<=[.!?。！？])\s*", without_negated_conflict)
+        if sentence and not _REOPENED_OR_TEMPORARY_CLOSURE.search(sentence)
+    )
 
 
 def _address_component_key(value: object) -> str:
@@ -609,6 +678,64 @@ def assess_publication_conflict(
     return ConflictAssessment(
         True, True, "unknown", ("unclassified_conflict_defaults_blocking",), explanation
     )
+
+
+def assess_critical_publication_contradiction(
+    evidence: FiyuEvidence,
+    structured_research: Mapping[str, object] | None = None,
+) -> CriticalPublicationContradiction:
+    """Identify only affirmative restaurant-identity correctness failures.
+
+    This is intentionally narrower than :func:`assess_publication_conflict`.
+    Ambiguity, sparse evidence, low confidence, missing fields, and operational or
+    location uncertainty are not critical contradictions.
+    """
+
+    structured = structured_research if isinstance(structured_research, Mapping) else {}
+    address = structured.get("address_evidence")
+    address = address if isinstance(address, Mapping) else {}
+    context = _affirmative_current_context(
+        " ".join(
+            [
+                str(structured.get("conflict_explanation") or ""),
+                str(structured.get("prior_material_conflict_context") or ""),
+                *(str(item) for item in structured.get("warnings", [])
+                  if isinstance(structured.get("warnings"), list)),
+                *(str(item) for field in ("warnings", "recommended_action", "research_summary")
+                  for item in (
+                      address.get(field, [])
+                      if isinstance(address.get(field), list)
+                      else [address.get(field)] if address.get(field) else []
+                  )),
+            ]
+        )
+    )
+    reasons: list[str] = []
+
+    if _AFFIRMATIVE_PERMANENT_CLOSURE.search(context):
+        reasons.append("confirmed_permanent_closure")
+    if _AFFIRMATIVE_REPLACEMENT.search(context):
+        reasons.append("confirmed_business_replacement")
+
+    affirmative_identity_conflict = evidence.conflicting_evidence or str(
+        address.get("identity_status") or ""
+    ).casefold() == "conflicting"
+    if affirmative_identity_conflict:
+        if _AFFIRMATIVE_WRONG_ENTITY.search(context):
+            reasons.append("confirmed_wrong_restaurant_identity")
+        if _AFFIRMATIVE_BRANCH_CONTRADICTION.search(context):
+            reasons.append("confirmed_branch_identity_conflict")
+        if _AFFIRMATIVE_EVIDENCE_INTEGRITY_FAILURE.search(context):
+            reasons.append("confirmed_evidence_integrity_failure")
+        if (
+            str(address.get("identity_status") or "").casefold() == "conflicting"
+            and "confirmed_wrong_restaurant_identity" not in reasons
+            and "confirmed_branch_identity_conflict" not in reasons
+        ):
+            reasons.append("confirmed_address_identity_conflict")
+
+    unique_reasons = tuple(dict.fromkeys(reasons))
+    return CriticalPublicationContradiction(bool(unique_reasons), unique_reasons)
 
 
 def _official_language_score(language: OfficialLanguage) -> float:
