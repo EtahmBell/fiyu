@@ -8,6 +8,8 @@ from fiyu.database import SCHEMA, connect
 from fiyu.public_catalog import ensure_public_schema
 from fiyu.restaurant_lists import ensure_restaurant_list_schema
 from fiyu.restaurant_visits import ensure_restaurant_visit_schema
+from scripts.audit_taste_v2_structure import analyze as analyze_taste_v2
+from scripts.audit_taste_v2_structure import render_markdown as render_taste_v2
 from scripts.evaluate_personalized_picks import STATE_TABLES, evaluate, render_markdown
 from scripts.evaluate_personalized_picks_progression import evaluate_progression
 from scripts.evaluate_personalized_picks_progression import (
@@ -219,3 +221,23 @@ def test_progression_report_contains_rotation_and_facet_evidence(tmp_path):
     assert "High-price affordability counterfactual" in markdown
     assert "private-owner" not in markdown
     assert "must remain private" not in markdown
+
+
+def test_taste_v2_structure_audit_is_read_only_and_reports_feature_evidence(tmp_path):
+    path = _evaluation_database(tmp_path)
+    before = _state_rows(path)
+
+    report = analyze_taste_v2(path)
+    markdown = render_taste_v2(report)
+
+    assert report["methodology"]["restaurant_count"] == 30
+    assert report["methodology"]["persistent_state_unchanged"] is True
+    assert report["facets"]
+    assert report["pairs"]
+    assert len(report["profiles"]) == 8
+    assert "Current facet coverage and specificity" in markdown
+    assert "Synthetic user-profile demonstrations" in markdown
+    assert "Exploratory restaurant clustering" in markdown
+    assert "private-owner" not in markdown
+    assert "must remain private" not in markdown
+    assert _state_rows(path) == before
