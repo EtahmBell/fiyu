@@ -296,6 +296,10 @@ def _run_plan(
     taste: UserTasteProfile | None,
     budget: BudgetPreferenceProfile | None,
     apply_affordable_slot: bool = True,
+    served_history: dict[str, datetime] | None = None,
+    saved_place_ids: set[str] | None = None,
+    excluded_place_ids: set[str] | None = None,
+    now: datetime | None = None,
 ) -> tuple[tuple[str, ...], dict[str, object]]:
     with closing(sqlite3.connect(clone)) as connection:
         connection.row_factory = sqlite3.Row
@@ -304,14 +308,15 @@ def _run_plan(
             discovery_latitude=latitude,
             discovery_longitude=longitude,
             active_area=area,
-            saved_place_ids=set(),
-            served_history={},
-            now=datetime(2026, 10, 1, tzinfo=UTC),
+            saved_place_ids=saved_place_ids or set(),
+            served_history=served_history or {},
+            now=now or datetime(2026, 10, 1, tzinfo=UTC),
             requested_count=3,
             seed=seed,
             taste_profile=taste,
             budget_profile=budget,
             apply_affordable_slot=apply_affordable_slot,
+            excluded_place_ids=excluded_place_ids,
         )
 
 

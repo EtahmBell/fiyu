@@ -9,6 +9,10 @@ from fiyu.public_catalog import ensure_public_schema
 from fiyu.restaurant_lists import ensure_restaurant_list_schema
 from fiyu.restaurant_visits import ensure_restaurant_visit_schema
 from scripts.evaluate_personalized_picks import STATE_TABLES, evaluate, render_markdown
+from scripts.evaluate_personalized_picks_progression import evaluate_progression
+from scripts.evaluate_personalized_picks_progression import (
+    render_markdown as render_progression_markdown,
+)
 
 
 def _state_rows(path) -> dict[str, list[tuple[object, ...]]]:
@@ -169,5 +173,49 @@ def test_evaluator_report_is_pseudonymous_and_contains_required_views(tmp_path):
     assert "Cross-profile observations" in markdown
     assert "Affordability" in markdown
     assert "Exploration" in markdown
+    assert "private-owner" not in markdown
+    assert "must remain private" not in markdown
+
+
+def test_progression_uses_temporary_history_and_preserves_source_state(tmp_path):
+    path = _evaluation_database(tmp_path)
+    before = _state_rows(path)
+
+    report = evaluate_progression(path, cycles=10, seed_base=9200)
+
+    assert report["methodology"]["persistent_state_unchanged"] is True
+    assert len(report["profiles"]) == 6
+    assert all(len(profile["cycles"]) == 10 for profile in report["profiles"])
+    assert all(
+        profile["summary"]["unique_restaurants"] == 30
+        for profile in report["profiles"]
+    )
+    assert all(
+        profile["summary"]["first_repeat_cycle"] is None
+        for profile in report["profiles"]
+    )
+    probe = report["cooldown_probes"]
+    assert probe["unseen_preferred"] is True
+    assert probe["recent_blocked"] is True
+    assert probe["old_unused_while_three_unseen"] is True
+    assert probe["old_used_for_fallback"] is True
+    assert probe["saved_excluded"] is True
+    assert probe["affordability_did_not_bypass_recent"] is True
+    assert probe["personalization_did_not_bypass_recent"] is True
+    assert _state_rows(path) == before
+
+
+def test_progression_report_contains_rotation_and_facet_evidence(tmp_path):
+    report = evaluate_progression(
+        _evaluation_database(tmp_path), cycles=10, seed_base=9300
+    )
+    markdown = render_progression_markdown(report)
+
+    assert "Cooldown verification" in markdown
+    assert "Facet frequency and specificity" in markdown
+    assert "Correlated-facet amplification evidence" in markdown
+    assert "Distinctive-signal dilution evidence" in markdown
+    assert "Same-seed legacy progression" in markdown
+    assert "High-price affordability counterfactual" in markdown
     assert "private-owner" not in markdown
     assert "must remain private" not in markdown
