@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import statistics
 import sys
 from pathlib import Path
 
@@ -44,6 +45,11 @@ def _parser() -> argparse.ArgumentParser:
     seed_unseeded.add_argument("--min-score", type=float, default=60.0)
     seed_unseeded.add_argument("--seed", required=True)
     seed_unseeded.add_argument("--dry-run", action="store_true")
+    seed_unseeded.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Print the full JSON result, including every selected candidate",
+    )
     seed_unseeded.add_argument("--manifest-out")
 
     research = commands.add_parser("research")
@@ -147,6 +153,75 @@ def _parser() -> argparse.ArgumentParser:
 
     commands.add_parser("status")
     return parser
+
+
+def _seed_score_bands(scores: list[float]) -> list[tuple[str, int]]:
+    bands = (
+        ("<60", lambda score: score < 60),
+        ("60–64.99", lambda score: 60 <= score < 65),
+        ("65–69.99", lambda score: 65 <= score < 70),
+        ("70–71.99", lambda score: 70 <= score < 72),
+        ("72–73.99", lambda score: 72 <= score < 74),
+        ("74+", lambda score: score >= 74),
+    )
+    return [
+        (label, count)
+        for label, contains in bands
+        if (count := sum(contains(score) for score in scores))
+    ]
+
+
+def _format_seed_unseeded_summary(result: dict[str, object]) -> str:
+    selected = result.get("selected_candidates")
+    candidates = selected if isinstance(selected, list) else []
+    scores = [
+        float(candidate["internal_score"])
+        for candidate in candidates
+        if isinstance(candidate, dict)
+        and isinstance(candidate.get("internal_score"), (int, float))
+        and not isinstance(candidate.get("internal_score"), bool)
+    ]
+    if result.get("dry_run"):
+        lines = [
+            f"Eligible unseeded pool: {result['eligible_unseeded_pool_before']}",
+            f"Requested: {result['requested_count']}",
+            f"Selected: {result['selected_count']}",
+        ]
+        if scores:
+            lines.extend(
+                (
+                    f"Min score: {min(scores):.2f}",
+                    f"Median score: {statistics.median(scores):.2f}",
+                    f"Mean score: {statistics.mean(scores):.2f}",
+                    f"Max score: {max(scores):.2f}",
+                )
+            )
+        lines.extend(
+            (
+                f"Seed: {result['seed']}",
+                f"Min-score filter: {result['min_score']:g}",
+                "Database writes: 0",
+            )
+        )
+        distribution = _seed_score_bands(scores)
+        if distribution:
+            lines.append("")
+            lines.append("Selected score distribution:")
+            lines.extend(f"{label}: {count}" for label, count in distribution)
+        return "\n".join(lines)
+
+    return "\n".join(
+        (
+            f"Eligible unseeded before: {result['eligible_unseeded_pool_before']}",
+            f"Requested: {result['requested_count']}",
+            f"Selected: {result['selected_count']}",
+            f"Seeded: {result['seeded_count']}",
+            f"Skipped/already existing: {result['already_existing_race_skips']}",
+            f"Eligible unseeded remaining: {result['eligible_unseeded_pool_remaining']}",
+            f"Seed: {result['seed']}",
+            f"Min-score: {result['min_score']:g}",
+        )
+    )
 
 
 def main() -> None:
@@ -275,7 +350,10 @@ def main() -> None:
         result = publish_candidate(db, args.place_id).to_dict()
     else:
         result = pipeline_status(db)
-    print(json.dumps(result, ensure_ascii=False, indent=2, default=str))
+    if args.command == "seed-unseeded" and not args.verbose:
+        print(_format_seed_unseeded_summary(result))
+    else:
+        print(json.dumps(result, ensure_ascii=False, indent=2, default=str))
 
 
 if __name__ == "__main__":

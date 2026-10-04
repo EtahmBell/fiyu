@@ -195,6 +195,7 @@ def test_cli_dry_run_writes_optional_manifest_but_not_database(
             "--seed",
             "manifest-seed",
             "--dry-run",
+            "--verbose",
             "--manifest-out",
             str(manifest),
         ],
@@ -207,3 +208,133 @@ def test_cli_dry_run_writes_optional_manifest_but_not_database(
     assert output["selected_count"] == 4
     assert saved["selected_place_ids"] == output["selected_place_ids"]
     assert path.read_bytes() == before_bytes
+
+
+def test_cli_default_dry_run_is_compact_and_makes_zero_writes(
+    tmp_path, monkeypatch, capsys
+):
+    path = _db(tmp_path)
+    before_bytes = path.read_bytes()
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "pipeline_cli",
+            "--db",
+            str(path),
+            "seed-unseeded",
+            "--limit",
+            "4",
+            "--min-score",
+            "60",
+            "--seed",
+            "compact-seed",
+            "--dry-run",
+        ],
+    )
+
+    pipeline_main()
+
+    output = capsys.readouterr().out
+    assert "Eligible unseeded pool: 11" in output
+    assert "Requested: 4" in output
+    assert "Selected: 4" in output
+    assert "Min score:" in output
+    assert "Median score:" in output
+    assert "Mean score:" in output
+    assert "Max score:" in output
+    assert "Seed: compact-seed" in output
+    assert "Min-score filter: 60" in output
+    assert "Database writes: 0" in output
+    assert "Selected score distribution:" in output
+    assert "selected_candidates" not in output
+    assert "eligible-" not in output
+    assert "Restaurant" not in output
+    assert path.read_bytes() == before_bytes
+
+
+def test_cli_verbose_dry_run_exposes_unchanged_selection(
+    tmp_path, monkeypatch, capsys
+):
+    path = _db(tmp_path)
+    expected = seed_unseeded_public_queue(
+        path,
+        limit=4,
+        min_internal_score=60,
+        seed="verbose-seed",
+        dry_run=True,
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "pipeline_cli",
+            "--db",
+            str(path),
+            "seed-unseeded",
+            "--limit",
+            "4",
+            "--min-score",
+            "60",
+            "--seed",
+            "verbose-seed",
+            "--dry-run",
+            "--verbose",
+        ],
+    )
+
+    pipeline_main()
+
+    output = json.loads(capsys.readouterr().out)
+    assert output["selected_place_ids"] == expected["selected_place_ids"]
+    assert output["selected_candidates"] == expected["selected_candidates"]
+    assert all(
+        {"place_id", "title", "internal_score", "category", "source_area"}
+        <= candidate.keys()
+        for candidate in output["selected_candidates"]
+    )
+
+
+def test_cli_real_seed_is_compact_and_preserves_seeding_behavior(
+    tmp_path, monkeypatch, capsys
+):
+    path = _db(tmp_path)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "pipeline_cli",
+            "--db",
+            str(path),
+            "seed-unseeded",
+            "--limit",
+            "4",
+            "--min-score",
+            "60",
+            "--seed",
+            "real-seed",
+        ],
+    )
+
+    pipeline_main()
+
+    output = capsys.readouterr().out
+    assert "Eligible unseeded before: 11" in output
+    assert "Requested: 4" in output
+    assert "Selected: 4" in output
+    assert "Seeded: 4" in output
+    assert "Skipped/already existing: 0" in output
+    assert "Eligible unseeded remaining: 7" in output
+    assert "Seed: real-seed" in output
+    assert "Min-score: 60" in output
+    assert "selected_candidates" not in output
+    assert "eligible-" not in output
+    with connect(path) as connection:
+        states = connection.execute(
+            """
+            SELECT research_status, review_status, is_published
+            FROM public_restaurants WHERE place_id!='eligible-00'
+            """
+        ).fetchall()
+    assert len(states) == 4
+    assert {tuple(row) for row in states} == {("pending", "candidate", 0)}
