@@ -2,12 +2,19 @@ import json
 from types import SimpleNamespace
 
 import httpx
-from openai import APIConnectionError
+from openai import APIConnectionError, RateLimitError
 
 from fiyu.database import SCHEMA, connect
 from fiyu.experimental_quality_challenge_v4 import ChallengeObservation, ChallengeResearchResult
 from fiyu.public_catalog import ensure_public_schema
-from fiyu.quality_v4 import calculate_quality_v4, calculate_quality_v4_shadow
+from fiyu.quality_v4 import (
+    QUALITY_CASE_STRENGTH_VERSION,
+    QUALITY_PROMPT_VERSION,
+    QUALITY_RESEARCH_VERSION,
+    QUALITY_SCORE_VERSION,
+    calculate_quality_v4,
+    calculate_quality_v4_shadow,
+)
 from fiyu.quality_v4_backfill import run_quality_v4_backfill
 
 
@@ -155,6 +162,31 @@ def _client(parsed=None, error=None):
     return SimpleNamespace(responses=_Responses(parsed, error))
 
 
+def _insert_quality_attempt(path, place_id: str, status: str, error: str | None = None) -> None:
+    with connect(path) as connection:
+        connection.execute(
+            """
+            INSERT INTO quality_v4_research_runs (
+                public_restaurant_id, provider, model, status,
+                quality_research_version, quality_case_strength_version,
+                score_version, prompt_version, adjustment_guardrail,
+                error_category, error, created_at
+            ) VALUES (?, 'openai', 'test-model', ?, ?, ?, ?, ?, 15,
+                      'validation_or_processing_failure', ?, 'now')
+            """,
+            (
+                place_id,
+                status,
+                QUALITY_RESEARCH_VERSION,
+                QUALITY_CASE_STRENGTH_VERSION,
+                QUALITY_SCORE_VERSION,
+                QUALITY_PROMPT_VERSION,
+                error,
+            ),
+        )
+        connection.commit()
+
+
 def test_backfill_is_resumable_and_never_replaces_production_score(tmp_path) -> None:
     path = _db(tmp_path)
     research = ChallengeResearchResult(
@@ -215,3 +247,109 @@ def test_backfill_failure_states_are_checkpointed_and_not_retried(tmp_path) -> N
     )
     assert second["selected_count"] == 0
     assert second_client.responses.calls == 0
+
+
+def test_retry_failed_selects_only_credit_failures_and_then_skips_success(tmp_path) -> None:
+    path = _db(tmp_path, count=3)
+    _insert_quality_attempt(path, "place-0", "complete")
+    _insert_quality_attempt(
+        path,
+        "place-1",
+        "failed",
+        "RateLimitError: insufficient_quota credit_balance_exhausted",
+    )
+    _insert_quality_attempt(
+        path,
+        "place-2",
+        "failed",
+        "ValidationError: response schema did not validate",
+    )
+    research = ChallengeResearchResult(
+        evidence_level="none",
+        quality_evidence_confidence="low",
+        observations=[],
+        research_summary="No useful food-specific evidence was found.",
+    )
+    retry_client = _client(research)
+    first = run_quality_v4_backfill(
+        path,
+        limit=10,
+        retry_failed=True,
+        client=retry_client,
+        model="test-model",
+        manifest_path=tmp_path / "retry-manifest.json",
+        results_path=tmp_path / "retry-results.jsonl",
+    )
+
+    assert first["selection_mode"] == "retry_failed"
+    assert first["selected_count"] == 1
+    assert first["completed"] == 1
+    assert first["failed"] == 0
+    assert first["needs_retry"] == 0
+    assert first["responses_requests"] == 1
+    assert first["skipped_existing"] == 2
+    assert first["inspection"]["already_complete"] == 1
+    assert first["inspection"]["retryable_failed"] == 1
+    assert first["inspection"]["blocked_existing_statuses"] == {
+        "failed_not_retryable": 1
+    }
+    assert first["rows"][0]["place_id"] == "place-1"
+    assert first["rows"][0]["retry_of_run_id"] is not None
+    assert retry_client.responses.calls == 1
+
+    with connect(path) as connection:
+        latest = connection.execute(
+            """
+            SELECT status FROM quality_v4_research_runs
+            WHERE public_restaurant_id='place-1' ORDER BY id DESC LIMIT 1
+            """
+        ).fetchone()
+        assert latest["status"] == "complete"
+        assert connection.execute(
+            "SELECT COUNT(*) FROM quality_v4_research_runs WHERE public_restaurant_id='place-0'"
+        ).fetchone()[0] == 1
+
+    second_client = _client(research)
+    second = run_quality_v4_backfill(
+        path,
+        limit=10,
+        retry_failed=True,
+        client=second_client,
+        model="test-model",
+        manifest_path=tmp_path / "retry-manifest-2.json",
+        results_path=tmp_path / "retry-results-2.jsonl",
+    )
+    assert second["selected_count"] == 0
+    assert second["inspection"]["already_complete"] == 2
+    assert second_client.responses.calls == 0
+
+
+def test_exhausted_credit_error_is_checkpointed_as_needs_retry(tmp_path) -> None:
+    path = _db(tmp_path, count=1)
+    response = httpx.Response(
+        429,
+        request=httpx.Request("POST", "https://api.openai.com"),
+    )
+    error = RateLimitError(
+        "insufficient_quota: no credits remaining; credit_balance_exhausted",
+        response=response,
+        body={"code": "credit_balance_exhausted"},
+    )
+    result = run_quality_v4_backfill(
+        path,
+        limit=1,
+        client=_client(error=error),
+        model="test-model",
+        manifest_path=tmp_path / "manifest.json",
+        results_path=tmp_path / "results.jsonl",
+    )
+    assert result["failed"] == 0
+    assert result["needs_retry"] == 1
+    with connect(path) as connection:
+        row = connection.execute(
+            "SELECT status, error_category FROM quality_v4_research_runs"
+        ).fetchone()
+    assert dict(row) == {
+        "status": "needs_retry",
+        "error_category": "provider_credit_exhausted",
+    }

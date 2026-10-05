@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from dotenv import load_dotenv
-from openai import APIConnectionError, APITimeoutError, OpenAI
+from openai import APIConnectionError, APITimeoutError, OpenAI, RateLimitError
 
 from .address_research import extract_response_metadata
 from .database import connect
@@ -32,6 +32,11 @@ from .sqlite_snapshot import readonly_sqlite_snapshot
 
 MAX_WEB_SEARCH_ACTIONS = 5
 DEFAULT_MODEL = "gpt-5.6-luna"
+RETRYABLE_CREDIT_ERROR_MARKERS = (
+    "insufficient_quota",
+    "credit_balance_exhausted",
+    "no credits remaining",
+)
 
 SYSTEM_PROMPT = """You are performing a bounded QUALITY-ONLY research pass for a specific Tokyo restaurant.
 
@@ -93,9 +98,13 @@ def _all_candidate_rows(connection) -> list[dict[str, Any]]:
     )
     params: tuple[object, ...] = (QUALITY_RESEARCH_VERSION,) if existing else ()
     q_columns = (
-        "q.status AS quality_v4_status, q.id AS quality_v4_run_id"
+        "q.status AS quality_v4_status, q.id AS quality_v4_run_id, "
+        "q.error_category AS quality_v4_error_category, q.error AS quality_v4_error"
         if existing
-        else "NULL AS quality_v4_status, NULL AS quality_v4_run_id"
+        else (
+            "NULL AS quality_v4_status, NULL AS quality_v4_run_id, "
+            "NULL AS quality_v4_error_category, NULL AS quality_v4_error"
+        )
     )
     rows = connection.execute(
         f"""
@@ -141,6 +150,15 @@ def _exclusion_reason(row: dict[str, Any]) -> str | None:
     return None
 
 
+def _is_retryable_credit_failure(row: dict[str, Any]) -> bool:
+    if row.get("quality_v4_status") != "failed":
+        return False
+    if row.get("quality_v4_error_category") == "provider_credit_exhausted":
+        return True
+    error = str(row.get("quality_v4_error") or "").lower()
+    return any(marker in error for marker in RETRYABLE_CREDIT_ERROR_MARKERS)
+
+
 def _interleave_score_quartiles(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     ordered = sorted(
         rows,
@@ -162,7 +180,10 @@ def inspect_quality_v4_backfill(
     place_id: str | None = None,
     start_after: str | None = None,
     force: bool = False,
+    retry_failed: bool = False,
 ) -> dict[str, Any]:
+    if force and retry_failed:
+        raise ValueError("--force and --retry-failed are mutually exclusive")
     with readonly_sqlite_snapshot(db_path) as connection:
         rows = _all_candidate_rows(connection)
     exclusions = Counter()
@@ -175,6 +196,20 @@ def inspect_quality_v4_backfill(
             exclusions[reason] += 1
             continue
         status = row.get("quality_v4_status")
+        if retry_failed:
+            if status == "complete":
+                already_complete += 1
+                continue
+            if status != "failed":
+                blocked_existing[f"not_failed_{status or 'not_started'}"] += 1
+                continue
+            if not _is_retryable_credit_failure(row):
+                blocked_existing["failed_not_retryable"] += 1
+                continue
+            if place_id and row["place_id"] != place_id:
+                continue
+            eligible.append(row)
+            continue
         if status == "complete" and not force:
             already_complete += 1
             continue
@@ -201,6 +236,8 @@ def inspect_quality_v4_backfill(
         "excluded": sum(exclusions.values()),
         "exclusions_by_reason": dict(sorted(exclusions.items())),
         "estimated_batches_of_100": (len(eligible) + 99) // 100,
+        "selection_mode": "retry_failed" if retry_failed else "pending",
+        "retryable_failed": len(eligible) if retry_failed else 0,
         "eligible_rows": eligible,
     }
 
@@ -258,6 +295,7 @@ def run_quality_v4_backfill(
     place_id: str | None = None,
     start_after: str | None = None,
     force: bool = False,
+    retry_failed: bool = False,
     dry_run: bool = False,
     model: str | None = None,
     manifest_path: str | Path | None = None,
@@ -267,7 +305,11 @@ def run_quality_v4_backfill(
     if limit <= 0:
         raise ValueError("limit must be positive")
     inspection = inspect_quality_v4_backfill(
-        db_path, place_id=place_id, start_after=start_after, force=force
+        db_path,
+        place_id=place_id,
+        start_after=start_after,
+        force=force,
+        retry_failed=retry_failed,
     )
     selected = inspection.pop("eligible_rows")[:limit]
     run_key = uuid.uuid4().hex[:12]
@@ -280,6 +322,7 @@ def run_quality_v4_backfill(
         "run_id": run_key,
         "created_at": _utc_now(),
         "dry_run": dry_run,
+        "selection_mode": "retry_failed" if retry_failed else "pending",
         "model": selected_model,
         "requested_count": limit,
         "selected_count": len(selected),
@@ -346,6 +389,8 @@ def run_quality_v4_backfill(
                 run_id = int(cursor.lastrowid)
             manifest["responses_requests"] += 1
             record = _result_record(row, run_id, "needs_retry")
+            if retry_failed:
+                record["retry_of_run_id"] = row.get("quality_v4_run_id")
             try:
                 response = api_client.responses.parse(
                     model=selected_model,
@@ -464,6 +509,36 @@ def run_quality_v4_backfill(
                     connection.commit()
                 record.update(status="needs_retry", error=error)
                 manifest["needs_retry"] += 1
+            except RateLimitError as exc:
+                error = f"{type(exc).__name__}: {exc}"
+                retryable_credit = any(
+                    marker in error.lower() for marker in RETRYABLE_CREDIT_ERROR_MARKERS
+                )
+                status = "needs_retry" if retryable_credit else "failed"
+                category = (
+                    "provider_credit_exhausted"
+                    if retryable_credit
+                    else "provider_rate_limit_failure"
+                )
+                with connect(db_path) as connection:
+                    connection.execute(
+                        """
+                        UPDATE quality_v4_research_runs
+                        SET status=?, error_category=?, error=?, latency_seconds=?,
+                            completed_at=? WHERE id=?
+                        """,
+                        (
+                            status,
+                            category,
+                            error[:2000],
+                            round(time.perf_counter() - started, 3),
+                            _utc_now(),
+                            run_id,
+                        ),
+                    )
+                    connection.commit()
+                record.update(status=status, error=error)
+                manifest[status] += 1
             except Exception as exc:  # noqa: BLE001 - every paid attempt is persisted
                 error = f"{type(exc).__name__}: {exc}"
                 with connect(db_path) as connection:
@@ -488,9 +563,12 @@ def run_quality_v4_backfill(
 
 def compact_backfill_summary(result: dict[str, Any]) -> str:
     inspection = result["inspection"]
+    eligible_label = (
+        "Retryable failed" if inspection["selection_mode"] == "retry_failed" else "Eligible pending"
+    )
     lines = [
         f"Total restaurants: {inspection['total_existing_restaurants']}",
-        f"Eligible pending: {inspection['eligible_pending']}",
+        f"{eligible_label}: {inspection['eligible_pending']}",
         f"Already complete: {inspection['already_complete']}",
         f"Excluded: {inspection['excluded']}",
         f"Requested: {result['requested_count']}",

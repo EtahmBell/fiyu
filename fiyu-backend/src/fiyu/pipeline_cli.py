@@ -147,7 +147,13 @@ def _parser() -> argparse.ArgumentParser:
     quality_v4.add_argument("--place-id")
     quality_v4.add_argument("--start-after")
     quality_v4.add_argument("--model")
-    quality_v4.add_argument("--force", action="store_true")
+    quality_v4_selection = quality_v4.add_mutually_exclusive_group()
+    quality_v4_selection.add_argument("--force", action="store_true")
+    quality_v4_selection.add_argument(
+        "--retry-failed",
+        action="store_true",
+        help="Retry only failed attempts caused by exhausted provider credits",
+    )
     quality_v4.add_argument("--dry-run", action="store_true")
     quality_v4.add_argument("--verbose", action="store_true")
     quality_v4.add_argument("--manifest-out")
@@ -360,6 +366,7 @@ def main() -> None:
             start_after=args.start_after,
             model=args.model,
             force=args.force,
+            retry_failed=args.retry_failed,
             dry_run=args.dry_run,
             manifest_path=args.manifest_out,
             results_path=args.results_out,
