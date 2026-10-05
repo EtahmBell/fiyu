@@ -13,8 +13,12 @@ const api = vi.hoisted(() => ({
   markAll: vi.fn(),
 }));
 const navigation = vi.hoisted(() => ({ push: vi.fn() }));
+const route = vi.hoisted(() => ({ pathname: "/picks" }));
 
-vi.mock("next/navigation", () => ({ useRouter: () => navigation }));
+vi.mock("next/navigation", () => ({
+  usePathname: () => route.pathname,
+  useRouter: () => navigation,
+}));
 vi.mock("@/lib/api/client", () => ({
   fetchNotifications: api.fetch,
   markNotificationRead: api.markOne,
@@ -47,6 +51,7 @@ beforeEach(() => {
   api.markOne.mockReset();
   api.markAll.mockReset();
   navigation.push.mockReset();
+  route.pathname = "/picks";
   clearProfileIdentity();
   window.localStorage.setItem("fiyu:next-city-campaign:read:user-a", "1");
   window.localStorage.setItem("fiyu:next-city-campaign:read:user-b", "1");
@@ -83,12 +88,49 @@ describe("in-app notifications menu", () => {
     render(<NotificationsMenu />);
 
     expect(await screen.findByText("1 unread notifications")).toBeTruthy();
+    const details = screen.getByLabelText("Notifications").closest("details") as HTMLDetailsElement;
     fireEvent.click(screen.getByLabelText("Notifications"));
     fireEvent.click(screen.getByRole("button", { name: /New Tokyo Drop/ }));
 
     await waitFor(() => expect(api.markOne).toHaveBeenCalledWith(unread.id));
     expect(navigation.push).toHaveBeenCalledWith("/picks");
+    expect(details.open).toBe(false);
     expect(screen.queryByText("1 unread notifications")).toBeNull();
+  });
+
+  it("toggles and dismisses outside, on Escape, and on route changes", async () => {
+    api.fetch.mockResolvedValue([]);
+    publishProfileIdentity(profile("user-a"));
+    const view = render(<NotificationsMenu />);
+    const trigger = screen.getByLabelText("Notifications");
+    const details = trigger.closest("details") as HTMLDetailsElement;
+
+    fireEvent.click(trigger);
+    expect(details.open).toBe(true);
+    fireEvent.pointerDown(screen.getByText("Notifications"));
+    expect(details.open).toBe(true);
+    fireEvent.click(trigger);
+    expect(details.open).toBe(false);
+
+    fireEvent.click(trigger);
+    fireEvent.pointerDown(document.body);
+    expect(details.open).toBe(false);
+
+    fireEvent.click(trigger);
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(details.open).toBe(false);
+    expect(document.activeElement).toBe(trigger);
+
+    fireEvent.click(trigger);
+    route.pathname = "/lists";
+    view.rerender(<NotificationsMenu />);
+    expect(details.open).toBe(false);
+
+    fireEvent.click(trigger);
+    fireEvent.click(trigger);
+    fireEvent.click(trigger);
+    fireEvent.pointerDown(document.body);
+    expect(details.open).toBe(false);
   });
 
   it("marks all unread notifications read", async () => {

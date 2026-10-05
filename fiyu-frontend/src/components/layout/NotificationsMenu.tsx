@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 import {
@@ -39,11 +39,13 @@ function conciseDate(value: string): string {
 
 export function NotificationsMenu() {
   const router = useRouter();
+  const pathname = usePathname();
   const identity = useProfileIdentity();
   const userId = identity.profile?.user_id ?? null;
   const [state, setState] = useState<NotificationState | null>(null);
   const [campaignState, setCampaignState] = useState<{ userId: string; read: boolean } | null>(null);
   const detailsRef = useRef<HTMLDetailsElement>(null);
+  const summaryRef = useRef<HTMLElement>(null);
   const current = userId && state?.userId === userId ? state : null;
   const campaignRead = campaignState?.userId === userId && campaignState.read;
   const items = current?.status === "ready" ? current.items : [];
@@ -51,6 +53,30 @@ export function NotificationsMenu() {
     (count, item) => count + (item.read_at === null ? 1 : 0),
     0,
   ) + (NEXT_CITY_CAMPAIGN_ACTIVE && !campaignRead ? 1 : 0);
+
+  useEffect(() => {
+    if (detailsRef.current) detailsRef.current.open = false;
+  }, [pathname]);
+
+  useEffect(() => {
+    const dismissOutside = (event: PointerEvent) => {
+      const details = detailsRef.current;
+      if (details?.open && !details.contains(event.target as Node)) details.open = false;
+    };
+    const dismissOnEscape = (event: KeyboardEvent) => {
+      const details = detailsRef.current;
+      if (event.key !== "Escape" || !details?.open) return;
+      details.open = false;
+      summaryRef.current?.focus();
+    };
+
+    document.addEventListener("pointerdown", dismissOutside, true);
+    document.addEventListener("keydown", dismissOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", dismissOutside, true);
+      document.removeEventListener("keydown", dismissOnEscape);
+    };
+  }, []);
 
   useEffect(() => {
     if (!userId) return;
@@ -126,7 +152,7 @@ export function NotificationsMenu() {
   return (
     <>
     <details ref={detailsRef} className="group relative">
-      <summary aria-label="Notifications" className="relative flex size-11 cursor-pointer list-none items-center justify-center rounded-full text-ink-muted transition-colors hover:bg-subtle hover:text-ink [&::-webkit-details-marker]:hidden">
+      <summary ref={summaryRef} aria-label="Notifications" className="relative flex size-11 cursor-pointer list-none items-center justify-center rounded-full text-ink-muted transition-colors hover:bg-subtle hover:text-ink [&::-webkit-details-marker]:hidden">
         <BellIcon />
         {unreadCount > 0 && <span className="absolute top-2 right-2 flex size-2 rounded-full bg-rose-dust"><span className="sr-only">{unreadCount} unread notifications</span></span>}
       </summary>
