@@ -1,0 +1,398 @@
+{
+  "experiment": "quality-v4-case-strength-existing-evidence-rescore",
+  "input_rows": 100,
+  "complete_rows": 98,
+  "failed_rows": [
+    {
+      "place_id": "ChIJbfbiEQDtGGAREjxmQJJgZBA",
+      "name": "The Silk Barrel Tokyo",
+      "challenge_bucket": "positive",
+      "status": "failed",
+      "error": "ValidationError: 1 validation error for ChallengeResearchResult\nobservations.4.notes\n  String should have at most 260 characters [type=string_too_long, input_value='This is independent from...84/?utm_source=openai))', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.13/v/string_too_long"
+    },
+    {
+      "place_id": "ChIJQ6eGQwCLGGARjqKSM-LeD7k",
+      "name": "SOBA LABO Blue Front Shibaura",
+      "challenge_bucket": "positive",
+      "status": "failed",
+      "error": "ValidationError: 1 validation error for ChallengeResearchResult\nobservations.6.notes\n  String should have at most 260 characters [type=string_too_long, input_value='This is one isolated, hi...xH-?utm_source=openai))', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.13/v/string_too_long"
+    }
+  ],
+  "design": {
+    "corroboration_key": "normalized family + normalized aspect + polarity + provenance independence",
+    "positive_activation_threshold": 8,
+    "negative_activation_threshold": 12,
+    "negative_single_source_multiplier": 0.08,
+    "negative_two_source_multiplier": 0.65,
+    "negative_three_source_multiplier": 1.6,
+    "hard_cap": 20,
+    "no_evidence_adjustment": 0
+  },
+  "overall": {
+    "positive_case_strength": {
+      "count": 98,
+      "min": 0.0,
+      "p10": 0.0,
+      "median": 35.11,
+      "mean": 31.72,
+      "p90": 50.58,
+      "max": 60.32
+    },
+    "negative_case_strength": {
+      "count": 98,
+      "min": 0.0,
+      "p10": 0.0,
+      "median": 0.0,
+      "mean": 0.48,
+      "p90": 0.72,
+      "max": 30.94
+    },
+    "quality_adjustment": {
+      "count": 98,
+      "min": -1.66,
+      "p10": 0.0,
+      "median": 3.26,
+      "mean": 3.22,
+      "p90": 6.26,
+      "max": 8.37
+    },
+    "adjustment_buckets": {
+      "+1_to_+3": 24,
+      "+3_to_+6": 42,
+      "+6_to_+10": 13,
+      "-1_to_+1": 18,
+      "-3_to_-1": 1
+    },
+    "positive_movement": 79,
+    "negative_movement": 1,
+    "near_neutral": 18,
+    "abs_ge_8": 1,
+    "abs_ge_12": 0
+  },
+  "by_challenge_bucket": {
+    "positive": {
+      "rows": 23,
+      "positive_case_strength": {
+        "count": 23,
+        "min": 11.17,
+        "p10": 27.41,
+        "median": 38.92,
+        "mean": 38.66,
+        "p90": 50.38,
+        "max": 52.04
+      },
+      "negative_case_strength": {
+        "count": 23,
+        "min": 0.0,
+        "p10": 0.0,
+        "median": 0.0,
+        "mean": 0.2,
+        "p90": 0.57,
+        "max": 2.03
+      },
+      "quality_adjustment": {
+        "count": 23,
+        "min": 0.0,
+        "p10": 2.14,
+        "median": 3.81,
+        "mean": 4.04,
+        "p90": 6.22,
+        "max": 6.57
+      },
+      "positive_movement": 22,
+      "negative_movement": 0,
+      "near_neutral": 1,
+      "both_sides_represented": 3
+    },
+    "mixed": {
+      "rows": 25,
+      "positive_case_strength": {
+        "count": 25,
+        "min": 6.7,
+        "p10": 21.16,
+        "median": 38.28,
+        "mean": 38.07,
+        "p90": 54.08,
+        "max": 60.32
+      },
+      "negative_case_strength": {
+        "count": 25,
+        "min": 0.0,
+        "p10": 0.0,
+        "median": 0.0,
+        "mean": 0.16,
+        "p90": 0.67,
+        "max": 1.69
+      },
+      "quality_adjustment": {
+        "count": 25,
+        "min": 0.0,
+        "p10": 1.29,
+        "median": 3.72,
+        "mean": 4.07,
+        "p90": 7.01,
+        "max": 8.37
+      },
+      "positive_movement": 23,
+      "negative_movement": 0,
+      "near_neutral": 2,
+      "both_sides_represented": 4
+    },
+    "negative": {
+      "rows": 25,
+      "positive_case_strength": {
+        "count": 25,
+        "min": 11.55,
+        "p10": 24.34,
+        "median": 35.32,
+        "mean": 34.86,
+        "p90": 47.26,
+        "max": 51.88
+      },
+      "negative_case_strength": {
+        "count": 25,
+        "min": 0.0,
+        "p10": 0.0,
+        "median": 0.0,
+        "mean": 1.5,
+        "p90": 1.56,
+        "max": 30.94
+      },
+      "quality_adjustment": {
+        "count": 25,
+        "min": -1.66,
+        "p10": 1.72,
+        "median": 3.29,
+        "mean": 3.29,
+        "p90": 5.54,
+        "max": 6.54
+      },
+      "positive_movement": 24,
+      "negative_movement": 1,
+      "near_neutral": 0,
+      "both_sides_represented": 6
+    },
+    "sparse": {
+      "rows": 25,
+      "positive_case_strength": {
+        "count": 25,
+        "min": 0.0,
+        "p10": 0.0,
+        "median": 0.0,
+        "mean": 15.84,
+        "p90": 44.05,
+        "max": 52.89
+      },
+      "negative_case_strength": {
+        "count": 25,
+        "min": 0.0,
+        "p10": 0.0,
+        "median": 0.0,
+        "mean": 0.04,
+        "p90": 0.0,
+        "max": 1.1
+      },
+      "quality_adjustment": {
+        "count": 25,
+        "min": 0.0,
+        "p10": 0.0,
+        "median": 0.0,
+        "mean": 1.56,
+        "p90": 4.84,
+        "max": 6.76
+      },
+      "positive_movement": 10,
+      "negative_movement": 0,
+      "near_neutral": 15,
+      "both_sides_represented": 1
+    }
+  },
+  "mario_tenshin": {
+    "positive_quality_case_strength": 11.55,
+    "negative_quality_case_strength": 30.94,
+    "researched_quality_evidence_balance": -17.29,
+    "quality_adjustment": -1.66,
+    "corroborated_negative_claim_count": 1,
+    "claim_clusters": [
+      {
+        "family": "food_reputation",
+        "normalized_aspect": "signature_dish",
+        "polarity": "positive",
+        "independent_sources": 1,
+        "average_evidence_weight": 0.5576,
+        "corroboration_multiplier": 0.55,
+        "raw_value": 0.3067,
+        "representative_claim": "A 2023 diner described the chuka-don and half-fried-rice set as having a nostalgic, old-fashioned flavor and called it excellent in the context of familiar neighborhood Chinese food."
+      },
+      {
+        "family": "craft_execution",
+        "normalized_aspect": "broth_quality",
+        "polarity": "negative",
+        "independent_sources": 3,
+        "average_evidence_weight": 0.5321,
+        "corroboration_multiplier": 1.6,
+        "raw_value": 0.8514,
+        "representative_claim": "A 2022 local travel-platform review described the miso ramen as simple, with soft noodles and a somewhat thin miso soup whose miso aroma and umami were limited."
+      }
+    ]
+  },
+  "source_languages": {
+    "English": {
+      "observations": 17,
+      "positive": 15,
+      "negative": 2,
+      "restaurants": 9
+    },
+    "Japanese": {
+      "observations": 383,
+      "positive": 369,
+      "negative": 14,
+      "restaurants": 84
+    }
+  },
+  "source_types": {
+    "editorial_food_media": {
+      "observations": 21,
+      "positive": 21,
+      "negative": 0,
+      "restaurants": 15
+    },
+    "local_food_blog": {
+      "observations": 108,
+      "positive": 103,
+      "negative": 5,
+      "restaurants": 53
+    },
+    "local_review_platform": {
+      "observations": 183,
+      "positive": 175,
+      "negative": 8,
+      "restaurants": 73
+    },
+    "map_review_platform": {
+      "observations": 33,
+      "positive": 31,
+      "negative": 2,
+      "restaurants": 24
+    },
+    "newspaper_magazine": {
+      "observations": 5,
+      "positive": 5,
+      "negative": 0,
+      "restaurants": 4
+    },
+    "official_restaurant": {
+      "observations": 32,
+      "positive": 32,
+      "negative": 0,
+      "restaurants": 25
+    },
+    "other": {
+      "observations": 7,
+      "positive": 6,
+      "negative": 1,
+      "restaurants": 5
+    },
+    "reservation_platform": {
+      "observations": 7,
+      "positive": 7,
+      "negative": 0,
+      "restaurants": 5
+    },
+    "restaurant_guide": {
+      "observations": 4,
+      "positive": 4,
+      "negative": 0,
+      "restaurants": 4
+    }
+  },
+  "quality_families": {
+    "consistency": {
+      "observations": 22,
+      "positive": 20,
+      "negative": 2,
+      "restaurants": 22
+    },
+    "craft_execution": {
+      "observations": 229,
+      "positive": 217,
+      "negative": 12,
+      "restaurants": 82
+    },
+    "food_reputation": {
+      "observations": 93,
+      "positive": 93,
+      "negative": 0,
+      "restaurants": 67
+    },
+    "ingredient_product": {
+      "observations": 56,
+      "positive": 54,
+      "negative": 2,
+      "restaurants": 48
+    }
+  },
+  "publication_floor_counterfactuals": {
+    "68": {
+      "production_pass": 69,
+      "experimental_pass": 72,
+      "crossed_up": 3,
+      "crossed_down": 0
+    },
+    "70": {
+      "production_pass": 56,
+      "experimental_pass": 67,
+      "crossed_up": 11,
+      "crossed_down": 0
+    },
+    "75": {
+      "production_pass": 36,
+      "experimental_pass": 40,
+      "crossed_up": 4,
+      "crossed_down": 0
+    }
+  },
+  "wrong_direction_cases": [
+    "ChIJc__jVeqOGGARhWROhikK2LM",
+    "ChIJOxhQk8mRGGARvccaPRt-WQ8",
+    "ChIJ8xZ4XxSLGGARCv6nIp56DNU",
+    "ChIJ51--ySuNGGARfcqkPkXleA8",
+    "ChIJgVIRH1-LGGARYthNR8MzNg8",
+    "ChIJR8g5VreNGGARTybQOu-z_l0",
+    "ChIJ93-qptqIGGARLIXzc9BZtG0",
+    "ChIJP5q8OU6JGGARsa4l_dAXc4I",
+    "ChIJZTuXq1-JGGARkgCbEtxFuJo",
+    "ChIJAeHxH3uJGGAR513grhFQQVA",
+    "ChIJR9bRtNGNGGARWRlRAG5FJhA",
+    "ChIJu8IpvWf0GGAReqrkXRLcFOo",
+    "ChIJNwW4r6PyGGARIDxwcfI32Ns",
+    "ChIJKRimrlWNGGAReCrI2pLos-M",
+    "ChIJceTSEHOPGGARqwoZjKXH8sc",
+    "ChIJxRLlrY6OGGARF8rsVuk_ZPA",
+    "ChIJ62M-BNiRGGARBWewheiFde4",
+    "ChIJO7X9KO-JGGARiOJ1txNxDaU",
+    "ChIJY0aX2kCLGGARVIdZ0ne-HWo",
+    "ChIJz7hlm-2PGGARJUQIi9nxkeM",
+    "ChIJE8JffFyLGGARu0oj3f3eM-s",
+    "ChIJTSQACCrtGGARRf66ZPyKHr0",
+    "ChIJLSWTTwCPGGAR5UnkDMXvn88",
+    "ChIJRSgrOfhhGGARYDI9HwCj1T0",
+    "ChIJgf3tagGMGGARep3Pd52OyHU",
+    "ChIJ2c_MOIuIGGARYqBsX-wuzV8",
+    "ChIJRXUQAKGLGGARX6RMV_Y6Ow0",
+    "ChIJv7KsEk2JGGAREcNYov7zTs0",
+    "ChIJtROIXgCPGGARDNTH2bQf3TY",
+    "ChIJLVtAAAnvGGARloIScRKg2dg",
+    "ChIJLaZ-H1CLGGARDWuOinQuVfE",
+    "ChIJU48-WbzzGGARiEef1GSM5K8",
+    "ChIJp6JC97mJGGARq_Ej-CF4hXc",
+    "ChIJfeC_tvr0GGARviwvHAsCZB4",
+    "ChIJHYFgOe-OGGARHfQ8JQJ5Yag",
+    "ChIJq6olFeGPGGAR88JcdJWh8eg",
+    "ChIJaWy4_T6PGGARH3VGwx848kw"
+  ],
+  "second_paid_run_recommendation": {
+    "necessary": true,
+    "reason": "The frozen labels contain only one medium-confidence negative row and 24 low-confidence negative rows; only one row moves negatively after normalization. The stored extraction therefore cannot validate negative calibration or recall."
+  }
+}
