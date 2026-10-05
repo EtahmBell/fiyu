@@ -1,0 +1,18 @@
+{
+  "restaurants_evaluated": 1092,
+  "exact_zero_adjustment_matches": 1092,
+  "zero_adjustment_mismatches": 0,
+  "maximum_absolute_mismatch": 0.0,
+  "monotonicity_violations": 0,
+  "parity_mismatch_examples": [],
+  "monotonicity_violation_examples": [],
+  "historical_stored_score_mismatches_vs_current_v3": 67,
+  "historical_component_drift_counts": {
+    "local_discovery_score": 65,
+    "independence_signal": 22
+  },
+  "prior_bug_root_cause": "The prior runner combined a freshly recomputed current-v3 score with historical stored H/I/LD columns from the comparison CSV, then recomposed the score outside the canonical production evaluator.",
+  "production_database_sha256_before": "fc729041b200a7b1c640096224d1dea7724b4c2d06742932cf177f9f55ed1685",
+  "production_database_sha256_after": "fc729041b200a7b1c640096224d1dea7724b4c2d06742932cf177f9f55ed1685",
+  "production_database_unchanged": true
+}

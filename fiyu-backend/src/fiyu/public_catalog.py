@@ -195,6 +195,49 @@ CREATE TABLE IF NOT EXISTS score_calculation_runs (
 );
 CREATE INDEX IF NOT EXISTS idx_score_calculation_runs_restaurant
     ON score_calculation_runs(public_restaurant_id, created_at DESC);
+CREATE TABLE IF NOT EXISTS quality_v4_research_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    public_restaurant_id TEXT NOT NULL,
+    provider TEXT NOT NULL,
+    model TEXT NOT NULL,
+    response_id TEXT,
+    status TEXT NOT NULL CHECK (status IN ('pending', 'complete', 'failed', 'needs_retry')),
+    quality_research_version TEXT NOT NULL,
+    quality_case_strength_version TEXT NOT NULL,
+    score_version TEXT NOT NULL,
+    prompt_version TEXT NOT NULL,
+    adjustment_guardrail REAL NOT NULL,
+    base_quality_prior REAL,
+    positive_case_strength REAL,
+    negative_case_strength REAL,
+    evidence_balance REAL,
+    raw_quality_adjustment REAL,
+    guarded_quality_adjustment REAL,
+    researched_quality REAL,
+    quality_evidence_confidence TEXT,
+    production_v3_score REAL,
+    shadow_v4_score REAL,
+    shadow_score_delta REAL,
+    research_result_json TEXT NOT NULL DEFAULT '{}',
+    normalized_observations_json TEXT NOT NULL DEFAULT '[]',
+    claim_clusters_json TEXT NOT NULL DEFAULT '[]',
+    usage_metadata_json TEXT NOT NULL DEFAULT '{}',
+    response_request_count INTEGER NOT NULL DEFAULT 0,
+    web_search_action_count INTEGER NOT NULL DEFAULT 0,
+    input_tokens INTEGER NOT NULL DEFAULT 0,
+    output_tokens INTEGER NOT NULL DEFAULT 0,
+    total_tokens INTEGER NOT NULL DEFAULT 0,
+    latency_seconds REAL,
+    error_category TEXT,
+    error TEXT,
+    created_at TEXT NOT NULL,
+    completed_at TEXT,
+    FOREIGN KEY (public_restaurant_id) REFERENCES public_restaurants(place_id)
+);
+CREATE INDEX IF NOT EXISTS idx_quality_v4_runs_restaurant
+    ON quality_v4_research_runs(
+        public_restaurant_id, quality_research_version, status, created_at DESC
+    );
 CREATE TABLE IF NOT EXISTS low_footprint_research_runs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     public_restaurant_id TEXT NOT NULL,

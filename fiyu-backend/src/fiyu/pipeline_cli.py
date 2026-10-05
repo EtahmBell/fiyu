@@ -139,6 +139,20 @@ def _parser() -> argparse.ArgumentParser:
     retry_enrichment.add_argument("--place-id", required=True)
     retry_enrichment.add_argument("--dry-run", action="store_true")
 
+    quality_v4 = commands.add_parser(
+        "quality-v4-backfill",
+        help="Run resumable Quality-v4 research and persist shadow scores only",
+    )
+    quality_v4.add_argument("--limit", type=int, default=100)
+    quality_v4.add_argument("--place-id")
+    quality_v4.add_argument("--start-after")
+    quality_v4.add_argument("--model")
+    quality_v4.add_argument("--force", action="store_true")
+    quality_v4.add_argument("--dry-run", action="store_true")
+    quality_v4.add_argument("--verbose", action="store_true")
+    quality_v4.add_argument("--manifest-out")
+    quality_v4.add_argument("--results-out")
+
     review = commands.add_parser("review")
     review.add_argument("--place-id", required=True)
 
@@ -336,6 +350,20 @@ def main() -> None:
         from .card_enrichment import backfill_canonical_details
 
         result = backfill_canonical_details(db, dry_run=args.dry_run)
+    elif args.command == "quality-v4-backfill":
+        from .quality_v4_backfill import run_quality_v4_backfill
+
+        result = run_quality_v4_backfill(
+            db,
+            limit=args.limit,
+            place_id=args.place_id,
+            start_after=args.start_after,
+            model=args.model,
+            force=args.force,
+            dry_run=args.dry_run,
+            manifest_path=args.manifest_out,
+            results_path=args.results_out,
+        )
     elif args.command == "review":
         result = inspect_candidate(db, args.place_id)
     elif args.command in {"approve", "reject"}:
@@ -352,6 +380,10 @@ def main() -> None:
         result = pipeline_status(db)
     if args.command == "seed-unseeded" and not args.verbose:
         print(_format_seed_unseeded_summary(result))
+    elif args.command == "quality-v4-backfill" and not args.verbose:
+        from .quality_v4_backfill import compact_backfill_summary
+
+        print(compact_backfill_summary(result))
     else:
         print(json.dumps(result, ensure_ascii=False, indent=2, default=str))
 
