@@ -1,9 +1,11 @@
 from fiyu.experimental_score_v4 import (
     assess_researched_quality,
     calculate_neutral_components,
+    evaluate_with_quality_adjustment,
     experimental_score,
     source_family,
 )
+from fiyu.public_score import FiyuEvidence, InternalSignals, evaluate_fiyu_candidate
 
 
 def _theme(text: str, *urls: str, confidence: float = 0.9):
@@ -120,3 +122,64 @@ def test_experimental_weights_are_deterministic_and_validated():
         == 78.75
     )
     assert source_family("https://selection.tabelog.com/path") == "tabelog.com"
+
+
+def test_quality_override_zero_exactly_reproduces_production_v3():
+    evidence = FiyuEvidence(
+        matched_restaurant=True,
+        identity_confidence=0.9,
+        japanese_source_count=4,
+        tourist_coverage="low",
+        specialist_restaurant=True,
+        total_evidence_sources=4,
+    )
+    internal = InternalSignals(72.5, 84, 90)
+    structured = {
+        "primary_category": "soba",
+        "chain_classification": "independent_single",
+        "chain_evidence": ["A single independent restaurant."],
+    }
+    production = evaluate_fiyu_candidate(evidence, internal, structured)
+    experimental = evaluate_with_quality_adjustment(evidence, internal, structured)
+    assert experimental == production
+
+
+def test_quality_override_is_monotonic_and_preserves_production_caps():
+    evidence = FiyuEvidence(
+        matched_restaurant=True,
+        identity_confidence=0.9,
+        total_evidence_sources=4,
+    )
+    internal = InternalSignals(70, 70, 70)
+    baseline = evaluate_with_quality_adjustment(evidence, internal)
+    assert (
+        evaluate_with_quality_adjustment(evidence, internal, quality_adjustment=10).fiyu_score
+        >= baseline.fiyu_score
+    )
+    assert (
+        evaluate_with_quality_adjustment(evidence, internal, quality_adjustment=-10).fiyu_score
+        <= baseline.fiyu_score
+    )
+
+    chain = FiyuEvidence(
+        matched_restaurant=True,
+        identity_confidence=0.9,
+        chain_classification="large_chain_or_franchise",
+        likely_chain=True,
+        total_evidence_sources=4,
+    )
+    structured = {
+        "chain_classification": "large_chain_or_franchise",
+        "chain_evidence": ["A large standardized chain."],
+    }
+    capped = evaluate_with_quality_adjustment(chain, InternalSignals(100, 100, 100), structured)
+    assert capped.fiyu_score == 54.99
+    assert (
+        evaluate_with_quality_adjustment(
+            chain,
+            InternalSignals(100, 100, 100),
+            structured,
+            quality_adjustment=20,
+        ).fiyu_score
+        == capped.fiyu_score
+    )

@@ -9,17 +9,23 @@ from __future__ import annotations
 
 import re
 from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from urllib.parse import urlparse
+
+from .public_score import (
+    FiyuEvidence,
+    FiyuScoreResult,
+    InternalSignals,
+    evaluate_fiyu_candidate,
+)
+from .utils import clamp
 
 
 def _clamp(value: float, minimum: float = 0.0, maximum: float = 100.0) -> float:
     return max(minimum, min(maximum, value))
 
 
-def _level(
-    value: object, *, low: float, medium: float, high: float
-) -> float | None:
+def _level(value: object, *, low: float, medium: float, high: float) -> float | None:
     return {
         "low": low,
         "medium": medium,
@@ -249,9 +255,7 @@ def calculate_neutral_components(
     website_scarcity = 20.0 if official_website else 100.0
     social_scarcity = _clamp(100.0 - 25.0 * social_profiles)
     digital_scarcity = _clamp(
-        0.60 * digital_footprint_score
-        + 0.25 * website_scarcity
-        + 0.15 * social_scarcity
+        0.60 * digital_footprint_score + 0.25 * website_scarcity + 0.15 * social_scarcity
     )
     hiddenness = _weighted_known(
         (
@@ -297,18 +301,12 @@ def calculate_neutral_components(
 
     japanese_sources = int(evidence.get("japanese_source_count") or 0)
     english_sources = int(evidence.get("english_tourist_source_count") or 0)
-    source_share = (
-        (japanese_sources + 1) / (japanese_sources + english_sources + 2) * 100.0
-    )
+    source_share = (japanese_sources + 1) / (japanese_sources + english_sources + 2) * 100.0
     review_share_value = evidence.get("japanese_review_share")
     review_share = (
-        float(review_share_value) * 100.0
-        if isinstance(review_share_value, (int, float))
-        else 50.0
+        float(review_share_value) * 100.0 if isinstance(review_share_value, (int, float)) else 50.0
     )
-    explicit_local = _level(
-        evidence.get("local_audience"), low=20.0, medium=60.0, high=100.0
-    )
+    explicit_local = _level(evidence.get("local_audience"), low=20.0, medium=60.0, high=100.0)
     local_audience = (
         None
         if explicit_local is None
@@ -317,19 +315,13 @@ def calculate_neutral_components(
     if local_audience is None:
         unknown.append("local_audience")
 
-    tourist_orientation = str(
-        evidence.get("tourist_orientation") or "unknown"
-    ).casefold()
+    tourist_orientation = str(evidence.get("tourist_orientation") or "unknown").casefold()
     tourist_signals = evidence.get("tourist_signals")
     tourist_obscurity = None
     if tourist_orientation != "unknown" and isinstance(tourist_signals, list) and tourist_signals:
-        tourist_obscurity = _level(
-            tourist_orientation, low=95.0, medium=50.0, high=5.0
-        )
+        tourist_obscurity = _level(tourist_orientation, low=95.0, medium=50.0, high=5.0)
     elif tourist_coverage != "unknown":
-        tourist_obscurity = _level(
-            tourist_coverage, low=95.0, medium=50.0, high=5.0
-        )
+        tourist_obscurity = _level(tourist_coverage, low=95.0, medium=50.0, high=5.0)
     if tourist_obscurity is None:
         unknown.append("tourist_orientation")
     international_visibility = _level(
@@ -414,4 +406,26 @@ def experimental_score(
             + local_discovery_weight * local_discovery
         ),
         2,
+    )
+
+
+def evaluate_with_quality_adjustment(
+    evidence: FiyuEvidence,
+    internal: InternalSignals,
+    structured_research: Mapping[str, object] | None = None,
+    *,
+    primary_category: str | None = None,
+    quality_adjustment: float = 0.0,
+) -> FiyuScoreResult:
+    """Run production v3 with only its Quality input experimentally changed."""
+
+    adjusted = replace(
+        internal,
+        quality_score=clamp(internal.quality_score + quality_adjustment),
+    )
+    return evaluate_fiyu_candidate(
+        evidence,
+        adjusted,
+        structured_research,
+        primary_category=primary_category,
     )

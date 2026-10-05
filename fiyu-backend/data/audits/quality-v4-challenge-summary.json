@@ -1,0 +1,597 @@
+{
+  "experiment": "quality-v4-challenge",
+  "sample_size": 100,
+  "bucket_counts": {
+    "positive": 25,
+    "mixed": 25,
+    "negative": 25,
+    "sparse": 25
+  },
+  "label_confidence_counts": {
+    "high": 50,
+    "low": 49,
+    "medium": 1
+  },
+  "label_limitations": "The catalog lacks a robust stored negative corpus. Negative/mixed supplements selected from the cheap prior or theme density are explicitly low-confidence.",
+  "requests": 100,
+  "completed": 98,
+  "failures": 2,
+  "needs_retry": 0,
+  "web_search_actions": 244,
+  "token_usage": {
+    "input_tokens": 2599961,
+    "output_tokens": 162681,
+    "total_tokens": 2762642
+  },
+  "latency_seconds": {
+    "mean": 20.217,
+    "p90": 25.884
+  },
+  "evidence_levels": {
+    "moderate": 78,
+    "strong": 3,
+    "sparse": 4,
+    "none": 13
+  },
+  "positive_observations": 387,
+  "negative_observations": 16,
+  "mixed_rows_with_both_polarities": 4,
+  "no_evidence_rows": 13,
+  "no_evidence_all_policy_zero": 13,
+  "source_types": {
+    "local_review_platform": {
+      "restaurants": 73,
+      "restaurants_by_challenge_bucket": {
+        "positive": 21,
+        "mixed": 20,
+        "negative": 23,
+        "sparse": 9
+      },
+      "observations": 185,
+      "positive": 177,
+      "bucket_positive": 62,
+      "moderate_or_strong": 145,
+      "negative": 8,
+      "bucket_mixed": 49,
+      "bucket_negative": 48,
+      "bucket_sparse": 26
+    },
+    "local_food_blog": {
+      "restaurants": 53,
+      "restaurants_by_challenge_bucket": {
+        "positive": 14,
+        "mixed": 15,
+        "negative": 19,
+        "sparse": 5
+      },
+      "observations": 108,
+      "positive": 103,
+      "bucket_positive": 25,
+      "moderate_or_strong": 92,
+      "bucket_mixed": 28,
+      "negative": 5,
+      "bucket_negative": 47,
+      "bucket_sparse": 8
+    },
+    "official_restaurant": {
+      "restaurants": 25,
+      "restaurants_by_challenge_bucket": {
+        "positive": 10,
+        "mixed": 7,
+        "negative": 6,
+        "sparse": 2
+      },
+      "observations": 32,
+      "positive": 32,
+      "bucket_positive": 12,
+      "moderate_or_strong": 17,
+      "bucket_mixed": 9,
+      "bucket_negative": 7,
+      "bucket_sparse": 4
+    },
+    "editorial_food_media": {
+      "restaurants": 16,
+      "restaurants_by_challenge_bucket": {
+        "positive": 5,
+        "mixed": 5,
+        "negative": 4,
+        "sparse": 2
+      },
+      "observations": 22,
+      "positive": 22,
+      "bucket_positive": 6,
+      "moderate_or_strong": 21,
+      "bucket_mixed": 10,
+      "bucket_negative": 4,
+      "bucket_sparse": 2
+    },
+    "restaurant_guide": {
+      "restaurants": 4,
+      "restaurants_by_challenge_bucket": {
+        "positive": 2,
+        "mixed": 1,
+        "negative": 1,
+        "sparse": 0
+      },
+      "observations": 4,
+      "positive": 4,
+      "bucket_positive": 2,
+      "moderate_or_strong": 2,
+      "bucket_mixed": 1,
+      "bucket_negative": 1
+    },
+    "map_review_platform": {
+      "restaurants": 24,
+      "restaurants_by_challenge_bucket": {
+        "positive": 6,
+        "mixed": 10,
+        "negative": 7,
+        "sparse": 1
+      },
+      "observations": 33,
+      "positive": 31,
+      "bucket_positive": 9,
+      "moderate_or_strong": 27,
+      "bucket_mixed": 14,
+      "negative": 2,
+      "bucket_negative": 7,
+      "bucket_sparse": 3
+    },
+    "reservation_platform": {
+      "restaurants": 5,
+      "restaurants_by_challenge_bucket": {
+        "positive": 2,
+        "mixed": 2,
+        "negative": 0,
+        "sparse": 1
+      },
+      "observations": 7,
+      "positive": 7,
+      "bucket_positive": 4,
+      "moderate_or_strong": 5,
+      "bucket_mixed": 2,
+      "bucket_sparse": 1
+    },
+    "newspaper_magazine": {
+      "restaurants": 4,
+      "restaurants_by_challenge_bucket": {
+        "positive": 0,
+        "mixed": 2,
+        "negative": 2,
+        "sparse": 0
+      },
+      "observations": 5,
+      "positive": 5,
+      "bucket_mixed": 2,
+      "moderate_or_strong": 5,
+      "bucket_negative": 3
+    },
+    "other": {
+      "restaurants": 5,
+      "restaurants_by_challenge_bucket": {
+        "positive": 0,
+        "mixed": 2,
+        "negative": 1,
+        "sparse": 2
+      },
+      "observations": 7,
+      "positive": 6,
+      "bucket_mixed": 2,
+      "moderate_or_strong": 4,
+      "bucket_negative": 1,
+      "bucket_sparse": 4,
+      "negative": 1
+    }
+  },
+  "source_languages": {
+    "Japanese": {
+      "restaurants": 84,
+      "restaurants_by_challenge_bucket": {
+        "positive": 23,
+        "mixed": 25,
+        "negative": 25,
+        "sparse": 11
+      },
+      "observations": 386,
+      "positive": 372,
+      "bucket_positive": 114,
+      "moderate_or_strong": 304,
+      "negative": 14,
+      "bucket_mixed": 112,
+      "bucket_negative": 116,
+      "bucket_sparse": 44
+    },
+    "English": {
+      "restaurants": 9,
+      "restaurants_by_challenge_bucket": {
+        "positive": 2,
+        "mixed": 3,
+        "negative": 2,
+        "sparse": 2
+      },
+      "observations": 17,
+      "positive": 15,
+      "bucket_positive": 6,
+      "moderate_or_strong": 14,
+      "negative": 2,
+      "bucket_mixed": 5,
+      "bucket_negative": 2,
+      "bucket_sparse": 4
+    }
+  },
+  "quality_families": {
+    "craft_execution": {
+      "restaurants": 82,
+      "restaurants_by_challenge_bucket": {
+        "positive": 0,
+        "mixed": 0,
+        "negative": 0,
+        "sparse": 0
+      },
+      "observations": 229,
+      "positive": 217,
+      "moderate_or_strong": 194,
+      "negative": 12
+    },
+    "food_reputation_specialization": {
+      "restaurants": 69,
+      "restaurants_by_challenge_bucket": {
+        "positive": 0,
+        "mixed": 0,
+        "negative": 0,
+        "sparse": 0
+      },
+      "observations": 96,
+      "positive": 96,
+      "moderate_or_strong": 77
+    },
+    "ingredient_product_quality": {
+      "restaurants": 48,
+      "restaurants_by_challenge_bucket": {
+        "positive": 0,
+        "mixed": 0,
+        "negative": 0,
+        "sparse": 0
+      },
+      "observations": 56,
+      "positive": 54,
+      "moderate_or_strong": 36,
+      "negative": 2
+    },
+    "consistency": {
+      "restaurants": 22,
+      "restaurants_by_challenge_bucket": {
+        "positive": 0,
+        "mixed": 0,
+        "negative": 0,
+        "sparse": 0
+      },
+      "observations": 22,
+      "positive": 20,
+      "moderate_or_strong": 11,
+      "negative": 2
+    }
+  },
+  "mixed_extraction": {
+    "rows": 25,
+    "both_positive_and_negative": 4,
+    "positive_only": 21,
+    "negative_only": 0,
+    "neither": 0
+  },
+  "sparse_safety_policy_d_20": {
+    "rows": 25,
+    "near_zero": 16,
+    "near_zero_percent": 64.0,
+    "negative": 0,
+    "positive": 9,
+    "no_evidence": 13
+  },
+  "policies": {
+    "policy_a_5": {
+      "distribution": {
+        "+0.5 to +1.99": 76,
+        "-0.49 to +0.49": 22
+      },
+      "statistics": {
+        "mean": 0.788,
+        "median": 0.815,
+        "p90_absolute": 1.316,
+        "min": 0.0,
+        "max": 1.89
+      },
+      "by_challenge_bucket": {
+        "positive": {
+          "negative": 0,
+          "near_neutral": 1,
+          "positive": 22,
+          "mean": 0.982
+        },
+        "mixed": {
+          "negative": 0,
+          "near_neutral": 3,
+          "positive": 22,
+          "mean": 0.986
+        },
+        "negative": {
+          "negative": 0,
+          "near_neutral": 2,
+          "positive": 23,
+          "mean": 0.824
+        },
+        "sparse": {
+          "negative": 0,
+          "near_neutral": 16,
+          "positive": 9,
+          "mean": 0.375
+        }
+      },
+      "rank_correlation_vs_v3": 0.999,
+      "rank_change": {
+        "mean_absolute": 0.888,
+        "maximum_absolute": 4.5
+      },
+      "final_score_delta": {
+        "mean": 0.346,
+        "median": 0.36,
+        "min": 0.0,
+        "max": 0.74
+      },
+      "thresholds": {
+        "68": {
+          "v3_pass": 69,
+          "experimental_pass": 69,
+          "up": 0,
+          "down": 0
+        },
+        "70": {
+          "v3_pass": 56,
+          "experimental_pass": 59,
+          "up": 3,
+          "down": 0
+        },
+        "75": {
+          "v3_pass": 36,
+          "experimental_pass": 38,
+          "up": 2,
+          "down": 0
+        }
+      },
+      "wrong_direction_cases": {
+        "negative_boosted": 23,
+        "positive_downgraded": 0,
+        "sparse_non_neutral": 9
+      }
+    },
+    "policy_b_10": {
+      "distribution": {
+        "+0.5 to +1.99": 76,
+        "-0.49 to +0.49": 22
+      },
+      "statistics": {
+        "mean": 0.799,
+        "median": 0.84,
+        "p90_absolute": 1.316,
+        "min": 0.0,
+        "max": 1.89
+      },
+      "by_challenge_bucket": {
+        "positive": {
+          "negative": 0,
+          "near_neutral": 1,
+          "positive": 22,
+          "mean": 0.982
+        },
+        "mixed": {
+          "negative": 0,
+          "near_neutral": 3,
+          "positive": 22,
+          "mean": 1.03
+        },
+        "negative": {
+          "negative": 0,
+          "near_neutral": 2,
+          "positive": 23,
+          "mean": 0.824
+        },
+        "sparse": {
+          "negative": 0,
+          "near_neutral": 16,
+          "positive": 9,
+          "mean": 0.375
+        }
+      },
+      "rank_correlation_vs_v3": 0.999,
+      "rank_change": {
+        "mean_absolute": 0.888,
+        "maximum_absolute": 4.0
+      },
+      "final_score_delta": {
+        "mean": 0.351,
+        "median": 0.375,
+        "min": 0.0,
+        "max": 0.84
+      },
+      "thresholds": {
+        "68": {
+          "v3_pass": 69,
+          "experimental_pass": 69,
+          "up": 0,
+          "down": 0
+        },
+        "70": {
+          "v3_pass": 56,
+          "experimental_pass": 59,
+          "up": 3,
+          "down": 0
+        },
+        "75": {
+          "v3_pass": 36,
+          "experimental_pass": 38,
+          "up": 2,
+          "down": 0
+        }
+      },
+      "wrong_direction_cases": {
+        "negative_boosted": 23,
+        "positive_downgraded": 0,
+        "sparse_non_neutral": 9
+      }
+    },
+    "policy_c_15": {
+      "distribution": {
+        "+0.5 to +1.99": 76,
+        "-0.49 to +0.49": 22
+      },
+      "statistics": {
+        "mean": 0.799,
+        "median": 0.84,
+        "p90_absolute": 1.316,
+        "min": 0.0,
+        "max": 1.89
+      },
+      "by_challenge_bucket": {
+        "positive": {
+          "negative": 0,
+          "near_neutral": 1,
+          "positive": 22,
+          "mean": 0.982
+        },
+        "mixed": {
+          "negative": 0,
+          "near_neutral": 3,
+          "positive": 22,
+          "mean": 1.03
+        },
+        "negative": {
+          "negative": 0,
+          "near_neutral": 2,
+          "positive": 23,
+          "mean": 0.824
+        },
+        "sparse": {
+          "negative": 0,
+          "near_neutral": 16,
+          "positive": 9,
+          "mean": 0.375
+        }
+      },
+      "rank_correlation_vs_v3": 0.999,
+      "rank_change": {
+        "mean_absolute": 0.888,
+        "maximum_absolute": 4.0
+      },
+      "final_score_delta": {
+        "mean": 0.351,
+        "median": 0.375,
+        "min": 0.0,
+        "max": 0.84
+      },
+      "thresholds": {
+        "68": {
+          "v3_pass": 69,
+          "experimental_pass": 69,
+          "up": 0,
+          "down": 0
+        },
+        "70": {
+          "v3_pass": 56,
+          "experimental_pass": 59,
+          "up": 3,
+          "down": 0
+        },
+        "75": {
+          "v3_pass": 36,
+          "experimental_pass": 38,
+          "up": 2,
+          "down": 0
+        }
+      },
+      "wrong_direction_cases": {
+        "negative_boosted": 23,
+        "positive_downgraded": 0,
+        "sparse_non_neutral": 9
+      }
+    },
+    "policy_d_20": {
+      "distribution": {
+        "+0.5 to +1.99": 76,
+        "-0.49 to +0.49": 22
+      },
+      "statistics": {
+        "mean": 0.799,
+        "median": 0.84,
+        "p90_absolute": 1.316,
+        "min": 0.0,
+        "max": 1.89
+      },
+      "by_challenge_bucket": {
+        "positive": {
+          "negative": 0,
+          "near_neutral": 1,
+          "positive": 22,
+          "mean": 0.982
+        },
+        "mixed": {
+          "negative": 0,
+          "near_neutral": 3,
+          "positive": 22,
+          "mean": 1.03
+        },
+        "negative": {
+          "negative": 0,
+          "near_neutral": 2,
+          "positive": 23,
+          "mean": 0.824
+        },
+        "sparse": {
+          "negative": 0,
+          "near_neutral": 16,
+          "positive": 9,
+          "mean": 0.375
+        }
+      },
+      "rank_correlation_vs_v3": 0.999,
+      "rank_change": {
+        "mean_absolute": 0.888,
+        "maximum_absolute": 4.0
+      },
+      "final_score_delta": {
+        "mean": 0.351,
+        "median": 0.375,
+        "min": 0.0,
+        "max": 0.84
+      },
+      "thresholds": {
+        "68": {
+          "v3_pass": 69,
+          "experimental_pass": 69,
+          "up": 0,
+          "down": 0
+        },
+        "70": {
+          "v3_pass": 56,
+          "experimental_pass": 59,
+          "up": 3,
+          "down": 0
+        },
+        "75": {
+          "v3_pass": 36,
+          "experimental_pass": 38,
+          "up": 2,
+          "down": 0
+        }
+      },
+      "wrong_direction_cases": {
+        "negative_boosted": 23,
+        "positive_downgraded": 0,
+        "sparse_non_neutral": 9
+      }
+    }
+  },
+  "policy_d_20_abs_at_least_7": 0,
+  "policy_d_20_abs_at_least_12": 0,
+  "production_database_sha256_before": "fc729041b200a7b1c640096224d1dea7724b4c2d06742932cf177f9f55ed1685",
+  "production_database_sha256_after": "fc729041b200a7b1c640096224d1dea7724b4c2d06742932cf177f9f55ed1685",
+  "production_database_unchanged": true
+}
