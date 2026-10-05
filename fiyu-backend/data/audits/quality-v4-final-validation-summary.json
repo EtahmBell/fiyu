@@ -1,0 +1,64 @@
+{
+  "experiment": "quality-v4-final-blinded-validation",
+  "status": "stopped_before_paid_research",
+  "decision": "C_NOT_READY",
+  "benchmark_admission_gate_passed": false,
+  "benchmark": {
+    "total": 34,
+    "bucket_counts": {
+      "positive": 12,
+      "mixed": 8,
+      "negative": 1,
+      "sparse": 13
+    },
+    "confidence_counts": {
+      "high": 26,
+      "medium": 8
+    },
+    "high_confidence_negative_count": 1,
+    "high_confidence_mixed_count": 0,
+    "average_independent_sources_per_non_sparse": 5.19,
+    "source_language_distribution": {
+      "Japanese": 113,
+      "English": 1
+    },
+    "source_type_distribution": {
+      "local_review_platform": 47,
+      "local_food_blog": 36,
+      "map_review_platform": 15,
+      "editorial_food_media": 7,
+      "newspaper_magazine": 2,
+      "official_restaurant": 4,
+      "restaurant_guide": 2,
+      "other": 1
+    },
+    "minimum_gate": {
+      "high_confidence_negative": 10,
+      "high_confidence_mixed": 10
+    },
+    "admission_gate_passed": false,
+    "stop_reason": "Only one high-confidence negative and zero high-confidence mixed controls can be defended from the frozen corpus. The protocol requires roughly ten of each before any paid call."
+  },
+  "paid_run": {
+    "requests": 0,
+    "web_search_actions": 0,
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "total_tokens": 0,
+    "failures": 0,
+    "needs_retry": 0
+  },
+  "blinded_performance": null,
+  "blinded_performance_unavailable_reason": "The mandatory pre-spend benchmark gate failed, so no blinded request was sent.",
+  "production_v3_parity": {
+    "restaurants_evaluated": 1092,
+    "exact_zero_adjustment_matches": 1092,
+    "monotonicity_violations": 0,
+    "source_artifact": "data/audits/quality-v4-parity-summary.json"
+  },
+  "production_database_sha256_before": "fc729041b200a7b1c640096224d1dea7724b4c2d06742932cf177f9f55ed1685",
+  "production_database_sha256_after": "fc729041b200a7b1c640096224d1dea7724b4c2d06742932cf177f9f55ed1685",
+  "production_database_unchanged": true,
+  "exact_blocker": "Only one high-confidence negative and zero high-confidence mixed controls can be defended from the frozen corpus. The protocol requires roughly ten of each before any paid call.",
+  "next_required_action": "Curate at least nine additional strict recurring-negative controls and at least ten high-confidence mixed controls from human-reviewed source material, freeze them, then run the already-specified blinded protocol unchanged."
+}
