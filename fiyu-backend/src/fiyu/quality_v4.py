@@ -24,6 +24,7 @@ from .utils import clamp
 QUALITY_RESEARCH_VERSION: Final = "quality-v4-research-1"
 QUALITY_CASE_STRENGTH_VERSION: Final = "quality-v4-case-strength-1"
 QUALITY_SCORE_VERSION: Final = "quality-v4-shadow-1"
+QUALITY_PRODUCTION_SCORE_VERSION: Final = "public-v4-quality-research"
 QUALITY_PROMPT_VERSION: Final = "quality-v4-two-sided-2026-10-05"
 DEFAULT_ADJUSTMENT_GUARDRAIL: Final = 15.0
 EXPERIMENTAL_HARD_CEILING: Final = 20.0

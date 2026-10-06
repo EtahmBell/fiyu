@@ -159,6 +159,17 @@ def _parser() -> argparse.ArgumentParser:
     quality_v4.add_argument("--manifest-out")
     quality_v4.add_argument("--results-out")
 
+    quality_v4_promote = commands.add_parser(
+        "quality-v4-promote",
+        help="Promote completed local Quality-v4 shadow evidence into production scores",
+    )
+    quality_v4_promote.add_argument("--source-db", required=True)
+    quality_v4_promote.add_argument("--dry-run", action="store_true")
+    quality_v4_promote.add_argument("--backup-out")
+    quality_v4_promote.add_argument("--summary-out")
+    quality_v4_promote.add_argument("--report-out")
+    quality_v4_promote.add_argument("--verbose", action="store_true")
+
     review = commands.add_parser("review")
     review.add_argument("--place-id", required=True)
 
@@ -371,6 +382,17 @@ def main() -> None:
             manifest_path=args.manifest_out,
             results_path=args.results_out,
         )
+    elif args.command == "quality-v4-promote":
+        from .quality_v4_promotion import run_quality_v4_promotion
+
+        result = run_quality_v4_promotion(
+            db,
+            source_db=args.source_db,
+            dry_run=args.dry_run,
+            backup_path=args.backup_out,
+            summary_path=args.summary_out,
+            report_path=args.report_out,
+        )
     elif args.command == "review":
         result = inspect_candidate(db, args.place_id)
     elif args.command in {"approve", "reject"}:
@@ -391,6 +413,10 @@ def main() -> None:
         from .quality_v4_backfill import compact_backfill_summary
 
         print(compact_backfill_summary(result))
+    elif args.command == "quality-v4-promote" and not args.verbose:
+        from .quality_v4_promotion import compact_promotion_summary
+
+        print(compact_promotion_summary(result))
     else:
         print(json.dumps(result, ensure_ascii=False, indent=2, default=str))
 
