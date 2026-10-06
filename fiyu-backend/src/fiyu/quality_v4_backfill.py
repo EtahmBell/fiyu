@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import hashlib
 import json
 import os
@@ -494,13 +495,35 @@ def _inspect_floor70_prepublication(
     }
 
 
-def _is_retryable_credit_failure(row: dict[str, Any]) -> bool:
+def _serialized_error_metadata(error: object) -> dict[str, Any] | None:
+    """Parse structured provider metadata embedded in a persisted exception string."""
+
+    text = str(error or "")
+    start = text.find("{")
+    end = text.rfind("}")
+    if start < 0 or end <= start:
+        return None
+    serialized = text[start : end + 1]
+    for parser in (json.loads, ast.literal_eval):
+        try:
+            payload = parser(serialized)
+        except (SyntaxError, ValueError, TypeError, json.JSONDecodeError):
+            continue
+        if isinstance(payload, dict):
+            return payload
+    return None
+
+
+def _is_retryable_failure(row: dict[str, Any]) -> bool:
     if row.get("quality_v4_status") not in {"failed", "needs_retry"}:
         return False
     if row.get("quality_v4_error_category") == "provider_credit_exhausted":
         return True
     error = str(row.get("quality_v4_error") or "").lower()
-    return any(marker in error for marker in RETRYABLE_CREDIT_ERROR_MARKERS)
+    if any(marker in error for marker in RETRYABLE_CREDIT_ERROR_MARKERS):
+        return True
+    metadata = _serialized_error_metadata(row.get("quality_v4_error"))
+    return metadata is not None and metadata.get("retryable") is True
 
 
 def _interleave_score_quartiles(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -548,7 +571,7 @@ def inspect_quality_v4_backfill(
         status = row.get("quality_v4_status")
         reason = _exclusion_reason(
             row,
-            allow_rejected_retry=(retry_failed and _is_retryable_credit_failure(row)),
+            allow_rejected_retry=(retry_failed and _is_retryable_failure(row)),
         )
         if reason:
             exclusions[reason] += 1
@@ -560,7 +583,7 @@ def inspect_quality_v4_backfill(
             if status not in {"failed", "needs_retry"}:
                 blocked_existing[f"not_failed_{status or 'not_started'}"] += 1
                 continue
-            if not _is_retryable_credit_failure(row):
+            if not _is_retryable_failure(row):
                 blocked_existing["failed_not_retryable"] += 1
                 continue
             if place_id and row["place_id"] != place_id:

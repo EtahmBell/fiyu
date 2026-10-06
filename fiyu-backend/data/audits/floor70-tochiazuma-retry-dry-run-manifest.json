@@ -1,0 +1,49 @@
+{
+  "run_id": "e756d1ce1bb6",
+  "created_at": "2026-10-06T09:24:31.565244+00:00",
+  "dry_run": true,
+  "selection_mode": "retry_failed",
+  "model": "gpt-5.6-luna",
+  "requested_count": 1,
+  "selected_count": 0,
+  "quality_research_version": "quality-v4-research-1",
+  "quality_case_strength_version": "quality-v4-case-strength-1",
+  "score_version": "quality-v4-shadow-1",
+  "adjustment_guardrail": 15.0,
+  "inspection": {
+    "total_existing_restaurants": 1203,
+    "eligible_pending": 0,
+    "already_complete": 548,
+    "blocked_existing_statuses": {
+      "not_failed_not_started": 1
+    },
+    "excluded": 654,
+    "exclusions_by_reason": {
+      "identity_not_matched": 1,
+      "rejected_or_obsolete": 521,
+      "underlying_research_failed": 4,
+      "underlying_research_needs_retry": 4,
+      "underlying_research_pending": 103,
+      "unresolved_identity": 21
+    },
+    "estimated_batches_of_100": 0,
+    "selection_mode": "retry_failed",
+    "retryable_failed": 0
+  },
+  "completed": 0,
+  "failed": 0,
+  "needs_retry": 0,
+  "skipped_existing": 549,
+  "responses_requests": 0,
+  "web_search_actions": 0,
+  "token_usage": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "total_tokens": 0
+  },
+  "ids_selected": [],
+  "selection_rows": [],
+  "rows": [],
+  "manifest_path": "data\\audits\\floor70-tochiazuma-retry-dry-run-manifest.json",
+  "results_path": "data\\audits\\floor70-tochiazuma-retry-dry-run-results.jsonl"
+}

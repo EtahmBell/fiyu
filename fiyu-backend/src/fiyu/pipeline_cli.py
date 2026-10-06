@@ -152,7 +152,7 @@ def _parser() -> argparse.ArgumentParser:
     quality_v4_selection.add_argument(
         "--retry-failed",
         action="store_true",
-        help="Retry only failed attempts caused by exhausted provider credits",
+        help="Retry only explicitly retryable provider failures",
     )
     quality_v4_selection.add_argument(
         "--floor70-prepublication",

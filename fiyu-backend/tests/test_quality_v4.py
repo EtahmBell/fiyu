@@ -164,7 +164,14 @@ def _client(parsed=None, error=None):
     return SimpleNamespace(responses=_Responses(parsed, error))
 
 
-def _insert_quality_attempt(path, place_id: str, status: str, error: str | None = None) -> None:
+def _insert_quality_attempt(
+    path,
+    place_id: str,
+    status: str,
+    error: str | None = None,
+    *,
+    error_category: str = "validation_or_processing_failure",
+) -> None:
     with connect(path) as connection:
         connection.execute(
             """
@@ -173,8 +180,7 @@ def _insert_quality_attempt(path, place_id: str, status: str, error: str | None 
                 quality_research_version, quality_case_strength_version,
                 score_version, prompt_version, adjustment_guardrail,
                 error_category, error, created_at
-            ) VALUES (?, 'openai', 'test-model', ?, ?, ?, ?, ?, 15,
-                      'validation_or_processing_failure', ?, 'now')
+            ) VALUES (?, 'openai', 'test-model', ?, ?, ?, ?, ?, 15, ?, ?, 'now')
             """,
             (
                 place_id,
@@ -183,6 +189,7 @@ def _insert_quality_attempt(path, place_id: str, status: str, error: str | None 
                 QUALITY_CASE_STRENGTH_VERSION,
                 QUALITY_SCORE_VERSION,
                 QUALITY_PROMPT_VERSION,
+                error_category,
                 error,
             ),
         )
@@ -324,6 +331,86 @@ def test_retry_failed_selects_only_credit_failures_and_then_skips_success(tmp_pa
     assert second["selected_count"] == 0
     assert second["inspection"]["already_complete"] == 2
     assert second_client.responses.calls == 0
+
+
+def test_retry_failed_selects_explicit_transient_provider_metadata(tmp_path) -> None:
+    path = _db(tmp_path, count=4)
+    _insert_quality_attempt(
+        path,
+        "place-0",
+        "failed",
+        "RateLimitError: quota unavailable",
+        error_category="provider_credit_exhausted",
+    )
+    _insert_quality_attempt(
+        path,
+        "place-1",
+        "failed",
+        (
+            "InternalServerError: Error code: 520 - "
+            "{'status': 520, 'error_category': 'origin', "
+            "'cloudflare_error': True, 'retryable': True, 'retry_after': 60}"
+        ),
+    )
+    _insert_quality_attempt(
+        path,
+        "place-2",
+        "failed",
+        "ValidationError: response schema did not validate",
+    )
+    _insert_quality_attempt(path, "place-3", "complete")
+    client = _client()
+
+    result = run_quality_v4_backfill(
+        path,
+        limit=10,
+        retry_failed=True,
+        dry_run=True,
+        client=client,
+        manifest_path=tmp_path / "retry-transient-manifest.json",
+        results_path=tmp_path / "retry-transient-results.jsonl",
+    )
+
+    assert result["inspection"]["retryable_failed"] == 2
+    assert set(result["ids_selected"]) == {"place-0", "place-1"}
+    assert result["inspection"]["already_complete"] == 1
+    assert result["inspection"]["blocked_existing_statuses"] == {
+        "failed_not_retryable": 1
+    }
+    assert result["responses_requests"] == 0
+    assert client.responses.calls == 0
+
+    research = ChallengeResearchResult(
+        evidence_level="none",
+        quality_evidence_confidence="low",
+        observations=[],
+        research_summary="No useful food-specific evidence was found.",
+    )
+    retry_client = _client(research)
+    retry = run_quality_v4_backfill(
+        path,
+        place_id="place-1",
+        limit=1,
+        retry_failed=True,
+        client=retry_client,
+        model="test-model",
+        manifest_path=tmp_path / "retry-transient-paid-manifest.json",
+        results_path=tmp_path / "retry-transient-paid-results.jsonl",
+    )
+    assert retry["completed"] == 1
+    assert retry["rows"][0]["retry_of_run_id"] is not None
+    assert retry_client.responses.calls == 1
+
+    subsequent = run_quality_v4_backfill(
+        path,
+        place_id="place-1",
+        limit=1,
+        retry_failed=True,
+        dry_run=True,
+        manifest_path=tmp_path / "retry-transient-subsequent-manifest.json",
+        results_path=tmp_path / "retry-transient-subsequent-results.jsonl",
+    )
+    assert subsequent["selected_count"] == 0
 
 
 def test_exhausted_credit_error_is_checkpointed_as_needs_retry(tmp_path) -> None:
