@@ -2,10 +2,12 @@ import json
 from types import SimpleNamespace
 
 import httpx
+import pytest
 from openai import APIConnectionError, RateLimitError
 
 from fiyu.database import SCHEMA, connect
 from fiyu.experimental_quality_challenge_v4 import ChallengeObservation, ChallengeResearchResult
+from fiyu.pipeline_cli import _parser
 from fiyu.public_catalog import ensure_public_schema
 from fiyu.quality_v4 import (
     QUALITY_CASE_STRENGTH_VERSION,
@@ -353,3 +355,219 @@ def test_exhausted_credit_error_is_checkpointed_as_needs_retry(tmp_path) -> None
         "status": "needs_retry",
         "error_category": "provider_credit_exhausted",
     }
+    retry = run_quality_v4_backfill(
+        path,
+        limit=1,
+        retry_failed=True,
+        dry_run=True,
+        manifest_path=tmp_path / "retry-manifest.json",
+        results_path=tmp_path / "retry-results.jsonl",
+    )
+    assert retry["ids_selected"] == ["place-0"]
+
+
+def _make_floor70_candidate(
+    path,
+    place_id: str,
+    *,
+    score: float = 72,
+    published: bool = False,
+    score_version: str = "public-v3-local-discovery-specialist-tristate",
+    identity_confidence: float = 0.9,
+    matched_restaurant: bool = True,
+    product_eligible: bool = True,
+) -> None:
+    evidence = {
+        "matched_restaurant": matched_restaurant,
+        "identity_confidence": identity_confidence,
+        "specialist_status": "unknown",
+    }
+    with connect(path) as connection:
+        connection.execute(
+            """
+            UPDATE public_restaurants SET
+                name_en=?, primary_category='Restaurant', identity_confidence=?,
+                evidence_json=?, research_status='complete',
+                review_status='auto_rejected',
+                review_notes='score_or_product_policy_rejected',
+                fiyu_score=?, score_version=?, product_eligible=?, is_published=?
+            WHERE place_id=?
+            """,
+            (
+                place_id,
+                identity_confidence,
+                json.dumps(evidence),
+                score,
+                score_version,
+                int(product_eligible),
+                int(published),
+                place_id,
+            ),
+        )
+        connection.commit()
+
+
+def test_floor70_prepublication_selects_only_exact_gate_clean_v3_cohort(tmp_path) -> None:
+    path = _db(tmp_path, count=8)
+    _make_floor70_candidate(path, "place-0")
+    _make_floor70_candidate(path, "place-1", score=69)
+    _make_floor70_candidate(
+        path,
+        "place-2",
+        score_version="public-v4-quality-research-specialist-tristate",
+    )
+    _make_floor70_candidate(path, "place-3", published=True)
+    _make_floor70_candidate(path, "place-4", product_eligible=False)
+    _make_floor70_candidate(
+        path,
+        "place-5",
+        identity_confidence=0.2,
+        matched_restaurant=False,
+    )
+    _make_floor70_candidate(path, "place-6")
+    _make_floor70_candidate(path, "place-7", published=True)
+    with connect(path) as connection:
+        connection.execute(
+            """
+            UPDATE restaurant_research_runs SET structured_research_json=?
+            WHERE public_restaurant_id='place-6'
+            """,
+            (
+                json.dumps(
+                    {
+                        "address_evidence": {
+                            "identity_status": "conflicting",
+                            "research_summary": (
+                                "Current evidence confirms this address belongs to a different "
+                                "restaurant."
+                            ),
+                        }
+                    }
+                ),
+            ),
+        )
+        connection.commit()
+
+    result = run_quality_v4_backfill(
+        path,
+        limit=100,
+        floor70_prepublication=True,
+        dry_run=True,
+        manifest_path=tmp_path / "manifest.json",
+        results_path=tmp_path / "results.jsonl",
+    )
+
+    assert result["ids_selected"] == ["place-0"]
+    assert result["inspection"]["selected_v3_count"] == 1
+    assert result["inspection"]["selected_current_v4_count"] == 0
+    assert result["inspection"]["selected_published_count"] == 0
+    assert result["inspection"]["separate_below_floor_rescue_set"] == 1
+    assert result["inspection"]["below_floor_rescue_overlap"] == 0
+    assert result["inspection"]["exclusions_by_reason"]["unresolved_identity"] == 1
+    assert (
+        result["inspection"]["exclusions_by_reason"][
+            "critical_publication_contradiction"
+        ]
+        == 1
+    )
+
+
+def test_floor70_prepublication_excludes_completed_v4_and_reports_prior_failure(
+    tmp_path,
+) -> None:
+    path = _db(tmp_path, count=3)
+    for index in range(3):
+        _make_floor70_candidate(path, f"place-{index}")
+    _insert_quality_attempt(path, "place-0", "complete")
+    _insert_quality_attempt(path, "place-1", "failed", "schema failure")
+
+    result = run_quality_v4_backfill(
+        path,
+        limit=100,
+        floor70_prepublication=True,
+        dry_run=True,
+        manifest_path=tmp_path / "manifest.json",
+        results_path=tmp_path / "results.jsonl",
+    )
+
+    assert result["ids_selected"] == ["place-2"]
+    assert result["inspection"]["excluded_completed_v4_evidence"] == 1
+    assert result["inspection"]["prior_attempt_statuses"] == {"failed": 1}
+
+
+def test_floor70_prepublication_order_limit_dry_run_and_resume_are_safe(tmp_path) -> None:
+    path = _db(tmp_path, count=3)
+    _make_floor70_candidate(path, "place-0", score=72)
+    _make_floor70_candidate(path, "place-1", score=74)
+    _make_floor70_candidate(path, "place-2", score=74)
+    before = path.read_bytes()
+
+    dry_run = run_quality_v4_backfill(
+        path,
+        limit=2,
+        floor70_prepublication=True,
+        dry_run=True,
+        manifest_path=tmp_path / "dry-manifest.json",
+        results_path=tmp_path / "dry-results.jsonl",
+    )
+    assert dry_run["ids_selected"] == ["place-1", "place-2"]
+    assert dry_run["responses_requests"] == 0
+    assert (tmp_path / "dry-results.jsonl").read_text(encoding="utf-8") == ""
+    assert path.read_bytes() == before
+
+    research = ChallengeResearchResult(
+        evidence_level="none",
+        quality_evidence_confidence="low",
+        observations=[],
+        research_summary="No useful food-specific evidence was found.",
+    )
+    client = _client(research)
+    first = run_quality_v4_backfill(
+        path,
+        limit=1,
+        floor70_prepublication=True,
+        client=client,
+        model="test-model",
+        manifest_path=tmp_path / "paid-manifest.json",
+        results_path=tmp_path / "paid-results.jsonl",
+    )
+    assert first["ids_selected"] == ["place-1"]
+    assert client.responses.calls == 1
+
+    next_run = run_quality_v4_backfill(
+        path,
+        limit=10,
+        floor70_prepublication=True,
+        dry_run=True,
+        manifest_path=tmp_path / "next-manifest.json",
+        results_path=tmp_path / "next-results.jsonl",
+    )
+    assert next_run["ids_selected"] == ["place-2", "place-0"]
+    assert "place-1" not in next_run["ids_selected"]
+
+
+def test_floor70_prepublication_is_mutually_exclusive_with_force_and_retry(tmp_path) -> None:
+    path = _db(tmp_path, count=1)
+    _make_floor70_candidate(path, "place-0")
+    for incompatible in ({"force": True}, {"retry_failed": True}):
+        try:
+            run_quality_v4_backfill(
+                path,
+                floor70_prepublication=True,
+                dry_run=True,
+                manifest_path=tmp_path / f"{next(iter(incompatible))}.json",
+                **incompatible,
+            )
+        except ValueError as exc:
+            assert "mutually exclusive" in str(exc)
+        else:
+            raise AssertionError("incompatible selector modes must fail")
+
+    with pytest.raises(SystemExit):
+        _parser().parse_args(
+            [
+                "quality-v4-backfill",
+                "--floor70-prepublication",
+                "--retry-failed",
+            ]
+        )

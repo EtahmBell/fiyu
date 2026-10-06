@@ -154,6 +154,11 @@ def _parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Retry only failed attempts caused by exhausted provider credits",
     )
+    quality_v4_selection.add_argument(
+        "--floor70-prepublication",
+        action="store_true",
+        help="Select only unpublished, gate-clean v3 score-only rows already at floor 70",
+    )
     quality_v4.add_argument("--dry-run", action="store_true")
     quality_v4.add_argument("--verbose", action="store_true")
     quality_v4.add_argument("--manifest-out")
@@ -388,6 +393,7 @@ def main() -> None:
             model=args.model,
             force=args.force,
             retry_failed=args.retry_failed,
+            floor70_prepublication=args.floor70_prepublication,
             dry_run=args.dry_run,
             manifest_path=args.manifest_out,
             results_path=args.results_out,

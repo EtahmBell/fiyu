@@ -16,10 +16,21 @@ from dotenv import load_dotenv
 from openai import APIConnectionError, APITimeoutError, OpenAI, RateLimitError
 
 from .address_research import extract_response_metadata
+from .card_enrichment import scoring_research_view
+from .catalog_pipeline import (
+    _effective_structured_research,
+    _strong_published_duplicate_ids,
+)
 from .database import connect
 from .experimental_quality_challenge_v4 import ChallengeResearchResult
+from .experimental_score_v4 import evaluate_with_quality_adjustment
 from .public_catalog import ensure_public_schema
-from .public_score import FiyuEvidence, InternalSignals
+from .public_score import (
+    FiyuEvidence,
+    InternalSignals,
+    assess_critical_publication_contradiction,
+    evaluate_fiyu_candidate,
+)
 from .quality_v4 import (
     DEFAULT_ADJUSTMENT_GUARDRAIL,
     QUALITY_CASE_STRENGTH_VERSION,
@@ -32,6 +43,8 @@ from .sqlite_snapshot import readonly_sqlite_snapshot
 
 MAX_WEB_SEARCH_ACTIONS = 5
 DEFAULT_MODEL = "gpt-5.6-luna"
+FLOOR70_PREPUBLICATION_TARGET = 70.0
+V3_PRODUCTION_SCORE_PREFIX = "public-v3-local-discovery"
 RETRYABLE_CREDIT_ERROR_MARKERS = (
     "insufficient_quota",
     "credit_balance_exhausted",
@@ -108,16 +121,15 @@ def _all_candidate_rows(connection) -> list[dict[str, Any]]:
     )
     rows = connection.execute(
         f"""
-        SELECT p.place_id, p.name_ja, p.name_en, p.primary_category,
-               p.discovery_area, p.normalized_address, p.description_en,
-               p.food_tags_json, p.signature_dishes_json, p.evidence_json,
-               p.evidence_urls_json, p.identity_confidence, p.research_status,
-               p.review_status, p.fiyu_score AS stored_production_v3_score,
-               p.is_published, r.id AS source_restaurant_id, r.title,
-               r.category AS source_category, r.quality_score,
+        SELECT p.*, p.fiyu_score AS stored_production_v3_score,
+               r.id AS source_restaurant_id, r.title,
+               r.title AS candidate_title, r.category AS source_category,
+               r.category AS candidate_category,
+               r.broad_category AS candidate_broad_category, r.quality_score,
                r.underexposure_score, r.digital_footprint_score,
                r.internal_fiyu_score, r.rating, r.review_count, r.website,
-               rr.structured_research_json, {q_columns}
+               rr.id AS research_run_id, rr.structured_research_json,
+               rr.completed_at AS research_completed_at, {q_columns}
         FROM public_restaurants p
         LEFT JOIN restaurants r ON r.id=p.source_restaurant_id
         LEFT JOIN restaurant_research_runs rr ON rr.id=(
@@ -133,7 +145,9 @@ def _all_candidate_rows(connection) -> list[dict[str, Any]]:
     return [dict(row) for row in rows]
 
 
-def _exclusion_reason(row: dict[str, Any]) -> str | None:
+def _exclusion_reason(
+    row: dict[str, Any], *, allow_rejected_retry: bool = False
+) -> str | None:
     if row.get("source_restaurant_id") is None:
         return "missing_source_restaurant"
     if row.get("research_status") != "complete":
@@ -145,13 +159,343 @@ def _exclusion_reason(row: dict[str, Any]) -> str | None:
     evidence = _json(row.get("evidence_json"), {})
     if evidence.get("matched_restaurant") is False:
         return "identity_not_matched"
-    if str(row.get("review_status") or "") in {"rejected", "auto_rejected"}:
+    if (
+        not allow_rejected_retry
+        and str(row.get("review_status") or "") in {"rejected", "auto_rejected"}
+    ):
         return "rejected_or_obsolete"
     return None
 
 
+def _research_readiness_reason(row: dict[str, Any]) -> str | None:
+    """Return V4 input blockers without treating score rejection as obsolete."""
+
+    if row.get("source_restaurant_id") is None:
+        return "missing_source_restaurant"
+    if row.get("research_status") != "complete":
+        return f"underlying_research_{row.get('research_status') or 'unknown'}"
+    if row.get("research_run_id") is None:
+        return "missing_current_research_run"
+    if row.get("quality_score") is None:
+        return "missing_base_quality"
+    if float(row.get("identity_confidence") or 0) < 0.6:
+        return "unresolved_identity"
+    evidence = _json(row.get("evidence_json"), {})
+    if evidence.get("matched_restaurant") is False:
+        return "identity_not_matched"
+    return None
+
+
+def _publication_readiness_reason(row: dict[str, Any]) -> str | None:
+    if not str(row.get("place_id") or "").strip():
+        return "missing_stable_place_id"
+    if not str(
+        row.get("name_ja") or row.get("name_en") or row.get("candidate_title") or ""
+    ).strip():
+        return "missing_display_name"
+    if not str(
+        row.get("primary_category")
+        or row.get("candidate_category")
+        or row.get("candidate_broad_category")
+        or ""
+    ).strip():
+        return "missing_category"
+    if row.get("research_status") != "complete":
+        return "publication_research_incomplete"
+    if row.get("stored_production_v3_score") is None or not str(
+        row.get("score_version") or ""
+    ).strip():
+        return "missing_deterministic_score"
+    if row.get("research_run_id") is None:
+        return "missing_completed_score_run"
+    return None
+
+
+def _access_overlay(row: dict[str, Any], structured: dict[str, Any]) -> dict[str, Any]:
+    result = dict(structured)
+    stored_access = str(row.get("access_model") or "unknown").casefold()
+    if stored_access != "unknown":
+        result["access_model"] = stored_access
+        result["access_confidence"] = row.get("access_confidence")
+        for column, field in (
+            ("access_evidence_json", "access_evidence"),
+            ("access_evidence_urls_json", "access_evidence_urls"),
+        ):
+            value = _json(row.get(column), [])
+            result[field] = value if isinstance(value, list) else []
+    return result
+
+
+def _canonical_context(connection: Any, row: dict[str, Any]) -> dict[str, Any]:
+    evidence_payload = _json(row.get("evidence_json"), {})
+    evidence_payload["specialist_status"] = str(
+        row.get("specialist_status") or "unknown"
+    )
+    evidence_payload["specialist_restaurant"] = (
+        evidence_payload["specialist_status"] == "specialist"
+    )
+    evidence = FiyuEvidence(**evidence_payload)
+    evidence.validate()
+    structured = _json(row.get("structured_research_json"), {})
+    structured = _effective_structured_research(connection, row["place_id"], structured)
+    structured = scoring_research_view(structured)
+    structured = _access_overlay(row, structured)
+    structured["specialist_status"] = evidence.specialist_status
+    internal = InternalSignals(
+        quality_score=float(row.get("quality_score") or 0),
+        underexposure_score=float(row.get("underexposure_score") or 0),
+        digital_footprint_score=float(row.get("digital_footprint_score") or 0),
+    )
+    score = evaluate_fiyu_candidate(
+        evidence,
+        internal,
+        structured,
+        primary_category=str(
+            row.get("primary_category")
+            or row.get("source_category")
+            or row.get("candidate_broad_category")
+            or ""
+        ),
+    )
+    return {
+        "evidence": evidence,
+        "structured": structured,
+        "internal": internal,
+        "score": score,
+    }
+
+
+def _maximum_possible_v4_score(row: dict[str, Any], context: dict[str, Any]) -> float:
+    evidence = context["evidence"]
+    internal = context["internal"]
+    structured = context["structured"]
+    available = min(15.0, max(0.0, 100.0 - float(row.get("quality_score") or 0)))
+    baseline = evaluate_with_quality_adjustment(
+        evidence,
+        internal,
+        structured,
+        primary_category=row.get("primary_category") or row.get("source_category"),
+        quality_adjustment=0,
+    )
+    maximum = evaluate_with_quality_adjustment(
+        evidence,
+        internal,
+        structured,
+        primary_category=row.get("primary_category") or row.get("source_category"),
+        quality_adjustment=available,
+    )
+    return round(
+        float(row["stored_production_v3_score"])
+        + maximum.fiyu_score
+        - baseline.fiyu_score,
+        2,
+    )
+
+
+def _selection_metadata(row: dict[str, Any], target_floor: float) -> dict[str, Any]:
+    return {
+        "place_id": row["place_id"],
+        "restaurant": row.get("name_en") or row.get("name_ja") or row.get("title"),
+        "current_score": row.get("stored_production_v3_score"),
+        "score_version": row.get("score_version"),
+        "current_quality": row.get("quality_signal"),
+        "base_quality": row.get("quality_score"),
+        "rejection_classification": "score_only_rejected",
+        "selection_reason": "floor70_prepublication_requires_quality_v4",
+        "research_status": row.get("research_status"),
+        "target_floor": target_floor,
+        "prior_quality_v4_status": row.get("quality_v4_status"),
+    }
+
+
+def _inspect_floor70_prepublication(
+    connection: Any,
+    rows: list[dict[str, Any]],
+    *,
+    place_id: str | None,
+    start_after: str | None,
+) -> dict[str, Any]:
+    target_floor = FLOOR70_PREPUBLICATION_TARGET
+    exclusions = Counter()
+    prior_attempts = Counter()
+    eligible: list[dict[str, Any]] = []
+    score_only_below: list[tuple[dict[str, Any], dict[str, Any]]] = []
+    evaluated_score_only = 0
+    score_only_at_or_above = 0
+    canonical_blocked_within_score_only = 0
+    already_complete = 0
+    current_v4_rows = 0
+    published_rows = 0
+
+    for row in rows:
+        if row.get("is_published"):
+            published_rows += 1
+        if str(row.get("score_version") or "").startswith(
+            "public-v4-quality-research"
+        ):
+            current_v4_rows += 1
+        if (
+            row.get("is_published")
+            or row.get("stored_production_v3_score") is None
+            or row.get("review_status") not in {"rejected", "auto_rejected"}
+            or row.get("review_notes") != "score_or_product_policy_rejected"
+        ):
+            continue
+        try:
+            context = _canonical_context(connection, row)
+        except (TypeError, ValueError):
+            exclusions["invalid_scoring_evidence"] += 1
+            continue
+        current = context["score"]
+        if not row.get("product_eligible") or current.chain_excluded:
+            exclusions[
+                "stored_product_ineligible"
+                if not row.get("product_eligible")
+                else "chain_disqualified"
+            ] += 1
+            continue
+
+        evaluated_score_only += 1
+        current_score = float(row["stored_production_v3_score"])
+        if current_score < target_floor:
+            exclusions["current_score_below_floor"] += 1
+            score_only_below.append((row, context))
+            continue
+        score_only_at_or_above += 1
+
+        critical = assess_critical_publication_contradiction(
+            context["evidence"], context["structured"]
+        )
+        duplicate_ids = _strong_published_duplicate_ids(connection, row)
+        if critical.contradicted:
+            exclusions["critical_publication_contradiction"] += 1
+            canonical_blocked_within_score_only += 1
+            continue
+        if duplicate_ids:
+            exclusions["duplicate_of_published"] += 1
+            canonical_blocked_within_score_only += 1
+            continue
+        if not current.product_eligible:
+            exclusions["canonical_product_ineligible"] += 1
+            canonical_blocked_within_score_only += 1
+            continue
+
+        publication_reason = _publication_readiness_reason(row)
+        if publication_reason:
+            exclusions[publication_reason] += 1
+            continue
+
+        readiness_reason = _research_readiness_reason(row)
+        if readiness_reason:
+            exclusions[readiness_reason] += 1
+            continue
+        if not str(row.get("score_version") or "").startswith(
+            V3_PRODUCTION_SCORE_PREFIX
+        ):
+            exclusions["not_current_v3_lineage"] += 1
+            continue
+
+        status = row.get("quality_v4_status")
+        if status == "complete":
+            already_complete += 1
+            exclusions["completed_v4_evidence"] += 1
+            continue
+        if status in {"failed", "needs_retry", "pending"}:
+            prior_attempts[str(status)] += 1
+            exclusions[f"prior_v4_{status}"] += 1
+            continue
+        if place_id and row["place_id"] != place_id:
+            continue
+        eligible.append(row)
+
+    eligible.sort(
+        key=lambda row: (
+            -float(row["stored_production_v3_score"]),
+            str(row["place_id"]),
+        )
+    )
+    if start_after:
+        try:
+            position = next(
+                index for index, row in enumerate(eligible) if row["place_id"] == start_after
+            )
+            eligible = eligible[position + 1 :]
+        except StopIteration:
+            eligible = []
+
+    rescue_rows: list[dict[str, Any]] = []
+    rescue_priority = Counter()
+    for row, context in score_only_below:
+        maximum = _maximum_possible_v4_score(row, context)
+        if maximum < target_floor:
+            continue
+        rescue_rows.append(row)
+        if maximum >= target_floor + 3:
+            rescue_priority["high"] += 1
+        elif maximum >= target_floor + 1:
+            rescue_priority["medium"] += 1
+        else:
+            rescue_priority["marginal"] += 1
+
+    selected_ids = {str(row["place_id"]) for row in eligible}
+    rescue_ids = {str(row["place_id"]) for row in rescue_rows}
+    sankei_place_id = "ChIJi79LD-yIGGAR_8wLG2_pyYE"
+    unpublished_scored_at_or_above = sum(
+        not row.get("is_published")
+        and row.get("stored_production_v3_score") is not None
+        and float(row["stored_production_v3_score"]) >= target_floor
+        for row in rows
+    )
+    non_score_blocked_outside_cohort = (
+        unpublished_scored_at_or_above - score_only_at_or_above
+    )
+    return {
+        "total_existing_restaurants": len(rows),
+        "target_floor": target_floor,
+        "evaluated_score_only_rejected": evaluated_score_only,
+        "eligible_pending": len(eligible),
+        "already_complete": already_complete,
+        "published_rows_excluded": published_rows,
+        "current_v4_rows_excluded": current_v4_rows,
+        "selected_v3_count": len(eligible),
+        "selected_current_v4_count": 0,
+        "selected_published_count": 0,
+        "excluded_current_score_below_floor": exclusions["current_score_below_floor"],
+        "excluded_non_score_blocked_at_or_above_floor": (
+            non_score_blocked_outside_cohort + canonical_blocked_within_score_only
+        ),
+        "non_score_blocked_outside_score_only_cohort": non_score_blocked_outside_cohort,
+        "canonical_blocked_within_score_only_cohort": canonical_blocked_within_score_only,
+        "excluded_identity_unresolved": exclusions["unresolved_identity"],
+        "excluded_identity_not_matched": exclusions["identity_not_matched"],
+        "excluded_research_incomplete": sum(
+            count
+            for reason, count in exclusions.items()
+            if reason.startswith(("underlying_research_", "missing_"))
+            or reason == "publication_research_incomplete"
+        ),
+        "excluded_completed_v4_evidence": exclusions["completed_v4_evidence"],
+        "prior_attempt_statuses": dict(sorted(prior_attempts.items())),
+        "blocked_existing_statuses": {
+            f"prior_v4_{status}": count for status, count in sorted(prior_attempts.items())
+        },
+        "excluded": sum(exclusions.values()),
+        "exclusions_by_reason": dict(sorted(exclusions.items())),
+        "estimated_batches_of_100": (len(eligible) + 99) // 100,
+        "selection_mode": "floor70_prepublication",
+        "retryable_failed": 0,
+        "separate_below_floor_rescue_set": len(rescue_rows),
+        "below_floor_rescue_priority": {
+            name: rescue_priority[name] for name in ("high", "medium", "marginal")
+        },
+        "below_floor_rescue_overlap": len(selected_ids & rescue_ids),
+        "sankei_sushi_selected": sankei_place_id in selected_ids,
+        "eligible_rows": eligible,
+    }
+
+
 def _is_retryable_credit_failure(row: dict[str, Any]) -> bool:
-    if row.get("quality_v4_status") != "failed":
+    if row.get("quality_v4_status") not in {"failed", "needs_retry"}:
         return False
     if row.get("quality_v4_error_category") == "provider_credit_exhausted":
         return True
@@ -181,26 +525,39 @@ def inspect_quality_v4_backfill(
     start_after: str | None = None,
     force: bool = False,
     retry_failed: bool = False,
+    floor70_prepublication: bool = False,
 ) -> dict[str, Any]:
-    if force and retry_failed:
-        raise ValueError("--force and --retry-failed are mutually exclusive")
+    if sum((force, retry_failed, floor70_prepublication)) > 1:
+        raise ValueError(
+            "--force, --retry-failed, and --floor70-prepublication are mutually exclusive"
+        )
     with readonly_sqlite_snapshot(db_path) as connection:
         rows = _all_candidate_rows(connection)
+        if floor70_prepublication:
+            return _inspect_floor70_prepublication(
+                connection,
+                rows,
+                place_id=place_id,
+                start_after=start_after,
+            )
     exclusions = Counter()
     eligible: list[dict[str, Any]] = []
     already_complete = 0
     blocked_existing = Counter()
     for row in rows:
-        reason = _exclusion_reason(row)
+        status = row.get("quality_v4_status")
+        reason = _exclusion_reason(
+            row,
+            allow_rejected_retry=(retry_failed and _is_retryable_credit_failure(row)),
+        )
         if reason:
             exclusions[reason] += 1
             continue
-        status = row.get("quality_v4_status")
         if retry_failed:
             if status == "complete":
                 already_complete += 1
                 continue
-            if status != "failed":
+            if status not in {"failed", "needs_retry"}:
                 blocked_existing[f"not_failed_{status or 'not_started'}"] += 1
                 continue
             if not _is_retryable_credit_failure(row):
@@ -296,6 +653,7 @@ def run_quality_v4_backfill(
     start_after: str | None = None,
     force: bool = False,
     retry_failed: bool = False,
+    floor70_prepublication: bool = False,
     dry_run: bool = False,
     model: str | None = None,
     manifest_path: str | Path | None = None,
@@ -310,6 +668,7 @@ def run_quality_v4_backfill(
         start_after=start_after,
         force=force,
         retry_failed=retry_failed,
+        floor70_prepublication=floor70_prepublication,
     )
     selected = inspection.pop("eligible_rows")[:limit]
     run_key = uuid.uuid4().hex[:12]
@@ -322,7 +681,7 @@ def run_quality_v4_backfill(
         "run_id": run_key,
         "created_at": _utc_now(),
         "dry_run": dry_run,
-        "selection_mode": "retry_failed" if retry_failed else "pending",
+        "selection_mode": inspection["selection_mode"],
         "model": selected_model,
         "requested_count": limit,
         "selected_count": len(selected),
@@ -340,12 +699,26 @@ def run_quality_v4_backfill(
         "web_search_actions": 0,
         "token_usage": {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0},
         "ids_selected": [row["place_id"] for row in selected],
+        "selection_rows": (
+            [
+                _selection_metadata(row, FLOOR70_PREPUBLICATION_TARGET)
+                for row in selected
+            ]
+            if floor70_prepublication
+            else []
+        ),
         "rows": [],
         "manifest_path": str(manifest_file),
         "results_path": str(results_file),
     }
     _manifest_write(manifest_file, manifest)
     if dry_run:
+        results_file.parent.mkdir(parents=True, exist_ok=True)
+        if results_file.exists() and results_file.stat().st_size:
+            raise FileExistsError(
+                f"Dry-run results path is not empty: {results_file}"
+            )
+        results_file.touch(exist_ok=True)
         return manifest
 
     ensure_public_schema(db_path)
@@ -563,9 +936,10 @@ def run_quality_v4_backfill(
 
 def compact_backfill_summary(result: dict[str, Any]) -> str:
     inspection = result["inspection"]
-    eligible_label = (
-        "Retryable failed" if inspection["selection_mode"] == "retry_failed" else "Eligible pending"
-    )
+    eligible_label = {
+        "retry_failed": "Retryable failed",
+        "floor70_prepublication": "Floor-70 prepublication eligible",
+    }.get(inspection["selection_mode"], "Eligible pending")
     lines = [
         f"Total restaurants: {inspection['total_existing_restaurants']}",
         f"{eligible_label}: {inspection['eligible_pending']}",
