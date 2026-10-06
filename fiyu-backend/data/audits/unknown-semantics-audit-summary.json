@@ -1,0 +1,713 @@
+{
+  "audit_scope": {
+    "canonical_db": "C:/Users/ethan/OneDrive/Documents/GitHub/fiyu-public/fiyu-backend/data/fiyu.db",
+    "row_count": 1203,
+    "scored_rows": 1092,
+    "material_delta_definition": "absolute final-score delta >= 0.5",
+    "network_or_paid_requests": 0,
+    "database_open_mode": "SQLite immutable read-only plus query_only"
+  },
+  "semantic_findings": {
+    "independence": "Unknown is distinguishable and receives the scorer's explicit neutral prior of 70, between confirmed independent and affirmative chain evidence.",
+    "specialist": "Explicit tri-state semantics are present; unknown is distinct from specialist and non_specialist."
+  },
+  "neutral_definition": {
+    "value": 70.0,
+    "rationale": "Reuse the scorer's existing explicit unknown prior of 70 in both relevant components; keep all weights fixed and perform no renormalization.",
+    "independence_unknown": {
+      "current_independence_subscore": 70.0,
+      "current_local_discovery_subscore": 70.0,
+      "counterfactual_change": 0.0
+    },
+    "specialist_unknown": {
+      "current_false_independence_subscore": 40.0,
+      "neutral_independence_subscore": 70.0,
+      "independence_component_delta": 3.0,
+      "current_false_local_discovery_subscore": 50.0,
+      "neutral_local_discovery_subscore": 70.0,
+      "local_discovery_component_delta": 2.0,
+      "uncapped_final_score_delta": 0.95
+    }
+  },
+  "state_counts": {
+    "chain": {
+      "all": {
+        "independent_single": 762,
+        "large_chain_or_franchise": 3,
+        "small_group_distinct_concept": 97,
+        "small_same_brand_chain": 17,
+        "unknown": 324
+      },
+      "published": {
+        "independent_single": 433,
+        "small_group_distinct_concept": 30,
+        "unknown": 75
+      },
+      "unpublished": {
+        "independent_single": 329,
+        "large_chain_or_franchise": 3,
+        "small_group_distinct_concept": 67,
+        "small_same_brand_chain": 17,
+        "unknown": 249
+      },
+      "rejected": {
+        "independent_single": 321,
+        "large_chain_or_franchise": 3,
+        "small_group_distinct_concept": 65,
+        "small_same_brand_chain": 17,
+        "unknown": 134
+      },
+      "score_only_rejected": {
+        "independent_single": 313,
+        "small_group_distinct_concept": 63,
+        "unknown": 131
+      },
+      "product_eligible_but_unpublished": {
+        "independent_single": 321,
+        "large_chain_or_franchise": 3,
+        "small_group_distinct_concept": 64,
+        "small_same_brand_chain": 17,
+        "unknown": 246
+      },
+      "current_v4": {},
+      "legacy_v3": {}
+    },
+    "chain_assessment_reason": {
+      "all": {
+        "explicit_franchise_or_large_standardized_chain_evidence": 1,
+        "explicit_structured_classification": 878,
+        "group_affiliation_alone_is_not_chain_evidence": 26,
+        "insufficient_chain_evidence": 298
+      },
+      "published": {
+        "explicit_structured_classification": 463,
+        "group_affiliation_alone_is_not_chain_evidence": 5,
+        "insufficient_chain_evidence": 70
+      },
+      "unpublished": {
+        "explicit_franchise_or_large_standardized_chain_evidence": 1,
+        "explicit_structured_classification": 415,
+        "group_affiliation_alone_is_not_chain_evidence": 21,
+        "insufficient_chain_evidence": 228
+      },
+      "rejected": {
+        "explicit_franchise_or_large_standardized_chain_evidence": 1,
+        "explicit_structured_classification": 405,
+        "group_affiliation_alone_is_not_chain_evidence": 20,
+        "insufficient_chain_evidence": 114
+      },
+      "score_only_rejected": {
+        "explicit_structured_classification": 376,
+        "group_affiliation_alone_is_not_chain_evidence": 20,
+        "insufficient_chain_evidence": 111
+      },
+      "product_eligible_but_unpublished": {
+        "explicit_franchise_or_large_standardized_chain_evidence": 1,
+        "explicit_structured_classification": 404,
+        "group_affiliation_alone_is_not_chain_evidence": 21,
+        "insufficient_chain_evidence": 225
+      },
+      "current_v4": {},
+      "legacy_v3": {}
+    },
+    "specialist_stored": {
+      "all": {
+        "specialist": 836,
+        "unknown": 367
+      },
+      "published": {
+        "specialist": 431,
+        "unknown": 107
+      },
+      "unpublished": {
+        "specialist": 405,
+        "unknown": 260
+      },
+      "rejected": {
+        "specialist": 396,
+        "unknown": 144
+      },
+      "score_only_rejected": {
+        "specialist": 368,
+        "unknown": 139
+      },
+      "product_eligible_but_unpublished": {
+        "specialist": 393,
+        "unknown": 258
+      },
+      "current_v4": {},
+      "legacy_v3": {}
+    },
+    "specialist_semantics": {
+      "all": {
+        "explicit_tristate_specialist": 836,
+        "explicit_tristate_unknown": 367
+      },
+      "published": {
+        "explicit_tristate_specialist": 431,
+        "explicit_tristate_unknown": 107
+      },
+      "unpublished": {
+        "explicit_tristate_specialist": 405,
+        "explicit_tristate_unknown": 260
+      },
+      "rejected": {
+        "explicit_tristate_specialist": 396,
+        "explicit_tristate_unknown": 144
+      },
+      "score_only_rejected": {
+        "explicit_tristate_specialist": 368,
+        "explicit_tristate_unknown": 139
+      },
+      "product_eligible_but_unpublished": {
+        "explicit_tristate_specialist": 393,
+        "explicit_tristate_unknown": 258
+      },
+      "current_v4": {},
+      "legacy_v3": {}
+    }
+  },
+  "unknown_collapse": {
+    "independence_pattern_A": false,
+    "specialist_pattern_B": false,
+    "boolean_schema_pattern_C": false,
+    "coercion_or_default_pattern_D": false,
+    "legacy_difference_pattern_E": false,
+    "scored_unknown_chain_rows": 213,
+    "unscored_missing_chain_rows": 111,
+    "scored_schema_forced_ambiguous_specialist_false_rows": 0,
+    "scored_legacy_false_without_structured_field_rows": 0,
+    "unscored_missing_specialist_rows": 0
+  },
+  "counterfactuals": {
+    "A_independence_unknown_neutral": {
+      "affected_rows": 213,
+      "materially_affected_rows": 0,
+      "final_score_delta": {
+        "count": 213,
+        "min": 0.0,
+        "p10": 0.0,
+        "median": 0.0,
+        "mean": 0.0,
+        "p90": 0.0,
+        "max": 0.0,
+        "absolute_max": 0.0
+      },
+      "distribution_bands": {
+        "<= -2": 0,
+        "-1.99 to -1": 0,
+        "-0.99 to -0.5": 0,
+        "-0.49 to +0.49": 213,
+        "+0.5 to +0.99": 0,
+        "+1 to +1.99": 0,
+        "+2 to +2.99": 0,
+        ">= +3": 0
+      },
+      "direction": "no movement",
+      "place_ids": [
+        "ChIJ-xPoiWuNGGARXFHxIR5NjXw",
+        "ChIJ04BE83OLGGAR73155HIjelk",
+        "ChIJ0QM2qYGNGGAROjD5hftsOmc",
+        "ChIJ0XtXQpSNGGARSC8ZX7THxUA",
+        "ChIJ23e5VgCTGGARKEzLD69k71E",
+        "ChIJ25u_VL-LGGARrZwrR0c3MtE",
+        "ChIJ2WzWhfWPGGARyYQS7SD2tIM",
+        "ChIJ2fEGgBOLGGAR5N_POVQ8Xx0",
+        "ChIJ2yq_lTWQGGAR_Wv1WPMLFJM",
+        "ChIJ32H8-OiNGGARkKk8guBg5-k",
+        "ChIJ332GacGNGGARL74nMc1uZ3c",
+        "ChIJ366vJBX1GGARC1_PeICtHcs",
+        "ChIJ379V3B-LGGARC57hFiLZVn8",
+        "ChIJ3U-KbgCNGGARFNCk9UTf6yI",
+        "ChIJ3dNp2eWPGGART11duEk3Ccs",
+        "ChIJ431L2V-NGGAReIVCnv8eYSs",
+        "ChIJ4V-98xeNGGAReEwSXC2f-VY",
+        "ChIJ4YEj2fntGGAR-MtbBPyfPNk",
+        "ChIJ6d8N8dntGGARoNUj9Kt2QcI",
+        "ChIJ6y_gq2HxGGAR2uLMzXHMbcg",
+        "ChIJ742aaWfxGGARFj65EdgMdJE",
+        "ChIJ77hm9XmJGGARBg2WUJiJzFQ",
+        "ChIJ7Z-ywmaNGGAR11I6NndgGOk",
+        "ChIJ80iGQEGNGGARRN2Sp1pxto0",
+        "ChIJ8QQjZQ6NGGARhnUMXkc3Dk0",
+        "ChIJ8VEQQRz1GGARMHghOlJ8FmI",
+        "ChIJ8aptWwCJGGAR02EgAQU3Bok",
+        "ChIJ8fCDCkyJGGAR-F3gBrJjggk",
+        "ChIJ8zcRnPORGGARQt0L8DtQJ5k",
+        "ChIJ94JbagD1GGARlplO43_1hjw",
+        "ChIJ9SI_IgBhGGARxp5FyFlAojE",
+        "ChIJ9Yv_FwCRGGAR2TT-YO9nXgM",
+        "ChIJAQChQwvtGGAR-S6JzuL1AIk",
+        "ChIJAUwgCWnzGGARulYBSvYJkuw",
+        "ChIJAZOKBEyPGGARWoSCCwgRm8E",
+        "ChIJAeHxH3uJGGAR513grhFQQVA",
+        "ChIJAxFpBE6JGGAR99q5InP3ac4",
+        "ChIJB1nV6g3zGGARw3iNYsoxcq0",
+        "ChIJB1wPUgDtGGARLtc1lNMwcIw",
+        "ChIJB3aTQACNGGARcn9lXfW3-rA",
+        "ChIJB6NIhJWRGGARIbMYqHUWBU4",
+        "ChIJB6_I0F-NGGARrVr9Up4MQ9Q",
+        "ChIJB9egl6mNGGARkyq7OUFAfrA",
+        "ChIJBSgoYQCJGGARSI3waEzmOIk",
+        "ChIJBTNbB2iNGGAR5TsUNovzUOg",
+        "ChIJBXTw7FyLGGARmIS97lyYry0",
+        "ChIJB_CMbt2LGGARAh-JGOtc__o",
+        "ChIJBew22OmOGGARiyX5wpNZgOc",
+        "ChIJCVgBOCTvGGARk8ZfDLqgjCU",
+        "ChIJCw4mqf6LGGARScFZAbXLQ2E",
+        "ChIJD50T9cGRGGARSTmSme6AGSk",
+        "ChIJDXXepRyPGGARsLOuoaIskkA",
+        "ChIJD_rK0FbtGGAR3emz2x5VDy0",
+        "ChIJDdZQ8KCLGGARR_O6YT7dugo",
+        "ChIJDzmRm2j0GGARjPNOouLYF-4",
+        "ChIJE-xSVABhGGARnK_cAkpTLQ0",
+        "ChIJFTmT2uTzGGARD_x2fba9gxE",
+        "ChIJFzsEK6-NGGAR8Q5Tlnnql24",
+        "ChIJG6dgQavzGGARbv1elJTn13E",
+        "ChIJGZiCSQCPGGARtJeKu6kiMVo",
+        "ChIJH1uKdh2NGGARpdq9YMuDdX0",
+        "ChIJH3HBZtphGGARENW6nKn2gv0",
+        "ChIJH3yrUPGLGGARVxplIpOlkO4",
+        "ChIJH5WonRqRGGARGI9JisAXwWk",
+        "ChIJH9HfDWPtGGARWDwJ_liLT6A",
+        "ChIJHY8SKZSOGGAR6ISQQi1VEPg",
+        "ChIJHYFgOe-OGGARHfQ8JQJ5Yag",
+        "ChIJHyk9zo2OGGAR_IhetTCSfDQ",
+        "ChIJI0XlDtyJGGARPlaT26OsbDE",
+        "ChIJI101eACJGGARsfN4y6feOtE",
+        "ChIJI5RDdgCLGGARk0ev1vrvIYg",
+        "ChIJIY2OeomPGGARzAMEjKdavfQ",
+        "ChIJIc3y9uWNGGARcw3Lc2CEQqc",
+        "ChIJIxdui16LGGAR6dA-SGEjgjs",
+        "ChIJJ_Ehk7nvGGARz9yG6qrfRV4",
+        "ChIJKXakZVqLGGARFncBrKuzPI4",
+        "ChIJKdddfwDzGGAR1YfPayuwpFo",
+        "ChIJL6H1TZ6OGGARjO95iA48Sz4",
+        "ChIJL9tbR1iLGGAR6IYVz2eGSpY",
+        "ChIJLS2KBhSMGGARGIyajoRNqxI",
+        "ChIJLXxwx_1gGGARvz3PFx1Duqk",
+        "ChIJLZDW2iPBGGARu6JKo5YR8yM",
+        "ChIJLaZ-H1CLGGARDWuOinQuVfE",
+        "ChIJLeCwqkjyGGARBF597qN7c48",
+        "ChIJLyuDBeuNGGARoJT7qwvdjag",
+        "ChIJM5GGCbHtGGARmUWyurTE6MY",
+        "ChIJM6jjWTORGGAROkz9W1uLJsQ",
+        "ChIJMVniphuSGGARNu183ty0Lkw",
+        "ChIJM_nWKwCJGGARiEn4CYp88SE",
+        "ChIJMeZssEuJGGARnSkqV8aOV5U",
+        "ChIJNR6X42ZgGGARy6ha_gINJVk",
+        "ChIJNxisb0VhGGAREUIf0expJbA",
+        "ChIJNy4s2fWNGGAR7OfNsHqzhvk",
+        "ChIJO-LToFCNGGARqB2UWSF5J94",
+        "ChIJO0M3Bd-LGGARrqn_cJep2j8",
+        "ChIJObdPFQCPGGARlsXkPdJWii8",
+        "ChIJP-noBauRGGAR5EkmeQ-54bU",
+        "ChIJP1NR0JbxGGARGWPbZUAFXMs",
+        "ChIJPTPs_8KIGGAR3YjD87jsc4o",
+        "ChIJQQNFIyCSGGAR3TBCyeHPLzc",
+        "ChIJQxFj-smNGGARw8ESZOhfDio",
+        "ChIJQxeAL46LGGARjzbf8Fy1RTI",
+        "ChIJR6EBNjyLGGAR0zkxPSE5WfM",
+        "ChIJR7WtCqSOGGARRBh1fWlElZ4",
+        "ChIJRR9sB62MGGARDApiYRPtr60",
+        "ChIJS0AbdiuJGGARvFcr_eLL3PU",
+        "ChIJS1Xs-PiPGGARignPT8g2LMo",
+        "ChIJSyur2H2MGGARv0oevuA_8XM",
+        "ChIJTV-7dZOLGGAR5JyhJgxUmzM",
+        "ChIJTZ67fACLGGARJEpZ1d_kG3Q",
+        "ChIJT_dhA3TzGGARZkPkApHGfeI",
+        "ChIJTe7PjEiJGGAR7D7M4bZSlGY",
+        "ChIJTebUYnnuGGARI6W3hnb5fTE",
+        "ChIJUTWLZTmRGGARxOTDinwFGD0",
+        "ChIJUZOJRPeLGGAR-0vfQdXdheo",
+        "ChIJVRUG9WdgGGARu_q9IhDPW6Q",
+        "ChIJVVFwgl-LGGARWqxq5BWijQI",
+        "ChIJVVVRr9SRGGAR1yHBitS-Mqo",
+        "ChIJVXInEgCLGGARz8IoRUTvYlY",
+        "ChIJVa0RGv2LGGARx2bq9aU-IMs",
+        "ChIJVc9odEbvGGARLlVzvSkBFGk",
+        "ChIJVxmpXgCNGGARcdQSNOSuXl4",
+        "ChIJW9NJYAaLGGARKyxK-kSPTjE",
+        "ChIJWVHTc9aPGGARP8lfWUfxfw0",
+        "ChIJWeI_aACNGGAR4Fn0N-p0Xnk",
+        "ChIJXXPzCQCLGGAR5dDAC2qjJ_8",
+        "ChIJY4YMmEyLGGARTSiyDzgEfGo",
+        "ChIJY8iSKq-NGGARvhBW5eRk_Kw",
+        "ChIJYy6VKa6RGGARRbgZMYKYKvw",
+        "ChIJ_398awCNGGAR-1q5QoxzX1I",
+        "ChIJ_6fm1X6NGGARdkQP5hUHQl0",
+        "ChIJ_WFfC6SNGGARwOzy6HXllds",
+        "ChIJ__-M6wNgGGARRW4BKHPIPrk",
+        "ChIJ_bJYWMuLGGAR0f4E9I_lMsc",
+        "ChIJaRAVUhT0GGARe6YZeTDf6QA",
+        "ChIJaWy4_T6PGGARH3VGwx848kw",
+        "ChIJay9ltL2NGGARGTl2u_caJXI",
+        "ChIJc3EHNxXzGGAR6IBc9qsLC-g",
+        "ChIJcbxWcwBhGGARCogpYKiN83Y",
+        "ChIJcd4UCbJhGGAR11liIRMYx7A",
+        "ChIJd-JT1dmMGGARR3sZyog3-OA",
+        "ChIJd0wuXgCNGGARN9UAU3Eqt9k",
+        "ChIJd2RD_zdhGGARkGqUP4kizrM",
+        "ChIJd8cG48-PGGARnTxvxDNI4Kk",
+        "ChIJdVvYgq2MGGARf_l_BukrM1E",
+        "ChIJdxwdIwDxGGARhDnQDJ9Tgz0",
+        "ChIJe1D1MyeLGGARBHKRN0-hQUw",
+        "ChIJe2GH4D6NGGARXtJpF4wyHoo",
+        "ChIJeXWFsySJGGAReTCCnTPo2hc",
+        "ChIJedaJUgCPGGARmiPKM4PVCSc",
+        "ChIJeyt--eiNGGARARZehSYzKHE",
+        "ChIJf-iNOiHvGGARuaoq7wRNwbE",
+        "ChIJf6BPuY7zGGARUPUV89e0q7U",
+        "ChIJfX7j2fthGGARl1RayrLFmxY",
+        "ChIJfeC_tvr0GGARviwvHAsCZB4",
+        "ChIJg82p2vGNGGARCN-AZNqHC58",
+        "ChIJgWuZssOLGGARBbyvRoGJjAg",
+        "ChIJgbnja11gGGAROTPmQ0sJJ7o",
+        "ChIJgcDV1tSPGGAReF32uFUaCb4",
+        "ChIJh5svHQBhGGARWmMzr_ULedA",
+        "ChIJhbzTEwCJGGAR4vW47fd2x-o",
+        "ChIJi5fGu1CKGGARHxo8DrVwYPc",
+        "ChIJiZR3v55hGGARxcEEujTSXBg",
+        "ChIJj0BBoRRhGGARJcTpDUqwhn4",
+        "ChIJj8gsaQBhGGARlxeOOAWHztk",
+        "ChIJj9mVCfGIGGARrHMGjYNu7p0",
+        "ChIJjSjoVd9jGGARfFVPF8HNJBk",
+        "ChIJjVJR1fWJGGARS3E4NYCUOpo",
+        "ChIJjY-9NACPGGART-0mkBaSsBU",
+        "ChIJjyTcRJONGGARuYUHobKmB0E",
+        "ChIJjzOyEQCLGGAR8BA5HSSfpMo",
+        "ChIJm-84OQCLGGARWwOEbB0GGuA",
+        "ChIJmUxCWCyPGGARuzfI05FIP7E",
+        "ChIJnc4qabXyGGAR8IXimY31DII",
+        "ChIJo2LEtpVhGGARgzMif-Cd8aM",
+        "ChIJocPTCQCLGGAR3cKTJ_u83-w",
+        "ChIJp2Dwot2RGGARRTUuKg5Qos4",
+        "ChIJp6JC97mJGGARq_Ej-CF4hXc",
+        "ChIJp8xpl8n1GGARer_XKyRNffU",
+        "ChIJpYyQesaMGGAR9LN7OKQc3AM",
+        "ChIJq2pn4yPzGGARD1qi7r1EU9o",
+        "ChIJq6olFeGPGGAR88JcdJWh8eg",
+        "ChIJq6pPpKiSGGARWNgs5AGumGE",
+        "ChIJrQhaaACLGGAR0NP2h5k1h20",
+        "ChIJrTLa7leJGGARdYC6pMyWXms",
+        "ChIJrb7mrW2PGGARD0DiozKNWM8",
+        "ChIJrfeApjmSGGARhGro3pSEuwo",
+        "ChIJsenTCN6JGGARPCAqux1hR40",
+        "ChIJt2QEWDmNGGARvJ5tMBSBCqI",
+        "ChIJt6roUVbvGGARFqT8He9KEso",
+        "ChIJtSOIwoCPGGARtgofDWyOaZE",
+        "ChIJtdl_5PlfGGAROi2yvXApCnU",
+        "ChIJtwPfUQBhGGARX3NB0AnOuAs",
+        "ChIJtylO3jZhGGARyT3iCtU3uSw",
+        "ChIJuUUiJwCNGGARlNLrGou4Cfg",
+        "ChIJuX4KovGIGGAR4AMX_JN3ftQ",
+        "ChIJuYZ1fK6NGGARUa4ABVsvsSI",
+        "ChIJuwLDMaqMGGARAAPYTN4gl0g",
+        "ChIJvSwFVwCLGGARiP66F60iZnI",
+        "ChIJw3h76h-NGGARrf9tR5Y1Sv0",
+        "ChIJwX-K7sORGGARnNpiHhVGF1s",
+        "ChIJwbsAfMaRGGARbaZNfL7XBF4",
+        "ChIJx4OVU4WLGGARI0mOXpaxh_o",
+        "ChIJx8WvvODzGGARIVnYvC48q1A",
+        "ChIJxQk2agCPGGARLVDnM2Ma5qQ",
+        "ChIJxVBbAoKLGGARUxJedeLj1L4",
+        "ChIJxVCtWwCPGGARaw__u4DV9uA",
+        "ChIJxakJLpqNGGARIpc4I9vtosQ",
+        "ChIJy5AqdjD1GGARmmcHywIKRGA",
+        "ChIJyWH0Dz2LGGARRGpOkrnrS2M",
+        "ChIJyXCOJuqPGGAR3yAIHzTjvAs",
+        "ChIJzR1ajfaPGGARGvJVaqa3xNo",
+        "ChIJzaTLHXuNGGAR0BV0Ff2P6Bc"
+      ]
+    },
+    "B_demonstrable_specialist_unknown_neutral": {
+      "affected_rows": 0,
+      "materially_affected_rows": 0,
+      "final_score_delta": {
+        "count": 0,
+        "min": 0.0,
+        "p10": 0.0,
+        "median": 0.0,
+        "mean": 0.0,
+        "p90": 0.0,
+        "max": 0.0,
+        "absolute_max": 0.0
+      },
+      "distribution_bands": {
+        "<= -2": 0,
+        "-1.99 to -1": 0,
+        "-0.99 to -0.5": 0,
+        "-0.49 to +0.49": 0,
+        "+0.5 to +0.99": 0,
+        "+1 to +1.99": 0,
+        "+2 to +2.99": 0,
+        ">= +3": 0
+      },
+      "direction": "no movement",
+      "place_ids": []
+    },
+    "C_both": {
+      "affected_rows": 0,
+      "materially_affected_rows": 0,
+      "final_score_delta": {
+        "count": 0,
+        "min": 0.0,
+        "p10": 0.0,
+        "median": 0.0,
+        "mean": 0.0,
+        "p90": 0.0,
+        "max": 0.0,
+        "absolute_max": 0.0
+      },
+      "distribution_bands": {
+        "<= -2": 0,
+        "-1.99 to -1": 0,
+        "-0.99 to -0.5": 0,
+        "-0.49 to +0.49": 0,
+        "+0.5 to +0.99": 0,
+        "+1 to +1.99": 0,
+        "+2 to +2.99": 0,
+        ">= +3": 0
+      },
+      "direction": "no movement",
+      "place_ids": []
+    },
+    "specialist_all_false_sensitivity_bound_not_a_factual_counterfactual": {
+      "affected_rows": 0,
+      "materially_affected_rows": 0,
+      "final_score_delta": {
+        "count": 0,
+        "min": 0.0,
+        "p10": 0.0,
+        "median": 0.0,
+        "mean": 0.0,
+        "p90": 0.0,
+        "max": 0.0,
+        "absolute_max": 0.0
+      },
+      "distribution_bands": {
+        "<= -2": 0,
+        "-1.99 to -1": 0,
+        "-0.99 to -0.5": 0,
+        "-0.49 to +0.49": 0,
+        "+0.5 to +0.99": 0,
+        "+1 to +1.99": 0,
+        "+2 to +2.99": 0,
+        ">= +3": 0
+      },
+      "direction": "nonnegative only"
+    }
+  },
+  "threshold_effects": {
+    "independence_only": {
+      "68": {
+        "currently_below": 146,
+        "cross_upward": 0,
+        "cross_downward": 0,
+        "cross_upward_place_ids": []
+      },
+      "70": {
+        "currently_below": 211,
+        "cross_upward": 0,
+        "cross_downward": 0,
+        "cross_upward_place_ids": []
+      },
+      "75": {
+        "currently_below": 523,
+        "cross_upward": 0,
+        "cross_downward": 0,
+        "cross_upward_place_ids": []
+      }
+    },
+    "specialist_only": {
+      "68": {
+        "currently_below": 146,
+        "cross_upward": 0,
+        "cross_downward": 0,
+        "cross_upward_place_ids": []
+      },
+      "70": {
+        "currently_below": 211,
+        "cross_upward": 0,
+        "cross_downward": 0,
+        "cross_upward_place_ids": []
+      },
+      "75": {
+        "currently_below": 523,
+        "cross_upward": 0,
+        "cross_downward": 0,
+        "cross_upward_place_ids": []
+      }
+    },
+    "both": {
+      "68": {
+        "currently_below": 146,
+        "cross_upward": 0,
+        "cross_downward": 0,
+        "cross_upward_place_ids": []
+      },
+      "70": {
+        "currently_below": 211,
+        "cross_upward": 0,
+        "cross_downward": 0,
+        "cross_upward_place_ids": []
+      },
+      "75": {
+        "currently_below": 523,
+        "cross_upward": 0,
+        "cross_downward": 0,
+        "cross_upward_place_ids": []
+      }
+    },
+    "all_false_sensitivity_bound": {
+      "68": {
+        "currently_below": 146,
+        "cross_upward": 0,
+        "cross_downward": 0,
+        "cross_upward_place_ids": []
+      },
+      "70": {
+        "currently_below": 211,
+        "cross_upward": 0,
+        "cross_downward": 0,
+        "cross_upward_place_ids": []
+      },
+      "75": {
+        "currently_below": 523,
+        "cross_upward": 0,
+        "cross_downward": 0,
+        "cross_upward_place_ids": []
+      }
+    }
+  },
+  "borderline_65_to_78": {
+    "count": 564,
+    "independence_material": 0,
+    "specialist_material": 0,
+    "all_false_sensitivity_material": 0
+  },
+  "unpublished_population": {
+    "chain_exclusion": 20,
+    "identity_issue": 13,
+    "incomplete_research": 111,
+    "obsolete_closed_or_replaced": 1,
+    "other_product_exclusion": 5,
+    "restricted_access": 8,
+    "score_only_rejection": 507
+  },
+  "score_only_rejected": {
+    "count": 507,
+    "materially_affected_by_actual_counterfactuals": 0,
+    "materially_affected_by_all_false_sensitivity_bound": 0
+  },
+  "examples": {
+    "confirmed_independent": {
+      "restaurant": "French Cuisine H (Furansu Ryori Asshu)",
+      "name_ja": "フランス料理アッシュ",
+      "place_id": "ChIJ--kHzR31GGARGv1b_Dizn2E",
+      "stored_chain": "independent_single",
+      "effective_chain": "independent_single",
+      "chain_reason": "explicit_structured_classification",
+      "specialist_evidence": true,
+      "specialist_structured": true,
+      "specialist_semantics": "explicit_tristate_specialist",
+      "current_independence_component": 100.0,
+      "counterfactual_independence_component": 100.0,
+      "current_local_discovery_component": 71.11,
+      "counterfactual_local_discovery_component": 71.11,
+      "current_fiyu_score": 81.2,
+      "counterfactual_fiyu_score": 81.2,
+      "delta": 0.0,
+      "published": true,
+      "review_status": "auto_published",
+      "rejection_category": "published"
+    },
+    "confirmed_chain": {
+      "restaurant": "Osaka Okonomiyaki Tomokunchi Akasaka Mitsuke",
+      "name_ja": "大阪お好み焼き ともくん家 赤坂見附店",
+      "place_id": "ChIJ3TJTPaONGGARmTKbeEEw3VA",
+      "stored_chain": "small_same_brand_chain",
+      "effective_chain": "small_same_brand_chain",
+      "chain_reason": "explicit_structured_classification",
+      "specialist_evidence": true,
+      "specialist_structured": true,
+      "specialist_semantics": "explicit_tristate_specialist",
+      "current_independence_component": 40.0,
+      "counterfactual_independence_component": 40.0,
+      "current_local_discovery_component": 48.27,
+      "counterfactual_local_discovery_component": 48.27,
+      "current_fiyu_score": 54.99,
+      "counterfactual_fiyu_score": 54.99,
+      "delta": 0.0,
+      "published": false,
+      "review_status": "auto_rejected",
+      "rejection_category": "chain_exclusion"
+    },
+    "genuinely_unknown_independence": {
+      "restaurant": "Sonosaki",
+      "name_ja": "Sonosaki",
+      "place_id": "ChIJ-xPoiWuNGGARXFHxIR5NjXw",
+      "stored_chain": "unknown",
+      "effective_chain": "unknown",
+      "chain_reason": "insufficient_chain_evidence",
+      "specialist_evidence": false,
+      "specialist_structured": false,
+      "specialist_semantics": "explicit_tristate_unknown",
+      "current_independence_component": 76.0,
+      "counterfactual_independence_component": 76.0,
+      "current_local_discovery_component": 80.08,
+      "counterfactual_local_discovery_component": 80.08,
+      "current_fiyu_score": 78.02,
+      "counterfactual_fiyu_score": 78.02,
+      "delta": 0.0,
+      "published": false,
+      "review_status": "needs_review",
+      "rejection_category": "identity_issue"
+    },
+    "specialist_true": {
+      "restaurant": "French Cuisine H (Furansu Ryori Asshu)",
+      "name_ja": "フランス料理アッシュ",
+      "place_id": "ChIJ--kHzR31GGARGv1b_Dizn2E",
+      "stored_chain": "independent_single",
+      "effective_chain": "independent_single",
+      "chain_reason": "explicit_structured_classification",
+      "specialist_evidence": true,
+      "specialist_structured": true,
+      "specialist_semantics": "explicit_tristate_specialist",
+      "current_independence_component": 100.0,
+      "counterfactual_independence_component": 100.0,
+      "current_local_discovery_component": 71.11,
+      "counterfactual_local_discovery_component": 71.11,
+      "current_fiyu_score": 81.2,
+      "counterfactual_fiyu_score": 81.2,
+      "delta": 0.0,
+      "published": true,
+      "review_status": "auto_published",
+      "rejection_category": "published"
+    },
+    "affirmative_specialist_false": null,
+    "false_default_without_structured_field": null,
+    "affected_by_both": null
+  },
+  "root_cause": {
+    "independence": [
+      "intentional scoring semantics: explicit bounded unknown prior"
+    ],
+    "specialist": [
+      "research-schema semantics: required boolean",
+      "data-model semantics: boolean default false",
+      "scoring semantics: false receives lower contributions",
+      "legacy/migration semantics: two scored false rows lack a structured field"
+    ]
+  },
+  "recommendations": {
+    "independence": "KEEP AS IS",
+    "specialist": "KEEP AS IS — TRI-STATE CONFLATION RESOLVED",
+    "next_step": "Proceed to the catalog-floor decision using the migrated scores; keep non_specialist evidence-gated and do not reinterpret unknown rows."
+  },
+  "database_sha256": {
+    "before": "3EB3F31D63D8916420D67DCBEF23D6C8CCFEDA785E8EEAAE64C2F4D8E20237C7",
+    "after": "3EB3F31D63D8916420D67DCBEF23D6C8CCFEDA785E8EEAAE64C2F4D8E20237C7",
+    "unchanged": true
+  }
+}

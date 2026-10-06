@@ -234,8 +234,8 @@ def calculate_neutral_components(
     """Recalculate v3 non-Quality components with null + renormalization.
 
     Required count/boolean research fields remain observed values.  Explicit
-    ``unknown`` enums and ``specialist_restaurant=False`` are omitted because the
-    current schema cannot distinguish a negative finding from absence of proof.
+    Explicit ``unknown`` enums are omitted. Specialist tri-state distinguishes
+    affirmative non-specialist evidence from absence of proof.
     """
 
     unknown: list[str] = []
@@ -287,14 +287,25 @@ def calculate_neutral_components(
         if locations == 4
         else 10.0
     )
-    specialist = evidence.get("specialist_restaurant") is True
-    if not specialist:
+    raw_specialist_status = evidence.get("specialist_status")
+    specialist_status = (
+        str(raw_specialist_status)
+        if raw_specialist_status in {"specialist", "non_specialist", "unknown"}
+        else "specialist"
+        if evidence.get("specialist_restaurant") is True
+        else "unknown"
+    )
+    specialist_value = {
+        "specialist": 100.0,
+        "non_specialist": 40.0,
+    }.get(specialist_status)
+    if specialist_value is None:
         unknown.append("specialist_restaurant")
     independence = _weighted_known(
         (
             (0.70, chain_value),
             (0.20, location_value),
-            (0.10, 100.0 if specialist else None),
+            (0.10, specialist_value),
         )
     )
     assert independence is not None
@@ -366,7 +377,10 @@ def calculate_neutral_components(
         "small_same_brand_chain": 20.0,
         "large_chain_or_franchise": 0.0,
     }.get(chain_classification)
-    distinctiveness = 85.0 if specialist else None
+    distinctiveness = {
+        "specialist": 85.0,
+        "non_specialist": 50.0,
+    }.get(specialist_status)
     local_discovery = _weighted_known(
         (
             (0.25, _clamp(underexposure_score)),

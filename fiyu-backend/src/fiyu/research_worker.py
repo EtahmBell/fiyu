@@ -8,7 +8,7 @@ from typing import Annotated, Literal
 
 from dotenv import load_dotenv
 from openai import APIConnectionError, APITimeoutError, OpenAI
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from .address_research import (
     ADDRESS_RESEARCH_INSTRUCTIONS,
@@ -40,7 +40,8 @@ from .public_score import (
     evaluate_fiyu_candidate,
 )
 
-PROMPT_VERSION = "restaurant-research-v7-public-access"
+PROMPT_VERSION = "restaurant-research-v8-specialist-tristate"
+SPECIALIST_SCHEMA_VERSION = "specialist-tristate-1"
 CompactLabel = Annotated[str, Field(max_length=120)]
 CompactEvidence = Annotated[str, Field(max_length=500)]
 EvidenceUrl = Annotated[str, Field(max_length=2000)]
@@ -90,7 +91,12 @@ class RestaurantResearch(BaseModel):
     ] = "unknown"
     chain_evidence: list[CompactEvidence] = Field(default_factory=list, max_length=6)
     known_location_count: int = Field(ge=0)
-    specialist_restaurant: bool
+    specialist_status: Literal["specialist", "non_specialist", "unknown"]
+    specialist_evidence_summary: str | None = Field(default=None, max_length=700)
+    specialist_evidence: list[CompactEvidence] = Field(default_factory=list, max_length=6)
+    specialist_source_references: list[EvidenceUrl] = Field(default_factory=list, max_length=6)
+    specialist_confidence: float | None = Field(default=None, ge=0, le=1)
+    specialist_schema_version: Literal["specialist-tristate-1"] = SPECIALIST_SCHEMA_VERSION
     independent_positive_source_count: int = Field(ge=0)
     total_evidence_sources: int = Field(ge=0)
     conflicting_evidence: bool
@@ -120,6 +126,20 @@ class RestaurantResearch(BaseModel):
     address_evidence: AddressResearchResult | None = None
     card_enrichment: CardEnrichment = Field(default_factory=CardEnrichment)
 
+    @model_validator(mode="before")
+    @classmethod
+    def migrate_legacy_specialist_boolean(cls, value: object) -> object:
+        """Accept old stored/test payloads only at this compatibility boundary."""
+
+        if not isinstance(value, dict) or "specialist_status" in value:
+            return value
+        migrated = dict(value)
+        if migrated.get("specialist_restaurant") is True:
+            migrated["specialist_status"] = "specialist"
+        elif "specialist_restaurant" in migrated:
+            migrated["specialist_status"] = "unknown"
+        return migrated
+
     @staticmethod
     def _bounded_items(values: object, limit: int, count: int) -> object:
         if not isinstance(values, list):
@@ -143,6 +163,7 @@ class RestaurantResearch(BaseModel):
 
     @field_validator(
         "chain_evidence",
+        "specialist_evidence",
         "local_audience_signals",
         "tourist_signals",
         "product_eligibility_evidence",
@@ -163,16 +184,23 @@ class RestaurantResearch(BaseModel):
     def bound_access_urls(cls, values: object) -> object:
         return cls._bounded_items(values, 2000, 6)
 
+    @field_validator("specialist_source_references", mode="before")
+    @classmethod
+    def bound_specialist_urls(cls, values: object) -> object:
+        return cls._bounded_items(values, 2000, 6)
+
     @field_validator(
         "food_tags",
         "signature_dishes",
         "chain_evidence",
+        "specialist_evidence",
         "local_audience_signals",
         "tourist_signals",
         "product_eligibility_evidence",
         "evidence_urls",
         "access_evidence",
         "access_evidence_urls",
+        "specialist_source_references",
     )
     @classmethod
     def deduplicate_compact_lists(cls, values: list[str]) -> list[str]:
@@ -194,7 +222,12 @@ class RestaurantResearch(BaseModel):
             restaurant_group_affiliated=self.restaurant_group_affiliated,
             chain_classification=self.chain_classification,
             known_location_count=max(1, self.known_location_count),
-            specialist_restaurant=self.specialist_restaurant,
+            specialist_status=self.specialist_status,
+            specialist_evidence_summary=self.specialist_evidence_summary,
+            specialist_evidence=self.specialist_evidence,
+            specialist_source_references=self.specialist_source_references,
+            specialist_confidence=self.specialist_confidence,
+            specialist_schema_version=self.specialist_schema_version,
             independent_positive_source_count=self.independent_positive_source_count,
             total_evidence_sources=self.total_evidence_sources,
             conflicting_evidence=self.conflicting_evidence,
@@ -234,6 +267,14 @@ evidence of repeated substantially similar same-brand locations. Use large_chain
 with explicit franchise, mass-market, national-chain, or standardized multi-location evidence.
 Use unknown when the evidence is insufficient. Set likely_chain=true only for
 small_same_brand_chain or large_chain_or_franchise, and include concise supporting chain_evidence.
+Classify specialist status separately from general restaurant identity. Use specialist only with
+affirmative food-specific evidence of a focused cuisine, dish, technique, product category, or
+focused food identity; never infer it merely from the restaurant name. Use non_specialist only
+with affirmative evidence that the food identity is broadly generalist in a way that contradicts
+specialization. Lack of specialist evidence is not non_specialist: use unknown whenever evidence
+does not establish either state. Retain a concise specialist_evidence_summary, bounded supporting
+specialist_evidence, exact supporting source URLs in specialist_source_references, confidence when
+supported, and specialist_schema_version. Do not output numeric score values.
 Classify local_audience, tourist_orientation, international_visibility, and corporate_visibility
 from evidence only. Retain concise tourist_signals and local_audience_signals supporting any
 non-unknown audience/orientation result. Travel-guide or inbound positioning can support tourist

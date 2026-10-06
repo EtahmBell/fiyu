@@ -25,6 +25,12 @@ AccessModel = Literal[
     "members_only",
     "unknown",
 ]
+SpecialistStatus = Literal["specialist", "non_specialist", "unknown"]
+SPECIALIST_DISCOVERY_VALUES = {
+    "specialist": 85.0,
+    "non_specialist": 50.0,
+    "unknown": 70.0,
+}
 
 RESTRICTED_ACCESS_MODELS = frozenset(
     {"referral_required", "invitation_only", "members_only"}
@@ -57,7 +63,9 @@ class LocalDiscoveryInputs:
     official_website_found: bool
     social_profile_count: int
     chain_classification: str
-    specialist_restaurant: bool
+    # Deprecated compatibility input. Internal callers must pass specialist_status.
+    specialist_restaurant: bool | None = None
+    specialist_status: SpecialistStatus | None = None
     local_audience: str = "unknown"
     international_visibility: str = "unknown"
     corporate_visibility: str = "unknown"
@@ -270,7 +278,14 @@ def calculate_local_discovery(inputs: LocalDiscoveryInputs) -> LocalDiscoveryRes
         "large_chain_or_franchise": 0.0,
         "unknown": 70.0,
     }.get(inputs.chain_classification, 70.0)
-    distinctiveness = 85.0 if inputs.specialist_restaurant else 50.0
+    specialist_status: SpecialistStatus = (
+        inputs.specialist_status
+        if inputs.specialist_status in {"specialist", "non_specialist", "unknown"}
+        else "specialist"
+        if inputs.specialist_restaurant is True
+        else "unknown"
+    )
+    distinctiveness = SPECIALIST_DISCOVERY_VALUES[specialist_status]
     components = {
         "underexposure": round(clamp(inputs.underexposure_score), 2),
         "web_scarcity": round(web_scarcity, 2),

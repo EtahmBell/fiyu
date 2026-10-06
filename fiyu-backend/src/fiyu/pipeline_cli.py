@@ -170,6 +170,16 @@ def _parser() -> argparse.ArgumentParser:
     quality_v4_promote.add_argument("--report-out")
     quality_v4_promote.add_argument("--verbose", action="store_true")
 
+    specialist_migrate = commands.add_parser(
+        "specialist-tristate-migrate",
+        help="Migrate stored specialist booleans to versioned tri-state semantics",
+    )
+    specialist_migrate.add_argument("--dry-run", action="store_true")
+    specialist_migrate.add_argument("--backup-out")
+    specialist_migrate.add_argument("--summary-out")
+    specialist_migrate.add_argument("--report-out")
+    specialist_migrate.add_argument("--verbose", action="store_true")
+
     review = commands.add_parser("review")
     review.add_argument("--place-id", required=True)
 
@@ -393,6 +403,16 @@ def main() -> None:
             summary_path=args.summary_out,
             report_path=args.report_out,
         )
+    elif args.command == "specialist-tristate-migrate":
+        from .specialist_tristate_migration import run_migration
+
+        result = run_migration(
+            db,
+            dry_run=args.dry_run,
+            backup_path=args.backup_out,
+            summary_path=args.summary_out,
+            report_path=args.report_out,
+        )
     elif args.command == "review":
         result = inspect_candidate(db, args.place_id)
     elif args.command in {"approve", "reject"}:
@@ -417,6 +437,10 @@ def main() -> None:
         from .quality_v4_promotion import compact_promotion_summary
 
         print(compact_promotion_summary(result))
+    elif args.command == "specialist-tristate-migrate" and not args.verbose:
+        from .specialist_tristate_migration import compact_summary
+
+        print(compact_summary(result))
     else:
         print(json.dumps(result, ensure_ascii=False, indent=2, default=str))
 

@@ -140,6 +140,9 @@ CREATE TABLE IF NOT EXISTS public_restaurants (
     score_version TEXT,
 
     identity_confidence REAL,
+    specialist_status TEXT NOT NULL DEFAULT 'unknown',
+    specialist_provenance_json TEXT NOT NULL DEFAULT '{}',
+    specialist_schema_version TEXT NOT NULL DEFAULT 'specialist-tristate-1',
     evidence_json TEXT NOT NULL DEFAULT '{}',
     evidence_urls_json TEXT NOT NULL DEFAULT '[]',
 
@@ -682,6 +685,12 @@ PUBLIC_LOCAL_DISCOVERY_COLUMNS = {
     "low_footprint_research_run_id": "INTEGER",
 }
 
+PUBLIC_SPECIALIST_COLUMNS = {
+    "specialist_status": "TEXT NOT NULL DEFAULT 'unknown'",
+    "specialist_provenance_json": "TEXT NOT NULL DEFAULT '{}'",
+    "specialist_schema_version": "TEXT NOT NULL DEFAULT 'specialist-tristate-1'",
+}
+
 DESCRIPTION_TABLE_COLUMNS = {
     "previous_description_en": "TEXT",
 }
@@ -875,6 +884,7 @@ def ensure_public_schema(db_path: str | Path) -> None:
             **PUBLIC_CARD_ENRICHMENT_COLUMNS,
             **PUBLIC_PIPELINE_COLUMNS,
             **PUBLIC_LOCAL_DISCOVERY_COLUMNS,
+            **PUBLIC_SPECIALIST_COLUMNS,
         }.items():
             if name not in existing:
                 connection.execute(
@@ -1301,6 +1311,9 @@ def save_research_result(
                 score_band = ?,
                 score_version = ?,
                 identity_confidence = ?,
+                specialist_status = ?,
+                specialist_provenance_json = ?,
+                specialist_schema_version = ?,
                 evidence_json = ?,
                 evidence_urls_json = ?,
                 research_status = 'complete',
@@ -1346,6 +1359,18 @@ def save_research_result(
                 score.score_band,
                 score.score_version,
                 evidence.identity_confidence,
+                evidence.specialist_status,
+                json.dumps(
+                    {
+                        "origin": "future_explicit_research",
+                        "evidence_summary": evidence.specialist_evidence_summary,
+                        "evidence": evidence.specialist_evidence,
+                        "source_references": evidence.specialist_source_references,
+                        "confidence": evidence.specialist_confidence,
+                    },
+                    ensure_ascii=False,
+                ),
+                evidence.specialist_schema_version,
                 json.dumps(evidence.to_dict(), ensure_ascii=False),
                 json.dumps(sorted(set(evidence_urls)), ensure_ascii=False),
                 verification_status,
@@ -1622,6 +1647,9 @@ def recalculate_from_stored_evidence(db_path: str | Path, *, place_id: str | Non
             SELECT
                 p.place_id,
                 p.evidence_json,
+                p.specialist_status,
+                p.specialist_provenance_json,
+                p.specialist_schema_version,
                 p.primary_category,
                 p.access_model,
                 p.access_confidence,
@@ -1648,6 +1676,11 @@ def recalculate_from_stored_evidence(db_path: str | Path, *, place_id: str | Non
         count = 0
         for row in rows:
             raw = json.loads(row["evidence_json"] or "{}")
+            raw["specialist_status"] = str(row["specialist_status"] or "unknown")
+            raw["specialist_restaurant"] = raw["specialist_status"] == "specialist"
+            raw["specialist_schema_version"] = str(
+                row["specialist_schema_version"] or "specialist-tristate-1"
+            )
             evidence = FiyuEvidence(**raw)
             internal = InternalSignals(
                 quality_score=float(row["quality_score"] or 0),

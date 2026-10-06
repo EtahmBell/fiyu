@@ -1,0 +1,137 @@
+{
+  "dry_run": true,
+  "schema": {
+    "columns_already_present": false,
+    "specialist_status_values": [
+      "specialist",
+      "non_specialist",
+      "unknown"
+    ],
+    "specialist_schema_version": "specialist-tristate-1",
+    "migration_version": "specialist-tristate-migration-1"
+  },
+  "prior_counts": {
+    "true": 836,
+    "false": 256,
+    "missing": 111
+  },
+  "proposed_counts": {
+    "specialist": 836,
+    "non_specialist": 0,
+    "unknown": 367
+  },
+  "migration": {
+    "rows_total": 1203,
+    "rows_to_migrate": 1203,
+    "rows_skipped_already_migrated": 0,
+    "schema_forced_false_to_unknown": 256,
+    "missing_to_unknown": 111,
+    "false_to_non_specialist": 0,
+    "fabricated_provenance_rows": 0
+  },
+  "scoring": {
+    "scored_rows": 1092,
+    "rows_changed": 252,
+    "unchanged_rows": 840,
+    "delta_distribution_changed_rows": {
+      "count": 252,
+      "min": 0.95,
+      "p10": 0.95,
+      "median": 0.95,
+      "mean": 0.95,
+      "p90": 0.95,
+      "max": 0.95
+    },
+    "all_delta_values": [
+      0.0,
+      0.95
+    ],
+    "score_version_before": {
+      "NULL": 111,
+      "public-v2-chain-classification": 2,
+      "public-v3-local-discovery": 542,
+      "public-v4-quality-research": 548
+    },
+    "score_version_after": {
+      "public-v4-quality-research-specialist-tristate": 548,
+      "public-v3-local-discovery-specialist-tristate": 544,
+      "NULL": 111
+    }
+  },
+  "floor_counterfactuals": {
+    "68": {
+      "currently_below": 155,
+      "cross_upward": 9,
+      "cross_downward": 0,
+      "upward_place_ids": [
+        "ChIJ8QGNiSRhGGARqu3BuaXwAqc",
+        "ChIJAeQLdV6IGGARVTNeke9fTSI",
+        "ChIJDw6nwsSIGGARJVnFtMt8Hn4",
+        "ChIJMWgWEWGMGGARVCQI8A1jeAM",
+        "ChIJNR6X42ZgGGARy6ha_gINJVk",
+        "ChIJi5fGu1CKGGARHxo8DrVwYPc",
+        "ChIJj0BBoRRhGGARJcTpDUqwhn4",
+        "ChIJofV7jnOLGGARVcWBSS43AII",
+        "ChIJryyAwRjuGGAR8p5N6VC_uvQ"
+      ]
+    },
+    "70": {
+      "currently_below": 219,
+      "cross_upward": 8,
+      "cross_downward": 0,
+      "upward_place_ids": [
+        "ChIJ23TZDXuMGGARFGADgvEDzYQ",
+        "ChIJHyk9zo2OGGAR_IhetTCSfDQ",
+        "ChIJKRimrlWNGGAReCrI2pLos-M",
+        "ChIJLXAYkTWLGGARC4EE-8e4XWI",
+        "ChIJVRUG9WdgGGARu_q9IhDPW6Q",
+        "ChIJdWuuEaWRGGARsrwSbpBTeXw",
+        "ChIJmRpWdgGJGGAR4fQZWuGv-Qw",
+        "ChIJy8bYtL6MGGARdOCKd9yO_XI"
+      ]
+    },
+    "75": {
+      "currently_below": 539,
+      "cross_upward": 16,
+      "cross_downward": 0,
+      "upward_place_ids": [
+        "ChIJ05vFlqTzGGAR9M9bRBwIGZA",
+        "ChIJ0_1ywfX0GGARZPZBA2ffn9Y",
+        "ChIJ2a5lHf1gGGARUDgNEm-l4jQ",
+        "ChIJ8zcRnPORGGARQt0L8DtQJ5k",
+        "ChIJE4x0F0ORGGARYOCFeVarwKg",
+        "ChIJEdE6Jt-PGGARrnI20vdJkHc",
+        "ChIJJ_Ehk7nvGGARz9yG6qrfRV4",
+        "ChIJKckm35aRGGAR7hDYMHwAK0I",
+        "ChIJXQ7zJvvuGGARnXh0PH0q2Mk",
+        "ChIJYf7O4uFfGGARFNGmRVbSYIQ",
+        "ChIJZR7FKe6IGGARMncy37u98Bo",
+        "ChIJoad5uXuNGGARApliN-RZ1SM",
+        "ChIJq6pH7RONGGARCf_YQ5CRFTU",
+        "ChIJtdl_5PlfGGAROi2yvXApCnU",
+        "ChIJy1ecyyzzGGARLIZswWTJgpE",
+        "ChIJzZ6X0M-PGGARQ8kv7ZTSTPw"
+      ]
+    }
+  },
+  "score_only_rejected_rows_affected": 140,
+  "publication_safety": {
+    "expected_is_published_changes": 0,
+    "expected_product_eligible_changes": 0,
+    "expected_review_status_changes": 0,
+    "expected_rejection_reason_changes": 0,
+    "expected_eligibility_classification_changes": 0,
+    "expected_threshold_changes": 0,
+    "publication_threshold": 75.0
+  },
+  "quality_v4": {
+    "research_rows_rewritten": 0,
+    "adjustment_values_changed": 0
+  },
+  "network_or_paid_requests": 0,
+  "database_sha256": {
+    "before": "AE9761151209CAFB4D1E8E2946170576932130CDB799C3FEBAB9AA0ACA1C4FE5",
+    "after": "AE9761151209CAFB4D1E8E2946170576932130CDB799C3FEBAB9AA0ACA1C4FE5",
+    "changed": false
+  }
+}

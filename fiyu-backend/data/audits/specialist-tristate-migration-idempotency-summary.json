@@ -1,0 +1,97 @@
+{
+  "dry_run": true,
+  "schema": {
+    "columns_already_present": true,
+    "specialist_status_values": [
+      "specialist",
+      "non_specialist",
+      "unknown"
+    ],
+    "specialist_schema_version": "specialist-tristate-1",
+    "migration_version": "specialist-tristate-migration-1"
+  },
+  "prior_counts": {
+    "true": 836,
+    "false": 367,
+    "missing": 0
+  },
+  "proposed_counts": {
+    "specialist": 836,
+    "non_specialist": 0,
+    "unknown": 367
+  },
+  "migration": {
+    "rows_total": 1203,
+    "rows_to_migrate": 0,
+    "rows_skipped_already_migrated": 1203,
+    "schema_forced_false_to_unknown": 0,
+    "missing_to_unknown": 0,
+    "false_to_non_specialist": 0,
+    "fabricated_provenance_rows": 0
+  },
+  "scoring": {
+    "scored_rows": 0,
+    "rows_changed": 0,
+    "unchanged_rows": 0,
+    "delta_distribution_changed_rows": {
+      "count": 0,
+      "min": 0.0,
+      "p10": 0.0,
+      "median": 0.0,
+      "mean": 0.0,
+      "p90": 0.0,
+      "max": 0.0
+    },
+    "all_delta_values": [],
+    "score_version_before": {
+      "NULL": 111,
+      "public-v3-local-discovery-specialist-tristate": 544,
+      "public-v4-quality-research-specialist-tristate": 548
+    },
+    "score_version_after": {
+      "public-v4-quality-research-specialist-tristate": 0,
+      "public-v3-local-discovery-specialist-tristate": 0,
+      "NULL": 0
+    }
+  },
+  "floor_counterfactuals": {
+    "68": {
+      "currently_below": 146,
+      "cross_upward": 0,
+      "cross_downward": 0,
+      "upward_place_ids": []
+    },
+    "70": {
+      "currently_below": 211,
+      "cross_upward": 0,
+      "cross_downward": 0,
+      "upward_place_ids": []
+    },
+    "75": {
+      "currently_below": 523,
+      "cross_upward": 0,
+      "cross_downward": 0,
+      "upward_place_ids": []
+    }
+  },
+  "score_only_rejected_rows_affected": 0,
+  "publication_safety": {
+    "expected_is_published_changes": 0,
+    "expected_product_eligible_changes": 0,
+    "expected_review_status_changes": 0,
+    "expected_rejection_reason_changes": 0,
+    "expected_eligibility_classification_changes": 0,
+    "expected_threshold_changes": 0,
+    "publication_threshold": 75.0
+  },
+  "quality_v4": {
+    "research_rows_rewritten": 0,
+    "adjustment_values_changed": 0
+  },
+  "network_or_paid_requests": 0,
+  "database_sha256": {
+    "before": "3EB3F31D63D8916420D67DCBEF23D6C8CCFEDA785E8EEAAE64C2F4D8E20237C7",
+    "after": "3EB3F31D63D8916420D67DCBEF23D6C8CCFEDA785E8EEAAE64C2F4D8E20237C7",
+    "changed": false
+  }
+}

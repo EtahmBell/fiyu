@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 import unicodedata
 from collections.abc import Mapping
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from dataclasses import field as dataclass_field
 from typing import Literal
 
@@ -12,18 +12,30 @@ from .local_discovery import (
     LocalDiscoveryInputs,
     LocalDiscoveryResult,
     ProductEligibility,
+    SpecialistStatus,
     assess_product_eligibility,
     calculate_local_discovery,
 )
 from .utils import clamp
 
-SCORE_VERSION = "public-v3-local-discovery"
+SCORE_VERSION = "public-v3-local-discovery-specialist-tristate"
+SPECIALIST_SCHEMA_VERSION = "specialist-tristate-1"
 PUBLICATION_SCORE_THRESHOLD = 75.0
 FIYU_SCORE_WEIGHTS = {
     "quality": 0.45,
     "hiddenness": 0.15,
     "independence": 0.15,
     "local_discovery": 0.25,
+}
+SPECIALIST_INDEPENDENCE_VALUES = {
+    "specialist": 100.0,
+    "non_specialist": 40.0,
+    "unknown": 70.0,
+}
+SPECIALIST_DISCOVERY_VALUES = {
+    "specialist": 85.0,
+    "non_specialist": 50.0,
+    "unknown": 70.0,
 }
 HIDDENNESS_WEIGHTS = {
     "underexposure": 0.40,
@@ -65,7 +77,14 @@ class FiyuEvidence:
     restaurant_group_affiliated: bool = False
     chain_classification: ChainClassification = "unknown"
     known_location_count: int = 1
-    specialist_restaurant: bool = False
+    specialist_status: SpecialistStatus | None = None
+    # Deprecated compatibility field, always derived from specialist_status.
+    specialist_restaurant: bool | None = None
+    specialist_evidence_summary: str | None = None
+    specialist_evidence: list[str] = dataclass_field(default_factory=list)
+    specialist_source_references: list[str] = dataclass_field(default_factory=list)
+    specialist_confidence: float | None = None
+    specialist_schema_version: str = SPECIALIST_SCHEMA_VERSION
     independent_positive_source_count: int = 0
     total_evidence_sources: int = 0
     conflicting_evidence: bool = False
@@ -85,11 +104,26 @@ class FiyuEvidence:
     ] = "unknown"
     food_drink_primary: bool | None = None
 
+    def __post_init__(self) -> None:
+        if self.specialist_status is None:
+            self.specialist_status = (
+                "specialist" if self.specialist_restaurant is True else "unknown"
+            )
+        if self.specialist_status not in {
+            "specialist",
+            "non_specialist",
+            "unknown",
+        }:
+            raise ValueError("invalid specialist_status")
+        self.specialist_restaurant = self.specialist_status == "specialist"
+
     def validate(self) -> None:
         if not 0.0 <= self.identity_confidence <= 1.0:
             raise ValueError("identity_confidence must be between 0 and 1")
         if self.japanese_review_share is not None and not 0.0 <= self.japanese_review_share <= 1.0:
             raise ValueError("japanese_review_share must be between 0 and 1")
+        if self.specialist_confidence is not None and not 0.0 <= self.specialist_confidence <= 1.0:
+            raise ValueError("specialist_confidence must be between 0 and 1")
         for field in (
             "japanese_source_count",
             "english_tourist_source_count",
@@ -150,6 +184,68 @@ class FiyuScoreResult:
 
     def to_dict(self) -> dict[str, object]:
         return asdict(self)
+
+
+def rescore_specialist_status(
+    current: FiyuScoreResult,
+    *,
+    previous_status: SpecialistStatus,
+    specialist_status: SpecialistStatus,
+) -> FiyuScoreResult:
+    """Change only specialist semantics while preserving every unrelated input."""
+
+    independence_delta = 0.10 * (
+        SPECIALIST_INDEPENDENCE_VALUES[specialist_status]
+        - SPECIALIST_INDEPENDENCE_VALUES[previous_status]
+    )
+    discovery_delta = 0.10 * (
+        SPECIALIST_DISCOVERY_VALUES[specialist_status]
+        - SPECIALIST_DISCOVERY_VALUES[previous_status]
+    )
+    independence = round(clamp(current.independence_signal + independence_delta), 2)
+    discovery_score = round(clamp(current.local_discovery_score + discovery_delta), 2)
+    score = clamp(
+        current.fiyu_score
+        + FIYU_SCORE_WEIGHTS["independence"] * independence_delta
+        + FIYU_SCORE_WEIGHTS["local_discovery"] * discovery_delta
+    )
+    if current.chain_excluded:
+        score = min(score, 54.99)
+    if (
+        not current.product_eligible
+        and current.product_eligibility_classification
+        != "ineligible_restricted_access"
+    ):
+        score = min(score, 49.99)
+    score = round(score, 2)
+    components = dict(current.local_discovery_components)
+    components["distinctiveness"] = SPECIALIST_DISCOVERY_VALUES[specialist_status]
+    web_scarcity = float(components.get("web_scarcity", 0))
+    if discovery_score >= 80 and web_scarcity >= 70:
+        discovery_classification = "high_local_discovery_low_footprint"
+    elif discovery_score >= 70:
+        discovery_classification = "local_discovery"
+    elif discovery_score >= 50:
+        discovery_classification = "moderately_local"
+    else:
+        discovery_classification = "mainstream_visible"
+    return replace(
+        current,
+        independence_signal=independence,
+        local_discovery_score=discovery_score,
+        local_discovery_classification=discovery_classification,
+        local_discovery_components=components,
+        local_discovery_contribution=round(
+            FIYU_SCORE_WEIGHTS["local_discovery"] * discovery_score, 2
+        ),
+        fiyu_score=score,
+        score_band=_score_band(score),
+        publishable=(
+            current.product_eligible
+            and not current.chain_excluded
+            and score >= PUBLICATION_SCORE_THRESHOLD
+        ),
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -850,7 +946,7 @@ def calculate_fiyu_score(
         "large_chain_or_franchise": 0.0,
         "unknown": 70.0,
     }[chain.classification]
-    specialist_score = 100.0 if evidence.specialist_restaurant else 40.0
+    specialist_score = SPECIALIST_INDEPENDENCE_VALUES[evidence.specialist_status]
     independence_signal = clamp(
         0.70 * chain_independence
         + 0.20 * _location_independence_score(evidence.known_location_count)
@@ -869,7 +965,7 @@ def calculate_fiyu_score(
             official_website_found=evidence.official_website_found,
             social_profile_count=evidence.social_profile_count,
             chain_classification=chain.classification,
-            specialist_restaurant=evidence.specialist_restaurant,
+            specialist_status=evidence.specialist_status,
             local_audience=evidence.local_audience,
             international_visibility=evidence.international_visibility,
             corporate_visibility=evidence.corporate_visibility,
@@ -984,7 +1080,7 @@ def evaluate_fiyu_candidate(
             official_website_found=evidence.official_website_found,
             social_profile_count=evidence.social_profile_count,
             chain_classification=chain.classification,
-            specialist_restaurant=evidence.specialist_restaurant,
+            specialist_status=evidence.specialist_status,
             local_audience=str(structured.get("local_audience") or evidence.local_audience),
             international_visibility=str(
                 structured.get("international_visibility")

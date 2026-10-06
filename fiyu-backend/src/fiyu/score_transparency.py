@@ -11,6 +11,10 @@ from collections.abc import Mapping
 from pydantic import BaseModel, Field
 
 CURRENT_VERSION = "public-v3-local-discovery"
+CURRENT_VERSIONS = {
+    CURRENT_VERSION,
+    "public-v3-local-discovery-specialist-tristate",
+}
 LEGACY_VERSIONS = {"public-v1", "public-v2-chain-classification"}
 
 
@@ -55,7 +59,7 @@ def explain_score(row: Mapping[str, object]) -> ScoreTransparency:
     research diagnostic, not a confidence interval or verified quality rating.
     """
     version = row.get("score_version")
-    current = version == CURRENT_VERSION
+    current = version in CURRENT_VERSIONS
     known = current or version in LEGACY_VERSIONS
     signals = []
     if known and _number(row.get("fiyu_score")) is not None:
