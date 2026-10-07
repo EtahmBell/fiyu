@@ -1,0 +1,329 @@
+{
+  "mode": "dry_run",
+  "canonical_db": "data\\fiyu.db",
+  "manifest": "data\\audits\\floor70-prepublication-v4-promotion-cohort.json",
+  "database_sha256_before": "184F19B3099E67E63B0680933F0E3847EAD775EF66D93171A33D9782F71F2B90",
+  "database_sha256_after": "184F19B3099E67E63B0680933F0E3847EAD775EF66D93171A33D9782F71F2B90",
+  "integrity": "ok",
+  "current": {
+    "total": 1203,
+    "published": 851,
+    "unpublished": 352,
+    "threshold": 70.0,
+    "score_version_counts": {
+      "public-v4-quality-research-specialist-tristate": 861,
+      "public-v3-local-discovery-specialist-tristate": 231,
+      "NULL": 111
+    }
+  },
+  "target_threshold": 70.0,
+  "result": {
+    "stays_published": 851,
+    "additions": 0,
+    "removals": 0,
+    "stays_unpublished": 352,
+    "resulting_published": 851,
+    "resulting_unpublished": 352
+  },
+  "cohort_assertion": {
+    "manifest_ids": 313,
+    "exact_overlap": 0,
+    "unexpected_additions": [],
+    "manifest_rows_missing": []
+  },
+  "non_score_blocked_at_or_above_threshold": {
+    "count": 30,
+    "categories": {
+      "address_or_identity_conflict": 13,
+      "product_eligibility_failure": 8,
+      "identity_not_matched": 5,
+      "unresolved_identity": 2,
+      "critical_publication_contradiction": 2
+    },
+    "rows": [
+      {
+        "place_id": "ChIJ-xPoiWuNGGARXFHxIR5NjXw",
+        "restaurant_name": "Sonosaki",
+        "score": 78.02,
+        "reason_category": "address_or_identity_conflict",
+        "missing": [
+          "critical_publication_contradiction"
+        ]
+      },
+      {
+        "place_id": "ChIJ04BE83OLGGAR73155HIjelk",
+        "restaurant_name": "Kikuzo",
+        "score": 77.74,
+        "reason_category": "product_eligibility_failure",
+        "missing": [
+          "deterministic_score_policy"
+        ]
+      },
+      {
+        "place_id": "ChIJ23e5VgCTGGARKEzLD69k71E",
+        "restaurant_name": "Sanmi",
+        "score": 74.77,
+        "reason_category": "identity_not_matched",
+        "missing": []
+      },
+      {
+        "place_id": "ChIJ8fCDCkyJGGAR-F3gBrJjggk",
+        "restaurant_name": "Katei Ryori Fujino",
+        "score": 72.16,
+        "reason_category": "unresolved_identity",
+        "missing": []
+      },
+      {
+        "place_id": "ChIJ92c0HNCLGGAR3wocSnSAZ1c",
+        "restaurant_name": "Torisawattsu",
+        "score": 72.45,
+        "reason_category": "product_eligibility_failure",
+        "missing": [
+          "deterministic_score_policy"
+        ]
+      },
+      {
+        "place_id": "ChIJAQAx9lbtGGARjIpf3KuKD8A",
+        "restaurant_name": "Omura",
+        "score": 71.72,
+        "reason_category": "address_or_identity_conflict",
+        "missing": [
+          "critical_publication_contradiction"
+        ]
+      },
+      {
+        "place_id": "ChIJB4ty4CL1GGARXt_6OUnA3lo",
+        "restaurant_name": "Donnamondai Sangenjaya",
+        "score": 71.16,
+        "reason_category": "address_or_identity_conflict",
+        "missing": [
+          "critical_publication_contradiction"
+        ]
+      },
+      {
+        "place_id": "ChIJHYFgOe-OGGARHfQ8JQJ5Yag",
+        "restaurant_name": "Donbee",
+        "score": 72.51,
+        "reason_category": "identity_not_matched",
+        "missing": []
+      },
+      {
+        "place_id": "ChIJHyk9zo2OGGAR_IhetTCSfDQ",
+        "restaurant_name": "Uosei",
+        "score": 70.56,
+        "reason_category": "address_or_identity_conflict",
+        "missing": [
+          "critical_publication_contradiction"
+        ]
+      },
+      {
+        "place_id": "ChIJJWVRyJyNGGAR99ULioTF7H0",
+        "restaurant_name": "MUTO Sendagaya",
+        "score": 77.73,
+        "reason_category": "product_eligibility_failure",
+        "missing": [
+          "deterministic_score_policy"
+        ]
+      },
+      {
+        "place_id": "ChIJMdaU3fzzGGARVYr6UravT-w",
+        "restaurant_name": "Tokino Oto Seisakusho",
+        "score": 76.77,
+        "reason_category": "address_or_identity_conflict",
+        "missing": [
+          "critical_publication_contradiction"
+        ]
+      },
+      {
+        "place_id": "ChIJMfX2tJWOGGARfwwCPJ6OMas",
+        "restaurant_name": "REPRESENT",
+        "score": 81.26,
+        "reason_category": "address_or_identity_conflict",
+        "missing": [
+          "critical_publication_contradiction"
+        ]
+      },
+      {
+        "place_id": "ChIJNcTFWACJGGARLiKsdWwhBjE",
+        "restaurant_name": "Midoricho Ikoma",
+        "score": 79.52,
+        "reason_category": "address_or_identity_conflict",
+        "missing": [
+          "critical_publication_contradiction"
+        ]
+      },
+      {
+        "place_id": "ChIJO6nG93vuGGARyvK3NMLcXs4",
+        "restaurant_name": "Yoridokoro Shu",
+        "score": 79.03,
+        "reason_category": "address_or_identity_conflict",
+        "missing": [
+          "critical_publication_contradiction"
+        ]
+      },
+      {
+        "place_id": "ChIJObdPFQCPGGARlsXkPdJWii8",
+        "restaurant_name": "Ramen Kamo to Negi",
+        "score": 70.72,
+        "reason_category": "address_or_identity_conflict",
+        "missing": [
+          "critical_publication_contradiction"
+        ]
+      },
+      {
+        "place_id": "ChIJPTPs_8KIGGAR3YjD87jsc4o",
+        "restaurant_name": "Oppeshan",
+        "score": 74.0,
+        "reason_category": "unresolved_identity",
+        "missing": []
+      },
+      {
+        "place_id": "ChIJVRUG9WdgGGARu_q9IhDPW6Q",
+        "restaurant_name": "Shibata",
+        "score": 70.8,
+        "reason_category": "identity_not_matched",
+        "missing": []
+      },
+      {
+        "place_id": "ChIJWVHTc9aPGGARP8lfWUfxfw0",
+        "restaurant_name": "Nikukyu Ogatomo",
+        "score": 77.15,
+        "reason_category": "product_eligibility_failure",
+        "missing": [
+          "deterministic_score_policy"
+        ]
+      },
+      {
+        "place_id": "ChIJb9-F53aLGGART8fS-RFm3dk",
+        "restaurant_name": "GINZA Koike",
+        "score": 82.67,
+        "reason_category": "address_or_identity_conflict",
+        "missing": [
+          "critical_publication_contradiction"
+        ]
+      },
+      {
+        "place_id": "ChIJe2GH4D6NGGARXtJpF4wyHoo",
+        "restaurant_name": "Ram dining",
+        "score": 71.23,
+        "reason_category": "identity_not_matched",
+        "missing": []
+      },
+      {
+        "place_id": "ChIJeZdIEgmJGGAR-OZQEc9Hc4k",
+        "restaurant_name": "CITABRIA ANNEX",
+        "score": 75.49,
+        "reason_category": "product_eligibility_failure",
+        "missing": [
+          "deterministic_score_policy"
+        ]
+      },
+      {
+        "place_id": "ChIJm-84OQCLGGARWwOEbB0GGuA",
+        "restaurant_name": "Tsukiji Ihachi Nigo",
+        "score": 72.2,
+        "reason_category": "address_or_identity_conflict",
+        "missing": [
+          "critical_publication_contradiction"
+        ]
+      },
+      {
+        "place_id": "ChIJoWGKvUOLGGARoRM1qUxs5_w",
+        "restaurant_name": "Sakuragawa",
+        "score": 80.91,
+        "reason_category": "product_eligibility_failure",
+        "missing": [
+          "deterministic_score_policy"
+        ]
+      },
+      {
+        "place_id": "ChIJoWwK4yyLGGAR4UenMerdoXg",
+        "restaurant_name": "Restaurant Ararat",
+        "score": 75.26,
+        "reason_category": "product_eligibility_failure",
+        "missing": [
+          "deterministic_score_policy"
+        ]
+      },
+      {
+        "place_id": "ChIJp6JC97mJGGARq_Ej-CF4hXc",
+        "restaurant_name": "Suizin",
+        "score": 72.32,
+        "reason_category": "identity_not_matched",
+        "missing": []
+      },
+      {
+        "place_id": "ChIJrb7mrW2PGGARD0DiozKNWM8",
+        "restaurant_name": "Fuji",
+        "score": 74.67,
+        "reason_category": "address_or_identity_conflict",
+        "missing": [
+          "critical_publication_contradiction"
+        ]
+      },
+      {
+        "place_id": "ChIJuXdhUjWLGGARPCm51rrL-CE",
+        "restaurant_name": "Sushi Tanaka",
+        "score": 84.16,
+        "reason_category": "critical_publication_contradiction",
+        "missing": [
+          "critical_publication_contradiction"
+        ]
+      },
+      {
+        "place_id": "ChIJx68p0XKLGGARpL23zB4Pr1c",
+        "restaurant_name": "Washoku Ginnan",
+        "score": 83.71,
+        "reason_category": "critical_publication_contradiction",
+        "missing": [
+          "critical_publication_contradiction"
+        ]
+      },
+      {
+        "place_id": "ChIJxQk2agCPGGARLVDnM2Ma5qQ",
+        "restaurant_name": "Indian Nepali Restaurant & Bar (Sakura)",
+        "score": 78.24,
+        "reason_category": "address_or_identity_conflict",
+        "missing": [
+          "critical_publication_contradiction"
+        ]
+      },
+      {
+        "place_id": "ChIJzcPJte-LGGARY6WXF1fT0Ro",
+        "restaurant_name": "Toriichi",
+        "score": 77.61,
+        "reason_category": "product_eligibility_failure",
+        "missing": [
+          "deterministic_score_policy"
+        ]
+      }
+    ],
+    "published": 0
+  },
+  "changes": [],
+  "sankei_sushi": {
+    "place_id": "ChIJi79LD-yIGGAR_8wLG2_pyYE",
+    "score": 82.82,
+    "score_version": "public-v3-local-discovery-specialist-tristate",
+    "current_published": true,
+    "target_published": true,
+    "score_mutation": false
+  },
+  "rescue_cohort": {
+    "ids": 149,
+    "admitted": 0
+  },
+  "floor68_v3_population": {
+    "ids": 64,
+    "admitted": 0
+  },
+  "invariants": {
+    "score_changes": 0,
+    "score_version_changes": 0,
+    "research_changes": 0,
+    "quality_v4_changes": 0,
+    "restaurant_research_digest": "07c5483dd0b8b92456d403ebb95320714ac2eb16614646174a4e9310dc00919b",
+    "quality_v4_research_digest": "d688449e58b88c6676d0048d95e40d1bdf38e7ff337a00ba87223d0d134f88aa",
+    "external_requests": 0
+  }
+}
