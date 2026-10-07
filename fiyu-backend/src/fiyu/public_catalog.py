@@ -1175,6 +1175,50 @@ def get_research_queue(
     return [dict(row) for row in rows]
 
 
+def get_research_candidate(
+    db_path: str | Path,
+    place_id: str,
+) -> dict[str, object]:
+    """Load a frozen run item without reapplying the mutable queue selector."""
+    ensure_public_schema(db_path)
+    with connect(db_path) as connection:
+        row = connection.execute(
+            """
+            SELECT
+                p.place_id,
+                p.research_status,
+                p.name_ja,
+                p.name_en,
+                p.discovery_area,
+                p.discovery_area_type,
+                p.discovery_areas_json,
+                r.id AS source_restaurant_id,
+                r.title,
+                r.address,
+                r.city,
+                r.neighborhood,
+                r.latitude,
+                r.longitude,
+                r.category,
+                r.broad_category,
+                r.internal_fiyu_score,
+                r.quality_score,
+                r.underexposure_score,
+                r.digital_footprint_score,
+                r.rating,
+                r.review_count,
+                r.maps_url
+            FROM public_restaurants p
+            JOIN restaurants r ON r.place_id = p.place_id
+            WHERE p.place_id = ?
+            """,
+            (place_id,),
+        ).fetchone()
+    if row is None:
+        raise ValueError(f"Unknown research candidate: {place_id}")
+    return dict(row)
+
+
 def mark_research_started(db_path: str | Path, place_id: str) -> None:
     with connect(db_path) as connection:
         connection.execute(

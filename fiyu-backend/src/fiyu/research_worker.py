@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import os
 import socket
+import uuid
 from pathlib import Path
 from typing import Annotated, Literal
 
@@ -24,8 +25,17 @@ from .address_research import (
 )
 from .card_enrichment import CardEnrichment, scoring_research_view
 from .local_discovery import AccessModel
+from .pipeline_runs import (
+    claim_next_pipeline_item,
+    create_pipeline_run,
+    finalize_pipeline_run,
+    finish_pipeline_item,
+    get_pipeline_run_status,
+    mark_pipeline_item_running,
+)
 from .public_catalog import (
     finish_restaurant_research_run,
+    get_research_candidate,
     get_research_queue,
     mark_research_failed,
     mark_research_needs_retry,
@@ -41,6 +51,7 @@ from .public_score import (
 )
 
 PROMPT_VERSION = "restaurant-research-v8-specialist-tristate"
+RESEARCH_PIPELINE_VERSION = "catalog-pipeline-v1"
 SPECIALIST_SCHEMA_VERSION = "specialist-tristate-1"
 CompactLabel = Annotated[str, Field(max_length=120)]
 CompactEvidence = Annotated[str, Field(max_length=500)]
@@ -48,7 +59,8 @@ EvidenceUrl = Annotated[str, Field(max_length=2000)]
 
 
 def _ambiguous_request_failure(exc: BaseException) -> bool:
-    return isinstance(
+    status_code = getattr(exc, "status_code", None)
+    return status_code == 429 or (isinstance(status_code, int) and status_code >= 500) or isinstance(
         exc,
         (
             TimeoutError,
@@ -413,12 +425,23 @@ def run_research_batch(
     retry_failed: bool = False,
     place_id: str | None = None,
     dry_run: bool = False,
+    resume_run_id: int | None = None,
+    worker_id: str | None = None,
+    lease_seconds: int = 900,
 ) -> dict[str, object]:
     if limit < 1 or limit > 100:
         raise ValueError("limit must be between 1 and 100")
     load_dotenv()
     selected_model = model or os.getenv("OPENAI_MODEL", "gpt-5.6-luna")
-    queue = get_research_queue(db_path, limit=limit, retry_failed=retry_failed, place_id=place_id)
+    if resume_run_id is not None and dry_run:
+        return {"dry_run": True, **get_pipeline_run_status(db_path, resume_run_id)}
+    queue = (
+        []
+        if resume_run_id is not None
+        else get_research_queue(
+            db_path, limit=limit, retry_failed=retry_failed, place_id=place_id
+        )
+    )
     if dry_run:
         return {
             "dry_run": True,
@@ -427,10 +450,51 @@ def run_research_batch(
             "maximum_web_search_actions": len(queue) * DEFAULT_MAX_SEARCH_ACTIONS,
             "candidates": [str(item["place_id"]) for item in queue],
         }
-    if not os.getenv("OPENAI_API_KEY"):
+
+    if resume_run_id is None:
+        run_id = create_pipeline_run(
+            db_path,
+            run_type="standard_restaurant_research",
+            item_keys=(str(item["place_id"]) for item in queue),
+            work_key=(
+                f"standard_restaurant_research:{RESEARCH_PIPELINE_VERSION}:"
+                f"{PROMPT_VERSION}:{selected_model}"
+            ),
+            selector={
+                "limit": limit,
+                "place_id": place_id,
+                "retry_failed": retry_failed,
+                "eligible_statuses": ["pending", *(["failed"] if retry_failed else [])],
+            },
+            config={
+                "model": selected_model,
+                "prompt_version": PROMPT_VERSION,
+                "pipeline_version": RESEARCH_PIPELINE_VERSION,
+                "max_search_actions": DEFAULT_MAX_SEARCH_ACTIONS,
+            },
+            requested_item_count=limit,
+        )
+    else:
+        run_id = resume_run_id
+        stored = get_pipeline_run_status(db_path, run_id)
+        if stored["run_type"] != "standard_restaurant_research":
+            raise ValueError(f"Pipeline run {run_id} is not a standard research run")
+        stored_model = str(stored["config"]["model"])
+        if model is not None and model != stored_model:
+            raise ValueError("resume model must match the frozen pipeline run config")
+        selected_model = stored_model
+
+    initial_status = get_pipeline_run_status(db_path, run_id)
+    has_eligible_work = bool(
+        initial_status["pending"]
+        or initial_status["claimed"]
+        or initial_status["running"]
+        or (retry_failed and initial_status["failed_retryable"])
+    )
+    if has_eligible_work and not os.getenv("OPENAI_API_KEY"):
         raise RuntimeError("OPENAI_API_KEY is missing. Add it to backend/.env")
 
-    client = OpenAI(max_retries=0)
+    client = OpenAI(max_retries=0) if has_eligible_work else None
     completed = 0
     failed = 0
     address_accepted = 0
@@ -438,38 +502,66 @@ def run_research_batch(
     web_search_actions = 0
     token_usage = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
 
-    for candidate in queue:
-        place_id = str(candidate["place_id"])
-        mark_research_started(db_path, place_id)
-        research_run_id = start_restaurant_research_run(
-            db_path,
-            place_id,
-            model=selected_model,
-            prompt_version=PROMPT_VERSION,
-        )
-        address_run_id = start_address_run(
-            db_path,
-            place_id=place_id,
-            model=selected_model,
-            forced=False,
-            combined_research=True,
-        )
-        record_generated_queries(
-            db_path,
-            run_id=address_run_id,
-            place_id=place_id,
-            queries=generate_address_queries(
-                candidate, max_search_actions=DEFAULT_MAX_SEARCH_ACTIONS
-            ),
-        )
+    actual_requests = 0
+    claim_owner = worker_id or f"research-{uuid.uuid4().hex[:12]}"
+    attempted_item_ids: set[int] = set()
+    while claim := claim_next_pipeline_item(
+        db_path,
+        run_id,
+        worker_id=claim_owner,
+        lease_seconds=lease_seconds,
+        retry_failed=retry_failed,
+        reclaim_stale=True,
+        exclude_item_ids=attempted_item_ids,
+    ):
+        item_id = int(claim["id"])
+        attempted_item_ids.add(item_id)
+        claim_token = str(claim["claim_token"])
+        current_place_id = str(claim["place_id"])
+        research_run_id: int | None = None
+        address_run_id: int | None = None
+        item_web_actions = 0
+        item_token_usage = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
         try:
+            candidate = get_research_candidate(db_path, current_place_id)
+            mark_research_started(db_path, current_place_id)
+            research_run_id = start_restaurant_research_run(
+                db_path,
+                current_place_id,
+                model=selected_model,
+                prompt_version=PROMPT_VERSION,
+                pipeline_version=RESEARCH_PIPELINE_VERSION,
+            )
+            address_run_id = start_address_run(
+                db_path,
+                place_id=current_place_id,
+                model=selected_model,
+                forced=False,
+                combined_research=True,
+            )
+            record_generated_queries(
+                db_path,
+                run_id=address_run_id,
+                place_id=current_place_id,
+                queries=generate_address_queries(
+                    candidate, max_search_actions=DEFAULT_MAX_SEARCH_ACTIONS
+                ),
+            )
+            mark_pipeline_item_running(
+                db_path, item_id, claim_token, provider_request_started=True
+            )
+            actual_requests += 1
+            assert client is not None
             response = _research_response(candidate, client=client, model=selected_model)
             response_metadata = extract_response_metadata(
                 response, fallback_model=selected_model
             )
-            web_search_actions += response_metadata.web_search_action_count
+            item_web_actions = response_metadata.web_search_action_count
+            web_search_actions += item_web_actions
             for key in token_usage:
-                token_usage[key] += int(response_metadata.usage_metadata.get(key, 0) or 0)
+                used = int(response_metadata.usage_metadata.get(key, 0) or 0)
+                item_token_usage[key] = used
+                token_usage[key] += used
             parsed = getattr(response, "output_parsed", None)
             if parsed is None:
                 raise RuntimeError("OpenAI returned no parsed research result")
@@ -503,7 +595,7 @@ def run_research_batch(
             )
             save_research_result(
                 db_path,
-                place_id=place_id,
+                place_id=current_place_id,
                 evidence=evidence,
                 score=score,
                 name_ja=research.name_ja,
@@ -516,6 +608,7 @@ def run_research_batch(
                 evidence_urls=urls,
                 model_name=selected_model,
                 prompt_version=PROMPT_VERSION,
+                pipeline_version=RESEARCH_PIPELINE_VERSION,
                 structured_research=structured_research,
                 usage_metadata={
                     "response_id": getattr(response, "id", None),
@@ -532,7 +625,7 @@ def run_research_batch(
                 )
                 persist_address_call(
                     db_path,
-                    place_id=place_id,
+                    place_id=current_place_id,
                     run_id=address_run_id,
                     call=address_call,
                     verified_by="combined_restaurant_research_v2",
@@ -546,27 +639,57 @@ def run_research_batch(
                 address_needs_fallback += 1
             completed += 1
         except Exception as exc:  # noqa: BLE001 - isolate rows and preserve the failure.
-            fail_address_run(db_path, address_run_id, exc)
+            if address_run_id is not None:
+                fail_address_run(db_path, address_run_id, exc)
             error = f"{type(exc).__name__}: {exc}"
-            if _ambiguous_request_failure(exc):
-                finish_restaurant_research_run(
-                    db_path, research_run_id, status="needs_retry", error=error
-                )
-                mark_research_needs_retry(db_path, place_id, error)
+            retryable = _ambiguous_request_failure(exc)
+            if retryable:
+                if research_run_id is not None:
+                    finish_restaurant_research_run(
+                        db_path, research_run_id, status="needs_retry", error=error
+                    )
+                mark_research_needs_retry(db_path, current_place_id, error)
             else:
-                finish_restaurant_research_run(
-                    db_path, research_run_id, status="failed", error=error
-                )
-                mark_research_failed(db_path, place_id, error)
+                if research_run_id is not None:
+                    finish_restaurant_research_run(
+                        db_path, research_run_id, status="failed", error=error
+                    )
+                mark_research_failed(db_path, current_place_id, error)
+            finish_pipeline_item(
+                db_path,
+                item_id,
+                claim_token,
+                state="failed_retryable" if retryable else "failed_terminal",
+                failure_class=type(exc).__name__,
+                failure_message=error,
+                result_reference={"restaurant_research_run_id": research_run_id},
+                provider_requests=0,
+                web_search_actions=item_web_actions,
+                token_usage=item_token_usage,
+            )
             failed += 1
+        else:
+            finish_pipeline_item(
+                db_path,
+                item_id,
+                claim_token,
+                state="succeeded",
+                result_reference={"restaurant_research_run_id": research_run_id},
+                provider_requests=0,
+                web_search_actions=item_web_actions,
+                token_usage=item_token_usage,
+            )
 
+    run_status = finalize_pipeline_run(db_path, run_id)
     return {
-        "queued": len(queue),
+        "run_id": run_id,
+        "queued": int(run_status["selected"]),
         "completed": completed,
         "failed": failed,
-        "responses_requests": len(queue),
+        "responses_requests": actual_requests,
         "web_search_actions": web_search_actions,
         "token_usage": token_usage,
         "address_accepted": address_accepted,
         "address_needs_fallback": address_needs_fallback,
+        "run_status": run_status,
     }

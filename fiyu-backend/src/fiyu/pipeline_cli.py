@@ -58,6 +58,14 @@ def _parser() -> argparse.ArgumentParser:
     research.add_argument("--model")
     research.add_argument("--retry-failed", action="store_true")
     research.add_argument("--dry-run", action="store_true")
+    research.add_argument("--resume-run", type=int)
+    research.add_argument("--worker-id")
+    research.add_argument("--lease-seconds", type=int, default=900)
+
+    run_status = commands.add_parser(
+        "pipeline-run-status", help="Show durable pipeline run and item-state totals"
+    )
+    run_status.add_argument("run_id", type=int)
 
     low_footprint = commands.add_parser(
         "research-low-footprint",
@@ -343,7 +351,14 @@ def main() -> None:
             retry_failed=args.retry_failed,
             place_id=args.place_id,
             dry_run=args.dry_run,
+            resume_run_id=args.resume_run,
+            worker_id=args.worker_id,
+            lease_seconds=args.lease_seconds,
         )
+    elif args.command == "pipeline-run-status":
+        from .pipeline_runs import get_pipeline_run_status
+
+        result = get_pipeline_run_status(db, args.run_id)
     elif args.command == "retry-research":
         result = recover_research_for_retry(db, args.place_id, dry_run=args.dry_run)
     elif args.command == "research-low-footprint":

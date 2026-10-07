@@ -305,9 +305,13 @@ def test_explicit_api_failure_records_failed_attempt(tmp_path, monkeypatch):
         run = connection.execute(
             "SELECT status, error FROM restaurant_research_runs WHERE public_restaurant_id = 'place-1'"
         ).fetchone()
+        ledger_state = connection.execute(
+            "SELECT state FROM pipeline_run_items WHERE place_id='place-1'"
+        ).fetchone()[0]
     assert candidate[0] == "failed"
     assert run[0] == "failed"
     assert "request rejected" in run[1]
+    assert ledger_state == "failed_terminal"
 
 
 def test_timeout_is_ambiguous_and_never_automatically_retried(tmp_path, monkeypatch):
@@ -322,9 +326,32 @@ def test_timeout_is_ambiguous_and_never_automatically_retried(tmp_path, monkeypa
         assert connection.execute(
             "SELECT status FROM restaurant_research_runs WHERE public_restaurant_id = 'place-1'"
         ).fetchone()[0] == "needs_retry"
+        assert connection.execute(
+            "SELECT state FROM pipeline_run_items WHERE place_id='place-1'"
+        ).fetchone()[0] == "failed_retryable"
     second = run_research_batch(path, limit=1, model="test-model")
     assert second["queued"] == 0
     assert client.responses.calls == 1
+
+
+@pytest.mark.parametrize("status_code", (429, 500, 503))
+def test_transient_provider_status_is_retryable(tmp_path, monkeypatch, status_code):
+    class ProviderError(RuntimeError):
+        pass
+
+    error = ProviderError("transient provider failure")
+    error.status_code = status_code
+    path = _db(tmp_path)
+    result, client = _run_with_error(path, monkeypatch, error)
+    assert result["failed"] == 1
+    assert client.responses.calls == 1
+    with connect(path) as connection:
+        assert connection.execute(
+            "SELECT research_status FROM public_restaurants WHERE place_id='place-1'"
+        ).fetchone()[0] == "needs_retry"
+        assert connection.execute(
+            "SELECT state FROM pipeline_run_items WHERE place_id='place-1'"
+        ).fetchone()[0] == "failed_retryable"
 
 
 def test_operator_recovers_orphaned_running_state_without_openai_call(tmp_path):
