@@ -201,6 +201,19 @@ def _parser() -> argparse.ArgumentParser:
     specialist_migrate.add_argument("--report-out")
     specialist_migrate.add_argument("--verbose", action="store_true")
 
+    reconcile = commands.add_parser(
+        "reconcile-publication",
+        help="Reconcile canonical publication membership at an audited score threshold",
+    )
+    reconcile.add_argument("--threshold", type=float, required=True)
+    reconcile.add_argument("--cohort-manifest", required=True)
+    reconcile.add_argument("--dry-run", action="store_true")
+    reconcile.add_argument("--backup-out")
+    reconcile.add_argument("--summary-out", required=True)
+    reconcile.add_argument("--report-out", required=True)
+    reconcile.add_argument("--changes-out", required=True)
+    reconcile.add_argument("--verbose", action="store_true")
+
     review = commands.add_parser("review")
     review.add_argument("--place-id", required=True)
 
@@ -448,6 +461,19 @@ def main() -> None:
             summary_path=args.summary_out,
             report_path=args.report_out,
         )
+    elif args.command == "reconcile-publication":
+        from .publication_reconciliation import run_publication_reconciliation
+
+        result = run_publication_reconciliation(
+            db,
+            threshold=args.threshold,
+            cohort_manifest=args.cohort_manifest,
+            dry_run=args.dry_run,
+            backup_path=args.backup_out,
+            summary_path=args.summary_out,
+            report_path=args.report_out,
+            changes_path=args.changes_out,
+        )
     elif args.command == "review":
         result = inspect_candidate(db, args.place_id)
     elif args.command in {"approve", "reject"}:
@@ -478,6 +504,10 @@ def main() -> None:
         print(compact_summary(result))
     elif args.command == "specialist-tristate-migrate" and not args.verbose:
         from .specialist_tristate_migration import compact_summary
+
+        print(compact_summary(result))
+    elif args.command == "reconcile-publication" and not args.verbose:
+        from .publication_reconciliation import compact_summary
 
         print(compact_summary(result))
     else:

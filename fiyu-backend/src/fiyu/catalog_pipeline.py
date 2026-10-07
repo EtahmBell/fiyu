@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 from collections import Counter
+from contextlib import nullcontext
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -14,6 +15,7 @@ from .public_catalog import AUTO_PIPELINE_RESEARCH_STATUSES, ensure_public_schem
 from .utils import normalize_name
 
 PIPELINE_VERSION = "catalog-pipeline-v1"
+PUBLICATION_THRESHOLD_METADATA_KEY = "publication_score_threshold"
 
 AREA_ANCHOR_WARDS = {
     "shibuya": "Shibuya",
@@ -55,6 +57,26 @@ LOCATION_PROVENANCE_RANK = {
 
 def _utc_now() -> str:
     return datetime.now(UTC).isoformat()
+
+
+def _publication_score_threshold_from_connection(connection) -> float:
+    from .public_score import PUBLICATION_SCORE_THRESHOLD
+
+    row = connection.execute(
+        "SELECT value FROM metadata WHERE key=?",
+        (PUBLICATION_THRESHOLD_METADATA_KEY,),
+    ).fetchone()
+    threshold = PUBLICATION_SCORE_THRESHOLD if row is None else float(row["value"])
+    if not 0 < threshold <= 100:
+        raise ValueError("publication score threshold must be in (0, 100]")
+    return threshold
+
+
+def publication_score_threshold(db_path: str | Path) -> float:
+    """Return the database-owned production publication threshold."""
+
+    with connect(db_path) as connection:
+        return _publication_score_threshold_from_connection(connection)
 
 
 def _location_rank(location: dict[str, object]) -> tuple[int, int]:
@@ -300,29 +322,32 @@ class PublishReadiness:
         return asdict(self)
 
 
-def _row(db_path: str | Path, place_id: str) -> dict[str, object]:
-    ensure_public_schema(db_path)
-    with connect(db_path) as connection:
-        row = connection.execute(
-            """
-            SELECT p.*, r.title AS candidate_title, r.address AS source_address,
-                   r.neighborhood, r.image_url, r.category AS candidate_category,
-                   r.broad_category AS candidate_broad_category
-            FROM public_restaurants p
-            LEFT JOIN restaurants r ON r.place_id = p.place_id
-            WHERE p.place_id = ?
-            """,
-            (place_id,),
-        ).fetchone()
+def _row_from_connection(connection, place_id: str) -> dict[str, object]:
+    row = connection.execute(
+        """
+        SELECT p.*, r.title AS candidate_title, r.address AS source_address,
+               r.neighborhood, r.image_url, r.category AS candidate_category,
+               r.broad_category AS candidate_broad_category
+        FROM public_restaurants p
+        LEFT JOIN restaurants r ON r.place_id = p.place_id
+        WHERE p.place_id = ?
+        """,
+        (place_id,),
+    ).fetchone()
     if row is None:
         raise ValueError(f"Unknown place_id: {place_id}")
     return dict(row)
 
 
-def publish_readiness(
-    db_path: str | Path, place_id: str, *, require_approval: bool = True
+def _row(db_path: str | Path, place_id: str) -> dict[str, object]:
+    ensure_public_schema(db_path)
+    with connect(db_path) as connection:
+        return _row_from_connection(connection, place_id)
+
+
+def _publish_readiness_from_row(
+    row: dict[str, object], place_id: str, *, require_approval: bool
 ) -> PublishReadiness:
-    row = _row(db_path, place_id)
     missing: list[str] = []
     if not str(row.get("place_id") or "").strip():
         missing.append("stable_place_id")
@@ -358,6 +383,15 @@ def publish_readiness(
         location_attempted=attempted,
         missing=tuple(missing),
         warnings=tuple(warnings),
+    )
+
+
+def publish_readiness(
+    db_path: str | Path, place_id: str, *, require_approval: bool = True
+) -> PublishReadiness:
+    row = _row(db_path, place_id)
+    return _publish_readiness_from_row(
+        row, place_id, require_approval=require_approval
     )
 
 
@@ -696,11 +730,16 @@ def _effective_structured_research(
 
 
 def _current_score_policy_decision(
-    db_path: str | Path, row: dict[str, object]
+    db_path: str | Path,
+    row: dict[str, object],
+    *,
+    publication_threshold: float | None = None,
+    _connection=None,
 ) -> dict[str, object]:
     """Return a current policy decision without rewriting historical score JSON."""
 
-    with connect(db_path) as connection:
+    manager = connect(db_path) if _connection is None else nullcontext(_connection)
+    with manager as connection:
         run = connection.execute(
             """
             SELECT rr.score_json, rr.structured_research_json, rr.completed_at,
@@ -722,7 +761,6 @@ def _current_score_policy_decision(
             return {"publishable": False, "reason": "stored_scoring_json_invalid"}
 
         from .public_score import (
-            PUBLICATION_SCORE_THRESHOLD,
             FiyuEvidence,
             InternalSignals,
             assess_critical_publication_contradiction,
@@ -730,6 +768,13 @@ def _current_score_policy_decision(
             evaluate_fiyu_candidate,
         )
 
+        threshold = (
+            _publication_score_threshold_from_connection(connection)
+            if publication_threshold is None
+            else float(publication_threshold)
+        )
+        if not 0 < threshold <= 100:
+            raise ValueError("publication score threshold must be in (0, 100]")
         try:
             evidence = FiyuEvidence(**evidence_payload)
             evidence.validate()
@@ -802,9 +847,7 @@ def _current_score_policy_decision(
 
     conditions = {
         "product_eligible": current_score.product_eligible,
-        "fiyu_score_threshold": (
-            current_score.fiyu_score >= PUBLICATION_SCORE_THRESHOLD
-        ),
+        "fiyu_score_threshold": float(row.get("fiyu_score") or 0) >= threshold,
         "chain_not_excluded": not current_score.chain_excluded,
         "no_critical_publication_contradiction": not critical_reasons,
     }
@@ -829,6 +872,8 @@ def _current_score_policy_decision(
         "supersession_reasons": supersession_reasons,
         "chain_classification": current_score.chain_classification,
         "chain_excluded": current_score.chain_excluded,
+        "publication_threshold": threshold,
+        "current_pointer_score": row.get("fiyu_score"),
     }
 
 
@@ -839,6 +884,62 @@ def auto_publish_readiness(db_path: str | Path, place_id: str) -> PublishReadine
     base = publish_readiness(db_path, place_id, require_approval=False)
     decision = _current_score_policy_decision(db_path, row)
     return _auto_publish_readiness_from_decision(base, decision)
+
+
+def automatic_publication_decision(
+    db_path: str | Path,
+    place_id: str,
+    *,
+    publication_threshold: float | None = None,
+    _connection=None,
+) -> dict[str, object]:
+    """Evaluate the canonical automatic-publication transition without writing."""
+
+    manager = connect(db_path) if _connection is None else nullcontext(_connection)
+    with manager as connection:
+        row = _row_from_connection(connection, place_id)
+        base = _publish_readiness_from_row(
+            row, place_id, require_approval=False
+        )
+        policy = _current_score_policy_decision(
+            db_path,
+            row,
+            publication_threshold=publication_threshold,
+            _connection=connection,
+        )
+    readiness = _auto_publish_readiness_from_decision(base, policy)
+    if readiness.publishable:
+        status = "auto_published"
+        published = True
+        reason = None
+    elif "critical_publication_contradiction" in readiness.missing:
+        published = False
+        contradiction_reasons = tuple(
+            str(item) for item in policy.get("critical_contradiction_reasons", ())
+        )
+        reason = "critical_publication_contradiction:" + ",".join(
+            contradiction_reasons
+        )
+        status = "needs_review"
+    else:
+        published = False
+        reason = (
+            "score_or_product_policy_rejected"
+            if "deterministic_score_policy" in readiness.missing
+            else "content_or_pipeline_incomplete"
+        )
+        status = "auto_rejected"
+    return {
+        "place_id": place_id,
+        "published": published,
+        "outcome": status,
+        "reason": reason,
+        "critical_contradiction_reasons": policy.get(
+            "critical_contradiction_reasons", ()
+        ),
+        "readiness": readiness.to_dict(),
+        "policy": policy,
+    }
 
 
 def _auto_publish_readiness_from_decision(
@@ -862,34 +963,8 @@ def _auto_publish_readiness_from_decision(
 def apply_automatic_publication(
     db_path: str | Path, place_id: str
 ) -> dict[str, object]:
-    row = dict(_row(db_path, place_id))
-    base = publish_readiness(db_path, place_id, require_approval=False)
-    decision = _current_score_policy_decision(db_path, row)
-    readiness = _auto_publish_readiness_from_decision(
-        base, decision
-    )
+    transition = automatic_publication_decision(db_path, place_id)
     now = _utc_now()
-    if readiness.publishable:
-        status = "auto_published"
-        published = True
-        reason = None
-    elif "critical_publication_contradiction" in readiness.missing:
-        published = False
-        contradiction_reasons = tuple(
-            str(item) for item in decision.get("critical_contradiction_reasons", ())
-        )
-        reason = "critical_publication_contradiction:" + ",".join(
-            contradiction_reasons
-        )
-        status = "needs_review"
-    else:
-        published = False
-        reason = (
-            "score_or_product_policy_rejected"
-            if "deterministic_score_policy" in readiness.missing
-            else "content_or_pipeline_incomplete"
-        )
-        status = "auto_rejected"
     with connect(db_path) as connection:
         connection.execute(
             """
@@ -897,19 +972,17 @@ def apply_automatic_publication(
             SET is_published=?, review_status=?, review_notes=?, pipeline_version=?,
                 updated_at=? WHERE place_id=?
             """,
-            (int(published), status, reason, PIPELINE_VERSION, now, place_id),
+            (
+                int(bool(transition["published"])),
+                transition["outcome"],
+                transition["reason"],
+                PIPELINE_VERSION,
+                now,
+                place_id,
+            ),
         )
         connection.commit()
-    return {
-        "place_id": place_id,
-        "published": published,
-        "outcome": status,
-        "reason": reason,
-        "critical_contradiction_reasons": decision.get(
-            "critical_contradiction_reasons", ()
-        ),
-        "readiness": readiness.to_dict(),
-    }
+    return {key: value for key, value in transition.items() if key != "policy"}
 
 
 def review_candidate(
