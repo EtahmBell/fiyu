@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
 import json
-from pathlib import Path
 import sqlite3
-from typing import Iterable
+from collections.abc import Iterable
+from datetime import UTC, datetime
+from pathlib import Path
 
 from .config import ScoringConfig
-
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS restaurants (
@@ -148,8 +147,21 @@ def _row_values(record: dict[str, object]) -> tuple[object, ...]:
 
 
 def replace_restaurants(
-    db_path: str | Path, records: Iterable[dict[str, object]], config: ScoringConfig
+    db_path: str | Path,
+    records: Iterable[dict[str, object]],
+    config: ScoringConfig,
+    *,
+    allow_destructive: bool = False,
 ) -> None:
+    """Replace a disposable corpus after an explicit destructive opt-in."""
+
+    if not allow_destructive:
+        raise ValueError(
+            "whole-corpus replacement is disabled for normal imports; "
+            "allow_destructive=True is for disposable databases only"
+        )
+    if Path(db_path).resolve() == Path("data/fiyu.db").resolve():
+        raise ValueError("refusing destructive replacement of canonical data/fiyu.db")
     records = list(records)
     placeholders = ", ".join("?" for _ in INSERT_COLUMNS)
     columns = ", ".join(INSERT_COLUMNS)
@@ -159,7 +171,7 @@ def replace_restaurants(
         connection.execute("DELETE FROM restaurants")
         connection.executemany(sql, (_row_values(record) for record in records))
         metadata = {
-            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "generated_at": datetime.now(UTC).isoformat(),
             "restaurant_count": str(len(records)),
             "scoring_config": json.dumps(config.to_dict(), ensure_ascii=False),
             "score_status": "internal_provisional",

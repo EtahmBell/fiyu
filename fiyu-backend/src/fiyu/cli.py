@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 
 from .config import ScoringConfig
-from .ingest import run_ingestion
+from .ingest import run_destructive_ingestion, run_ingestion
 
 
 def _add_scoring_arguments(parser: argparse.ArgumentParser) -> None:
@@ -43,6 +43,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     ingest = subparsers.add_parser("ingest", help="Combine, clean, deduplicate, and score datasets")
     ingest.add_argument("inputs", nargs="+", help="Input files or directories")
+    ingest.add_argument(
+        "--source-key",
+        required=True,
+        help="Stable operator-defined identity for this complete source snapshot",
+    )
     ingest.add_argument("--db", default="data/fiyu.db", help="SQLite output path")
     ingest.add_argument("--csv-out", default="data/processed/restaurants_scored.csv")
     ingest.add_argument(
@@ -128,13 +133,24 @@ def main() -> None:
         inputs = args.inputs
         include_all_categories = args.include_all_categories
 
-    result = run_ingestion(
-        inputs,
-        db_path=args.db,
-        csv_output=args.csv_out,
-        config=config,
-        include_all_categories=include_all_categories,
-    )
+    if args.command == "demo":
+        result = run_destructive_ingestion(
+            inputs,
+            db_path=args.db,
+            csv_output=args.csv_out,
+            config=config,
+            include_all_categories=include_all_categories,
+            allow_destructive=True,
+        )
+    else:
+        result = run_ingestion(
+            inputs,
+            source_key=args.source_key,
+            db_path=args.db,
+            csv_output=args.csv_out,
+            config=config,
+            include_all_categories=include_all_categories,
+        )
     print(json.dumps(result, indent=2, ensure_ascii=False, default=str))
 
 

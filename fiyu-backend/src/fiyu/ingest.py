@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import csv
+from collections.abc import Iterable
 from dataclasses import asdict
 from pathlib import Path
-from typing import Iterable
 
 from .columns import raw_record_from_row
 from .config import ScoringConfig
@@ -11,7 +11,6 @@ from .database import replace_restaurants
 from .normalize import add_chain_features, clean_and_dedupe
 from .readers import iter_input_files, iter_rows
 from .scoring import score_records
-
 
 EXPORT_FIELDS = [
     "place_id",
@@ -83,14 +82,26 @@ def export_csv(records: list[dict[str, object]], output_path: str | Path) -> Non
             writer.writerow({field: _serialize(record.get(field)) for field in EXPORT_FIELDS})
 
 
-def run_ingestion(
+def run_destructive_ingestion(
     input_paths: list[str | Path],
     *,
     db_path: str | Path,
     csv_output: str | Path | None,
     config: ScoringConfig,
     include_all_categories: bool = False,
+    allow_destructive: bool = False,
 ) -> dict[str, object]:
+    """Rebuild an entire disposable candidate corpus.
+
+    Production source imports must use ``run_source_ingestion``. This helper is
+    retained for the demo and fixtures and requires an explicit guard.
+    """
+
+    if not allow_destructive:
+        raise ValueError(
+            "destructive ingestion is disabled; use source-safe ingestion or pass "
+            "allow_destructive=True only for a disposable database"
+        )
     files = iter_input_files(input_paths)
     normalized = iter_normalized_records(files)
     records, cleaning_stats = clean_and_dedupe(
@@ -98,7 +109,7 @@ def run_ingestion(
     )
     add_chain_features(records, config.chain_title_threshold, config.chain_domain_threshold)
     score_records(records, config)
-    replace_restaurants(db_path, records, config)
+    replace_restaurants(db_path, records, config, allow_destructive=True)
     if csv_output:
         export_csv(records, csv_output)
 
@@ -114,3 +125,26 @@ def run_ingestion(
         "csv_output": str(csv_output) if csv_output else None,
         "scoring_config": config.to_dict(),
     }
+
+
+def run_ingestion(
+    input_paths: list[str | Path],
+    *,
+    source_key: str,
+    db_path: str | Path,
+    csv_output: str | Path | None,
+    config: ScoringConfig,
+    include_all_categories: bool = False,
+) -> dict[str, object]:
+    """Compatibility entry point for the normal source-safe importer."""
+
+    from .source_ingestion import run_source_ingestion
+
+    return run_source_ingestion(
+        input_paths,
+        source_key=source_key,
+        db_path=db_path,
+        csv_output=csv_output,
+        config=config,
+        include_all_categories=include_all_categories,
+    )

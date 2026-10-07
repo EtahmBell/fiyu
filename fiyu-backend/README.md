@@ -146,6 +146,7 @@ When `searchString` is missing, the filename becomes the fallback area name.
 
 ```bash
 python -m fiyu.cli ingest data/raw \
+  --source-key apify-tokyo-v1 \
   --db data/fiyu.db \
   --csv-out data/processed/restaurants_scored.csv
 ```
@@ -153,15 +154,21 @@ python -m fiyu.cli ingest data/raw \
 PowerShell equivalent:
 
 ```powershell
-python -m fiyu.cli ingest data/raw --db data/fiyu.db --csv-out data/processed/restaurants_scored.csv
+python -m fiyu.cli ingest data/raw --source-key apify-tokyo-v1 --db data/fiyu.db --csv-out data/processed/restaurants_scored.csv
 ```
 
-The output summary reports raw rows, duplicates, excluded rows, candidate count, and simple-rule count.
+`--source-key` is a stable operator-defined identity for one source, independent of
+its filename. Each invocation is a complete snapshot of that source. Imports
+upsert observations and canonical candidates by Place ID; they never delete
+candidates omitted from this or another source. Omitted observations are retained
+and marked as not seen in the latest run. The output reports the source run ID,
+new/updated/unchanged observations, new candidates, and source-local omissions.
 
 ### Flexible thresholds
 
 ```bash
 python -m fiyu.cli ingest data/raw \
+  --source-key apify-tokyo-v1 \
   --db data/fiyu.db \
   --csv-out data/processed/restaurants_scored.csv \
   --target-rating 4.2 \
@@ -175,7 +182,7 @@ python -m fiyu.cli ingest data/raw \
 Or edit a JSON file:
 
 ```bash
-python -m fiyu.cli ingest data/raw --config scoring.example.json
+python -m fiyu.cli ingest data/raw --source-key apify-tokyo-v1 --config scoring.example.json
 ```
 
 ## Run the included demo
