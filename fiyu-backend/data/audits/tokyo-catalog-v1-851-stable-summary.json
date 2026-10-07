@@ -1,0 +1,1292 @@
+{
+  "verdict": "Tokyo Catalog v1 — 851 Stable",
+  "certified": true,
+  "canonical_state": {
+    "total": 1203,
+    "published": 851,
+    "unpublished": 352,
+    "publication_threshold": 70,
+    "score_version_counts": {
+      "public-v4-quality-research-specialist-tristate": 861,
+      "public-v4-quality-research": 0,
+      "public-v3-local-discovery-specialist-tristate": 231,
+      "NULL": 111
+    },
+    "sqlite_integrity": "ok"
+  },
+  "publication_parity": {
+    "stored_published": 851,
+    "evaluator_published": 851,
+    "exact_matches": 1203,
+    "mismatches": 0,
+    "false_published": [],
+    "false_unpublished": []
+  },
+  "manifest_313": {
+    "manifest_ids": 313,
+    "published": 313,
+    "product_eligible": 313,
+    "canonical_review_status": 313,
+    "score_parity": 313,
+    "complete_quality_v4": 313,
+    "canonical_history": 313,
+    "valid_history_fingerprints": 313,
+    "public_list_visible": 313,
+    "picks_eligible_where_map_ready": 311,
+    "anomalies": []
+  },
+  "original_538": {
+    "retained": 538,
+    "exact_public_row_matches_to_pre_reconciliation_backup": 538,
+    "unexpected_mutations": [],
+    "public_list_visible": 538
+  },
+  "non_score_safety": {
+    "count": 30,
+    "categories": {
+      "address_or_identity_conflict": 13,
+      "product_eligibility_failure": 8,
+      "identity_not_matched": 5,
+      "unresolved_identity": 2,
+      "critical_publication_contradiction": 2
+    },
+    "rows": [
+      {
+        "place_id": "ChIJ-xPoiWuNGGARXFHxIR5NjXw",
+        "restaurant_name": "Sonosaki",
+        "score": 78.02,
+        "reason_category": "address_or_identity_conflict",
+        "missing": [
+          "critical_publication_contradiction"
+        ]
+      },
+      {
+        "place_id": "ChIJ04BE83OLGGAR73155HIjelk",
+        "restaurant_name": "Kikuzo",
+        "score": 77.74,
+        "reason_category": "product_eligibility_failure",
+        "missing": [
+          "deterministic_score_policy"
+        ]
+      },
+      {
+        "place_id": "ChIJ23e5VgCTGGARKEzLD69k71E",
+        "restaurant_name": "Sanmi",
+        "score": 74.77,
+        "reason_category": "identity_not_matched",
+        "missing": []
+      },
+      {
+        "place_id": "ChIJ8fCDCkyJGGAR-F3gBrJjggk",
+        "restaurant_name": "Katei Ryori Fujino",
+        "score": 72.16,
+        "reason_category": "unresolved_identity",
+        "missing": []
+      },
+      {
+        "place_id": "ChIJ92c0HNCLGGAR3wocSnSAZ1c",
+        "restaurant_name": "Torisawattsu",
+        "score": 72.45,
+        "reason_category": "product_eligibility_failure",
+        "missing": [
+          "deterministic_score_policy"
+        ]
+      },
+      {
+        "place_id": "ChIJAQAx9lbtGGARjIpf3KuKD8A",
+        "restaurant_name": "Omura",
+        "score": 71.72,
+        "reason_category": "address_or_identity_conflict",
+        "missing": [
+          "critical_publication_contradiction"
+        ]
+      },
+      {
+        "place_id": "ChIJB4ty4CL1GGARXt_6OUnA3lo",
+        "restaurant_name": "Donnamondai Sangenjaya",
+        "score": 71.16,
+        "reason_category": "address_or_identity_conflict",
+        "missing": [
+          "critical_publication_contradiction"
+        ]
+      },
+      {
+        "place_id": "ChIJHYFgOe-OGGARHfQ8JQJ5Yag",
+        "restaurant_name": "Donbee",
+        "score": 72.51,
+        "reason_category": "identity_not_matched",
+        "missing": []
+      },
+      {
+        "place_id": "ChIJHyk9zo2OGGAR_IhetTCSfDQ",
+        "restaurant_name": "Uosei",
+        "score": 70.56,
+        "reason_category": "address_or_identity_conflict",
+        "missing": [
+          "critical_publication_contradiction"
+        ]
+      },
+      {
+        "place_id": "ChIJJWVRyJyNGGAR99ULioTF7H0",
+        "restaurant_name": "MUTO Sendagaya",
+        "score": 77.73,
+        "reason_category": "product_eligibility_failure",
+        "missing": [
+          "deterministic_score_policy"
+        ]
+      },
+      {
+        "place_id": "ChIJMdaU3fzzGGARVYr6UravT-w",
+        "restaurant_name": "Tokino Oto Seisakusho",
+        "score": 76.77,
+        "reason_category": "address_or_identity_conflict",
+        "missing": [
+          "critical_publication_contradiction"
+        ]
+      },
+      {
+        "place_id": "ChIJMfX2tJWOGGARfwwCPJ6OMas",
+        "restaurant_name": "REPRESENT",
+        "score": 81.26,
+        "reason_category": "address_or_identity_conflict",
+        "missing": [
+          "critical_publication_contradiction"
+        ]
+      },
+      {
+        "place_id": "ChIJNcTFWACJGGARLiKsdWwhBjE",
+        "restaurant_name": "Midoricho Ikoma",
+        "score": 79.52,
+        "reason_category": "address_or_identity_conflict",
+        "missing": [
+          "critical_publication_contradiction"
+        ]
+      },
+      {
+        "place_id": "ChIJO6nG93vuGGARyvK3NMLcXs4",
+        "restaurant_name": "Yoridokoro Shu",
+        "score": 79.03,
+        "reason_category": "address_or_identity_conflict",
+        "missing": [
+          "critical_publication_contradiction"
+        ]
+      },
+      {
+        "place_id": "ChIJObdPFQCPGGARlsXkPdJWii8",
+        "restaurant_name": "Ramen Kamo to Negi",
+        "score": 70.72,
+        "reason_category": "address_or_identity_conflict",
+        "missing": [
+          "critical_publication_contradiction"
+        ]
+      },
+      {
+        "place_id": "ChIJPTPs_8KIGGAR3YjD87jsc4o",
+        "restaurant_name": "Oppeshan",
+        "score": 74.0,
+        "reason_category": "unresolved_identity",
+        "missing": []
+      },
+      {
+        "place_id": "ChIJVRUG9WdgGGARu_q9IhDPW6Q",
+        "restaurant_name": "Shibata",
+        "score": 70.8,
+        "reason_category": "identity_not_matched",
+        "missing": []
+      },
+      {
+        "place_id": "ChIJWVHTc9aPGGARP8lfWUfxfw0",
+        "restaurant_name": "Nikukyu Ogatomo",
+        "score": 77.15,
+        "reason_category": "product_eligibility_failure",
+        "missing": [
+          "deterministic_score_policy"
+        ]
+      },
+      {
+        "place_id": "ChIJb9-F53aLGGART8fS-RFm3dk",
+        "restaurant_name": "GINZA Koike",
+        "score": 82.67,
+        "reason_category": "address_or_identity_conflict",
+        "missing": [
+          "critical_publication_contradiction"
+        ]
+      },
+      {
+        "place_id": "ChIJe2GH4D6NGGARXtJpF4wyHoo",
+        "restaurant_name": "Ram dining",
+        "score": 71.23,
+        "reason_category": "identity_not_matched",
+        "missing": []
+      },
+      {
+        "place_id": "ChIJeZdIEgmJGGAR-OZQEc9Hc4k",
+        "restaurant_name": "CITABRIA ANNEX",
+        "score": 75.49,
+        "reason_category": "product_eligibility_failure",
+        "missing": [
+          "deterministic_score_policy"
+        ]
+      },
+      {
+        "place_id": "ChIJm-84OQCLGGARWwOEbB0GGuA",
+        "restaurant_name": "Tsukiji Ihachi Nigo",
+        "score": 72.2,
+        "reason_category": "address_or_identity_conflict",
+        "missing": [
+          "critical_publication_contradiction"
+        ]
+      },
+      {
+        "place_id": "ChIJoWGKvUOLGGARoRM1qUxs5_w",
+        "restaurant_name": "Sakuragawa",
+        "score": 80.91,
+        "reason_category": "product_eligibility_failure",
+        "missing": [
+          "deterministic_score_policy"
+        ]
+      },
+      {
+        "place_id": "ChIJoWwK4yyLGGAR4UenMerdoXg",
+        "restaurant_name": "Restaurant Ararat",
+        "score": 75.26,
+        "reason_category": "product_eligibility_failure",
+        "missing": [
+          "deterministic_score_policy"
+        ]
+      },
+      {
+        "place_id": "ChIJp6JC97mJGGARq_Ej-CF4hXc",
+        "restaurant_name": "Suizin",
+        "score": 72.32,
+        "reason_category": "identity_not_matched",
+        "missing": []
+      },
+      {
+        "place_id": "ChIJrb7mrW2PGGARD0DiozKNWM8",
+        "restaurant_name": "Fuji",
+        "score": 74.67,
+        "reason_category": "address_or_identity_conflict",
+        "missing": [
+          "critical_publication_contradiction"
+        ]
+      },
+      {
+        "place_id": "ChIJuXdhUjWLGGARPCm51rrL-CE",
+        "restaurant_name": "Sushi Tanaka",
+        "score": 84.16,
+        "reason_category": "critical_publication_contradiction",
+        "missing": [
+          "critical_publication_contradiction"
+        ]
+      },
+      {
+        "place_id": "ChIJx68p0XKLGGARpL23zB4Pr1c",
+        "restaurant_name": "Washoku Ginnan",
+        "score": 83.71,
+        "reason_category": "critical_publication_contradiction",
+        "missing": [
+          "critical_publication_contradiction"
+        ]
+      },
+      {
+        "place_id": "ChIJxQk2agCPGGARLVDnM2Ma5qQ",
+        "restaurant_name": "Indian Nepali Restaurant & Bar (Sakura)",
+        "score": 78.24,
+        "reason_category": "address_or_identity_conflict",
+        "missing": [
+          "critical_publication_contradiction"
+        ]
+      },
+      {
+        "place_id": "ChIJzcPJte-LGGARY6WXF1fT0Ro",
+        "restaurant_name": "Toriichi",
+        "score": 77.61,
+        "reason_category": "product_eligibility_failure",
+        "missing": [
+          "deterministic_score_policy"
+        ]
+      }
+    ],
+    "published": 0
+  },
+  "api_smoke": {
+    "public_list_count": 851,
+    "new_sample_count": 10,
+    "old_sample_count": 10,
+    "blocked_sample_count": 10,
+    "responses": [
+      {
+        "cohort": "new_313",
+        "place_id": "ChIJCVgBOCTvGGARk8ZfDLqgjCU",
+        "status": 200
+      },
+      {
+        "cohort": "new_313",
+        "place_id": "ChIJfwnqXyuJGGARpQlISRe5joc",
+        "status": 200
+      },
+      {
+        "cohort": "new_313",
+        "place_id": "ChIJKdWxmR71GGAR1vIkBomBWiY",
+        "status": 200
+      },
+      {
+        "cohort": "new_313",
+        "place_id": "ChIJLXAYkTWLGGARC4EE-8e4XWI",
+        "status": 200
+      },
+      {
+        "cohort": "new_313",
+        "place_id": "ChIJXwxX51rzGGAR1gl1HlPm6Sk",
+        "status": 200
+      },
+      {
+        "cohort": "new_313",
+        "place_id": "ChIJ9Y9K_3aLGGARYQIxj08v9rY",
+        "status": 200
+      },
+      {
+        "cohort": "new_313",
+        "place_id": "ChIJ9yAQZMCLGGARv8Zu0S99ks8",
+        "status": 200
+      },
+      {
+        "cohort": "new_313",
+        "place_id": "ChIJcy6fWo-JGGARN3dpmp66prw",
+        "status": 200
+      },
+      {
+        "cohort": "new_313",
+        "place_id": "ChIJUTWLZTmRGGARxOTDinwFGD0",
+        "status": 200
+      },
+      {
+        "cohort": "new_313",
+        "place_id": "ChIJufH5w2mLGGARJNgHA2uXoYo",
+        "status": 200
+      },
+      {
+        "cohort": "original_538",
+        "place_id": "ChIJ0XtXQpSNGGARSC8ZX7THxUA",
+        "status": 200
+      },
+      {
+        "cohort": "original_538",
+        "place_id": "ChIJLS2KBhSMGGARGIyajoRNqxI",
+        "status": 200
+      },
+      {
+        "cohort": "original_538",
+        "place_id": "ChIJQQNFIyCSGGAR3TBCyeHPLzc",
+        "status": 200
+      },
+      {
+        "cohort": "original_538",
+        "place_id": "ChIJxVBbAoKLGGARUxJedeLj1L4",
+        "status": 200
+      },
+      {
+        "cohort": "original_538",
+        "place_id": "ChIJV7KUAACJGGARjPCDGos7TGc",
+        "status": 200
+      },
+      {
+        "cohort": "original_538",
+        "place_id": "ChIJuwLDMaqMGGARAAPYTN4gl0g",
+        "status": 200
+      },
+      {
+        "cohort": "original_538",
+        "place_id": "ChIJX24yQuGLGGARMGKpZWHP0_A",
+        "status": 200
+      },
+      {
+        "cohort": "original_538",
+        "place_id": "ChIJ11ZXCBzzGGARq8h1EoWVPTQ",
+        "status": 200
+      },
+      {
+        "cohort": "original_538",
+        "place_id": "ChIJd2RD_zdhGGARkGqUP4kizrM",
+        "status": 200
+      },
+      {
+        "cohort": "original_538",
+        "place_id": "ChIJB9egl6mNGGARkyq7OUFAfrA",
+        "status": 200
+      },
+      {
+        "cohort": "blocked",
+        "place_id": "ChIJ-xPoiWuNGGARXFHxIR5NjXw",
+        "status": 404
+      },
+      {
+        "cohort": "blocked",
+        "place_id": "ChIJ04BE83OLGGAR73155HIjelk",
+        "status": 404
+      },
+      {
+        "cohort": "blocked",
+        "place_id": "ChIJ23e5VgCTGGARKEzLD69k71E",
+        "status": 404
+      },
+      {
+        "cohort": "blocked",
+        "place_id": "ChIJ8fCDCkyJGGAR-F3gBrJjggk",
+        "status": 404
+      },
+      {
+        "cohort": "blocked",
+        "place_id": "ChIJ92c0HNCLGGAR3wocSnSAZ1c",
+        "status": 404
+      },
+      {
+        "cohort": "blocked",
+        "place_id": "ChIJAQAx9lbtGGARjIpf3KuKD8A",
+        "status": 404
+      },
+      {
+        "cohort": "blocked",
+        "place_id": "ChIJB4ty4CL1GGARXt_6OUnA3lo",
+        "status": 404
+      },
+      {
+        "cohort": "blocked",
+        "place_id": "ChIJHYFgOe-OGGARHfQ8JQJ5Yag",
+        "status": 404
+      },
+      {
+        "cohort": "blocked",
+        "place_id": "ChIJHyk9zo2OGGAR_IhetTCSfDQ",
+        "status": 404
+      },
+      {
+        "cohort": "blocked",
+        "place_id": "ChIJJWVRyJyNGGAR99ULioTF7H0",
+        "status": 404
+      }
+    ],
+    "schema_unchanged": true,
+    "raw_or_admin_leaks": 0,
+    "score_transparency_failures": 0
+  },
+  "picks_safety": {
+    "eligible_catalog_size": 848,
+    "new_313_eligible_where_map_ready": 311,
+    "first_generation": [
+      "ChIJqY9Sh-mJGGARm1f0IIoAXNw",
+      "ChIJUZOJRPeLGGAR-0vfQdXdheo",
+      "ChIJhVkqEPqLGGARq60XVzZ5fc4"
+    ],
+    "first_metadata": {
+      "algorithm": "location-v1",
+      "personalization_applied": false,
+      "personalization_rated_count": 0,
+      "personalization_confidence": 0.0,
+      "personalization_slots": [],
+      "initial_radius_km": 1.5,
+      "final_radius_km": 1.5,
+      "target_unseen_pool": 10,
+      "unseen_by_radius": [
+        {
+          "radius_km": 1.5,
+          "unseen_count": 70
+        }
+      ],
+      "saved_excluded_count": 0,
+      "recent_excluded_count": 0,
+      "repeat_reserve_count": 0,
+      "repeat_selected_count": 0,
+      "selectable_candidate_count": 70,
+      "affordable_eligible_count": 6,
+      "affordable_slot_applied": true,
+      "affordability_relaxation_strength": 0.0,
+      "chosen_place_ids": [
+        "ChIJqY9Sh-mJGGARm1f0IIoAXNw",
+        "ChIJUZOJRPeLGGAR-0vfQdXdheo",
+        "ChIJhVkqEPqLGGARq60XVzZ5fc4"
+      ],
+      "precision_distribution": {
+        "chome": 66,
+        "block": 4
+      }
+    },
+    "cooldown_generation": [
+      "ChIJxVBbAoKLGGARUxJedeLj1L4",
+      "ChIJofqiT0OLGGARh-J6aVG7zXY",
+      "ChIJ59VeR_GJGGARbn-edpUVonw"
+    ],
+    "cooldown_metadata": {
+      "algorithm": "location-v1",
+      "personalization_applied": false,
+      "personalization_rated_count": 0,
+      "personalization_confidence": 0.0,
+      "personalization_slots": [],
+      "initial_radius_km": 1.5,
+      "final_radius_km": 1.5,
+      "target_unseen_pool": 10,
+      "unseen_by_radius": [
+        {
+          "radius_km": 1.5,
+          "unseen_count": 67
+        }
+      ],
+      "saved_excluded_count": 1,
+      "recent_excluded_count": 2,
+      "repeat_reserve_count": 0,
+      "repeat_selected_count": 0,
+      "selectable_candidate_count": 67,
+      "affordable_eligible_count": 5,
+      "affordable_slot_applied": true,
+      "affordability_relaxation_strength": 0.0,
+      "chosen_place_ids": [
+        "ChIJxVBbAoKLGGARUxJedeLj1L4",
+        "ChIJofqiT0OLGGARh-J6aVG7zXY",
+        "ChIJ59VeR_GJGGARbn-edpUVonw"
+      ],
+      "precision_distribution": {
+        "chome": 65,
+        "block": 4
+      }
+    },
+    "seven_day_fallback_generation": [
+      "ChIJk-mpTL-OGGARa10bOQMlEEU",
+      "ChIJ_0iOlLqJGGAR5FOWE1ur-yU",
+      "ChIJYZOf1P2LGGARI2qUrl8L2Ac"
+    ],
+    "seven_day_fallback_metadata": {
+      "algorithm": "location-v1",
+      "personalization_applied": false,
+      "personalization_rated_count": 0,
+      "personalization_confidence": 0.0,
+      "personalization_slots": [],
+      "initial_radius_km": 1.5,
+      "final_radius_km": 8.0,
+      "target_unseen_pool": 10,
+      "unseen_by_radius": [
+        {
+          "radius_km": 1.5,
+          "unseen_count": 0
+        },
+        {
+          "radius_km": 2.0,
+          "unseen_count": 0
+        },
+        {
+          "radius_km": 3.0,
+          "unseen_count": 0
+        },
+        {
+          "radius_km": 5.0,
+          "unseen_count": 0
+        },
+        {
+          "radius_km": 8.0,
+          "unseen_count": 0
+        }
+      ],
+      "saved_excluded_count": 0,
+      "recent_excluded_count": 0,
+      "repeat_reserve_count": 532,
+      "repeat_selected_count": 3,
+      "selectable_candidate_count": 532,
+      "affordable_eligible_count": 130,
+      "affordable_slot_applied": true,
+      "affordability_relaxation_strength": 0.0,
+      "chosen_place_ids": [
+        "ChIJk-mpTL-OGGARa10bOQMlEEU",
+        "ChIJ_0iOlLqJGGAR5FOWE1ur-yU",
+        "ChIJYZOf1P2LGGARI2qUrl8L2Ac"
+      ],
+      "precision_distribution": {
+        "chome": 436,
+        "area": 48,
+        "block": 21,
+        "exact": 1,
+        "neighborhood": 26
+      }
+    },
+    "blocked_leaks": 0
+  },
+  "sankei_sushi": {
+    "place_id": "ChIJi79LD-yIGGAR_8wLG2_pyYE",
+    "published": true,
+    "score": 82.82,
+    "score_version": "public-v3-local-discovery-specialist-tristate",
+    "classification": "known cleanup item, not an 851-stability blocker"
+  },
+  "threshold_source": {
+    "metadata_key": "publication_score_threshold",
+    "metadata_value": 70,
+    "authoritative": "database metadata",
+    "fallback": 75,
+    "fallback_scope": "unmigrated or missing metadata only",
+    "daily_picks_hardcoded_75": false
+  },
+  "lineage_health": {
+    "current_v4_specialist_tristate": 861,
+    "stale_current_v4": 0,
+    "manifest_history_parity": 313,
+    "manifest_fingerprints_valid": 313,
+    "prior_v3_history_preserved": true,
+    "research_and_history_digests": {
+      "restaurant_research_runs": {
+        "pre_reconciliation": "07c5483dd0b8b92456d403ebb95320714ac2eb16614646174a4e9310dc00919b",
+        "current": "07c5483dd0b8b92456d403ebb95320714ac2eb16614646174a4e9310dc00919b"
+      },
+      "quality_v4_research_runs": {
+        "pre_reconciliation": "d688449e58b88c6676d0048d95e40d1bdf38e7ff337a00ba87223d0d134f88aa",
+        "current": "d688449e58b88c6676d0048d95e40d1bdf38e7ff337a00ba87223d0d134f88aa"
+      },
+      "score_calculation_runs": {
+        "pre_reconciliation": "3d6926eabb3b0da68c61aa87f5861f326bc3ebca9b32562192f88446a3cb58d0",
+        "current": "3d6926eabb3b0da68c61aa87f5861f326bc3ebca9b32562192f88446a3cb58d0"
+      }
+    }
+  },
+  "catalog_coverage": {
+    "wards_or_cities": {
+      "Toshima City": 98,
+      "Shibuya": 90,
+      "Taito City": 84,
+      "Ota City": 82,
+      "Minato City": 81,
+      "Adachi City": 75,
+      "Setagaya City": 67,
+      "Koto City": 64,
+      "Chuo City": 57,
+      "Chiyoda City": 41,
+      "Suginami City": 41,
+      "Nakano City": 18,
+      "Nerima City": 18,
+      "Shinjuku City": 11,
+      "Bunkyo City": 8,
+      "Musashino": 6,
+      "Arakawa City": 4,
+      "Yashio": 1,
+      "UNKNOWN": 1,
+      "Itabashi City": 1,
+      "Sumida City": 1,
+      "Kita City": 1,
+      "Shinagawa City": 1
+    },
+    "areas": {
+      "2 Chome Ikebukuro": 12,
+      "Taito": 12,
+      "2 Chome Honmachi": 8,
+      "6 Chome Kameido": 8,
+      "2 Chome Nihonbashiningyocho": 7,
+      "Shinjuku": 7,
+      "2 Chome Asakusa": 7,
+      "7 Chome Nishikamata": 7,
+      "1 Chome Nishiarai": 7,
+      "2 Chome Nagasaki": 7,
+      "2 Chome Shibuya": 6,
+      "Chiyoda": 6,
+      "7 Chome Minamiaoyama": 6,
+      "4 Chome Ebisu": 6,
+      "Shibuya": 6,
+      "2 Chome Kitaotsuka": 5,
+      "5 Chome Nakano": 5,
+      "4 Chome Kitasuna": 5,
+      "3 Chome Sendagaya": 5,
+      "4 Chome Asakusa": 5,
+      "1 Chome Nishiikebukuro": 5,
+      "6 Chome Okusawa": 5,
+      "2 Chome Kameido": 5,
+      "1 Chome Shirokane": 5,
+      "3 Chome Akasaka": 5,
+      "2 Chome Hamadayama": 4,
+      "5 Chome Fukasawa": 4,
+      "1 Chome Minamiikebukuro": 4,
+      "6 Chome Asakusa": 4,
+      "4 Chome Nishiazabu": 4,
+      "Suginami": 4,
+      "2 Chome Nishikanda": 4,
+      "6 Chome Tsukiji": 4,
+      "1 Chome Iriya": 4,
+      "3 Chome Senzoku": 4,
+      "1 Chome Kichijoji Honcho": 4,
+      "4 Chome Senzoku": 4,
+      "2 Chome Tsukiji": 4,
+      "5 Chome Minaminagasaki": 4,
+      "2 Chome Ebisuminami": 4,
+      "5 Chome Okusawa": 3,
+      "1 Chome Takada": 3,
+      "5 Chome Hiroo": 3,
+      "7 Chome Kameido": 3,
+      "2 Chome Todoroki": 3,
+      "5 Chome Minamiazabu": 3,
+      "3 Chome Zoshigaya": 3,
+      "1 Chome Setagaya": 3,
+      "1 Chome Asakusa": 3,
+      "1 Chome Tamagawa": 3,
+      "5 Chome Ginza": 3,
+      "Ichibancho": 3,
+      "5 Chome Ogikubo": 3,
+      "3 Chome Hamadayama": 3,
+      "2 Chome Jingumae": 3,
+      "2 Chome Kamiigusa": 3,
+      "5 Chome Kamata": 3,
+      "1 Chome Minamiazabu": 3,
+      "5 Chome Minamimagome": 3,
+      "6 Chome Seijo": 3,
+      "3 Chome Kotobuki": 3,
+      "1 Chome Higashi": 3,
+      "2 Chome Zoshigaya": 3,
+      "2 Chome Sanno": 3,
+      "Kitaminemachi": 3,
+      "3 Chome Shibuya": 3,
+      "1 Chome Nihonbashikakigaracho": 3,
+      "Chuo": 3,
+      "2 Chome Hitotsuya": 3,
+      "3 Chome Yanaka": 3,
+      "1 Chome Nagasaki": 3,
+      "Ota": 3,
+      "Sakuragaokacho": 3,
+      "6 Chome Toyosu": 3,
+      "1 Chome Tomigaya": 3,
+      "7 Chome Tsukiji": 3,
+      "5 Chome Kitasuna": 3,
+      "Minato": 3,
+      "4 Chome Sekimachikita": 3,
+      "1 Chome Ginza": 3,
+      "3 Chome Azabujuban": 3,
+      "3 Chome Takanawa": 2,
+      "5 Chome Higashiueno": 2,
+      "1 Chome Kanamecho": 2,
+      "1 Chome Kamiigusa": 2,
+      "5 Chome Jingumae": 2,
+      "1 Chome Komagome": 2,
+      "1 Chome Hirakawachō": 2,
+      "1 Chome Yoyogi": 2,
+      "2 Chome Takada": 2,
+      "1 Chome Toranomon": 2,
+      "2 Chome Tomigaya": 2,
+      "1 Chome Toyo": 2,
+      "4 Chome Tsukishima": 2,
+      "5 Chome Minamihanahata": 2,
+      "4 Chome Honcho": 2,
+      "2 Chome Mejirodai": 2,
+      "3 Chome Shirokanedai": 2,
+      "4 Chome Kojimachi": 2,
+      "3 Chome Takaidohigashi": 2,
+      "3 Chome Ryusen": 2,
+      "3 Chome Shimomaruko": 2,
+      "5 Chome Daizawa": 2,
+      "2 Chome Sekimachikita": 2,
+      "1 Chome Shibaura": 2,
+      "2 Chome Akasaka": 2,
+      "5 Chome Higashinippori": 2,
+      "6 Chome Takenotsuka": 2,
+      "4 Chome Nagasaki": 2,
+      "2 Chome Nishikojiya": 2,
+      "2 Chome Minamihanahata": 2,
+      "2 Chome Unoki": 2,
+      "5 Chome Nishiikebukuro": 2,
+      "4 Chome Tsukiji": 2,
+      "1 Chome Marunouchi": 2,
+      "6 Chome Honmachi": 2,
+      "2 Chome Tsubaki": 2,
+      "4 Chome Taishido": 2,
+      "3 Chome Fukasawa": 2,
+      "1 Chome Shintomi": 2,
+      "2 Chome Takamatsu": 2,
+      "1 Chome Motoakasaka": 2,
+      "1 Chome Minamikamata": 2,
+      "1 Chome Nerima": 2,
+      "3 Chome Kugahara": 2,
+      "1 Chome Higashisuna": 2,
+      "3 Chome Nishiikebukuro": 2,
+      "1 Chome Minamiotsuka": 2,
+      "2 Chome Shakujiimachi": 2,
+      "3 Chome Kojimachi": 2,
+      "2 Chome Azabujuban": 2,
+      "1 Chome Omorinishi": 2,
+      "4 Chome Ginza": 2,
+      "3 Chome Uchikanda": 2,
+      "2 Chome Imado": 2,
+      "2 Chome Nishiogiminami": 2,
+      "2 Chome Shinkamata": 2,
+      "6 Chome Minamiaoyama": 2,
+      "5 Chome Asakusa": 2,
+      "5 Chome Nishiaraihoncho": 2,
+      "2 Chome Nishitakenotsuka": 2,
+      "3 Chome Ginza": 2,
+      "1 Chome Kyobashi": 2,
+      "3 Chome Shibaura": 2,
+      "1 Chome Higashiiko": 2,
+      "4 Chome Setagaya": 2,
+      "5 Chome Ueno": 2,
+      "3 Chome Minamiotsuka": 2,
+      "4 Chome Shiba": 2,
+      "1 Chome Senzoku": 2,
+      "2 Chome Shirokanedai": 2,
+      "2 Chome Odai": 2,
+      "5 Chome Sendagaya": 2,
+      "3 Chome Botan": 2,
+      "2 Chome Shibaura": 2,
+      "2 Chome Setagaya": 2,
+      "1 Chome Omorikita": 2,
+      "1 Chome Nishiogiminami": 2,
+      "3 Chome Minamiazabu": 2,
+      "3 Chome Hatagaya": 2,
+      "3 Chome Kitasuna": 2,
+      "4 Chome Takaidohigashi": 2,
+      "6 Chome Roppongi": 2,
+      "1 Chome Funabashi": 2,
+      "2 Chome Hirakawachō": 2,
+      "1 Chome Takenotsuka": 2,
+      "2 Chome Nakamachi": 1,
+      "1 Chome Hitotsuya": 1,
+      "2 Chome Okino": 1,
+      "3 Chome Akatsutsumi": 1,
+      "2 Chome Omorihigashi": 1,
+      "2 Chome Hatchobori": 1,
+      "2 Chome Iidabashi": 1,
+      "3 Chome Tsukiji": 1,
+      "5 Chome Hatagaya": 1,
+      "1 Chome Negishi": 1,
+      "2 Chome Kudanminami": 1,
+      "4 Chome Ikebukurohoncho": 1,
+      "1 Chome Minamiogikubo": 1,
+      "2 Chome Toyotamanaka": 1,
+      "1 Chome Minamimagome": 1,
+      "4 Chome Eifuku": 1,
+      "1 Chome Denenchofu": 1,
+      "4 Chome Nishiikebukuro": 1,
+      "3 Chome Minamikamata": 1,
+      "3 Chome Ebisu": 1,
+      "5 Chome Shiba": 1,
+      "3 Chome Ueno": 1,
+      "4 Chome Minamihanahata": 1,
+      "4 Chome Sakuradai": 1,
+      "4 Chome Nihonbashihongokucho": 1,
+      "2 Chome Yoga": 1,
+      "1 Chome Kitashinagawa": 1,
+      "2 Chome Kitaueno": 1,
+      "2 Chome Ebisunishi": 1,
+      "2 Chome Komagata": 1,
+      "5 Chome Igusa": 1,
+      "1 Chome Wakabayashi": 1,
+      "2 Chome Nishiazabu": 1,
+      "3 Chome Iidabashi": 1,
+      "1 Chome Hatchobori": 1,
+      "5 Chome Minamisuna": 1,
+      "2 Chome Omoriminami": 1,
+      "4 Chome Nishiaraihoncho": 1,
+      "4 Chome Hatchobori": 1,
+      "7 Chome Yanaka": 1,
+      "7 Chome Higashisuna": 1,
+      "3 Chome Yazaike": 1,
+      "1 Chome Kaminarimon": 1,
+      "2 Chome Hamamatsucho": 1,
+      "3 Chome Kaminoge": 1,
+      "3 Chome Sakuragaoka": 1,
+      "1 Chome Nihonbashiningyocho": 1,
+      "4 Chome Sendagaya": 1,
+      "2 Chome Shintomi": 1,
+      "2 Chome Matsubara": 1,
+      "1 Chome Soshigaya": 1,
+      "5 Chome Arai": 1,
+      "2 Chome Nishihokima": 1,
+      "3 Chome Asagayaminami": 1,
+      "5 Chome Kameido": 1,
+      "2 Chome Umeda": 1,
+      "4 Chome Fukasawa": 1,
+      "2 Chome Hanedakuko": 1,
+      "5 Chome Shimoigusa": 1,
+      "2 Chome Nishiaraihoncho": 1,
+      "1 Chome Okusawa": 1,
+      "2 Chome Sumiyoshi": 1,
+      "1 Chome Tsukiji": 1,
+      "4 Chome Hiroo": 1,
+      "4 Chome Higashinakano": 1,
+      "7 Chome Takinogawa": 1,
+      "2 Chome Uchikanda": 1,
+      "5 Chome Toyotamakita": 1,
+      "3 Chome Kudanminami": 1,
+      "7 Chome Kohoku": 1,
+      "3 Chome Kohoku": 1,
+      "4 Chome Kohoku": 1,
+      "5 Chome Kamiuma": 1,
+      "2 Chome Kamiikebukuro": 1,
+      "3 Chome Mejiro": 1,
+      "3 Chome Takada": 1,
+      "4 Chome Negishi, 台東区": 1,
+      "Maruyamacho": 1,
+      "4 Chome Iidabashi": 1,
+      "1 Chome Kanda Jinbocho": 1,
+      "3 Chome Minamihanahata": 1,
+      "4 Chome Nakamachi": 1,
+      "3 Chome Nogata": 1,
+      "6 Chome Higashinippori": 1,
+      "Bentencho": 1,
+      "1 Chome Ariake": 1,
+      "3 Chome Hiroo": 1,
+      "2 Chome Kamitakada": 1,
+      "5 Chome Oyata": 1,
+      "5 Chome Nakamachi": 1,
+      "1 Chome Adachi": 1,
+      "4 Chome Higashi": 1,
+      "3 Chome Kaigan": 1,
+      "3 Chome Haneda": 1,
+      "2 Chome Minamikamata": 1,
+      "3 Chome Negishi": 1,
+      "2 Chome Nishirokugo": 1,
+      "2 Chome Ikejiri": 1,
+      "3 Chome Matsubara": 1,
+      "6 Chome Kinuta": 1,
+      "1 Chome Kamitakada": 1,
+      "3 Chome Higashinihonbashi": 1,
+      "6 Chome Matsubara": 1,
+      "6 Chome Nishikamata": 1,
+      "2 Chome Hyakunincho": 1,
+      "1 Chome Shitaya": 1,
+      "Kioicho": 1,
+      "4 Chome Omorinishi": 1,
+      "Nanpeidaicho": 1,
+      "3 Chome Numabukuro": 1,
+      "3 Chome Kinuta": 1,
+      "2 Chome Kamiuma": 1,
+      "3 Chome Matsugaya": 1,
+      "1 Chome Kamishakujii": 1,
+      "2 Chome Uehara": 1,
+      "Udagawacho": 1,
+      "1 Chome Yurakucho": 1,
+      "2 Chome Senju": 1,
+      "4 Chome Haneda": 1,
+      "4 Chome Higashiikebukuro": 1,
+      "7 Chome Central": 1,
+      "4 Chome Kohinata": 1,
+      "4 Chome Roppongi": 1,
+      "1 Chome Nishiaraihoncho": 1,
+      "3 Chome Kichijoji Kitamachi": 1,
+      "1 Chome Kamata": 1,
+      "1 Chome Kurihara": 1,
+      "4 Chome Numabukuro": 1,
+      "1 Chome Yazaike": 1,
+      "2 Chome Toyotamakami": 1,
+      "2 Chome Higashiueno": 1,
+      "3 Chome Eifuku": 1,
+      "6 Chome Ikegami": 1,
+      "6 Chome Aoi": 1,
+      "2 Chome Ikebukurohoncho": 1,
+      "3 Chome Sekibara": 1,
+      "4 Chome Ikegami": 1,
+      "4 Chome Ikebukuro": 1,
+      "1 Chome Sakurashinmachi": 1,
+      "1 Chome Eifuku": 1,
+      "1 Chome Tsukishima": 1,
+      "1 Chome Shinden": 1,
+      "Higashiminemachi": 1,
+      "1 Chome Honhaneda": 1,
+      "4 Chome Kamiuma": 1,
+      "3 Chome Kanda Ogawamachi": 1,
+      "1 Chome Chihaya": 1,
+      "4 Chome Koishikawa": 1,
+      "5 Chome Minamiaoyama": 1,
+      "6 Chome Kitasuna": 1,
+      "1 Chome Omorihigashi": 1,
+      "2 Chome Kikukawa": 1,
+      "1 Chome Minamisuna": 1,
+      "3 Chome Shirakawa": 1,
+      "2 Chome Denenchofu": 1,
+      "1 Chome Umejima": 1,
+      "2 Chome Mukaihara": 1,
+      "Adachi": 1,
+      "2 Chome Shirakawa": 1,
+      "1 Chome Kamiikedai": 1,
+      "5 Chome Shirokanedai": 1,
+      "3 Chome Taito": 1,
+      "1 Chome Hyakunincho": 1,
+      "7 Chome Kamiyamacho": 1,
+      "3 Chome Nishiogiminami": 1,
+      "8 Chome Ojima": 1,
+      "2 Chome Kanda Tacho": 1,
+      "2 Chome Ebisu": 1,
+      "2 Chome Yoyogi": 1,
+      "6 Chome Ginza": 1,
+      "1 Chome Kyodo": 1,
+      "2 Chome Okubo": 1,
+      "1 Chome Higashikojiya": 1,
+      "5 Chome Kugahara": 1,
+      "2 Chome Takenotsuka": 1,
+      "3 Chome Nishishinjuku": 1,
+      "2 Chome Senzoku": 1,
+      "5 Chome Takenotsuka": 1,
+      "7 Chome Ueno": 1,
+      "1 Chome Takamatsu": 1,
+      "2 Chome Taishido": 1,
+      "6 Chome Minaminagasaki": 1,
+      "8 Chome Akasaka": 1,
+      "Koto": 1,
+      "1 Chome Sugamo, 豊島区": 1,
+      "Sarugakucho": 1,
+      "3 Chome Honmachi": 1,
+      "3 Chome Shirokane": 1,
+      "6 Chome Fukasawa": 1,
+      "2 Chome Minamiyukigaya": 1,
+      "2 Chome Shiohama": 1,
+      "1 Chome Miyagi": 1,
+      "6 Chome Nishiarai": 1,
+      "5 Chome Mejiro": 1,
+      "2 Chome Kurihara": 1,
+      "2 Chome Tokiwa": 1,
+      "2 Chome Hatagaya": 1,
+      "2 Chome Roppongi": 1,
+      "7 Chome Ginza": 1,
+      "1 Chome Yaguchi": 1,
+      "4 Chome Hanahata": 1,
+      "2 Chome Sano": 1,
+      "2 Chome Kitasuna": 1,
+      "Kikuicho": 1,
+      "1 Chome Tatsumi": 1,
+      "4 Chome Yanaka": 1,
+      "4 Chome Matsugaya": 1,
+      "1 Chome Higashirokugo": 1,
+      "7 Chome Kitami": 1,
+      "2 Chome Takaidohigashi": 1,
+      "4 Chome Takanawa": 1,
+      "3 Chome Takaidonishi": 1,
+      "4 Chome Omorikita": 1,
+      "3 Chome Ikebukuro": 1,
+      "2 Chome Minamiazabu": 1,
+      "1 Chome Azabujuban": 1,
+      "7 Chome Kitasuna": 1,
+      "Setagaya": 1,
+      "3 Chome Kanamecho": 1,
+      "1 Chome Edagawa": 1,
+      "2 Chome Otowa": 1,
+      "4 Chome Fujimidai": 1,
+      "1 Chome Kitaotsuka": 1,
+      "6 Chome Omorikita": 1,
+      "Hanedaasahicho": 1,
+      "1 Chome Kamiochiai": 1,
+      "5 Chome Ojima": 1,
+      "5 Chome Hokima": 1,
+      "2 Chome Central": 1,
+      "2 Chome Sakuragaoka": 1,
+      "8 Chome Kinuta": 1,
+      "1 Chome Hamamatsucho": 1,
+      "3 Chome Higashiikebukuro": 1,
+      "Nihonbashikabutocho": 1,
+      "6 Chome Shirokane": 1,
+      "4 Chome Honmachi": 1,
+      "2 Chome Higashimagome": 1,
+      "2 Chome Minaminagasaki": 1,
+      "9 Chome Kameido": 1,
+      "7 Chome Iriya": 1,
+      "2 Chome Higashiyukigaya": 1,
+      "6 Chome Minamisuna": 1,
+      "2 Chome Minamisuna": 1,
+      "2 Chome Omorihoncho": 1,
+      "2 Chome Marunouchi": 1,
+      "3 Chome Yoyogi": 1,
+      "3 Chome Nishiazabu": 1,
+      "4 Chome Shimoshakujii": 1,
+      "4 Chome Ojima": 1,
+      "Uguisudanicho": 1,
+      "Shinsencho": 1,
+      "2 Chome Eharacho": 1,
+      "3 Chome Omorikita": 1,
+      "1 Chome Kaga": 1,
+      "2 Chome Ikebukuro, 豊島区": 1,
+      "8 Chome Higashisuna": 1,
+      "2 Chome Igusa": 1,
+      "2 Chome Kamatahoncho": 1,
+      "1 Chome Ōtemachi": 1,
+      "2 Chome Chuohoncho": 1,
+      "Senjukotobukicho": 1,
+      "2 Chome Sendagaya": 1,
+      "3 Chome Sugamo": 1,
+      "1 Chome Kitaueno": 1,
+      "1 Chome Minamihanahata": 1,
+      "1 Chome Senkawa": 1,
+      "2 Chome Higashi": 1,
+      "1 Chome Minamirokugo": 1,
+      "5 Chome Toyo": 1,
+      "5 Chome Nagasaki": 1,
+      "2 Chome Eifuku": 1,
+      "1 Chome Hashiba": 1,
+      "4 Chome Minamiazabu": 1,
+      "Sanbancho": 1,
+      "3 Chome Nishiaraisakaecho": 1,
+      "Senjuasahicho": 1,
+      "6 Chome Higashiueno": 1,
+      "2 Chome Nishinippori": 1,
+      "1 Chome Sanno": 1,
+      "2 Chome Nihonbashihamacho": 1,
+      "4 Chome Kameido": 1,
+      "4 Chome Shimomaruko": 1,
+      "2 Chome Higashinihonbashi": 1,
+      "5 Chome Nishikamata": 1,
+      "2 Chome Nishiaraisakaecho": 1,
+      "2 Chome Motoazabu": 1,
+      "1 Chome Nihonzutsumi": 1,
+      "1 Chome Minaminagasaki": 1,
+      "3 Chome Takamatsu": 1,
+      "1 Chome Ryusen": 1,
+      "1 Chome Toneri": 1,
+      "Ukizuka": 1,
+      "2 Chome Minamiikebukuro": 1,
+      "2 Chome Hokima": 1,
+      "3 Chome Kanda Sakumacho": 1,
+      "3 Chome Higashiyaguchi": 1,
+      "3 Chome Shikahama": 1,
+      "1 Chome Higashiikebukuro": 1,
+      "4 Chome Kugayama": 1,
+      "2 Chome Shitaya": 1,
+      "8 Chome Okusawa": 1,
+      "3 Chome Kamitakada": 1,
+      "1 Chome Sekimachikita": 1,
+      "9 Chome Akasaka": 1,
+      "1 Chome Nishishinbashi": 1,
+      "4 Chome Toyosu": 1,
+      "8 Chome Central": 1,
+      "3 Chome Nishihara": 1,
+      "6 Chome Umeda": 1,
+      "2 Chome Nishiikebukuro": 1,
+      "1 Chome Sugamo": 1,
+      "Kamiyamacho": 1,
+      "2 Chome Negishi": 1,
+      "1 Chome Sano": 1,
+      "3 Chome Soshigaya": 1,
+      "3 Chome Kiyosumi": 1,
+      "8 Chome Todoroki": 1,
+      "3 Chome Izumi": 1,
+      "1 Chome Sekiguchi": 1,
+      "1 Chome Kamiikebukuro": 1,
+      "2 Chome Nishisugamo": 1,
+      "1 Chome Miyoshi": 1,
+      "2 Chome Iriya": 1,
+      "3 Chome Asakusa": 1,
+      "2 Chome Kanda Sudacho": 1,
+      "5 Chome Otsuka": 1,
+      "1 Chome Umegaoka": 1,
+      "1 Chome Kichijoji Kitamachi": 1,
+      "1 Chome Shinmei": 1,
+      "Wasedatsurumakicho": 1,
+      "3 Chome Ogibashi": 1,
+      "3 Chome Komagome": 1,
+      "Hinodecho": 1,
+      "4 Chome Sugamo": 1,
+      "4 Chome Todoroki": 1,
+      "1 Chome Miyamae": 1
+    },
+    "discovery_area_present": 47,
+    "discovery_area_missing": 804,
+    "top_cuisines": {
+      "居酒屋": 89,
+      "Izakaya": 43,
+      "Sushi restaurant": 41,
+      "Italian restaurant": 26,
+      "焼肉": 26,
+      "寿司": 25,
+      "French restaurant": 21,
+      "Sushi": 21,
+      "Yakitori restaurant": 16,
+      "焼き鳥": 15,
+      "Japanese cuisine": 14,
+      "Chinese restaurant": 13,
+      "Indian restaurant": 10,
+      "Japanese restaurant": 10,
+      "韓国料理": 8,
+      "Ramen restaurant": 8,
+      "Korean restaurant": 8,
+      "とんかつ": 7,
+      "Bar": 7,
+      "Tempura restaurant": 7,
+      "焼き鳥・居酒屋": 7,
+      "洋食": 6,
+      "Nepalese restaurant": 6,
+      "Teppanyaki": 6,
+      "スナック": 5
+    },
+    "distinct_cuisines": 320,
+    "price_bands": {
+      "moderate": 261,
+      "unknown": 228,
+      "upscale": 175,
+      "budget": 99,
+      "splurge": 88
+    },
+    "score_bands": {
+      "75-79.99": 350,
+      "80+": 293,
+      "72-74.99": 180,
+      "70-71.99": 28
+    },
+    "map_display_eligible": 848,
+    "map_display_ineligible": 3,
+    "budget_present": 623,
+    "budget_missing": 228,
+    "food_tags_present": 848,
+    "food_tags_missing": 3,
+    "specialist_status": {
+      "specialist": 660,
+      "unknown": 191
+    },
+    "chain_state": {
+      "flagged": 0,
+      "not_flagged": 851
+    }
+  },
+  "human_qa_sample": {
+    "path": "data\\audits\\tokyo-catalog-v1-human-qa-sample.csv",
+    "rows": 25,
+    "new_313": 13,
+    "original_538": 12
+  },
+  "known_non_blockers": [
+    {
+      "category": "CATALOG CLEANUP",
+      "issue": "Sankei Sushi remains on valid V3 specialist-tristate lineage."
+    },
+    {
+      "category": "CATALOG CLEANUP",
+      "issue": "The 149-row below-floor rescue cohort remains intentionally untouched."
+    },
+    {
+      "category": "CATALOG CLEANUP",
+      "issue": "The 64 floor-68 V3-only candidates remain intentionally untouched."
+    },
+    {
+      "category": "PIPELINE/SCALING DEBT",
+      "issue": "SQLite remains a single-host persistence boundary requiring connection/commit review before scale."
+    },
+    {
+      "category": "PIPELINE/SCALING DEBT",
+      "issue": "CLI overlap and durable run/manifest tracking should be consolidated."
+    },
+    {
+      "category": "FUTURE FEATURE",
+      "issue": "Tokyo-specific city/market assumptions should be abstracted before multi-city expansion."
+    }
+  ],
+  "database_safety": {
+    "canonical_sha256_before": "184F19B3099E67E63B0680933F0E3847EAD775EF66D93171A33D9782F71F2B90",
+    "canonical_sha256_after": "184F19B3099E67E63B0680933F0E3847EAD775EF66D93171A33D9782F71F2B90",
+    "seed70_sha256_before": "BF5EE61572EB2FB1B12F2487F800673EB965583DDFA1F22DCABFFE860F618C39",
+    "seed70_sha256_after": "BF5EE61572EB2FB1B12F2487F800673EB965583DDFA1F22DCABFFE860F618C39",
+    "sqlite_integrity": "ok",
+    "external_requests": 0,
+    "catalog_mutations": 0,
+    "user_data_mutations": 0
+  },
+  "validation": {
+    "script": "C:\\Users\\ethan\\OneDrive\\Documents\\GitHub\\fiyu-public\\fiyu-backend\\scripts\\audit_tokyo_catalog_v1_stable.py",
+    "tests": {
+      "focused_backend": "364 passed",
+      "full_backend": "946 passed",
+      "full_frontend": "1027 passed across 91 files",
+      "frontend_eslint": "passed",
+      "frontend_typecheck": "passed",
+      "frontend_production_build": "passed",
+      "ruff": "changed audit script passed; full repository reported 28 unrelated pre-existing findings",
+      "git_diff_check": "passed"
+    }
+  },
+  "recommended_next_phase": "Optimization / Scale-Readiness Pass"
+}
