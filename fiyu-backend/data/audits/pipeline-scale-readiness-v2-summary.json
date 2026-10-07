@@ -1,0 +1,538 @@
+{
+  "audit": "pipeline-scale-readiness-v2",
+  "verdict": {
+    "safe_for_small_sequential_existing_queue_batch": true,
+    "safe_for_unattended_large_new_source_wave": false,
+    "sqlite_appropriate_for_1500_published": true,
+    "new_research_pipeline_required": false,
+    "true_blockers": [
+      "destructive whole-corpus candidate ingestion with no source-run observation model",
+      "no durable standard-research batch membership or atomic item claim",
+      "missing restaurants.place_id index causing expensive public and research joins",
+      "implicit one-writer and busy-timeout operating assumptions"
+    ],
+    "very_next_task": "Implement source-run and source-observation persistence with dry-run, source-scoped additive import, stable place-ID projection, and invariant tests on a temporary database.",
+    "first_post_optimization_workload": "deterministic data-completeness backfill",
+    "first_post_optimization_reason": "It validates the run ledger and reporting without provider spend or publication membership changes; follow it with the frozen 149-row rescue cohort, then a new seed wave."
+  },
+  "path_to_1500": {
+    "current_published": 851,
+    "target_published": 1500,
+    "net_additions_needed": 649,
+    "already_researched_unpublished": 241,
+    "floor70_rescue_cohort": {
+      "candidates": 149,
+      "current_state": "production-v3, unpublished, auto_rejected",
+      "prior_local_yield_estimates": {
+        "median": 50,
+        "p75": 64,
+        "p90": 76
+      }
+    },
+    "seeded_unresolved": {
+      "total": 111,
+      "pending": 103,
+      "failed": 4,
+      "needs_retry": 4
+    },
+    "eligible_unseeded_at_or_above_60": 918,
+    "eligible_unseeded_below_60": 644,
+    "scenarios": {
+      "conservative": {
+        "candidates_or_rescue_rows_considered": 1178,
+        "likely_additions_range": [430, 450],
+        "likely_resulting_catalog_range": [1281, 1301],
+        "existing_source_sufficient": false
+      },
+      "base": {
+        "candidates_or_rescue_rows_considered": 1178,
+        "likely_additions": 635,
+        "likely_resulting_catalog": 1486,
+        "existing_source_sufficient": false,
+        "note": "Uses observed band conversion for unseeded rows, about 102 seeded unresolved additions, and the prior rescue median; historical conversion is selection-biased."
+      },
+      "high_yield": {
+        "candidates_or_rescue_rows_considered": 1178,
+        "likely_additions": 750,
+        "likely_resulting_catalog": 1601,
+        "existing_source_sufficient": true,
+        "note": "Optimistic and geographically concentrated; not suitable as the operating plan."
+      }
+    },
+    "baseline_external_responses_requests_if_all_new_rows_receive_main_and_quality_v4_plus_rescue": 2207,
+    "new_sourcing_recommended": true
+  },
+  "priority": {
+    "p0": [
+      "source-safe additive ingestion with durable source/run provenance",
+      "pipeline run ledger and atomic standard-research item claim",
+      "restaurants.place_id invariant audit and index",
+      "explicit single-writer and busy-timeout policy"
+    ],
+    "p1": [
+      "bulk publication reconciliation inspection with decision parity",
+      "one JSON/Markdown operator summary",
+      "field-specific local-first completeness selectors",
+      "CLI consolidation wrappers and legacy deprecation",
+      "backup and restore runbook"
+    ],
+    "p2": [
+      "minimal market registry and market_id",
+      "market-aware geography, currency, timezone, prompt, and source configuration",
+      "versioned normalization taxonomies"
+    ]
+  },
+  "targeted_capabilities": {
+    "missing_price": "Reuse canonical-details and card enrichment; 155 of 228 missing published budgets have a raw price hint. Add a missing-budget-only selector before paid research.",
+    "discovery_area": "Use stored city/neighborhood/address, verified address evidence, OSM boundaries, and discovery import tooling deterministically before any provider call.",
+    "cuisine_normalization": "Offline raw-preserving versioned taxonomy; no ordinary synonym research.",
+    "new_ward_sourcing": "Readers/scoring/discovery tools are reusable, but additive source-observation persistence is required first."
+  },
+  "validation": {
+    "focused_tests": {
+      "passed": 161,
+      "failed": 0
+    },
+    "full_backend_tests": {
+      "passed": 946,
+      "failed": 0,
+      "warnings": 1,
+      "warning": "Pre-existing Starlette/httpx deprecation warning."
+    },
+    "ruff": "passed",
+    "git_diff_check": "passed",
+    "external_requests": 0
+  },
+  "catalog": {
+    "raw_candidates": 8086,
+    "public_total": 1203,
+    "published": 851,
+    "unpublished": 352,
+    "publication_threshold": 70.0
+  },
+  "source_coverage": [
+    {
+      "source_area": "Setagaya Initial",
+      "candidates": 707,
+      "eligible": 216,
+      "seeded": 89,
+      "published": 65,
+      "eligible_unseeded": 127
+    },
+    {
+      "source_area": "Shibuya Initial",
+      "candidates": 705,
+      "eligible": 221,
+      "seeded": 118,
+      "published": 89,
+      "eligible_unseeded": 103
+    },
+    {
+      "source_area": "Toshima Initial",
+      "candidates": 705,
+      "eligible": 252,
+      "seeded": 123,
+      "published": 97,
+      "eligible_unseeded": 129
+    },
+    {
+      "source_area": "Chiyoda Initial",
+      "candidates": 704,
+      "eligible": 164,
+      "seeded": 64,
+      "published": 40,
+      "eligible_unseeded": 100
+    },
+    {
+      "source_area": "Taito Initial",
+      "candidates": 704,
+      "eligible": 261,
+      "seeded": 130,
+      "published": 89,
+      "eligible_unseeded": 131
+    },
+    {
+      "source_area": "Minato Initial",
+      "candidates": 703,
+      "eligible": 225,
+      "seeded": 101,
+      "published": 62,
+      "eligible_unseeded": 124
+    },
+    {
+      "source_area": "Chuo Initial",
+      "candidates": 700,
+      "eligible": 211,
+      "seeded": 101,
+      "published": 57,
+      "eligible_unseeded": 110
+    },
+    {
+      "source_area": "Ota Initial",
+      "candidates": 700,
+      "eligible": 273,
+      "seeded": 100,
+      "published": 83,
+      "eligible_unseeded": 173
+    },
+    {
+      "source_area": "Adachi Initial",
+      "candidates": 699,
+      "eligible": 300,
+      "seeded": 100,
+      "published": 76,
+      "eligible_unseeded": 200
+    },
+    {
+      "source_area": "Suginami Initial",
+      "candidates": 697,
+      "eligible": 250,
+      "seeded": 104,
+      "published": 76,
+      "eligible_unseeded": 146
+    },
+    {
+      "source_area": "Koto Initial",
+      "candidates": 645,
+      "eligible": 228,
+      "seeded": 99,
+      "published": 64,
+      "eligible_unseeded": 129
+    },
+    {
+      "source_area": "Shinjuku Initial",
+      "candidates": 398,
+      "eligible": 157,
+      "seeded": 72,
+      "published": 52,
+      "eligible_unseeded": 85
+    },
+    {
+      "source_area": "Ogibashi Initial",
+      "candidates": 19,
+      "eligible": 7,
+      "seeded": 2,
+      "published": 1,
+      "eligible_unseeded": 5
+    }
+  ],
+  "candidate_pool_by_internal_score_band": {
+    "<60": {
+      "candidates": 5893,
+      "eligible": 644,
+      "unseeded": 5893,
+      "eligible_unseeded": 644,
+      "published": 0
+    },
+    "65-69.99": {
+      "candidates": 665,
+      "eligible": 652,
+      "unseeded": 460,
+      "eligible_unseeded": 447,
+      "published": 147
+    },
+    "75-79.99": {
+      "candidates": 245,
+      "eligible": 243,
+      "unseeded": 2,
+      "eligible_unseeded": 0,
+      "published": 224
+    },
+    "60-64.99": {
+      "candidates": 716,
+      "eligible": 667,
+      "unseeded": 520,
+      "eligible_unseeded": 471,
+      "published": 67
+    },
+    "70-74.99": {
+      "candidates": 474,
+      "eligible": 466,
+      "unseeded": 8,
+      "eligible_unseeded": 0,
+      "published": 329
+    },
+    "80+": {
+      "candidates": 93,
+      "eligible": 93,
+      "unseeded": 0,
+      "eligible_unseeded": 0,
+      "published": 84
+    }
+  },
+  "observed_completed_research_conversion_by_internal_score_band": {
+    "65-69.99": {
+      "researched": 204,
+      "published": 147,
+      "published_rate": 0.7206
+    },
+    "75-79.99": {
+      "researched": 240,
+      "published": 224,
+      "published_rate": 0.9333
+    },
+    "60-64.99": {
+      "researched": 196,
+      "published": 67,
+      "published_rate": 0.3418
+    },
+    "70-74.99": {
+      "researched": 359,
+      "published": 329,
+      "published_rate": 0.9164
+    },
+    "80+": {
+      "researched": 93,
+      "published": 84,
+      "published_rate": 0.9032
+    }
+  },
+  "public_states": [
+    {
+      "research_status": "complete",
+      "review_status": "auto_published",
+      "is_published": 1,
+      "count": 832
+    },
+    {
+      "research_status": "complete",
+      "review_status": "auto_rejected",
+      "is_published": 0,
+      "count": 227
+    },
+    {
+      "research_status": "complete",
+      "review_status": "candidate",
+      "is_published": 1,
+      "count": 19
+    },
+    {
+      "research_status": "complete",
+      "review_status": "needs_review",
+      "is_published": 0,
+      "count": 14
+    },
+    {
+      "research_status": "failed",
+      "review_status": "candidate",
+      "is_published": 0,
+      "count": 4
+    },
+    {
+      "research_status": "needs_retry",
+      "review_status": "candidate",
+      "is_published": 0,
+      "count": 4
+    },
+    {
+      "research_status": "pending",
+      "review_status": "candidate",
+      "is_published": 0,
+      "count": 103
+    }
+  ],
+  "statuses": {
+    "public_research_status": {
+      "complete": 1092,
+      "failed": 4,
+      "needs_retry": 4,
+      "pending": 103
+    },
+    "quality_v4_latest_status": {
+      "complete": 861
+    }
+  },
+  "data_completeness": {
+    "published": 851,
+    "published_missing_budget": 228,
+    "published_missing_discovery_area": 804,
+    "published_missing_food_tags": 3,
+    "published_distinct_primary_categories": 320,
+    "published_map_ready": 848,
+    "published_with_raw_price_but_no_budget": 155
+  },
+  "indexes": {
+    "restaurants": [
+      {
+        "seq": 0,
+        "name": "idx_restaurants_candidate",
+        "unique": 0,
+        "origin": "c",
+        "partial": 0
+      },
+      {
+        "seq": 1,
+        "name": "idx_restaurants_category",
+        "unique": 0,
+        "origin": "c",
+        "partial": 0
+      },
+      {
+        "seq": 2,
+        "name": "idx_restaurants_area",
+        "unique": 0,
+        "origin": "c",
+        "partial": 0
+      },
+      {
+        "seq": 3,
+        "name": "idx_restaurants_score",
+        "unique": 0,
+        "origin": "c",
+        "partial": 0
+      },
+      {
+        "seq": 4,
+        "name": "idx_restaurants_geo",
+        "unique": 0,
+        "origin": "c",
+        "partial": 0
+      }
+    ],
+    "public_restaurants": [
+      {
+        "seq": 0,
+        "name": "idx_location_match_status",
+        "unique": 0,
+        "origin": "c",
+        "partial": 0
+      },
+      {
+        "seq": 1,
+        "name": "idx_public_research_queue",
+        "unique": 0,
+        "origin": "c",
+        "partial": 0
+      },
+      {
+        "seq": 2,
+        "name": "idx_public_score",
+        "unique": 0,
+        "origin": "c",
+        "partial": 0
+      },
+      {
+        "seq": 3,
+        "name": "sqlite_autoindex_public_restaurants_1",
+        "unique": 1,
+        "origin": "pk",
+        "partial": 0
+      }
+    ],
+    "restaurant_research_runs": [
+      {
+        "seq": 0,
+        "name": "idx_restaurant_research_runs_current",
+        "unique": 0,
+        "origin": "c",
+        "partial": 0
+      }
+    ],
+    "quality_v4_research_runs": [
+      {
+        "seq": 0,
+        "name": "idx_quality_v4_runs_restaurant",
+        "unique": 0,
+        "origin": "c",
+        "partial": 0
+      }
+    ]
+  },
+  "query_plans": {
+    "public_catalog_list": [
+      "SEARCH p USING INDEX idx_public_score (is_published=?)",
+      "SCAN r LEFT-JOIN",
+      "SEARCH c USING INDEX idx_community_recommendations_place (place_id=?) LEFT-JOIN",
+      "USE TEMP B-TREE FOR GROUP BY",
+      "USE TEMP B-TREE FOR ORDER BY"
+    ],
+    "picks_catalog": [
+      "SEARCH public_restaurants USING INDEX idx_public_score (is_published=?)",
+      "USE TEMP B-TREE FOR ORDER BY"
+    ],
+    "seed_unseeded": [
+      "SEARCH r USING INDEX idx_restaurants_candidate (candidate_eligible=? AND internal_fiyu_score>?)",
+      "CORRELATED SCALAR SUBQUERY 1",
+      "SEARCH p USING COVERING INDEX sqlite_autoindex_public_restaurants_1 (place_id=?)",
+      "USE TEMP B-TREE FOR ORDER BY"
+    ],
+    "research_queue": [
+      "SCAN r",
+      "BLOOM FILTER ON p (place_id=?)",
+      "SEARCH p USING INDEX sqlite_autoindex_public_restaurants_1 (place_id=?)",
+      "USE TEMP B-TREE FOR ORDER BY"
+    ],
+    "quality_v4_selector": [
+      "MATERIALIZE latest",
+      "CO-ROUTINE (subquery-3)",
+      "SCAN q USING INDEX idx_quality_v4_runs_restaurant",
+      "USE TEMP B-TREE FOR LAST TERM OF ORDER BY",
+      "SCAN (subquery-3)",
+      "SCAN p USING COVERING INDEX sqlite_autoindex_public_restaurants_1",
+      "BLOOM FILTER ON latest (public_restaurant_id=? AND row_number=?)",
+      "SEARCH latest USING AUTOMATIC PARTIAL COVERING INDEX (public_restaurant_id=? AND row_number=?) LEFT-JOIN"
+    ]
+  },
+  "benchmarks": {
+    "open_readonly_db": {
+      "iterations": 30,
+      "result_count": 1,
+      "median_ms": 0.28,
+      "p95_ms": 0.651,
+      "maximum_ms": 1.166
+    },
+    "public_catalog_list_sql": {
+      "iterations": 20,
+      "result_count": 851,
+      "median_ms": 5414.212,
+      "p95_ms": 7572.313,
+      "maximum_ms": 8108.427
+    },
+    "picks_catalog_sql": {
+      "iterations": 20,
+      "result_count": 848,
+      "median_ms": 16.009,
+      "p95_ms": 16.947,
+      "maximum_ms": 18.556
+    },
+    "seed_unseeded_selector_sql": {
+      "iterations": 20,
+      "result_count": 918,
+      "median_ms": 9.469,
+      "p95_ms": 14.429,
+      "maximum_ms": 17.612
+    },
+    "research_queue_sql": {
+      "iterations": 20,
+      "result_count": 100,
+      "median_ms": 23.443,
+      "p95_ms": 25.471,
+      "maximum_ms": 26.252
+    },
+    "quality_v4_selector_sql": {
+      "iterations": 10,
+      "result_count": 1203,
+      "median_ms": 0.776,
+      "p95_ms": 0.986,
+      "maximum_ms": 1.265
+    },
+    "publication_reconciliation_inspection": {
+      "iterations": 1,
+      "result_count": 1203,
+      "elapsed_ms": 196331.647
+    }
+  },
+  "safety": {
+    "sqlite_integrity": "ok",
+    "foreign_key_violations": 0,
+    "journal_mode": "wal",
+    "busy_timeout_ms_for_plain_readonly_connection": 5000,
+    "database_sha256_before": "184F19B3099E67E63B0680933F0E3847EAD775EF66D93171A33D9782F71F2B90",
+    "seed70_sha256_before": "BF5EE61572EB2FB1B12F2487F800673EB965583DDFA1F22DCABFFE860F618C39",
+    "external_requests": 0,
+    "database_sha256_after": "184F19B3099E67E63B0680933F0E3847EAD775EF66D93171A33D9782F71F2B90",
+    "seed70_sha256_after": "BF5EE61572EB2FB1B12F2487F800673EB965583DDFA1F22DCABFFE860F618C39",
+    "database_unchanged": true,
+    "seed70_unchanged": true
+  }
+}
