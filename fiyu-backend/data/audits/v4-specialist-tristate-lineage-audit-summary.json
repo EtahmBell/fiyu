@@ -1,0 +1,353 @@
+{
+  "verdict": {
+    "classification": "label_only",
+    "all_313_are_specialist_tristate_v4": true,
+    "only_material_difference": "public_restaurants.score_version and matching V4 history metadata label"
+  },
+  "version_definitions": {
+    "public-v4-quality-research": {
+      "defined_in": "src/fiyu/quality_v4.py",
+      "introduced_commit": "a60c8cb (2026-10-05, production for v4)",
+      "current_use": "QUALITY_PRODUCTION_SCORE_VERSION used by Quality-v4 promotion"
+    },
+    "public-v4-quality-research-specialist-tristate": {
+      "defined_in": "src/fiyu/specialist_tristate_migration.py",
+      "introduced_commit": "3dce647 (2026-10-05, tri-state area)",
+      "current_use": "canonical V4 label selected when guarded Quality adjustment exists"
+    },
+    "active_algorithm_difference": false
+  },
+  "populations": {
+    "public-v4-quality-research": {
+      "count": 313,
+      "published": 0,
+      "unpublished": 313,
+      "specialist_status": {
+        "specialist": 229,
+        "unknown": 84
+      },
+      "specialist_status_in_evidence": {
+        "specialist": 229,
+        "unknown": 84
+      },
+      "specialist_schema_version": {
+        "specialist-tristate-1": 313
+      },
+      "specialist_schema_in_evidence": {
+        "specialist-tristate-1": 313
+      },
+      "specialist_provenance_version": {
+        "specialist-tristate-migration-1": 313
+      },
+      "specialist_field_mismatches": 0,
+      "specialist_migration_before_quality_completion": 313,
+      "chain_classification": {
+        "independent_single": 226,
+        "small_group_distinct_concept": 31,
+        "unknown": 56
+      },
+      "quality_research_version": {
+        "quality-v4-research-1": 313
+      },
+      "quality_case_strength_version": {
+        "quality-v4-case-strength-1": 313
+      },
+      "quality_shadow_score_version": {
+        "quality-v4-shadow-1": 313
+      },
+      "quality_prompt_version": {
+        "quality-v4-two-sided-2026-10-05": 313
+      },
+      "adjustment_guardrail": {
+        "15.0": 313
+      },
+      "missing_fields": {}
+    },
+    "public-v4-quality-research-specialist-tristate": {
+      "count": 548,
+      "published": 536,
+      "unpublished": 12,
+      "specialist_status": {
+        "specialist": 439,
+        "unknown": 109
+      },
+      "specialist_status_in_evidence": {
+        "specialist": 439,
+        "unknown": 109
+      },
+      "specialist_schema_version": {
+        "specialist-tristate-1": 548
+      },
+      "specialist_schema_in_evidence": {
+        "specialist-tristate-1": 548
+      },
+      "specialist_provenance_version": {
+        "specialist-tristate-migration-1": 548
+      },
+      "specialist_field_mismatches": 0,
+      "specialist_migration_before_quality_completion": 0,
+      "chain_classification": {
+        "independent_single": 440,
+        "small_group_distinct_concept": 32,
+        "unknown": 76
+      },
+      "quality_research_version": {
+        "quality-v4-research-1": 548
+      },
+      "quality_case_strength_version": {
+        "quality-v4-case-strength-1": 548
+      },
+      "quality_shadow_score_version": {
+        "quality-v4-shadow-1": 548
+      },
+      "quality_prompt_version": {
+        "quality-v4-two-sided-2026-10-05": 548
+      },
+      "adjustment_guardrail": {
+        "15.0": 548
+      },
+      "missing_fields": {}
+    }
+  },
+  "cohort_identity": {
+    "cohort_ids": 313,
+    "unique_cohort_ids": 313,
+    "matching_score_version_rows": 313,
+    "missing": [],
+    "extras": []
+  },
+  "parity": {
+    "public-v4-quality-research": {
+      "rows": 313,
+      "exact_score_matches": 313,
+      "mismatches": 0,
+      "maximum_absolute_mismatch": 0.0,
+      "directional_mismatches": {},
+      "all_numeric_pointer_fields_exact": 313,
+      "all_quality_research_fields_exact": 313,
+      "mismatch_examples": [],
+      "old_boolean_counterfactual": {
+        "available": 313,
+        "unavailable": 0,
+        "scores_that_would_differ": 84,
+        "old_minus_current_delta": {
+          "count": 313,
+          "min": -0.95,
+          "median": 0.0,
+          "max": 0.0
+        },
+        "floor70_status_changes": 1,
+        "floor70_status_change_ids": [
+          "ChIJ23TZDXuMGGARFGADgvEDzYQ"
+        ]
+      }
+    },
+    "public-v4-quality-research-specialist-tristate": {
+      "rows": 548,
+      "exact_score_matches": 548,
+      "mismatches": 0,
+      "maximum_absolute_mismatch": 0.0,
+      "directional_mismatches": {},
+      "all_numeric_pointer_fields_exact": 548,
+      "all_quality_research_fields_exact": 548,
+      "mismatch_examples": [],
+      "old_boolean_counterfactual": {
+        "available": 548,
+        "unavailable": 0,
+        "scores_that_would_differ": 109,
+        "old_minus_current_delta": {
+          "count": 548,
+          "min": -0.95,
+          "median": 0.0,
+          "max": 0.0
+        },
+        "floor70_status_changes": 0,
+        "floor70_status_change_ids": []
+      }
+    }
+  },
+  "history": {
+    "public-v4-quality-research": {
+      "rows_with_prior_v3_history": 313,
+      "rows_with_any_pre_v4_history": 313,
+      "rows_without_pre_v4_history": 0,
+      "rows_with_v4_history": 313,
+      "rows_with_current_label_history": 313,
+      "exact_duplicate_history_keys": 0,
+      "current_label_history_record_multiplicity": {
+        "1": 313
+      },
+      "history_score_version_counts": {
+        "public-v3-local-discovery": 332,
+        "public-v3-local-discovery-specialist-tristate": 626,
+        "public-v4-quality-research": 313
+      },
+      "representative_rows": [
+        {
+          "place_id": "ChIJ-SgMgaeSGGAR6h1RxrclUJQ",
+          "current_score_version": "public-v4-quality-research",
+          "history_versions": [
+            "public-v3-local-discovery",
+            "public-v3-local-discovery",
+            "public-v3-local-discovery-specialist-tristate",
+            "public-v3-local-discovery-specialist-tristate",
+            "public-v4-quality-research"
+          ],
+          "quality_v4_completed_at": "2026-10-06T07:51:38.142271+00:00",
+          "specialist_migrated_at": "2026-10-06T03:38:23.254528+00:00"
+        },
+        {
+          "place_id": "ChIJ-WwCsJ-LGGARo4U4s0IhXVM",
+          "current_score_version": "public-v4-quality-research",
+          "history_versions": [
+            "public-v3-local-discovery",
+            "public-v3-local-discovery-specialist-tristate",
+            "public-v3-local-discovery-specialist-tristate",
+            "public-v4-quality-research"
+          ],
+          "quality_v4_completed_at": "2026-10-06T09:07:29.584664+00:00",
+          "specialist_migrated_at": "2026-10-06T03:38:23.254528+00:00"
+        },
+        {
+          "place_id": "ChIJ-ZsuPKmSGGARdOiTVwhIxbc",
+          "current_score_version": "public-v4-quality-research",
+          "history_versions": [
+            "public-v3-local-discovery",
+            "public-v3-local-discovery-specialist-tristate",
+            "public-v3-local-discovery-specialist-tristate",
+            "public-v4-quality-research"
+          ],
+          "quality_v4_completed_at": "2026-10-06T09:03:06.078747+00:00",
+          "specialist_migrated_at": "2026-10-06T03:38:23.254528+00:00"
+        }
+      ]
+    },
+    "public-v4-quality-research-specialist-tristate": {
+      "rows_with_prior_v3_history": 486,
+      "rows_with_any_pre_v4_history": 548,
+      "rows_without_pre_v4_history": 0,
+      "rows_with_v4_history": 548,
+      "rows_with_current_label_history": 548,
+      "exact_duplicate_history_keys": 0,
+      "current_label_history_record_multiplicity": {
+        "1": 548
+      },
+      "history_score_version_counts": {
+        "public-v1": 21,
+        "public-v2-chain-classification": 41,
+        "public-v3-local-discovery": 1040,
+        "public-v4-quality-research": 548,
+        "public-v4-quality-research-specialist-tristate": 548
+      },
+      "representative_rows": [
+        {
+          "place_id": "ChIJ--kHzR31GGARGv1b_Dizn2E",
+          "current_score_version": "public-v4-quality-research-specialist-tristate",
+          "history_versions": [
+            "public-v3-local-discovery",
+            "public-v3-local-discovery",
+            "public-v4-quality-research",
+            "public-v4-quality-research-specialist-tristate"
+          ],
+          "quality_v4_completed_at": "2026-10-05T19:59:46.487323+00:00",
+          "specialist_migrated_at": "2026-10-06T03:38:23.254528+00:00"
+        },
+        {
+          "place_id": "ChIJ-3fBBQCNGGARgXH3cOoZYgI",
+          "current_score_version": "public-v4-quality-research-specialist-tristate",
+          "history_versions": [
+            "public-v3-local-discovery",
+            "public-v3-local-discovery",
+            "public-v3-local-discovery",
+            "public-v4-quality-research",
+            "public-v4-quality-research-specialist-tristate"
+          ],
+          "quality_v4_completed_at": "2026-10-05T08:35:59.392438+00:00",
+          "specialist_migrated_at": "2026-10-06T03:38:23.254528+00:00"
+        },
+        {
+          "place_id": "ChIJ-4GIAHeNGGAR5YTLPAgL26c",
+          "current_score_version": "public-v4-quality-research-specialist-tristate",
+          "history_versions": [
+            "public-v3-local-discovery",
+            "public-v3-local-discovery",
+            "public-v4-quality-research",
+            "public-v4-quality-research-specialist-tristate"
+          ],
+          "quality_v4_completed_at": "2026-10-05T20:15:59.798366+00:00",
+          "specialist_migrated_at": "2026-10-06T03:38:23.254528+00:00"
+        }
+      ]
+    }
+  },
+  "root_cause": {
+    "type": "outdated_hardcoded_promotion_label",
+    "promotion_constant": "quality_v4.QUALITY_PRODUCTION_SCORE_VERSION",
+    "promotion_constant_value": "public-v4-quality-research",
+    "tri_state_canonical_constant": "specialist_tristate_migration.V4_SCORE_VERSION",
+    "tri_state_canonical_value": "public-v4-quality-research-specialist-tristate",
+    "source_shadow_mapping_error": false,
+    "history_helper_default_error": false
+  },
+  "floor70_impact": {
+    "numeric_score_changes": 0,
+    "pass_fail_changes": 0,
+    "expected_additions": 313,
+    "current_published": 538,
+    "expected_final_catalog": 851,
+    "publication_threshold": 75.0,
+    "reconciliation_logic_affected": false
+  },
+  "recommended_fix": {
+    "needed_before_floor70_reconciliation": true,
+    "type": "manifest_scoped_metadata_only",
+    "current_rows_to_relabel": 313,
+    "history_rows_to_relabel": 313,
+    "all_old_label_history_rows": 861,
+    "quality_research_rows_to_change": 0,
+    "score_values_to_change": 0,
+    "publication_rows_to_change": 0,
+    "threshold_changes": 0,
+    "score_recomputation_needed": false,
+    "history_payload_and_fingerprint_note": "Update the matching V4 history score_version and embedded score_json label; recompute its evidence_fingerprint because the label participates in that fingerprint. Do not touch prior V3 history.",
+    "future_first_run": {
+      "selected": 313,
+      "labels_corrected": 313,
+      "scores_changed": 0,
+      "publication_changes": 0
+    },
+    "future_second_run": {
+      "selected": 0,
+      "already_correct": 313
+    }
+  },
+  "reporting_quirks": {
+    "real_run_dry_run_title": "cosmetic_reporting_only",
+    "stored_v3_pointer_distribution_before": "cosmetic_stale_key_name",
+    "deeper_semantic_confusion": false
+  },
+  "database_safety": {
+    "sha256_before": {
+      "canonical": "A8138441F832266E8CC1BE2338209D49A249D49F68BE0697E0FBA00DAF354938",
+      "shadow": "98BAA6F48236D6DC33AFD97A3B1BD751CB3E8A324A72636B6C3FB2F44C21F592",
+      "seed70": "BF5EE61572EB2FB1B12F2487F800673EB965583DDFA1F22DCABFFE860F618C39"
+    },
+    "sha256_after": {
+      "canonical": "A8138441F832266E8CC1BE2338209D49A249D49F68BE0697E0FBA00DAF354938",
+      "shadow": "98BAA6F48236D6DC33AFD97A3B1BD751CB3E8A324A72636B6C3FB2F44C21F592",
+      "seed70": "BF5EE61572EB2FB1B12F2487F800673EB965583DDFA1F22DCABFFE860F618C39"
+    },
+    "unchanged": true,
+    "canonical_integrity": "ok",
+    "shadow_integrity": "ok",
+    "external_requests": 0
+  },
+  "expected_versions": {
+    "quality_research": "quality-v4-research-1",
+    "quality_case_strength": "quality-v4-case-strength-1",
+    "quality_shadow_score": "quality-v4-shadow-1",
+    "quality_prompt": "quality-v4-two-sided-2026-10-05",
+    "specialist_schema": "specialist-tristate-1",
+    "specialist_migration": "specialist-tristate-migration-1"
+  }
+}
