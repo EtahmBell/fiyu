@@ -1,0 +1,1900 @@
+{
+  "manifest_version": "quality-v4-promotion-cohort-1",
+  "cohort_name": "floor70-prepublication-v4",
+  "cohort_version": "floor70-prepublication-v4-audited-2026-10-06",
+  "target_floor": 70.0,
+  "source_shadow_db": "data/fiyu-floor70-prepublication-v4-shadow.db",
+  "source_shadow_sha256": "98BAA6F48236D6DC33AFD97A3B1BD751CB3E8A324A72636B6C3FB2F44C21F592",
+  "created_from_audit": "data/audits/floor70-prepublication-v4-final-audit-summary.json",
+  "audit_summary_sha256": "3DFD32C6F803DD45113D44AF490FF47FEFEDAF7DDC2ECD37A0449336924F06E1",
+  "cohort_count": 313,
+  "restaurants": [
+    {
+      "place_id": "ChIJYf7O4uFfGGARFNGmRVbSYIQ",
+      "restaurant": "Washoku KUWA",
+      "audited_shadow_v4_score": 77.73,
+      "latest_quality_v4_run_id": 549
+    },
+    {
+      "place_id": "ChIJ8zcRnPORGGARQt0L8DtQJ5k",
+      "restaurant": "Kokoya",
+      "audited_shadow_v4_score": 75.77,
+      "latest_quality_v4_run_id": 550
+    },
+    {
+      "place_id": "ChIJJ_Ehk7nvGGARz9yG6qrfRV4",
+      "restaurant": "Asian Food Restaurant Hana",
+      "audited_shadow_v4_score": 76.24,
+      "latest_quality_v4_run_id": 551
+    },
+    {
+      "place_id": "ChIJy1ecyyzzGGARLIZswWTJgpE",
+      "restaurant": "Shoku-an Tonton",
+      "audited_shadow_v4_score": 76.81,
+      "latest_quality_v4_run_id": 552
+    },
+    {
+      "place_id": "ChIJKckm35aRGGAR7hDYMHwAK0I",
+      "restaurant": "Izakaya Futaba",
+      "audited_shadow_v4_score": 75.62,
+      "latest_quality_v4_run_id": 553
+    },
+    {
+      "place_id": "ChIJEdE6Jt-PGGARrnI20vdJkHc",
+      "restaurant": "Bella Rouge",
+      "audited_shadow_v4_score": 75.54,
+      "latest_quality_v4_run_id": 554
+    },
+    {
+      "place_id": "ChIJ2a5lHf1gGGARUDgNEm-l4jQ",
+      "restaurant": "Kakurenbo",
+      "audited_shadow_v4_score": 76.07,
+      "latest_quality_v4_run_id": 555
+    },
+    {
+      "place_id": "ChIJzZ6X0M-PGGARQ8kv7ZTSTPw",
+      "restaurant": "Senju Yado Gen",
+      "audited_shadow_v4_score": 77.83,
+      "latest_quality_v4_run_id": 556
+    },
+    {
+      "place_id": "ChIJE4x0F0ORGGARYOCFeVarwKg",
+      "restaurant": "Izakaya Emon",
+      "audited_shadow_v4_score": 76.49,
+      "latest_quality_v4_run_id": 557
+    },
+    {
+      "place_id": "ChIJZR7FKe6IGGARMncy37u98Bo",
+      "restaurant": "Satoharu",
+      "audited_shadow_v4_score": 75.3,
+      "latest_quality_v4_run_id": 558
+    },
+    {
+      "place_id": "ChIJ05vFlqTzGGAR9M9bRBwIGZA",
+      "restaurant": "Sakura",
+      "audited_shadow_v4_score": 77.12,
+      "latest_quality_v4_run_id": 559
+    },
+    {
+      "place_id": "ChIJoad5uXuNGGARApliN-RZ1SM",
+      "restaurant": "Koryori Kisui",
+      "audited_shadow_v4_score": 76.5,
+      "latest_quality_v4_run_id": 560
+    },
+    {
+      "place_id": "ChIJtdl_5PlfGGAROi2yvXApCnU",
+      "restaurant": "Miigiriya",
+      "audited_shadow_v4_score": 75.85,
+      "latest_quality_v4_run_id": 561
+    },
+    {
+      "place_id": "ChIJ0_1ywfX0GGARZPZBA2ffn9Y",
+      "restaurant": "Jurin",
+      "audited_shadow_v4_score": 75.09,
+      "latest_quality_v4_run_id": 562
+    },
+    {
+      "place_id": "ChIJXQ7zJvvuGGARnXh0PH0q2Mk",
+      "restaurant": "Lounge Snack Uguisu",
+      "audited_shadow_v4_score": 75.09,
+      "latest_quality_v4_run_id": 563
+    },
+    {
+      "place_id": "ChIJq6pH7RONGGARCf_YQ5CRFTU",
+      "restaurant": "Shijimi",
+      "audited_shadow_v4_score": 76.36,
+      "latest_quality_v4_run_id": 564
+    },
+    {
+      "place_id": "ChIJVVWhJAiLGGARzUwbN-gxXRw",
+      "restaurant": "Shirokane Yokoyama",
+      "audited_shadow_v4_score": 76.72,
+      "latest_quality_v4_run_id": 565
+    },
+    {
+      "place_id": "ChIJZ8urktqRGGARRH1d04ZU65A",
+      "restaurant": "Onigiri BG's",
+      "audited_shadow_v4_score": 76.97,
+      "latest_quality_v4_run_id": 566
+    },
+    {
+      "place_id": "ChIJz7wmUs_vGGARhkbq_h7aIGY",
+      "restaurant": "FILIPPO Bacaro",
+      "audited_shadow_v4_score": 75.73,
+      "latest_quality_v4_run_id": 567
+    },
+    {
+      "place_id": "ChIJKaa8hG-LGGAR24xLzMrKdNw",
+      "restaurant": "Yakiniku Kamui",
+      "audited_shadow_v4_score": 77.17,
+      "latest_quality_v4_run_id": 568
+    },
+    {
+      "place_id": "ChIJV4MW_1CLGGARAtHCuK0DAkU",
+      "restaurant": "Akasaka Kenmochi",
+      "audited_shadow_v4_score": 78.53,
+      "latest_quality_v4_run_id": 569
+    },
+    {
+      "place_id": "ChIJ9Y9K_3aLGGARYQIxj08v9rY",
+      "restaurant": "hal okada vegan patisserie",
+      "audited_shadow_v4_score": 77.79,
+      "latest_quality_v4_run_id": 570
+    },
+    {
+      "place_id": "ChIJT_dhA3TzGGARZkPkApHGfeI",
+      "restaurant": "Hirakiya",
+      "audited_shadow_v4_score": 77.46,
+      "latest_quality_v4_run_id": 571
+    },
+    {
+      "place_id": "ChIJw97h5hSLGGARsDLYo1Ri9wo",
+      "restaurant": "Wa-no-Shoku Igarashi",
+      "audited_shadow_v4_score": 78.24,
+      "latest_quality_v4_run_id": 572
+    },
+    {
+      "place_id": "ChIJu-DeSAGJGGARYLPQT52vqhw",
+      "restaurant": "Sumibi Yakiniku Senryu",
+      "audited_shadow_v4_score": 76.39,
+      "latest_quality_v4_run_id": 573
+    },
+    {
+      "place_id": "ChIJJYonNvCRGGARXxQnhxwGkIo",
+      "restaurant": "Sapporo Ramen Tanukikoji",
+      "audited_shadow_v4_score": 75.05,
+      "latest_quality_v4_run_id": 574
+    },
+    {
+      "place_id": "ChIJdxwdIwDxGGARhDnQDJ9Tgz0",
+      "restaurant": "Toryumon",
+      "audited_shadow_v4_score": 76.08,
+      "latest_quality_v4_run_id": 575
+    },
+    {
+      "place_id": "ChIJAxxeOKCRGGARKbrVEdCtpqU",
+      "restaurant": "Saeki",
+      "audited_shadow_v4_score": 74.83,
+      "latest_quality_v4_run_id": 576
+    },
+    {
+      "place_id": "ChIJ77hm9XmJGGARBg2WUJiJzFQ",
+      "restaurant": "Mocchi",
+      "audited_shadow_v4_score": 74.81,
+      "latest_quality_v4_run_id": 577
+    },
+    {
+      "place_id": "ChIJR_NQFACLGGAR_xLlImqv40w",
+      "restaurant": "Trattoria TOSCANA Kyobashi",
+      "audited_shadow_v4_score": 77.41,
+      "latest_quality_v4_run_id": 578
+    },
+    {
+      "place_id": "ChIJI046hJKNGGAR6-suBnMaZpY",
+      "restaurant": "Taishu Sushi Sakaba Maachan",
+      "audited_shadow_v4_score": 75.79,
+      "latest_quality_v4_run_id": 579
+    },
+    {
+      "place_id": "ChIJuUUiJwCNGGARlNLrGou4Cfg",
+      "restaurant": "Kato",
+      "audited_shadow_v4_score": 76.12,
+      "latest_quality_v4_run_id": 580
+    },
+    {
+      "place_id": "ChIJEYt6GvlgGGAR_Xenpb64ti4",
+      "restaurant": "Hourin-en",
+      "audited_shadow_v4_score": 76.47,
+      "latest_quality_v4_run_id": 581
+    },
+    {
+      "place_id": "ChIJa5BYKAuLGGARP13IrrpMFbg",
+      "restaurant": "Sushi Punch",
+      "audited_shadow_v4_score": 75.93,
+      "latest_quality_v4_run_id": 582
+    },
+    {
+      "place_id": "ChIJ0Zw0SZfyGGARrOzulP_49mA",
+      "restaurant": "Kohrinbou",
+      "audited_shadow_v4_score": 76.25,
+      "latest_quality_v4_run_id": 583
+    },
+    {
+      "place_id": "ChIJe1HrECyNGGAR4eioOVCxxSg",
+      "restaurant": "Chigine",
+      "audited_shadow_v4_score": 77.52,
+      "latest_quality_v4_run_id": 584
+    },
+    {
+      "place_id": "ChIJKx08zZ-NGGARQo5Axzq02Zg",
+      "restaurant": "Otsuka Takase",
+      "audited_shadow_v4_score": 77.39,
+      "latest_quality_v4_run_id": 585
+    },
+    {
+      "place_id": "ChIJ01VQLvyRGGARpHSYg_dDJSg",
+      "restaurant": "Izakaya Okinoya",
+      "audited_shadow_v4_score": 74.68,
+      "latest_quality_v4_run_id": 586
+    },
+    {
+      "place_id": "ChIJy5AqdjD1GGARmmcHywIKRGA",
+      "restaurant": "Jiyugaoka Shu",
+      "audited_shadow_v4_score": 76.38,
+      "latest_quality_v4_run_id": 587
+    },
+    {
+      "place_id": "ChIJ06uDupBhGGAReI82OoBNoZo",
+      "restaurant": "Hamro Chahari Ghar",
+      "audited_shadow_v4_score": 75.36,
+      "latest_quality_v4_run_id": 588
+    },
+    {
+      "place_id": "ChIJTSQACCrtGGARRf66ZPyKHr0",
+      "restaurant": "Sugawara Abura Shoten",
+      "audited_shadow_v4_score": 76.23,
+      "latest_quality_v4_run_id": 589
+    },
+    {
+      "place_id": "ChIJHZGZ1E7zGGAR735AOt4C1yk",
+      "restaurant": "Tudore Tranquility",
+      "audited_shadow_v4_score": 77.09,
+      "latest_quality_v4_run_id": 590
+    },
+    {
+      "place_id": "ChIJxeMAUOqOGGARTXkvlQImjLQ",
+      "restaurant": "Sushi Isshin",
+      "audited_shadow_v4_score": 77.57,
+      "latest_quality_v4_run_id": 591
+    },
+    {
+      "place_id": "ChIJdz-s3_ORGGARZhVbCmiN7JY",
+      "restaurant": "Fior Di Mamma",
+      "audited_shadow_v4_score": 75.92,
+      "latest_quality_v4_run_id": 592
+    },
+    {
+      "place_id": "ChIJdcFYHvb1GGARXI8WXLAkCn4",
+      "restaurant": "Kuikiri Ryōri Ushio",
+      "audited_shadow_v4_score": 76.4,
+      "latest_quality_v4_run_id": 593
+    },
+    {
+      "place_id": "ChIJTy5RAMiPGGARi1PdMHDEBmc",
+      "restaurant": "Korean Home-Style Restaurant Kumsan",
+      "audited_shadow_v4_score": 75.98,
+      "latest_quality_v4_run_id": 594
+    },
+    {
+      "place_id": "ChIJwZ4LuxqTGGARfKem0wiPcoQ",
+      "restaurant": "Choya",
+      "audited_shadow_v4_score": 74.48,
+      "latest_quality_v4_run_id": 595
+    },
+    {
+      "place_id": "ChIJ65SoN07zGGARQokr1FUDgxE",
+      "restaurant": "Ushio",
+      "audited_shadow_v4_score": 77.45,
+      "latest_quality_v4_run_id": 596
+    },
+    {
+      "place_id": "ChIJZwdr-BSNGGARCmedYfStoLE",
+      "restaurant": "Sushi Okuyama",
+      "audited_shadow_v4_score": 77.64,
+      "latest_quality_v4_run_id": 597
+    },
+    {
+      "place_id": "ChIJ1cgLxgDyGGARFkX14Ipaktc",
+      "restaurant": "Shuha Saika",
+      "audited_shadow_v4_score": 76.46,
+      "latest_quality_v4_run_id": 598
+    },
+    {
+      "place_id": "ChIJF54CnnXzGGARQDsDlzDpcng",
+      "restaurant": "Curry du Maison",
+      "audited_shadow_v4_score": 76.78,
+      "latest_quality_v4_run_id": 599
+    },
+    {
+      "place_id": "ChIJYy6VKa6RGGARRbgZMYKYKvw",
+      "restaurant": "Hanaichi",
+      "audited_shadow_v4_score": 74.45,
+      "latest_quality_v4_run_id": 600
+    },
+    {
+      "place_id": "ChIJM6jjWTORGGAROkz9W1uLJsQ",
+      "restaurant": "Susuma Asian Shokudo & Izakaya",
+      "audited_shadow_v4_score": 75.1,
+      "latest_quality_v4_run_id": 601
+    },
+    {
+      "place_id": "ChIJy8bNFXqMGGAR4B7dCjMfQ1Y",
+      "restaurant": "Sakedokoro Ichiyoshi",
+      "audited_shadow_v4_score": 76.54,
+      "latest_quality_v4_run_id": 602
+    },
+    {
+      "place_id": "ChIJjeUE1hyLGGARrTB_3QOFq3g",
+      "restaurant": "La Maison Confortable",
+      "audited_shadow_v4_score": 76.19,
+      "latest_quality_v4_run_id": 603
+    },
+    {
+      "place_id": "ChIJ3wuIkG-MGGAR7mNrsi0A1fA",
+      "restaurant": "Hamazushi",
+      "audited_shadow_v4_score": 76.03,
+      "latest_quality_v4_run_id": 604
+    },
+    {
+      "place_id": "ChIJcT_ACoONGGARvv8zqxgeK5s",
+      "restaurant": "BAR So",
+      "audited_shadow_v4_score": 74.72,
+      "latest_quality_v4_run_id": 605
+    },
+    {
+      "place_id": "ChIJyb3tuHGLGGAROSPgryZ-hVs",
+      "restaurant": "Sushi Hirose",
+      "audited_shadow_v4_score": 76.64,
+      "latest_quality_v4_run_id": 606
+    },
+    {
+      "place_id": "ChIJB6_I0F-NGGARrVr9Up4MQ9Q",
+      "restaurant": "SAKURA Khit",
+      "audited_shadow_v4_score": 74.94,
+      "latest_quality_v4_run_id": 607
+    },
+    {
+      "place_id": "ChIJVVVMiBSLGGARlL4kmx9ob-0",
+      "restaurant": "Ebisu Kichinoza",
+      "audited_shadow_v4_score": 75.85,
+      "latest_quality_v4_run_id": 608
+    },
+    {
+      "place_id": "ChIJfwnqXyuJGGARpQlISRe5joc",
+      "restaurant": "Kameido Art Center",
+      "audited_shadow_v4_score": 74.28,
+      "latest_quality_v4_run_id": 609
+    },
+    {
+      "place_id": "ChIJLwYVAW_xGGARp0NCDAnHsH4",
+      "restaurant": "Seijo Lunch Pino",
+      "audited_shadow_v4_score": 74.78,
+      "latest_quality_v4_run_id": 610
+    },
+    {
+      "place_id": "ChIJc6KwnVLtGGARZQUhRkeWmoU",
+      "restaurant": "Bishukikō Shin",
+      "audited_shadow_v4_score": 77.29,
+      "latest_quality_v4_run_id": 611
+    },
+    {
+      "place_id": "ChIJzxFioGVgGGAR3OgDcKz8N6g",
+      "restaurant": "Kacho",
+      "audited_shadow_v4_score": 74.19,
+      "latest_quality_v4_run_id": 612
+    },
+    {
+      "place_id": "ChIJkU92b5LzGGAR1tZS-aMZSu0",
+      "restaurant": "Ajisaitei ROCCO",
+      "audited_shadow_v4_score": 76.02,
+      "latest_quality_v4_run_id": 613
+    },
+    {
+      "place_id": "ChIJw8AprDPzGGARAJNJLzf5z7k",
+      "restaurant": "Hanaori",
+      "audited_shadow_v4_score": 76.78,
+      "latest_quality_v4_run_id": 614
+    },
+    {
+      "place_id": "ChIJXf-AsLCNGGAROIq2F1AdVNQ",
+      "restaurant": "Super Sentai Restaurant",
+      "audited_shadow_v4_score": 75.19,
+      "latest_quality_v4_run_id": 615
+    },
+    {
+      "place_id": "ChIJ80kMNuqRGGARICujKvIsURg",
+      "restaurant": "Hanmaumu",
+      "audited_shadow_v4_score": 76.17,
+      "latest_quality_v4_run_id": 616
+    },
+    {
+      "place_id": "ChIJCxfTHACLGGARL2vjsOILbrc",
+      "restaurant": "Kokoromai",
+      "audited_shadow_v4_score": 76.55,
+      "latest_quality_v4_run_id": 617
+    },
+    {
+      "place_id": "ChIJJYhCgyLtGGARko7DW3ydobo",
+      "restaurant": "Lee's Shokutaku",
+      "audited_shadow_v4_score": 76.88,
+      "latest_quality_v4_run_id": 618
+    },
+    {
+      "place_id": "ChIJBdqhQm-LGGARRDcig3BJbD4",
+      "restaurant": "Shunju",
+      "audited_shadow_v4_score": 76.16,
+      "latest_quality_v4_run_id": 619
+    },
+    {
+      "place_id": "ChIJ_3YnkouJGGARQkCpi4G4b_c",
+      "restaurant": "Wings Burger Tokyo Kameido",
+      "audited_shadow_v4_score": 75.57,
+      "latest_quality_v4_run_id": 620
+    },
+    {
+      "place_id": "ChIJzb_L-sX1GGARdZkdi2Ct4GY",
+      "restaurant": "Kitchen & Dining -1000- (Sen)",
+      "audited_shadow_v4_score": 75.25,
+      "latest_quality_v4_run_id": 621
+    },
+    {
+      "place_id": "ChIJU3dSrgVgGGARxYma1sTtwuc",
+      "restaurant": "Darumaya Shokudo",
+      "audited_shadow_v4_score": 76.28,
+      "latest_quality_v4_run_id": 622
+    },
+    {
+      "place_id": "ChIJLePkiXaLGGARd_CZbep5Sw0",
+      "restaurant": "Gyumotsu Gyuniku Sake Banrai",
+      "audited_shadow_v4_score": 75.75,
+      "latest_quality_v4_run_id": 623
+    },
+    {
+      "place_id": "ChIJSdOQrEWLGGAR1Fvfna0VQgo",
+      "restaurant": "Massara",
+      "audited_shadow_v4_score": 75.9,
+      "latest_quality_v4_run_id": 624
+    },
+    {
+      "place_id": "ChIJ25u_VL-LGGARrZwrR0c3MtE",
+      "restaurant": "Kalka Dining & Bar",
+      "audited_shadow_v4_score": 74.86,
+      "latest_quality_v4_run_id": 625
+    },
+    {
+      "place_id": "ChIJedwLaQXvGGARrLXr3MFwGBc",
+      "restaurant": "Hyakuden Honkaku Shochu Sakaba",
+      "audited_shadow_v4_score": 74.61,
+      "latest_quality_v4_run_id": 626
+    },
+    {
+      "place_id": "ChIJXUAOcg2LGGARlb364y_j1CE",
+      "restaurant": "Restaurant Miyazaki",
+      "audited_shadow_v4_score": 76.05,
+      "latest_quality_v4_run_id": 627
+    },
+    {
+      "place_id": "ChIJeamYNACLGGARRPA7id2e9vM",
+      "restaurant": "John Collins",
+      "audited_shadow_v4_score": 75.08,
+      "latest_quality_v4_run_id": 628
+    },
+    {
+      "place_id": "ChIJVzAHXMKOGGARflHB8ll2qiY",
+      "restaurant": "Nido d'Amore",
+      "audited_shadow_v4_score": 75.05,
+      "latest_quality_v4_run_id": 629
+    },
+    {
+      "place_id": "ChIJPeEUiRX1GGARB13wRBu-8No",
+      "restaurant": "Taiwan Shokitsu Chashun",
+      "audited_shadow_v4_score": 74.73,
+      "latest_quality_v4_run_id": 630
+    },
+    {
+      "place_id": "ChIJ7zfyJVaLGGAR01f63pWpQbk",
+      "restaurant": "Jukusei Sushi Wagokoro",
+      "audited_shadow_v4_score": 76.55,
+      "latest_quality_v4_run_id": 631
+    },
+    {
+      "place_id": "ChIJN8fH9A_uGGARPD5Xx6U3Qb4",
+      "restaurant": "Iitoco",
+      "audited_shadow_v4_score": 76.88,
+      "latest_quality_v4_run_id": 632
+    },
+    {
+      "place_id": "ChIJTddN4yCNGGAR_ErtcrSpxl8",
+      "restaurant": "Asian Ryouri & Bar Magic Kitchen",
+      "audited_shadow_v4_score": 74.33,
+      "latest_quality_v4_run_id": 633
+    },
+    {
+      "place_id": "ChIJUW8Awy3zGGARXKts3JsAkkU",
+      "restaurant": "Ichimishin",
+      "audited_shadow_v4_score": 74.86,
+      "latest_quality_v4_run_id": 634
+    },
+    {
+      "place_id": "ChIJjRMDWZWNGGAR4q3x0njys2c",
+      "restaurant": "Mother India Otemachi",
+      "audited_shadow_v4_score": 75.21,
+      "latest_quality_v4_run_id": 635
+    },
+    {
+      "place_id": "ChIJAUwgCWnzGGARulYBSvYJkuw",
+      "restaurant": "Genki Club",
+      "audited_shadow_v4_score": 74.8,
+      "latest_quality_v4_run_id": 636
+    },
+    {
+      "place_id": "ChIJnc7yvbSLGGARt8N8bublMiY",
+      "restaurant": "Shibaura Horumon Hanare",
+      "audited_shadow_v4_score": 75.67,
+      "latest_quality_v4_run_id": 637
+    },
+    {
+      "place_id": "ChIJh57eDwqJGGARn8TjW2S2K60",
+      "restaurant": "Uosei Sumibi Yakitori",
+      "audited_shadow_v4_score": 74.93,
+      "latest_quality_v4_run_id": 638
+    },
+    {
+      "place_id": "ChIJAQDDj2iMGGARr7r2XJLzCN0",
+      "restaurant": "Sushi Tamamura",
+      "audited_shadow_v4_score": 75.15,
+      "latest_quality_v4_run_id": 639
+    },
+    {
+      "place_id": "ChIJx-V-YwKMGGARK1bfu9X1z2c",
+      "restaurant": "Kintarou Sushi",
+      "audited_shadow_v4_score": 75.0,
+      "latest_quality_v4_run_id": 640
+    },
+    {
+      "place_id": "ChIJVcdhmdn1GGARLKQE-ksggrU",
+      "restaurant": "Sosaku Ryori Bobby",
+      "audited_shadow_v4_score": 76.27,
+      "latest_quality_v4_run_id": 641
+    },
+    {
+      "place_id": "ChIJv9vCd1mNGGARjbqdZEpPKKE",
+      "restaurant": "Restaurant Ivy",
+      "audited_shadow_v4_score": 74.44,
+      "latest_quality_v4_run_id": 642
+    },
+    {
+      "place_id": "ChIJv-9kUwCLGGARFn--okn1byE",
+      "restaurant": "Yakitori Enma",
+      "audited_shadow_v4_score": 75.15,
+      "latest_quality_v4_run_id": 643
+    },
+    {
+      "place_id": "ChIJ2XDUJGr1GGARzFmypXOH-Dk",
+      "restaurant": "Jitsuhiro",
+      "audited_shadow_v4_score": 75.43,
+      "latest_quality_v4_run_id": 644
+    },
+    {
+      "place_id": "ChIJeW0cmcGJGGARBG2B6L--eHs",
+      "restaurant": "Shuzenchaya FF Club",
+      "audited_shadow_v4_score": 75.47,
+      "latest_quality_v4_run_id": 645
+    },
+    {
+      "place_id": "ChIJ5aQVZi-SGGARWaQ6RT19Rfs",
+      "restaurant": "Toge-no-Chaya",
+      "audited_shadow_v4_score": 73.7,
+      "latest_quality_v4_run_id": 646
+    },
+    {
+      "place_id": "ChIJ-SgMgaeSGGAR6h1RxrclUJQ",
+      "restaurant": "Moriyama",
+      "audited_shadow_v4_score": 75.24,
+      "latest_quality_v4_run_id": 647
+    },
+    {
+      "place_id": "ChIJ379V3B-LGGARC57hFiLZVn8",
+      "restaurant": "Ebisu Donabe-Taki Gohan Nakayoshi Shibuya 2-chome",
+      "audited_shadow_v4_score": 75.63,
+      "latest_quality_v4_run_id": 648
+    },
+    {
+      "place_id": "ChIJ13MX3z7yGGARlywP-y9d_GI",
+      "restaurant": "Shichirin no Shokutaku",
+      "audited_shadow_v4_score": 76.14,
+      "latest_quality_v4_run_id": 649
+    },
+    {
+      "place_id": "ChIJQ7SFcOyOGGAR8rlI6V3Gw0Q",
+      "restaurant": "Chiyanko-ba Minami",
+      "audited_shadow_v4_score": 75.33,
+      "latest_quality_v4_run_id": 650
+    },
+    {
+      "place_id": "ChIJH2PORLP1GGARpH38z3noRBQ",
+      "restaurant": "Izakaya Hoshigumi Shinkan",
+      "audited_shadow_v4_score": 74.91,
+      "latest_quality_v4_run_id": 651
+    },
+    {
+      "place_id": "ChIJN358IeaOGGARj2E_kHf2dB4",
+      "restaurant": "Wagashi Tsukasa Tokiwaya",
+      "audited_shadow_v4_score": 75.72,
+      "latest_quality_v4_run_id": 652
+    },
+    {
+      "place_id": "ChIJ8VEQQRz1GGARMHghOlJ8FmI",
+      "restaurant": "Ucharu",
+      "audited_shadow_v4_score": 75.45,
+      "latest_quality_v4_run_id": 653
+    },
+    {
+      "place_id": "ChIJlQ0IwcOIGGAROxb5XnJB01c",
+      "restaurant": "Washoku Dining Takechan",
+      "audited_shadow_v4_score": 73.61,
+      "latest_quality_v4_run_id": 654
+    },
+    {
+      "place_id": "ChIJCwOO8aiJGGARewx9jQJHk0s",
+      "restaurant": "HOWL DELI Ariake Urban Sports Park",
+      "audited_shadow_v4_score": 74.91,
+      "latest_quality_v4_run_id": 655
+    },
+    {
+      "place_id": "ChIJ5U9GCWSIGGARBCHqqMU1XAU",
+      "restaurant": "Karankoron",
+      "audited_shadow_v4_score": 73.56,
+      "latest_quality_v4_run_id": 656
+    },
+    {
+      "place_id": "ChIJ61JpVoJhGGAROzKSqEjHwhI",
+      "restaurant": "Bhojan Griha Indian Nepali Restaurant & Bar",
+      "audited_shadow_v4_score": 74.68,
+      "latest_quality_v4_run_id": 657
+    },
+    {
+      "place_id": "ChIJzaTLHXuNGGAR0BV0Ff2P6Bc",
+      "restaurant": "Li Ji Pig's Trotter Rice",
+      "audited_shadow_v4_score": 73.56,
+      "latest_quality_v4_run_id": 658
+    },
+    {
+      "place_id": "ChIJm5vyS-RgGGARzppKSUjyc1E",
+      "restaurant": "Sushikatsu Minamirokugo",
+      "audited_shadow_v4_score": 74.7,
+      "latest_quality_v4_run_id": 659
+    },
+    {
+      "place_id": "ChIJt6roUVbvGGARFqT8He9KEso",
+      "restaurant": "Kyoko-san no Dining",
+      "audited_shadow_v4_score": 74.46,
+      "latest_quality_v4_run_id": 660
+    },
+    {
+      "place_id": "ChIJ65a2cEP0GGARe9VhZkuTsDw",
+      "restaurant": "Sushiya no Sacchan",
+      "audited_shadow_v4_score": 74.83,
+      "latest_quality_v4_run_id": 661
+    },
+    {
+      "place_id": "ChIJtwPfUQBhGGARX3NB0AnOuAs",
+      "restaurant": "Diyalo Asian Restaurant and Bar",
+      "audited_shadow_v4_score": 74.21,
+      "latest_quality_v4_run_id": 662
+    },
+    {
+      "place_id": "ChIJTe7PjEiJGGAR7D7M4bZSlGY",
+      "restaurant": "Kisentei Ningyocho Honten",
+      "audited_shadow_v4_score": 74.91,
+      "latest_quality_v4_run_id": 663
+    },
+    {
+      "place_id": "ChIJnVFByfGRGGARtLi4nyGGDHA",
+      "restaurant": "Daruma-ya",
+      "audited_shadow_v4_score": 75.08,
+      "latest_quality_v4_run_id": 664
+    },
+    {
+      "place_id": "ChIJTejxRdKNGGARi4GKQ7doRio",
+      "restaurant": "Yanaka Tokiwa",
+      "audited_shadow_v4_score": 75.13,
+      "latest_quality_v4_run_id": 665
+    },
+    {
+      "place_id": "ChIJ8VrZDgBhGGARBKwzTkEqlsE",
+      "restaurant": "Dining Bousi to Megane",
+      "audited_shadow_v4_score": 74.92,
+      "latest_quality_v4_run_id": 666
+    },
+    {
+      "place_id": "ChIJC9RcJACNGGARoGvSyc5MCE4",
+      "restaurant": "Matsusho",
+      "audited_shadow_v4_score": 74.26,
+      "latest_quality_v4_run_id": 667
+    },
+    {
+      "place_id": "ChIJNxFT5FSNGGARr4axz3CaW5M",
+      "restaurant": "Azuma Sushi",
+      "audited_shadow_v4_score": 74.92,
+      "latest_quality_v4_run_id": 668
+    },
+    {
+      "place_id": "ChIJScH0HQCRGGAR2QAcz8NNpps",
+      "restaurant": "Takemaru Ramen",
+      "audited_shadow_v4_score": 74.97,
+      "latest_quality_v4_run_id": 669
+    },
+    {
+      "place_id": "ChIJXXPzCQCLGGAR5dDAC2qjJ_8",
+      "restaurant": "Shibuya 2-chome On-Sakaba Non-chan",
+      "audited_shadow_v4_score": 75.04,
+      "latest_quality_v4_run_id": 670
+    },
+    {
+      "place_id": "ChIJfT7DPbiLGGAREnfI4f6z1OI",
+      "restaurant": "Akasaka Sushi Furuyama",
+      "audited_shadow_v4_score": 74.64,
+      "latest_quality_v4_run_id": 671
+    },
+    {
+      "place_id": "ChIJ1ctnSQCNGGAR1lXlnNU0LhY",
+      "restaurant": "Yakitori Kei",
+      "audited_shadow_v4_score": 74.16,
+      "latest_quality_v4_run_id": 672
+    },
+    {
+      "place_id": "ChIJq6ru862SGGARZZyq1FL68fU",
+      "restaurant": "Vario",
+      "audited_shadow_v4_score": 73.82,
+      "latest_quality_v4_run_id": 673
+    },
+    {
+      "place_id": "ChIJ94JbagD1GGARlplO43_1hjw",
+      "restaurant": "Pienezza Fukasawa",
+      "audited_shadow_v4_score": 77.82,
+      "latest_quality_v4_run_id": 674
+    },
+    {
+      "place_id": "ChIJ37xTWgCLGGARZdFZ3mnKivU",
+      "restaurant": "2951 (Nikyūgoichi)",
+      "audited_shadow_v4_score": 75.31,
+      "latest_quality_v4_run_id": 675
+    },
+    {
+      "place_id": "ChIJUTWLZTmRGGARxOTDinwFGD0",
+      "restaurant": "Qiqihar Barbecue",
+      "audited_shadow_v4_score": 75.26,
+      "latest_quality_v4_run_id": 676
+    },
+    {
+      "place_id": "ChIJyykdmLCLGGAR8kEHSP8dZWo",
+      "restaurant": "SUSHI KISARAGI",
+      "audited_shadow_v4_score": 76.28,
+      "latest_quality_v4_run_id": 677
+    },
+    {
+      "place_id": "ChIJixR-tr6TGGAR0AI5IR7poNk",
+      "restaurant": "Shungyo Shunsai Bozu",
+      "audited_shadow_v4_score": 74.98,
+      "latest_quality_v4_run_id": 678
+    },
+    {
+      "place_id": "ChIJLeCwqkjyGGARBF597qN7c48",
+      "restaurant": "Yushokuya Arakawa",
+      "audited_shadow_v4_score": 73.39,
+      "latest_quality_v4_run_id": 679
+    },
+    {
+      "place_id": "ChIJp7sb0GhfGGARt9-0YA7VosM",
+      "restaurant": "Fukushi Shokudo RIN",
+      "audited_shadow_v4_score": 74.94,
+      "latest_quality_v4_run_id": 680
+    },
+    {
+      "place_id": "ChIJFUftAjzzGGAR4fl9o6EWecI",
+      "restaurant": "Miyu Setagaya",
+      "audited_shadow_v4_score": 74.18,
+      "latest_quality_v4_run_id": 681
+    },
+    {
+      "place_id": "ChIJl49HlUCLGGARVpL8teK9vfY",
+      "restaurant": "Nihonshu × Wine Nonbee Ebisu",
+      "audited_shadow_v4_score": 75.54,
+      "latest_quality_v4_run_id": 682
+    },
+    {
+      "place_id": "ChIJVZUCComIGGARnjyHH7BdQT8",
+      "restaurant": "Toshichan Motsuyaki",
+      "audited_shadow_v4_score": 75.36,
+      "latest_quality_v4_run_id": 683
+    },
+    {
+      "place_id": "ChIJ2wVsOf2LGGAR6wsYq_pUuUU",
+      "restaurant": "Tamachi Sushi Evan",
+      "audited_shadow_v4_score": 74.16,
+      "latest_quality_v4_run_id": 684
+    },
+    {
+      "place_id": "ChIJ09mKw3KLGGARTaqg5Mv-O80",
+      "restaurant": "Ginza Daishin",
+      "audited_shadow_v4_score": 74.88,
+      "latest_quality_v4_run_id": 685
+    },
+    {
+      "place_id": "ChIJE7MKAxuLGGARZiA_sF3iYHU",
+      "restaurant": "Iwaiya",
+      "audited_shadow_v4_score": 73.96,
+      "latest_quality_v4_run_id": 686
+    },
+    {
+      "place_id": "ChIJP-noBauRGGAR5EkmeQ-54bU",
+      "restaurant": "Izakaya Toki",
+      "audited_shadow_v4_score": 74.24,
+      "latest_quality_v4_run_id": 687
+    },
+    {
+      "place_id": "ChIJH0r3Tv2PGGAR8f5c3oQonLs",
+      "restaurant": "Komekobo",
+      "audited_shadow_v4_score": 75.4,
+      "latest_quality_v4_run_id": 688
+    },
+    {
+      "place_id": "ChIJMetHZg9hGGAR9ZAC3wrb8vE",
+      "restaurant": "Daisen",
+      "audited_shadow_v4_score": 75.47,
+      "latest_quality_v4_run_id": 689
+    },
+    {
+      "place_id": "ChIJcd4UCbJhGGAR11liIRMYx7A",
+      "restaurant": "Kato Chubo",
+      "audited_shadow_v4_score": 73.99,
+      "latest_quality_v4_run_id": 690
+    },
+    {
+      "place_id": "ChIJnykfp_aIGGARgqxyExIIP70",
+      "restaurant": "Sai-ya",
+      "audited_shadow_v4_score": 74.83,
+      "latest_quality_v4_run_id": 691
+    },
+    {
+      "place_id": "ChIJN9_zu9WTGGAR-oG_y9hJPuE",
+      "restaurant": "Sakedokoro TRio",
+      "audited_shadow_v4_score": 74.65,
+      "latest_quality_v4_run_id": 692
+    },
+    {
+      "place_id": "ChIJNwlWn_GNGGARTuUhu_-lydM",
+      "restaurant": "Maguro no Shimahara Plus Ogawamachi",
+      "audited_shadow_v4_score": 74.94,
+      "latest_quality_v4_run_id": 693
+    },
+    {
+      "place_id": "ChIJKdWxmR71GGAR1vIkBomBWiY",
+      "restaurant": "de’Afrique (De Afrique)",
+      "audited_shadow_v4_score": 76.01,
+      "latest_quality_v4_run_id": 694
+    },
+    {
+      "place_id": "ChIJvdV87IiJGGARleVGizDqYLw",
+      "restaurant": "Tempura Yaguchi",
+      "audited_shadow_v4_score": 76.52,
+      "latest_quality_v4_run_id": 695
+    },
+    {
+      "place_id": "ChIJGzhr9MFhGGARSodXxuWcyMs",
+      "restaurant": "Matsuba Sushi",
+      "audited_shadow_v4_score": 74.62,
+      "latest_quality_v4_run_id": 696
+    },
+    {
+      "place_id": "ChIJf-iNOiHvGGARuaoq7wRNwbE",
+      "restaurant": "Buddha Spice Iogi",
+      "audited_shadow_v4_score": 74.78,
+      "latest_quality_v4_run_id": 697
+    },
+    {
+      "place_id": "ChIJ0QHhsSaNGGAR6F7NIhdYdyM",
+      "restaurant": "Yakitori Motoyama",
+      "audited_shadow_v4_score": 73.68,
+      "latest_quality_v4_run_id": 698
+    },
+    {
+      "place_id": "ChIJcSKzheyJGGARsSUQ9kFmdtU",
+      "restaurant": "Sonamu Korean Home-Style Restaurant",
+      "audited_shadow_v4_score": 74.1,
+      "latest_quality_v4_run_id": 699
+    },
+    {
+      "place_id": "ChIJZ6unjQ-PGGARJuaUE_bwczE",
+      "restaurant": "Tadım Turkish Restaurant & Halal Kebab",
+      "audited_shadow_v4_score": 74.09,
+      "latest_quality_v4_run_id": 700
+    },
+    {
+      "place_id": "ChIJ2xgLh6COGGAROS-fkIIfnMU",
+      "restaurant": "Tempura Tokusen",
+      "audited_shadow_v4_score": 74.36,
+      "latest_quality_v4_run_id": 701
+    },
+    {
+      "place_id": "ChIJ9dsyrN-IGGARiP2zp3BiQns",
+      "restaurant": "Okonomiyaki and Monja Anzu no Sato",
+      "audited_shadow_v4_score": 74.48,
+      "latest_quality_v4_run_id": 702
+    },
+    {
+      "place_id": "ChIJhVkqEPqLGGARq60XVzZ5fc4",
+      "restaurant": "Tokyo Restaurant Bus",
+      "audited_shadow_v4_score": 74.76,
+      "latest_quality_v4_run_id": 703
+    },
+    {
+      "place_id": "ChIJCUOFZgCNGGAREo-X4HDNkPI",
+      "restaurant": "Restaurant UMITO Akasaka",
+      "audited_shadow_v4_score": 74.92,
+      "latest_quality_v4_run_id": 704
+    },
+    {
+      "place_id": "ChIJ-_3SVFj0GGAR_TFHWz2OfkA",
+      "restaurant": "Madonna di San Luca",
+      "audited_shadow_v4_score": 74.66,
+      "latest_quality_v4_run_id": 705
+    },
+    {
+      "place_id": "ChIJt1NzEuf1GGARPZGgeghTKsU",
+      "restaurant": "Setagaya Yakiniku bon",
+      "audited_shadow_v4_score": 76.56,
+      "latest_quality_v4_run_id": 706
+    },
+    {
+      "place_id": "ChIJuwM0uuSPGGARYzhhQoOnLTw",
+      "restaurant": "Bear-no-ie",
+      "audited_shadow_v4_score": 73.93,
+      "latest_quality_v4_run_id": 707
+    },
+    {
+      "place_id": "ChIJ61cWH6KLGGARK1QiFJ3BA9c",
+      "restaurant": "Mirkolone",
+      "audited_shadow_v4_score": 74.75,
+      "latest_quality_v4_run_id": 708
+    },
+    {
+      "place_id": "ChIJ366vJBX1GGARC1_PeICtHcs",
+      "restaurant": "Kakuuchiya Obayashi Shoten",
+      "audited_shadow_v4_score": 73.72,
+      "latest_quality_v4_run_id": 709
+    },
+    {
+      "place_id": "ChIJSeL4RH_vGGARdUECeLcP5lE",
+      "restaurant": "Tenpiya Makibi",
+      "audited_shadow_v4_score": 74.55,
+      "latest_quality_v4_run_id": 710
+    },
+    {
+      "place_id": "ChIJkVzAyuGLGGARr0A576bbmtc",
+      "restaurant": "Sosaku Washoku TAMA",
+      "audited_shadow_v4_score": 75.35,
+      "latest_quality_v4_run_id": 711
+    },
+    {
+      "place_id": "ChIJKcFsGACNGGARHVfx-cEkHLA",
+      "restaurant": "Hanasaku Kuranosuke Hanare",
+      "audited_shadow_v4_score": 74.35,
+      "latest_quality_v4_run_id": 712
+    },
+    {
+      "place_id": "ChIJQ83teaWLGGAREkg2tQw-0U4",
+      "restaurant": "Singapore Cuisine SINKIES",
+      "audited_shadow_v4_score": 74.59,
+      "latest_quality_v4_run_id": 713
+    },
+    {
+      "place_id": "ChIJG7n6ngxhGGART_uI0x4-gAw",
+      "restaurant": "Shigeru",
+      "audited_shadow_v4_score": 74.04,
+      "latest_quality_v4_run_id": 714
+    },
+    {
+      "place_id": "ChIJ91ADjFD1GGARPgyIa9wajpc",
+      "restaurant": "Sushi Kazu",
+      "audited_shadow_v4_score": 74.08,
+      "latest_quality_v4_run_id": 715
+    },
+    {
+      "place_id": "ChIJU9oBp42NGGARWX8VeNDXWig",
+      "restaurant": "Izakaya Gorushi",
+      "audited_shadow_v4_score": 73.35,
+      "latest_quality_v4_run_id": 716
+    },
+    {
+      "place_id": "ChIJVVVRr9SRGGAR1yHBitS-Mqo",
+      "restaurant": "Izakaya MARU",
+      "audited_shadow_v4_score": 72.81,
+      "latest_quality_v4_run_id": 717
+    },
+    {
+      "place_id": "ChIJeXWFsySJGGAReTCCnTPo2hc",
+      "restaurant": "Snack Hibiki",
+      "audited_shadow_v4_score": 73.07,
+      "latest_quality_v4_run_id": 718
+    },
+    {
+      "place_id": "ChIJD8hFaACPGGARbNXcI5erRIU",
+      "restaurant": "Arcobaleno",
+      "audited_shadow_v4_score": 74.44,
+      "latest_quality_v4_run_id": 719
+    },
+    {
+      "place_id": "ChIJgbnja11gGGAROTPmQ0sJJ7o",
+      "restaurant": "Senda",
+      "audited_shadow_v4_score": 74.5,
+      "latest_quality_v4_run_id": 720
+    },
+    {
+      "place_id": "ChIJfwLbHFvzGGARePavUmufFlM",
+      "restaurant": "Le Musée (de Poisson Plage)",
+      "audited_shadow_v4_score": 74.55,
+      "latest_quality_v4_run_id": 721
+    },
+    {
+      "place_id": "ChIJa0Zcb4WJGGAROua0k_ftkhM",
+      "restaurant": "Isaribi",
+      "audited_shadow_v4_score": 74.99,
+      "latest_quality_v4_run_id": 722
+    },
+    {
+      "place_id": "ChIJyXCOJuqPGGAR3yAIHzTjvAs",
+      "restaurant": "Godaime Wagyu Tokyo Asakusa",
+      "audited_shadow_v4_score": 73.62,
+      "latest_quality_v4_run_id": 723
+    },
+    {
+      "place_id": "ChIJAQCFN6iLGGARQEWTPF25uB0",
+      "restaurant": "Housaku",
+      "audited_shadow_v4_score": 74.24,
+      "latest_quality_v4_run_id": 724
+    },
+    {
+      "place_id": "ChIJk90LuLKMGGARWNLyTg-s2VM",
+      "restaurant": "Jinroku",
+      "audited_shadow_v4_score": 74.78,
+      "latest_quality_v4_run_id": 725
+    },
+    {
+      "place_id": "ChIJ_398awCNGGAR-1q5QoxzX1I",
+      "restaurant": "Kensō Noodle Villa Ikebukuro",
+      "audited_shadow_v4_score": 75.81,
+      "latest_quality_v4_run_id": 726
+    },
+    {
+      "place_id": "ChIJXwxX51rzGGAR1gl1HlPm6Sk",
+      "restaurant": "Bar Mokuren",
+      "audited_shadow_v4_score": 73.99,
+      "latest_quality_v4_run_id": 727
+    },
+    {
+      "place_id": "ChIJGV_20JSPGGAROX9KNGTfrZs",
+      "restaurant": "Yakiniku Ushikazu",
+      "audited_shadow_v4_score": 72.62,
+      "latest_quality_v4_run_id": 728
+    },
+    {
+      "place_id": "ChIJgVfL24aOGGAR2S_D34UreIM",
+      "restaurant": "Nomidokoro Rin",
+      "audited_shadow_v4_score": 73.79,
+      "latest_quality_v4_run_id": 729
+    },
+    {
+      "place_id": "ChIJpXiz24JhGGAR18weeeJ_qB8",
+      "restaurant": "Yakiniku Hitotsuboshi",
+      "audited_shadow_v4_score": 73.97,
+      "latest_quality_v4_run_id": 730
+    },
+    {
+      "place_id": "ChIJq93re5KOGGARyOWE3u9BOzo",
+      "restaurant": "Fucha Ryori Bon",
+      "audited_shadow_v4_score": 74.29,
+      "latest_quality_v4_run_id": 731
+    },
+    {
+      "place_id": "ChIJrYlr-mhgGGARAXBZxwdDSgQ",
+      "restaurant": "Chuka Bar PABLO",
+      "audited_shadow_v4_score": 74.82,
+      "latest_quality_v4_run_id": 732
+    },
+    {
+      "place_id": "ChIJrfeApjmSGGARhGro3pSEuwo",
+      "restaurant": "Anzu",
+      "audited_shadow_v4_score": 73.03,
+      "latest_quality_v4_run_id": 733
+    },
+    {
+      "place_id": "ChIJ7Q5vD0rzGGARTzQkciu11N8",
+      "restaurant": "Horumon Nagomi",
+      "audited_shadow_v4_score": 75.41,
+      "latest_quality_v4_run_id": 734
+    },
+    {
+      "place_id": "ChIJEaeJQa5fGGAR7p4y7lxh81U",
+      "restaurant": "Gohan-ya Sakura",
+      "audited_shadow_v4_score": 75.34,
+      "latest_quality_v4_run_id": 735
+    },
+    {
+      "place_id": "ChIJib9WBVH1GGAR4YoY65MuypE",
+      "restaurant": "Shin-zushi",
+      "audited_shadow_v4_score": 72.58,
+      "latest_quality_v4_run_id": 736
+    },
+    {
+      "place_id": "ChIJB3aTQACNGGARcn9lXfW3-rA",
+      "restaurant": "Taishū Sakaba Mejiro Katsuriki",
+      "audited_shadow_v4_score": 74.04,
+      "latest_quality_v4_run_id": 737
+    },
+    {
+      "place_id": "ChIJ2fEGgBOLGGAR5N_POVQ8Xx0",
+      "restaurant": "La Maison Finistère",
+      "audited_shadow_v4_score": 75.9,
+      "latest_quality_v4_run_id": 738
+    },
+    {
+      "place_id": "ChIJ430Y_mhgGGARua9nBeiMAVw",
+      "restaurant": "Ashiato",
+      "audited_shadow_v4_score": 72.49,
+      "latest_quality_v4_run_id": 739
+    },
+    {
+      "place_id": "ChIJkXe8ct6PGGARn4AMSZYxIQw",
+      "restaurant": "Yakiniku Horumon Hiromaru",
+      "audited_shadow_v4_score": 75.12,
+      "latest_quality_v4_run_id": 740
+    },
+    {
+      "place_id": "ChIJAUDNLI6OGGARhVZcKVyjNEM",
+      "restaurant": "Tori Sho",
+      "audited_shadow_v4_score": 74.31,
+      "latest_quality_v4_run_id": 741
+    },
+    {
+      "place_id": "ChIJizEoVl6NGGAR2hZeOrG5pDE",
+      "restaurant": "Kabuto",
+      "audited_shadow_v4_score": 75.41,
+      "latest_quality_v4_run_id": 742
+    },
+    {
+      "place_id": "ChIJ40cWZGqNGGARjilCHbXc39c",
+      "restaurant": "Takezushi",
+      "audited_shadow_v4_score": 73.28,
+      "latest_quality_v4_run_id": 743
+    },
+    {
+      "place_id": "ChIJxVCtWwCPGGARaw__u4DV9uA",
+      "restaurant": "Special Matcha Sweets Factory",
+      "audited_shadow_v4_score": 73.94,
+      "latest_quality_v4_run_id": 744
+    },
+    {
+      "place_id": "ChIJW9QfTACNGGAR_tmTJYVzZg4",
+      "restaurant": "YP2A Thai Restaurant & Bar",
+      "audited_shadow_v4_score": 73.61,
+      "latest_quality_v4_run_id": 745
+    },
+    {
+      "place_id": "ChIJcy6fWo-JGGARN3dpmp66prw",
+      "restaurant": "Bistro 961",
+      "audited_shadow_v4_score": 73.45,
+      "latest_quality_v4_run_id": 746
+    },
+    {
+      "place_id": "ChIJfSzuWDJgGGARHxFM-NOIJsI",
+      "restaurant": "Petit Restaurant Tomy",
+      "audited_shadow_v4_score": 73.73,
+      "latest_quality_v4_run_id": 747
+    },
+    {
+      "place_id": "ChIJh5svHQBhGGARWmMzr_ULedA",
+      "restaurant": "Sebika Kitchen",
+      "audited_shadow_v4_score": 73.24,
+      "latest_quality_v4_run_id": 748
+    },
+    {
+      "place_id": "ChIJR8g5VreNGGARTybQOu-z_l0",
+      "restaurant": "Buki Restaurant & Bar",
+      "audited_shadow_v4_score": 74.15,
+      "latest_quality_v4_run_id": 749
+    },
+    {
+      "place_id": "ChIJudnUUV6JGGARFMuUSSYQzSc",
+      "restaurant": "Yamamototei",
+      "audited_shadow_v4_score": 73.25,
+      "latest_quality_v4_run_id": 750
+    },
+    {
+      "place_id": "ChIJgUfgqM-TGGAR0wuv7HkLBTw",
+      "restaurant": "Fujiya",
+      "audited_shadow_v4_score": 72.96,
+      "latest_quality_v4_run_id": 751
+    },
+    {
+      "place_id": "ChIJ_VWmpvBgGGAR4ZUBvz5G6cI",
+      "restaurant": "Joppari",
+      "audited_shadow_v4_score": 72.36,
+      "latest_quality_v4_run_id": 752
+    },
+    {
+      "place_id": "ChIJ3ZGuqpGOGGARPu8zh4CfANE",
+      "restaurant": "Fuji-en",
+      "audited_shadow_v4_score": 73.33,
+      "latest_quality_v4_run_id": 753
+    },
+    {
+      "place_id": "ChIJS3m51saLGGAROBH5YkLiqrw",
+      "restaurant": "Wagyu Yakiniku Ueta",
+      "audited_shadow_v4_score": 74.36,
+      "latest_quality_v4_run_id": 754
+    },
+    {
+      "place_id": "ChIJH3HBZtphGGARENW6nKn2gv0",
+      "restaurant": "Welcome Indian Nepali Restaurant",
+      "audited_shadow_v4_score": 72.21,
+      "latest_quality_v4_run_id": 755
+    },
+    {
+      "place_id": "ChIJI5TmNwCNGGAR4yvcB0Yw1-4",
+      "restaurant": "Saigon Café @ IKE-SUNPARK",
+      "audited_shadow_v4_score": 73.77,
+      "latest_quality_v4_run_id": 756
+    },
+    {
+      "place_id": "ChIJD-GoLPSNGGARMeNPIenlv5g",
+      "restaurant": "Uo to Sake Bekku Ikebukuro Nishiguchi",
+      "audited_shadow_v4_score": 73.99,
+      "latest_quality_v4_run_id": 757
+    },
+    {
+      "place_id": "ChIJqY9Sh-mJGGARm1f0IIoAXNw",
+      "restaurant": "Karaya",
+      "audited_shadow_v4_score": 74.34,
+      "latest_quality_v4_run_id": 758
+    },
+    {
+      "place_id": "ChIJH1uKdh2NGGARpdq9YMuDdX0",
+      "restaurant": "Shabu Shabu & Sushi Kioicho Hassan",
+      "audited_shadow_v4_score": 73.63,
+      "latest_quality_v4_run_id": 759
+    },
+    {
+      "place_id": "ChIJLXwZBfuNGGARu4Epp9TGaVE",
+      "restaurant": "Da-ism Sendagaya",
+      "audited_shadow_v4_score": 73.41,
+      "latest_quality_v4_run_id": 760
+    },
+    {
+      "place_id": "ChIJfX7j2fthGGARl1RayrLFmxY",
+      "restaurant": "Mustang Asian Restaurant",
+      "audited_shadow_v4_score": 73.23,
+      "latest_quality_v4_run_id": 761
+    },
+    {
+      "place_id": "ChIJp_CtauaRGGARFqdeST3vTcU",
+      "restaurant": "Kappo Okano",
+      "audited_shadow_v4_score": 74.44,
+      "latest_quality_v4_run_id": 762
+    },
+    {
+      "place_id": "ChIJn54M0M6MGGARGRjKH-M6lEE",
+      "restaurant": "Yoyogi Imahan",
+      "audited_shadow_v4_score": 74.21,
+      "latest_quality_v4_run_id": 763
+    },
+    {
+      "place_id": "ChIJiy4zh0WNGGARLUF8gLwuNyk",
+      "restaurant": "Fukurou (Fukuro)",
+      "audited_shadow_v4_score": 73.08,
+      "latest_quality_v4_run_id": 764
+    },
+    {
+      "place_id": "ChIJ4_V35umJGGAR5tXZRVDT0vU",
+      "restaurant": "Hatchobori Yaoyabal",
+      "audited_shadow_v4_score": 73.01,
+      "latest_quality_v4_run_id": 765
+    },
+    {
+      "place_id": "ChIJq4__TwCRGGARGbxiiQWF970",
+      "restaurant": "Ramen Tsuru",
+      "audited_shadow_v4_score": 73.9,
+      "latest_quality_v4_run_id": 766
+    },
+    {
+      "place_id": "ChIJV3a0LgiLGGARIGMF6Nx2uY4",
+      "restaurant": "Camino de Santiago",
+      "audited_shadow_v4_score": 73.72,
+      "latest_quality_v4_run_id": 767
+    },
+    {
+      "place_id": "ChIJXWUX39SNGGAROu2pA6CjtJg",
+      "restaurant": "Wasyoku Morita",
+      "audited_shadow_v4_score": 73.48,
+      "latest_quality_v4_run_id": 768
+    },
+    {
+      "place_id": "ChIJgbRzN-aOGGARtpSjIovQ18k",
+      "restaurant": "Sumibikushiyaki Shibuichi",
+      "audited_shadow_v4_score": 73.73,
+      "latest_quality_v4_run_id": 769
+    },
+    {
+      "place_id": "ChIJ59VeR_GJGGARbn-edpUVonw",
+      "restaurant": "HAMAMORI",
+      "audited_shadow_v4_score": 72.92,
+      "latest_quality_v4_run_id": 770
+    },
+    {
+      "place_id": "ChIJj4M4AjaNGGARLTSHK0tr3RA",
+      "restaurant": "BASSANOVA Harajuku",
+      "audited_shadow_v4_score": 73.48,
+      "latest_quality_v4_run_id": 771
+    },
+    {
+      "place_id": "ChIJAQD9meRfGGARvpZScnxp88w",
+      "restaurant": "Oden Daihachi",
+      "audited_shadow_v4_score": 72.37,
+      "latest_quality_v4_run_id": 772
+    },
+    {
+      "place_id": "ChIJC6dpIFWNGGAR3jk_Wx3V8ns",
+      "restaurant": "Fukufuku",
+      "audited_shadow_v4_score": 73.3,
+      "latest_quality_v4_run_id": 773
+    },
+    {
+      "place_id": "ChIJcR7R3q-JGGAR8TfRf1h75bU",
+      "restaurant": "Yakiniku Restaurant Tomato House",
+      "audited_shadow_v4_score": 73.93,
+      "latest_quality_v4_run_id": 774
+    },
+    {
+      "place_id": "ChIJtdLWZb2MGGARVqeAQoptOb4",
+      "restaurant": "Usagi Udon",
+      "audited_shadow_v4_score": 73.24,
+      "latest_quality_v4_run_id": 775
+    },
+    {
+      "place_id": "ChIJ54BubPeRGGARM53-ekpdyIs",
+      "restaurant": "Fujikiyo",
+      "audited_shadow_v4_score": 72.53,
+      "latest_quality_v4_run_id": 776
+    },
+    {
+      "place_id": "ChIJNVlpBVuSGGAREdmM_ihuoQU",
+      "restaurant": "Saisai",
+      "audited_shadow_v4_score": 74.45,
+      "latest_quality_v4_run_id": 777
+    },
+    {
+      "place_id": "ChIJBTaUDyKLGGARcBz7bOqXJW8",
+      "restaurant": "Shibaura Sushi Wasabi",
+      "audited_shadow_v4_score": 72.42,
+      "latest_quality_v4_run_id": 778
+    },
+    {
+      "place_id": "ChIJO9bNRGKJGGAR_M0Rsdzh-60",
+      "restaurant": "Sushi Tama Aoki",
+      "audited_shadow_v4_score": 73.56,
+      "latest_quality_v4_run_id": 779
+    },
+    {
+      "place_id": "ChIJFTmT2uTzGGARD_x2fba9gxE",
+      "restaurant": "Totoya",
+      "audited_shadow_v4_score": 71.62,
+      "latest_quality_v4_run_id": 780
+    },
+    {
+      "place_id": "ChIJF4A0mChgGGARjq2meBzjJ-A",
+      "restaurant": "Kurosawa Tokyosai",
+      "audited_shadow_v4_score": 74.75,
+      "latest_quality_v4_run_id": 781
+    },
+    {
+      "place_id": "ChIJQ6eGQwCLGGARjqKSM-LeD7k",
+      "restaurant": "SOBA LABO Blue Front Shibaura",
+      "audited_shadow_v4_score": 73.36,
+      "latest_quality_v4_run_id": 782
+    },
+    {
+      "place_id": "ChIJTSLfR1qLGGARZVAT7ynYhsk",
+      "restaurant": "Sushi Hanaoka",
+      "audited_shadow_v4_score": 74.03,
+      "latest_quality_v4_run_id": 783
+    },
+    {
+      "place_id": "ChIJD_rK0FbtGGAR3emz2x5VDy0",
+      "restaurant": "Yakitori Kushigen",
+      "audited_shadow_v4_score": 74.1,
+      "latest_quality_v4_run_id": 784
+    },
+    {
+      "place_id": "ChIJ6TiC4k-JGGARvdTT0o7jRZg",
+      "restaurant": "Sakanaya Fujino",
+      "audited_shadow_v4_score": 72.83,
+      "latest_quality_v4_run_id": 785
+    },
+    {
+      "place_id": "ChIJ65T6kMiLGGARTDFVn5rH6W4",
+      "restaurant": "Mahoroba",
+      "audited_shadow_v4_score": 73.02,
+      "latest_quality_v4_run_id": 786
+    },
+    {
+      "place_id": "ChIJ0cXQzGGJGGAReGtggQ_wRqY",
+      "restaurant": "Tsukiji Sushi-dokoro Fukune",
+      "audited_shadow_v4_score": 72.48,
+      "latest_quality_v4_run_id": 787
+    },
+    {
+      "place_id": "ChIJPUgQFZeRGGARfALO-wjbWLM",
+      "restaurant": "Kisaku",
+      "audited_shadow_v4_score": 72.44,
+      "latest_quality_v4_run_id": 788
+    },
+    {
+      "place_id": "ChIJG6dgQavzGGARbv1elJTn13E",
+      "restaurant": "Soyogi",
+      "audited_shadow_v4_score": 72.59,
+      "latest_quality_v4_run_id": 789
+    },
+    {
+      "place_id": "ChIJH5WonRqRGGARGI9JisAXwWk",
+      "restaurant": "Korean Restaurant Maruya",
+      "audited_shadow_v4_score": 71.54,
+      "latest_quality_v4_run_id": 790
+    },
+    {
+      "place_id": "ChIJI1q4WMuPGGARXAO9rSQDEcU",
+      "restaurant": "Mikawaya",
+      "audited_shadow_v4_score": 72.2,
+      "latest_quality_v4_run_id": 791
+    },
+    {
+      "place_id": "ChIJHwBvGPD0GGARJxYOf9bnMHQ",
+      "restaurant": "Yakiniku Nobel",
+      "audited_shadow_v4_score": 72.14,
+      "latest_quality_v4_run_id": 792
+    },
+    {
+      "place_id": "ChIJhyICkHFgGGARx84O1epa-_g",
+      "restaurant": "Yakitori Inaka",
+      "audited_shadow_v4_score": 72.55,
+      "latest_quality_v4_run_id": 793
+    },
+    {
+      "place_id": "ChIJv_t5X4XvGGARLSUtEeSAfe4",
+      "restaurant": "Teppan Nishimura Honten",
+      "audited_shadow_v4_score": 72.46,
+      "latest_quality_v4_run_id": 794
+    },
+    {
+      "place_id": "ChIJ93-qptqIGGARLIXzc9BZtG0",
+      "restaurant": "Briller parfum",
+      "audited_shadow_v4_score": 74.3,
+      "latest_quality_v4_run_id": 795
+    },
+    {
+      "place_id": "ChIJ9Yv_FwCRGGAR2TT-YO9nXgM",
+      "restaurant": "Buta no Kakurega",
+      "audited_shadow_v4_score": 72.32,
+      "latest_quality_v4_run_id": 796
+    },
+    {
+      "place_id": "ChIJQY1e_j-LGGAR1N3MR2W4X9c",
+      "restaurant": "Del Chalro",
+      "audited_shadow_v4_score": 73.34,
+      "latest_quality_v4_run_id": 797
+    },
+    {
+      "place_id": "ChIJj8gsaQBhGGARlxeOOAWHztk",
+      "restaurant": "KANPAI KAMATA",
+      "audited_shadow_v4_score": 71.92,
+      "latest_quality_v4_run_id": 798
+    },
+    {
+      "place_id": "ChIJL3yqtiCSGGARNcHzMNVJJCk",
+      "restaurant": "Akari",
+      "audited_shadow_v4_score": 71.13,
+      "latest_quality_v4_run_id": 799
+    },
+    {
+      "place_id": "ChIJVc9odEbvGGARLlVzvSkBFGk",
+      "restaurant": "Hamonica Sakaba",
+      "audited_shadow_v4_score": 71.1,
+      "latest_quality_v4_run_id": 800
+    },
+    {
+      "place_id": "ChIJO3PXPK5hGGARGT4FCzNGyeI",
+      "restaurant": "Kuikiri Hatsumi",
+      "audited_shadow_v4_score": 73.18,
+      "latest_quality_v4_run_id": 801
+    },
+    {
+      "place_id": "ChIJwUh9GxaJGGARX71IGi7X9Fg",
+      "restaurant": "Kusakabe",
+      "audited_shadow_v4_score": 72.5,
+      "latest_quality_v4_run_id": 802
+    },
+    {
+      "place_id": "ChIJCYz-QD_yGGARwMThLiUnPzo",
+      "restaurant": "Fujiyoshi",
+      "audited_shadow_v4_score": 73.68,
+      "latest_quality_v4_run_id": 803
+    },
+    {
+      "place_id": "ChIJXTxAWG2LGGARe9QKDtpFuFU",
+      "restaurant": "Tenshin",
+      "audited_shadow_v4_score": 73.12,
+      "latest_quality_v4_run_id": 804
+    },
+    {
+      "place_id": "ChIJaYwwOtCNGGARHq80CQHnBtA",
+      "restaurant": "Oden Bonta",
+      "audited_shadow_v4_score": 72.63,
+      "latest_quality_v4_run_id": 805
+    },
+    {
+      "place_id": "ChIJDchFymiJGGARNXlketQYilM",
+      "restaurant": "Yakitori Oonoya Kazuchan",
+      "audited_shadow_v4_score": 72.8,
+      "latest_quality_v4_run_id": 806
+    },
+    {
+      "place_id": "ChIJC0iYO5OOGGARMmbzmqKbyfU",
+      "restaurant": "Uozen",
+      "audited_shadow_v4_score": 72.65,
+      "latest_quality_v4_run_id": 807
+    },
+    {
+      "place_id": "ChIJF7mgyNyLGGARG1NScIcM8Nk",
+      "restaurant": "GINie CAFE",
+      "audited_shadow_v4_score": 73.3,
+      "latest_quality_v4_run_id": 808
+    },
+    {
+      "place_id": "ChIJKXakZVqLGGARFncBrKuzPI4",
+      "restaurant": "Sendai Gyutan & Steak Momiji Akasaka",
+      "audited_shadow_v4_score": 72.74,
+      "latest_quality_v4_run_id": 809
+    },
+    {
+      "place_id": "ChIJtSOIwoCPGGARtgofDWyOaZE",
+      "restaurant": "Café & Bar Omiya",
+      "audited_shadow_v4_score": 70.97,
+      "latest_quality_v4_run_id": 810
+    },
+    {
+      "place_id": "ChIJD-dXMWaLGGARvZH3hU8C1Y8",
+      "restaurant": "Imajin",
+      "audited_shadow_v4_score": 72.84,
+      "latest_quality_v4_run_id": 811
+    },
+    {
+      "place_id": "ChIJD50T9cGRGGARSTmSme6AGSk",
+      "restaurant": "Hitomoj​​iya",
+      "audited_shadow_v4_score": 72.44,
+      "latest_quality_v4_run_id": 812
+    },
+    {
+      "place_id": "ChIJCVgBOCTvGGARk8ZfDLqgjCU",
+      "restaurant": "BBQ DAYS Kichijoji Parco",
+      "audited_shadow_v4_score": 71.93,
+      "latest_quality_v4_run_id": 813
+    },
+    {
+      "place_id": "ChIJwbsAfMaRGGARbaZNfL7XBF4",
+      "restaurant": "Jingisukan Specialty Restaurant Shiki Sakaba RAM CHAN",
+      "audited_shadow_v4_score": 73.16,
+      "latest_quality_v4_run_id": 814
+    },
+    {
+      "place_id": "ChIJxylpaU_uGGARkxm5B_JFPHU",
+      "restaurant": "Bakawarai Junsui",
+      "audited_shadow_v4_score": 73.25,
+      "latest_quality_v4_run_id": 815
+    },
+    {
+      "place_id": "ChIJkfc8AZyNGGARfGBM1TmY5nM",
+      "restaurant": "Hirayoshi",
+      "audited_shadow_v4_score": 72.53,
+      "latest_quality_v4_run_id": 816
+    },
+    {
+      "place_id": "ChIJX4jjIk7zGGARA7ZdQ7Kno5Y",
+      "restaurant": "Nanakusa",
+      "audited_shadow_v4_score": 74.06,
+      "latest_quality_v4_run_id": 817
+    },
+    {
+      "place_id": "ChIJi7BFZuaLGGARIeRRYNU6SzM",
+      "restaurant": "Shokuzen Abe",
+      "audited_shadow_v4_score": 73.97,
+      "latest_quality_v4_run_id": 818
+    },
+    {
+      "place_id": "ChIJmRpWdgGJGGAR4fQZWuGv-Qw",
+      "restaurant": "Yukari Shokudo",
+      "audited_shadow_v4_score": 71.82,
+      "latest_quality_v4_run_id": 819
+    },
+    {
+      "place_id": "ChIJXZpMMw6RGGARhj2Zu15ILAI",
+      "restaurant": "Junchō",
+      "audited_shadow_v4_score": 70.82,
+      "latest_quality_v4_run_id": 820
+    },
+    {
+      "place_id": "ChIJQU8qiZ6SGGAR69BCdKi8fHs",
+      "restaurant": "Negima",
+      "audited_shadow_v4_score": 73.62,
+      "latest_quality_v4_run_id": 821
+    },
+    {
+      "place_id": "ChIJU6x_0VxgGGARpqacmSrh810",
+      "restaurant": "Kourakuen",
+      "audited_shadow_v4_score": 73.66,
+      "latest_quality_v4_run_id": 822
+    },
+    {
+      "place_id": "ChIJAf7ukoL0GGARjWvXMHpXrSQ",
+      "restaurant": "La Luna Llena",
+      "audited_shadow_v4_score": 72.49,
+      "latest_quality_v4_run_id": 823
+    },
+    {
+      "place_id": "ChIJizaQ6G6IGGARzGHqrGdbhi0",
+      "restaurant": "Koshōya",
+      "audited_shadow_v4_score": 72.22,
+      "latest_quality_v4_run_id": 824
+    },
+    {
+      "place_id": "ChIJqXD3mWuJGGARKTIhQI2xhKo",
+      "restaurant": "Momofuku",
+      "audited_shadow_v4_score": 73.19,
+      "latest_quality_v4_run_id": 825
+    },
+    {
+      "place_id": "ChIJKRimrlWNGGAReCrI2pLos-M",
+      "restaurant": "Hashigo",
+      "audited_shadow_v4_score": 72.6,
+      "latest_quality_v4_run_id": 826
+    },
+    {
+      "place_id": "ChIJVVWZGyjzGGARkuDcx2siUko",
+      "restaurant": "Sushi Bar JUNTA",
+      "audited_shadow_v4_score": 71.33,
+      "latest_quality_v4_run_id": 827
+    },
+    {
+      "place_id": "ChIJc3V-ZW-LGGARaduCM_lPTno",
+      "restaurant": "Hakata Kamekichi",
+      "audited_shadow_v4_score": 72.07,
+      "latest_quality_v4_run_id": 828
+    },
+    {
+      "place_id": "ChIJrcOgGlWNGGARzVqYyDScVo8",
+      "restaurant": "Patisserie Konohana",
+      "audited_shadow_v4_score": 72.44,
+      "latest_quality_v4_run_id": 829
+    },
+    {
+      "place_id": "ChIJDa6im2jzGGAR8BrQCp3voj8",
+      "restaurant": "Bar Bodeguita Cuban Salsa Spot",
+      "audited_shadow_v4_score": 72.48,
+      "latest_quality_v4_run_id": 830
+    },
+    {
+      "place_id": "ChIJQxeAL46LGGARjzbf8Fy1RTI",
+      "restaurant": "RAJ Indian Restaurant Nagahara",
+      "audited_shadow_v4_score": 71.25,
+      "latest_quality_v4_run_id": 831
+    },
+    {
+      "place_id": "ChIJ-ZsuPKmSGGARdOiTVwhIxbc",
+      "restaurant": "Ureshino",
+      "audited_shadow_v4_score": 72.28,
+      "latest_quality_v4_run_id": 832
+    },
+    {
+      "place_id": "ChIJX74pHwCJGGAR7GGhSN3QInI",
+      "restaurant": "Delhi's Cafe",
+      "audited_shadow_v4_score": 72.37,
+      "latest_quality_v4_run_id": 833
+    },
+    {
+      "place_id": "ChIJu9sCqkqKGGARefMe0G_IJ2M",
+      "restaurant": "Toshi",
+      "audited_shadow_v4_score": 71.28,
+      "latest_quality_v4_run_id": 834
+    },
+    {
+      "place_id": "ChIJ_bBXplmKGGARs2hUytReNJ8",
+      "restaurant": "Takanawa Soba Sabo",
+      "audited_shadow_v4_score": 72.3,
+      "latest_quality_v4_run_id": 835
+    },
+    {
+      "place_id": "ChIJ23TZDXuMGGARFGADgvEDzYQ",
+      "restaurant": "Shusendokoro Hakura",
+      "audited_shadow_v4_score": 70.91,
+      "latest_quality_v4_run_id": 836
+    },
+    {
+      "place_id": "ChIJKzXne1D1GGARQuBotV-AvUA",
+      "restaurant": "Fukuda",
+      "audited_shadow_v4_score": 72.68,
+      "latest_quality_v4_run_id": 837
+    },
+    {
+      "place_id": "ChIJsUxSGjmNGGARAq6bSwSnrwE",
+      "restaurant": "Showa Ramen Ikebukuro Sunshine Street",
+      "audited_shadow_v4_score": 71.12,
+      "latest_quality_v4_run_id": 838
+    },
+    {
+      "place_id": "ChIJEysMJPv1GGARZUfbPCOEid4",
+      "restaurant": "Uchi Gohan",
+      "audited_shadow_v4_score": 72.23,
+      "latest_quality_v4_run_id": 839
+    },
+    {
+      "place_id": "ChIJLXAYkTWLGGARC4EE-8e4XWI",
+      "restaurant": "TenCups Cafe Bar & Lounge",
+      "audited_shadow_v4_score": 71.55,
+      "latest_quality_v4_run_id": 840
+    },
+    {
+      "place_id": "ChIJjY-9NACPGGART-0mkBaSsBU",
+      "restaurant": "Nepal・India Restaurant & Bar Tika Devi",
+      "audited_shadow_v4_score": 72.24,
+      "latest_quality_v4_run_id": 841
+    },
+    {
+      "place_id": "ChIJN56DffGRGGARodkPCrrhHMM",
+      "restaurant": "Tochiazuma",
+      "audited_shadow_v4_score": 71.98,
+      "latest_quality_v4_run_id": 862
+    },
+    {
+      "place_id": "ChIJ-WwCsJ-LGGARo4U4s0IhXVM",
+      "restaurant": "Kitchen5bis",
+      "audited_shadow_v4_score": 72.82,
+      "latest_quality_v4_run_id": 843
+    },
+    {
+      "place_id": "ChIJ51--ySuNGGARfcqkPkXleA8",
+      "restaurant": "Jingumae Hanare",
+      "audited_shadow_v4_score": 72.25,
+      "latest_quality_v4_run_id": 844
+    },
+    {
+      "place_id": "ChIJ9zqtD_eLGGAR_K06T4CnvtI",
+      "restaurant": "Tsukiji Sushi Omakase Hanare",
+      "audited_shadow_v4_score": 71.42,
+      "latest_quality_v4_run_id": 845
+    },
+    {
+      "place_id": "ChIJxf25VhWLGGARtLRMc7qDCFk",
+      "restaurant": "Kappou Uzuki",
+      "audited_shadow_v4_score": 71.5,
+      "latest_quality_v4_run_id": 846
+    },
+    {
+      "place_id": "ChIJg2TGXKGLGGARr3JCITuJaf4",
+      "restaurant": "Sushi Ito Ikkan",
+      "audited_shadow_v4_score": 71.84,
+      "latest_quality_v4_run_id": 847
+    },
+    {
+      "place_id": "ChIJVVWJuOqOGGARm7_Y4jPhGmA",
+      "restaurant": "Groin Groin",
+      "audited_shadow_v4_score": 71.67,
+      "latest_quality_v4_run_id": 848
+    },
+    {
+      "place_id": "ChIJlycbUC-QGGARaMUbKyNazVo",
+      "restaurant": "AKINAI",
+      "audited_shadow_v4_score": 71.04,
+      "latest_quality_v4_run_id": 849
+    },
+    {
+      "place_id": "ChIJTebUYnnuGGARI6W3hnb5fTE",
+      "restaurant": "Yashinbō",
+      "audited_shadow_v4_score": 72.51,
+      "latest_quality_v4_run_id": 850
+    },
+    {
+      "place_id": "ChIJdWuuEaWRGGARsrwSbpBTeXw",
+      "restaurant": "Sakanaya Hida",
+      "audited_shadow_v4_score": 70.98,
+      "latest_quality_v4_run_id": 851
+    },
+    {
+      "place_id": "ChIJufH5w2mLGGARJNgHA2uXoYo",
+      "restaurant": "d'ici",
+      "audited_shadow_v4_score": 71.57,
+      "latest_quality_v4_run_id": 852
+    },
+    {
+      "place_id": "ChIJ742aaWfxGGARFj65EdgMdJE",
+      "restaurant": "Midori Syo Seijo",
+      "audited_shadow_v4_score": 72.81,
+      "latest_quality_v4_run_id": 853
+    },
+    {
+      "place_id": "ChIJScguTeWNGGARXMt2ATtihiE",
+      "restaurant": "LaiMai Sendagaya Kitchen",
+      "audited_shadow_v4_score": 71.78,
+      "latest_quality_v4_run_id": 854
+    },
+    {
+      "place_id": "ChIJt7yNWliNGGARtyx54UfOax0",
+      "restaurant": "Sushi Ohmi",
+      "audited_shadow_v4_score": 71.38,
+      "latest_quality_v4_run_id": 855
+    },
+    {
+      "place_id": "ChIJy8bYtL6MGGARdOCKd9yO_XI",
+      "restaurant": "Matsu Katei Ryori",
+      "audited_shadow_v4_score": 71.15,
+      "latest_quality_v4_run_id": 856
+    },
+    {
+      "place_id": "ChIJBZZPagCNGGARCU7ycOpVCJY",
+      "restaurant": "Restaurant Kiro;",
+      "audited_shadow_v4_score": 72.9,
+      "latest_quality_v4_run_id": 857
+    },
+    {
+      "place_id": "ChIJPcOq9y6QGGARa6rmh9wImmA",
+      "restaurant": "Tempura Shinagawa",
+      "audited_shadow_v4_score": 72.39,
+      "latest_quality_v4_run_id": 858
+    },
+    {
+      "place_id": "ChIJq4QAz1ORGGARaOihUDdtVOk",
+      "restaurant": "Kanmidokoro Nagomian",
+      "audited_shadow_v4_score": 71.13,
+      "latest_quality_v4_run_id": 859
+    },
+    {
+      "place_id": "ChIJ9yAQZMCLGGARv8Zu0S99ks8",
+      "restaurant": "Pebble Hiroo Terrace",
+      "audited_shadow_v4_score": 70.54,
+      "latest_quality_v4_run_id": 860
+    },
+    {
+      "place_id": "ChIJz3Msn-GLGGARdfi2mRrjYHw",
+      "restaurant": "Vin de Rêve",
+      "audited_shadow_v4_score": 72.31,
+      "latest_quality_v4_run_id": 861
+    }
+  ],
+  "audit_assertions": {
+    "published_overlap": 0,
+    "production_v4_overlap": 0,
+    "below_floor_rescue_overlap": 0,
+    "address_conflict_overlap": 0,
+    "unresolved_or_incomplete_overlap": 0,
+    "canonical_score_parity_mismatches": 0,
+    "promotion_critical_missing": 0
+  }
+}

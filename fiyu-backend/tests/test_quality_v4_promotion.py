@@ -1,5 +1,8 @@
+import hashlib
 import json
 import shutil
+
+import pytest
 
 from fiyu.database import SCHEMA, connect
 from fiyu.experimental_quality_challenge_v4 import ChallengeResearchResult
@@ -19,7 +22,58 @@ from fiyu.quality_v4 import (
     QUALITY_SCORE_VERSION,
     calculate_quality_v4_shadow,
 )
-from fiyu.quality_v4_promotion import run_quality_v4_promotion
+from fiyu.quality_v4_promotion import (
+    COHORT_MANIFEST_VERSION,
+    FLOOR70_COHORT_NAME,
+    inspect_quality_v4_promotion,
+    run_quality_v4_promotion,
+)
+
+
+def _sha256(path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest().upper()
+
+
+def _cohort_manifest(tmp_path, source, place_ids):
+    audit = tmp_path / "final-audit.json"
+    audit.write_text(
+        json.dumps(
+            {
+                "completion": {"original_cohort": len(place_ids)},
+                "score_parity": {
+                    "shadow_production_exact_matches": len(place_ids),
+                    "mismatches": 0,
+                },
+                "promotion_precheck": {"missing_promotion_critical_fields": 0},
+                "cohort_rows": [{"place_id": place_id} for place_id in place_ids],
+            }
+        ),
+        encoding="utf-8",
+    )
+    path = tmp_path / "cohort.json"
+    path.write_text(
+        json.dumps(
+            {
+                "manifest_version": COHORT_MANIFEST_VERSION,
+                "cohort_name": FLOOR70_COHORT_NAME,
+                "target_floor": 70,
+                "source_shadow_sha256": _sha256(source),
+                "created_from_audit": str(audit),
+                "audit_summary_sha256": _sha256(audit),
+                "cohort_count": len(place_ids),
+                "restaurants": [{"place_id": place_id} for place_id in place_ids],
+                "audit_assertions": {
+                    "published_overlap": 0,
+                    "production_v4_overlap": 0,
+                    "below_floor_rescue_overlap": 0,
+                    "address_conflict_overlap": 0,
+                    "unresolved_or_incomplete_overlap": 0,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    return path
 
 
 def _databases(tmp_path):
@@ -115,10 +169,11 @@ def _databases(tmp_path):
                 researched_quality, quality_evidence_confidence,
                 production_v3_score, shadow_v4_score, shadow_score_delta,
                 research_result_json, normalized_observations_json,
-                claim_clusters_json, created_at, completed_at
+                claim_clusters_json, usage_metadata_json, response_request_count,
+                created_at, completed_at
             ) VALUES (
                 'place-0', 'openai', 'test', 'response-1', 'complete', ?, ?, ?, ?, ?,
-                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '[]', '[]', 'now', 'now'
+                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '[]', '[]', '{}', 1, 'now', 'now'
             )
             """,
             (
@@ -229,3 +284,173 @@ def test_promotion_is_atomic_safe_and_idempotent(tmp_path) -> None:
             "SELECT COUNT(*) FROM score_calculation_runs WHERE score_version=?",
             (QUALITY_PRODUCTION_SCORE_VERSION,),
         ).fetchone()[0] == 1
+
+
+def test_scoped_promotion_is_allowlisted_safe_and_idempotent(tmp_path) -> None:
+    canonical, source, v3_score = _databases(tmp_path)
+    manifest = _cohort_manifest(tmp_path, source, ["place-0"])
+    canonical_before = canonical.read_bytes()
+    with connect(canonical) as connection:
+        unrelated_before = tuple(
+            connection.execute(
+                "SELECT fiyu_score, score_version, is_published, product_eligible, "
+                "review_status FROM public_restaurants WHERE place_id='place-1'"
+            ).fetchone()
+        )
+
+    dry_run = run_quality_v4_promotion(
+        canonical,
+        source_db=source,
+        cohort_manifest=manifest,
+        dry_run=True,
+    )
+    assert dry_run["selection_scope"] == "cohort_manifest"
+    assert dry_run["cohort_ids"] == 1
+    assert dry_run["unique_cohort_ids"] == 1
+    assert dry_run["source_complete_v4_rows"] == 1
+    assert dry_run["source_incomplete_rows"] == 0
+    assert dry_run["selected_for_promotion"] == 1
+    assert dry_run["already_promoted"] == 0
+    assert dry_run["shadow_production_exact_matches"] == 1
+    assert dry_run["expected_publication_state_changes"] == 0
+    assert dry_run["expected_threshold_changes"] == 0
+    assert dry_run["unrelated_rows_selected"] == 0
+    assert dry_run["sankei_sushi_selected"] is False
+    assert dry_run["below_floor_rescue_overlap"] == 0
+    assert dry_run["external_requests"] == 0
+    assert canonical.read_bytes() == canonical_before
+
+    backup = tmp_path / "scoped-backup.db"
+    result = run_quality_v4_promotion(
+        canonical,
+        source_db=source,
+        cohort_manifest=manifest,
+        backup_path=backup,
+    )
+    assert backup.read_bytes() == canonical_before
+    assert result["publication_state_changes"] == 0
+    assert result["threshold_changes"] == 0
+    assert result["unrelated_rows_changed"] == 0
+    assert result["idempotency_rows_to_import"] == 0
+    assert result["idempotency_rows_to_score"] == 0
+    with connect(canonical) as connection:
+        promoted = connection.execute(
+            "SELECT fiyu_score, score_version, is_published, product_eligible, "
+            "review_status FROM public_restaurants WHERE place_id='place-0'"
+        ).fetchone()
+        unrelated_after = tuple(
+            connection.execute(
+                "SELECT fiyu_score, score_version, is_published, product_eligible, "
+                "review_status FROM public_restaurants WHERE place_id='place-1'"
+            ).fetchone()
+        )
+        history_versions = dict(
+            connection.execute(
+                "SELECT score_version, COUNT(*) FROM score_calculation_runs "
+                "WHERE public_restaurant_id='place-0' GROUP BY score_version"
+            ).fetchall()
+        )
+    assert promoted["fiyu_score"] == v3_score
+    assert promoted["score_version"] == QUALITY_PRODUCTION_SCORE_VERSION
+    assert tuple(promoted)[2:] == (1, 1, "auto_published")
+    assert unrelated_after == unrelated_before
+    assert history_versions[SCORE_VERSION] == 1
+    assert history_versions[QUALITY_PRODUCTION_SCORE_VERSION] == 1
+
+    rerun = run_quality_v4_promotion(
+        canonical,
+        source_db=source,
+        cohort_manifest=manifest,
+    )
+    assert rerun["selected_for_promotion"] == 0
+    assert rerun["already_promoted"] == 1
+    assert rerun["rows_to_import"] == 0
+    assert rerun["rows_to_score"] == 0
+
+
+def test_scoped_promotion_rejects_duplicate_manifest_ids(tmp_path) -> None:
+    canonical, source, _ = _databases(tmp_path)
+    manifest = _cohort_manifest(tmp_path, source, ["place-0", "place-0"])
+    with pytest.raises(ValueError, match="duplicate cohort place IDs"):
+        inspect_quality_v4_promotion(
+            canonical,
+            source_db=source,
+            cohort_manifest=manifest,
+        )
+
+
+def test_scoped_promotion_rejects_missing_canonical_identity(tmp_path) -> None:
+    canonical, source, _ = _databases(tmp_path)
+    manifest = _cohort_manifest(tmp_path, source, ["place-0"])
+    with connect(canonical) as connection:
+        connection.commit()
+        connection.execute("PRAGMA foreign_keys=OFF")
+        connection.execute("DELETE FROM public_restaurants WHERE place_id='place-0'")
+        connection.commit()
+    with pytest.raises(ValueError, match="missing from canonical database"):
+        inspect_quality_v4_promotion(
+            canonical,
+            source_db=source,
+            cohort_manifest=manifest,
+        )
+
+
+def test_scoped_promotion_rejects_incomplete_latest_attempt(tmp_path) -> None:
+    canonical, source, _ = _databases(tmp_path)
+    manifest = _cohort_manifest(tmp_path, source, ["place-1"])
+    with pytest.raises(ValueError, match="incomplete latest V4 attempts"):
+        inspect_quality_v4_promotion(
+            canonical,
+            source_db=source,
+            cohort_manifest=manifest,
+        )
+
+
+def test_scoped_promotion_rejects_canonical_input_drift(tmp_path) -> None:
+    canonical, source, _ = _databases(tmp_path)
+    manifest = _cohort_manifest(tmp_path, source, ["place-0"])
+    with connect(canonical) as connection:
+        connection.execute(
+            "UPDATE restaurants SET quality_score=71 WHERE place_id='place-0'"
+        )
+        connection.commit()
+    with pytest.raises(ValueError, match="shadow/production recomputation mismatch"):
+        inspect_quality_v4_promotion(
+            canonical,
+            source_db=source,
+            cohort_manifest=manifest,
+        )
+
+
+def test_scoped_promotion_rejects_stored_score_parity_mismatch(tmp_path) -> None:
+    canonical, source, _ = _databases(tmp_path)
+    with connect(source) as connection:
+        connection.execute(
+            "UPDATE quality_v4_research_runs SET shadow_v4_score=shadow_v4_score+1 "
+            "WHERE public_restaurant_id='place-0'"
+        )
+        connection.commit()
+    manifest = _cohort_manifest(tmp_path, source, ["place-0"])
+    with pytest.raises(ValueError, match="shadow/production recomputation mismatch"):
+        inspect_quality_v4_promotion(
+            canonical,
+            source_db=source,
+            cohort_manifest=manifest,
+        )
+
+
+def test_scoped_promotion_rejects_unexpected_prompt_version(tmp_path) -> None:
+    canonical, source, _ = _databases(tmp_path)
+    with connect(source) as connection:
+        connection.execute(
+            "UPDATE quality_v4_research_runs SET prompt_version='unexpected' "
+            "WHERE public_restaurant_id='place-0'"
+        )
+        connection.commit()
+    manifest = _cohort_manifest(tmp_path, source, ["place-0"])
+    with pytest.raises(ValueError, match="unexpected prompt_version"):
+        inspect_quality_v4_promotion(
+            canonical,
+            source_db=source,
+            cohort_manifest=manifest,
+        )

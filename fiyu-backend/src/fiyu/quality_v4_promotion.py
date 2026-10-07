@@ -6,6 +6,7 @@ import hashlib
 import json
 import shutil
 import statistics
+from collections import Counter
 from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
@@ -19,6 +20,7 @@ from .quality_v4 import (
     DEFAULT_ADJUSTMENT_GUARDRAIL,
     QUALITY_CASE_STRENGTH_VERSION,
     QUALITY_PRODUCTION_SCORE_VERSION,
+    QUALITY_PROMPT_VERSION,
     QUALITY_RESEARCH_VERSION,
     QUALITY_SCORE_VERSION,
     calculate_quality_v4_shadow,
@@ -67,9 +69,14 @@ VISIBILITY_FIELDS = (
     "is_published",
     "product_eligible",
     "review_status",
+    "review_notes",
     "product_eligibility_classification",
     "product_eligibility_reasons_json",
 )
+
+COHORT_MANIFEST_VERSION = "quality-v4-promotion-cohort-1"
+FLOOR70_COHORT_NAME = "floor70-prepublication-v4"
+SANKEI_PLACE_ID = "ChIJi79LD-yIGGAR_8wLG2_pyYE"
 
 CURRENT_SCORE_FIELDS = (
     "local_signal",
@@ -154,17 +161,97 @@ def _integrity(path: str | Path) -> str:
         return str(connection.execute("PRAGMA integrity_check").fetchone()[0])
 
 
-def _latest_source_rows(source_db: str | Path) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+def _load_cohort_manifest(
+    manifest_path: str | Path, source_db: str | Path
+) -> tuple[dict[str, Any], list[str]]:
+    path = Path(manifest_path)
+    payload = _json(path.read_text(encoding="utf-8"), None)
+    if not isinstance(payload, dict):
+        raise TypeError("cohort manifest must contain a JSON object")
+    if payload.get("manifest_version") != COHORT_MANIFEST_VERSION:
+        raise ValueError("unexpected cohort manifest version")
+    if payload.get("cohort_name") != FLOOR70_COHORT_NAME:
+        raise ValueError("unexpected cohort name")
+    if not _same_number(payload.get("target_floor"), 70.0):
+        raise ValueError("floor-70 promotion manifest must have target_floor=70")
+    rows = payload.get("restaurants")
+    if not isinstance(rows, list) or not rows:
+        raise ValueError("cohort manifest restaurants must be a non-empty list")
+    place_ids = [
+        str(row.get("place_id") or "").strip() if isinstance(row, dict) else ""
+        for row in rows
+    ]
+    if any(not place_id for place_id in place_ids):
+        raise ValueError("every cohort row must have a place_id")
+    duplicates = sorted(
+        place_id for place_id, count in Counter(place_ids).items() if count > 1
+    )
+    if duplicates:
+        raise ValueError(f"duplicate cohort place IDs: {duplicates[:5]}")
+    if payload.get("cohort_count") != len(place_ids):
+        raise ValueError("cohort_count does not match the unique place_id allowlist")
+    audit_path_value = payload.get("created_from_audit")
+    if not isinstance(audit_path_value, str) or not audit_path_value:
+        raise ValueError("cohort manifest is missing created_from_audit")
+    audit_path = Path(audit_path_value)
+    if not audit_path.is_absolute():
+        audit_path = Path.cwd() / audit_path
+    if not audit_path.is_file():
+        raise ValueError(f"cohort audit summary does not exist: {audit_path}")
+    if payload.get("audit_summary_sha256") != _sha256(audit_path):
+        raise ValueError("cohort audit summary SHA does not match manifest")
+    audit = _json(audit_path.read_text(encoding="utf-8"), None)
+    if not isinstance(audit, dict):
+        raise TypeError("cohort audit summary must contain a JSON object")
+    audit_rows = audit.get("cohort_rows")
+    if not isinstance(audit_rows, list):
+        raise TypeError("cohort audit summary is missing cohort_rows")
+    audited_ids = [
+        str(row.get("place_id") or "").strip() if isinstance(row, dict) else ""
+        for row in audit_rows
+    ]
+    if audited_ids != place_ids:
+        raise ValueError("cohort allowlist does not exactly match audited cohort_rows")
+    if audit.get("completion", {}).get("original_cohort") != len(place_ids):
+        raise ValueError("cohort count does not match final audit completion")
+    if audit.get("score_parity", {}).get("shadow_production_exact_matches") != len(
+        place_ids
+    ) or audit.get("score_parity", {}).get("mismatches") != 0:
+        raise ValueError("final audit score parity is not complete")
+    if audit.get("promotion_precheck", {}).get("missing_promotion_critical_fields") != 0:
+        raise ValueError("final audit has missing promotion-critical fields")
+    source_sha = _sha256(source_db)
+    if payload.get("source_shadow_sha256") != source_sha:
+        raise ValueError("source shadow SHA does not match cohort manifest")
+    assertions = payload.get("audit_assertions")
+    if not isinstance(assertions, dict):
+        raise TypeError("cohort manifest is missing audit assertions")
+    for field in (
+        "published_overlap",
+        "production_v4_overlap",
+        "below_floor_rescue_overlap",
+        "address_conflict_overlap",
+        "unresolved_or_incomplete_overlap",
+    ):
+        if assertions.get(field) != 0:
+            raise ValueError(f"cohort audit assertion failed: {field}")
+    if SANKEI_PLACE_ID in place_ids:
+        raise ValueError("Sankei Sushi must not be in the promotion cohort")
+    return payload, place_ids
+
+
+def _latest_source_rows(
+    source_db: str | Path,
+    cohort_ids: list[str] | None = None,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     with readonly_sqlite_snapshot(source_db) as connection:
         exists = connection.execute(
             "SELECT 1 FROM sqlite_master WHERE type='table' AND name='quality_v4_research_runs'"
         ).fetchone()
         if not exists:
             raise ValueError("source database has no Quality-v4 research table")
-        rows = [
-            dict(row)
-            for row in connection.execute(
-                """
+        if cohort_ids is None:
+            query = """
                 SELECT q.* FROM quality_v4_research_runs q
                 WHERE q.quality_research_version=? AND q.id=(
                     SELECT q2.id FROM quality_v4_research_runs q2
@@ -172,10 +259,20 @@ def _latest_source_rows(source_db: str | Path) -> tuple[list[dict[str, Any]], li
                       AND q2.quality_research_version=q.quality_research_version
                     ORDER BY q2.id DESC LIMIT 1
                 ) ORDER BY q.public_restaurant_id
-                """,
-                (QUALITY_RESEARCH_VERSION,),
-            ).fetchall()
-        ]
+                """
+            params: tuple[object, ...] = (QUALITY_RESEARCH_VERSION,)
+        else:
+            placeholders = ", ".join("?" for _ in cohort_ids)
+            query = f"""
+                SELECT q.* FROM quality_v4_research_runs q
+                WHERE q.public_restaurant_id IN ({placeholders}) AND q.id=(
+                    SELECT q2.id FROM quality_v4_research_runs q2
+                    WHERE q2.public_restaurant_id=q.public_restaurant_id
+                    ORDER BY q2.id DESC LIMIT 1
+                ) ORDER BY q.public_restaurant_id
+                """
+            params = tuple(cohort_ids)
+        rows = [dict(row) for row in connection.execute(query, params).fetchall()]
     return (
         [row for row in rows if row["status"] == "complete"],
         [row for row in rows if row["status"] != "complete"],
@@ -243,17 +340,107 @@ def _visibility_snapshot(rows: list[dict[str, Any]]) -> dict[str, tuple[object, 
     }
 
 
+def _canonical_state_snapshot(rows: list[dict[str, Any]]) -> dict[str, tuple[object, ...]]:
+    fields = (*VISIBILITY_FIELDS, *CURRENT_SCORE_FIELDS)
+    return {
+        str(row["place_id"]): tuple(row.get(field) for field in fields)
+        for row in rows
+    }
+
+
 def _stable_fingerprint(payload: dict[str, Any]) -> str:
     encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
+def _validate_promotion_source(source: dict[str, Any], place_id: str) -> None:
+    if source.get("status") != "complete":
+        raise ValueError(f"latest Quality-v4 attempt is not complete for {place_id}")
+    expected = {
+        "quality_research_version": QUALITY_RESEARCH_VERSION,
+        "quality_case_strength_version": QUALITY_CASE_STRENGTH_VERSION,
+        "score_version": QUALITY_SCORE_VERSION,
+        "prompt_version": QUALITY_PROMPT_VERSION,
+    }
+    for field, value in expected.items():
+        if source.get(field) != value:
+            raise ValueError(f"unexpected {field} for {place_id}")
+    if not _same_number(source.get("adjustment_guardrail"), DEFAULT_ADJUSTMENT_GUARDRAIL):
+        raise ValueError(f"unexpected adjustment guardrail for {place_id}")
+    required = (
+        "provider",
+        "model",
+        "response_id",
+        "base_quality_prior",
+        "positive_case_strength",
+        "negative_case_strength",
+        "evidence_balance",
+        "raw_quality_adjustment",
+        "guarded_quality_adjustment",
+        "researched_quality",
+        "quality_evidence_confidence",
+        "production_v3_score",
+        "shadow_v4_score",
+        "shadow_score_delta",
+        "research_result_json",
+        "normalized_observations_json",
+        "claim_clusters_json",
+        "usage_metadata_json",
+        "response_request_count",
+        "created_at",
+        "completed_at",
+    )
+    missing = [field for field in required if source.get(field) is None]
+    if missing:
+        raise ValueError(f"missing promotion-critical fields for {place_id}: {missing}")
+    for field, expected_type in (
+        ("research_result_json", dict),
+        ("normalized_observations_json", list),
+        ("claim_clusters_json", list),
+        ("usage_metadata_json", dict),
+    ):
+        if not isinstance(_json(source[field], None), expected_type):
+            raise TypeError(f"invalid {field} for {place_id}")
 
 
 def inspect_quality_v4_promotion(
     db_path: str | Path,
     *,
     source_db: str | Path,
+    cohort_manifest: str | Path | None = None,
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
-    complete, incomplete = _latest_source_rows(source_db)
+    cohort_payload: dict[str, Any] | None = None
+    cohort_ids: list[str] | None = None
+    if cohort_manifest is not None:
+        cohort_payload, cohort_ids = _load_cohort_manifest(cohort_manifest, source_db)
+    complete, incomplete = _latest_source_rows(source_db, cohort_ids)
+    if cohort_ids is not None:
+        found_ids = {
+            str(row["public_restaurant_id"]) for row in complete + incomplete
+        }
+        missing_source = sorted(set(cohort_ids) - found_ids)
+        if missing_source:
+            raise ValueError(f"cohort place IDs missing latest shadow V4 rows: {missing_source[:5]}")
+        with readonly_sqlite_snapshot(source_db) as connection:
+            placeholders = ", ".join("?" for _ in cohort_ids)
+            shadow_ids = {
+                str(row[0])
+                for row in connection.execute(
+                    f"SELECT place_id FROM public_restaurants WHERE place_id IN ({placeholders})",
+                    tuple(cohort_ids),
+                ).fetchall()
+            }
+        missing_shadow_identity = sorted(set(cohort_ids) - shadow_ids)
+        if missing_shadow_identity:
+            raise ValueError(
+                f"cohort place IDs missing shadow identities: {missing_shadow_identity[:5]}"
+            )
+        if incomplete:
+            statuses = {
+                str(row["public_restaurant_id"]): str(row["status"])
+                for row in incomplete
+            }
+            raise ValueError(f"cohort has incomplete latest V4 attempts: {statuses}")
     canonical_rows, quality_table = _canonical_rows(db_path)
     canonical = {str(row["place_id"]): row for row in canonical_rows}
     if len(canonical) != len(canonical_rows):
@@ -272,18 +459,27 @@ def inspect_quality_v4_promotion(
     for source in complete:
         place_id = str(source["public_restaurant_id"])
         row = canonical[place_id]
-        if source["quality_research_version"] != QUALITY_RESEARCH_VERSION:
-            raise ValueError(f"unexpected research version for {place_id}")
-        if source["quality_case_strength_version"] != QUALITY_CASE_STRENGTH_VERSION:
-            raise ValueError(f"unexpected case-strength version for {place_id}")
-        if source["score_version"] != QUALITY_SCORE_VERSION:
-            raise ValueError(f"unexpected shadow score version for {place_id}")
-        if float(source["adjustment_guardrail"]) != DEFAULT_ADJUSTMENT_GUARDRAIL:
-            raise ValueError(f"unexpected adjustment guardrail for {place_id}")
+        if cohort_ids is not None:
+            _validate_promotion_source(source, place_id)
+        else:
+            if source["quality_research_version"] != QUALITY_RESEARCH_VERSION:
+                raise ValueError(f"unexpected research version for {place_id}")
+            if source["quality_case_strength_version"] != QUALITY_CASE_STRENGTH_VERSION:
+                raise ValueError(f"unexpected case-strength version for {place_id}")
+            if source["score_version"] != QUALITY_SCORE_VERSION:
+                raise ValueError(f"unexpected shadow score version for {place_id}")
+            if not _same_number(
+                source["adjustment_guardrail"], DEFAULT_ADJUSTMENT_GUARDRAIL
+            ):
+                raise ValueError(f"unexpected adjustment guardrail for {place_id}")
         if row["base_quality_score"] is None:
             raise ValueError(f"canonical base Quality is missing for {place_id}")
         research = ChallengeResearchResult.model_validate(_json(source["research_result_json"], {}))
-        evidence = FiyuEvidence(**_json(row["evidence_json"], {}))
+        evidence_payload = _json(row["evidence_json"], {})
+        specialist_status = str(evidence_payload.get("specialist_status") or "unknown")
+        if specialist_status not in {"specialist", "not_specialist", "unknown"}:
+            raise ValueError(f"unexpected specialist tri-state for {place_id}")
+        evidence = FiyuEvidence(**evidence_payload)
         internal = InternalSignals(
             quality_score=float(row["base_quality_score"]),
             underexposure_score=float(row["underexposure_score"] or 0),
@@ -384,6 +580,14 @@ def inspect_quality_v4_promotion(
     ]
     summary = {
         "dry_run": True,
+        "selection_scope": "cohort_manifest" if cohort_ids is not None else "all_source_rows",
+        "cohort_manifest": str(cohort_manifest) if cohort_manifest is not None else None,
+        "cohort_name": cohort_payload.get("cohort_name") if cohort_payload else None,
+        "cohort_manifest_version": (
+            cohort_payload.get("manifest_version") if cohort_payload else None
+        ),
+        "cohort_ids": len(cohort_ids) if cohort_ids is not None else len(source_ids),
+        "unique_cohort_ids": len(set(cohort_ids)) if cohort_ids is not None else len(source_ids),
         "source_complete_v4_rows": len(complete),
         "source_incomplete_rows": len(incomplete),
         "source_failed_rows": sum(row["status"] == "failed" for row in incomplete),
@@ -391,10 +595,32 @@ def inspect_quality_v4_promotion(
         "missing_canonical_identities": 0,
         "duplicate_or_conflicting_identities": 0,
         "already_v4_rows": sum(not plan["score_needed"] for plan in plans),
+        "already_promoted": sum(
+            not plan["import_needed"] and not plan["score_needed"] for plan in plans
+        ),
+        "selected_for_promotion": sum(
+            plan["import_needed"] or plan["score_needed"] for plan in plans
+        ),
+        "excluded_from_cohort": 0,
+        "missing_from_cohort": 0,
+        "unrelated_rows_selected": 0,
+        "sankei_sushi_selected": SANKEI_PLACE_ID in source_ids,
+        "below_floor_rescue_overlap": (
+            cohort_payload.get("audit_assertions", {}).get("below_floor_rescue_overlap", 0)
+            if cohort_payload
+            else None
+        ),
         "rows_to_import": sum(plan["import_needed"] for plan in plans),
         "rows_to_score": sum(plan["score_needed"] for plan in plans),
+        "expected_score_history_additions": 2
+        * sum(plan["score_needed"] for plan in plans),
         "expected_score_version_changes": sum(plan["score_needed"] for plan in plans),
         "expected_publication_state_changes": 0,
+        "expected_is_published_changes": 0,
+        "expected_product_eligible_changes": 0,
+        "expected_review_status_changes": 0,
+        "expected_rejection_reason_changes": 0,
+        "expected_threshold_changes": 0,
         "production_score_version": QUALITY_PRODUCTION_SCORE_VERSION,
         "source_shadow_score_version": QUALITY_SCORE_VERSION,
         "publication_score_threshold": PUBLICATION_SCORE_THRESHOLD,
@@ -655,6 +881,73 @@ def _representative_rows(plans: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 def _write_report(path: Path, summary: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
+    if summary.get("selection_scope") == "cohort_manifest":
+        lines = [
+            "# Floor-70 Quality-v4 cohort promotion dry run",
+            "",
+            "## 1. Cohort identity",
+            "",
+            f"- Manifest IDs / unique IDs: **{summary['cohort_ids']} / {summary['unique_cohort_ids']}**",
+            f"- Canonical identities / shadow complete: **{summary['matched_canonical_identities']} / {summary['source_complete_v4_rows']}**",
+            f"- Sankei Sushi selected: **{summary['sankei_sushi_selected']}**",
+            f"- Below-floor rescue overlap: **{summary['below_floor_rescue_overlap']}**",
+            "",
+            "## 2. Source and canonical hashes",
+            "",
+            f"- Canonical before/after: `{summary['canonical_sha256_before']}` / `{summary['canonical_sha256_after']}`",
+            f"- Shadow: `{summary['source_shadow_sha256']}`",
+            f"- Cohort manifest: `{summary['cohort_manifest_sha256']}`",
+            "",
+            "## 3. Version validation",
+            "",
+            f"Validated research/scorer/prompt versions and ±15 guardrail for **{summary['source_complete_v4_rows']}** rows.",
+            "",
+            "## 4. Shadow/canonical parity",
+            "",
+            f"- Exact matches / mismatches: **{summary['shadow_production_exact_matches']} / {summary['shadow_production_mismatches']}**",
+            f"- Maximum mismatch: **{summary['maximum_shadow_production_mismatch']}**",
+            "",
+            "## 5. Score delta distribution",
+            "",
+            f"`{json.dumps(summary['shadow_v4_delta_distribution'], sort_keys=True)}`",
+            "",
+            "## 6. Expected history and research imports",
+            "",
+            f"- Selected / already promoted: **{summary['selected_for_promotion']} / {summary['already_promoted']}**",
+            f"- Research imports / score pointer changes: **{summary['rows_to_import']} / {summary['rows_to_score']}**",
+            f"- Expected score-history additions: **{summary['expected_score_history_additions']}**",
+            "",
+            "## 7. Publication invariants",
+            "",
+            f"Publication, product eligibility, review status, and rejection-reason changes: **{summary['expected_publication_state_changes']} / {summary['expected_product_eligible_changes']} / {summary['expected_review_status_changes']} / {summary['expected_rejection_reason_changes']}**.",
+            "",
+            "## 8. Threshold invariant",
+            "",
+            f"Production threshold: **{summary['publication_threshold_before']} -> {summary['publication_threshold_after']}**. Changes: **{summary['expected_threshold_changes']}**.",
+            "",
+            "## 9. Unrelated-row protection",
+            "",
+            f"Unrelated rows selected/changed: **{summary['unrelated_rows_selected']} / {summary['unrelated_rows_changed']}**.",
+            "",
+            "## 10. Idempotency expectation",
+            "",
+            "After the first successful scoped promotion, the same command must report selected 0 and already promoted 313.",
+            "",
+            "## 11. Exact future execution command",
+            "",
+            "```powershell",
+            summary["recommended_real_command"],
+            "```",
+            "",
+            "## Full machine-readable summary",
+            "",
+            "```json",
+            json.dumps(summary, ensure_ascii=False, indent=2),
+            "```",
+            "",
+        ]
+        path.write_text("\n".join(lines), encoding="utf-8")
+        return
     lines = [
         "# Quality-v4 production promotion",
         "",
@@ -672,6 +965,7 @@ def run_quality_v4_promotion(
     db_path: str | Path,
     *,
     source_db: str | Path,
+    cohort_manifest: str | Path | None = None,
     dry_run: bool = False,
     backup_path: str | Path | None = None,
     summary_path: str | Path | None = None,
@@ -682,22 +976,53 @@ def run_quality_v4_promotion(
     canonical_sha_before = _sha256(db)
     source_sha_before = _sha256(source)
     threshold_before = PUBLICATION_SCORE_THRESHOLD
-    summary, plans = inspect_quality_v4_promotion(db, source_db=source)
+    canonical_rows_before, _ = _canonical_rows(db)
+    state_before = _canonical_state_snapshot(canonical_rows_before)
+    published_before = sum(bool(row.get("is_published")) for row in canonical_rows_before)
+    summary, plans = inspect_quality_v4_promotion(
+        db,
+        source_db=source,
+        cohort_manifest=cohort_manifest,
+    )
     visibility_before = summary.pop("visibility_snapshot")
+    selected_ids = {str(plan["place_id"]) for plan in plans}
     summary.update(
         {
             "dry_run": dry_run,
             "canonical_sha256_before": canonical_sha_before,
             "source_shadow_sha256": source_sha_before,
             "canonical_integrity_before": _integrity(db),
+            "source_integrity_before": _integrity(source),
             "external_requests": 0,
+            "publication_threshold_before": threshold_before,
+            "publication_threshold_after": threshold_before,
+            "published_count_before": published_before,
+            "published_count_after": published_before,
+            "cohort_manifest_sha256": (
+                _sha256(cohort_manifest) if cohort_manifest is not None else None
+            ),
             "representative_rows": _representative_rows(plans),
         }
     )
+    if cohort_manifest is not None:
+        backup_example = "data\\audits\\pre-floor70-v4-promotion-20261006.db"
+        command_base = (
+            f".\\.venv\\Scripts\\python.exe -m fiyu.pipeline_cli --db {db} "
+            f"quality-v4-promote --source-db {source} "
+            f"--cohort-manifest {Path(cohort_manifest)}"
+        )
+        summary["recommended_dry_run_command"] = f"{command_base} --dry-run"
+        summary["recommended_real_command"] = (
+            f"{command_base} --backup-out {backup_example}"
+        )
     changing = bool(summary["rows_to_import"] or summary["rows_to_score"])
     if dry_run:
         summary["canonical_sha256_after"] = _sha256(db)
         summary["canonical_unchanged"] = summary["canonical_sha256_after"] == canonical_sha_before
+        summary["source_shadow_unchanged"] = _sha256(source) == source_sha_before
+        summary["publication_state_changes"] = 0
+        summary["threshold_changes"] = 0
+        summary["unrelated_rows_changed"] = 0
     else:
         if changing:
             if backup_path is None:
@@ -713,6 +1038,7 @@ def run_quality_v4_promotion(
             )
             _apply_promotion(db, plans)
         canonical_after, _ = _canonical_rows(db)
+        state_after = _canonical_state_snapshot(canonical_after)
         visibility_after = _visibility_snapshot(canonical_after)
         visibility_changes = [
             place_id
@@ -721,9 +1047,20 @@ def run_quality_v4_promotion(
         ]
         if visibility_changes:
             raise RuntimeError(f"publication state changed: {visibility_changes[:5]}")
+        unrelated_changes = [
+            place_id
+            for place_id, before in state_before.items()
+            if place_id not in selected_ids and state_after.get(place_id) != before
+        ]
+        if unrelated_changes:
+            raise RuntimeError(f"unrelated canonical rows changed: {unrelated_changes[:5]}")
         if PUBLICATION_SCORE_THRESHOLD != threshold_before:
             raise RuntimeError("publication threshold changed")
-        rerun, _ = inspect_quality_v4_promotion(db, source_db=source)
+        rerun, _ = inspect_quality_v4_promotion(
+            db,
+            source_db=source,
+            cohort_manifest=cohort_manifest,
+        )
         if rerun["rows_to_import"] or rerun["rows_to_score"]:
             raise RuntimeError("promotion did not become idempotent")
         with readonly_sqlite_snapshot(db) as connection:
@@ -735,18 +1072,21 @@ def run_quality_v4_promotion(
                 )
             }
             imported_count = connection.execute(
-                "SELECT COUNT(*) FROM quality_v4_research_runs "
-                "WHERE quality_research_version=? AND status='complete'",
-                (QUALITY_RESEARCH_VERSION,),
+                "SELECT COUNT(*) FROM quality_v4_research_runs WHERE "
+                f"quality_research_version=? AND status='complete' AND "
+                f"public_restaurant_id IN ({', '.join('?' for _ in selected_ids)})",
+                (QUALITY_RESEARCH_VERSION, *sorted(selected_ids)),
             ).fetchone()[0]
             duplicate_v4_history = connection.execute(
-                """
+                f"""
                 SELECT COUNT(*) FROM (
                     SELECT public_restaurant_id FROM score_calculation_runs
-                    WHERE score_version=? GROUP BY public_restaurant_id HAVING COUNT(*)>1
+                    WHERE score_version=? AND public_restaurant_id IN (
+                        {', '.join('?' for _ in selected_ids)}
+                    ) GROUP BY public_restaurant_id HAVING COUNT(*)>1
                 )
                 """,
-                (QUALITY_PRODUCTION_SCORE_VERSION,),
+                (QUALITY_PRODUCTION_SCORE_VERSION, *sorted(selected_ids)),
             ).fetchone()[0]
         summary.update(
             {
@@ -763,12 +1103,17 @@ def run_quality_v4_promotion(
                 "product_eligible_changes": 0,
                 "review_status_changes": 0,
                 "total_visibility_state_changes": 0,
+                "publication_state_changes": 0,
+                "unrelated_rows_changed": 0,
                 "threshold_changes": 0,
                 "idempotency_rows_to_import": rerun["rows_to_import"],
                 "idempotency_rows_to_score": rerun["rows_to_score"],
                 "canonical_integrity_after": _integrity(db),
                 "canonical_sha256_after": _sha256(db),
                 "source_shadow_unchanged": _sha256(source) == source_sha_before,
+                "published_count_after": sum(
+                    bool(row.get("is_published")) for row in canonical_after
+                ),
             }
         )
     if summary_path:

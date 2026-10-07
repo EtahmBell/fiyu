@@ -169,6 +169,10 @@ def _parser() -> argparse.ArgumentParser:
         help="Promote completed local Quality-v4 shadow evidence into production scores",
     )
     quality_v4_promote.add_argument("--source-db", required=True)
+    quality_v4_promote.add_argument(
+        "--cohort-manifest",
+        help="Strict place_id allowlist for an audited Quality-v4 promotion cohort",
+    )
     quality_v4_promote.add_argument("--dry-run", action="store_true")
     quality_v4_promote.add_argument("--backup-out")
     quality_v4_promote.add_argument("--summary-out")
@@ -404,6 +408,7 @@ def main() -> None:
         result = run_quality_v4_promotion(
             db,
             source_db=args.source_db,
+            cohort_manifest=args.cohort_manifest,
             dry_run=args.dry_run,
             backup_path=args.backup_out,
             summary_path=args.summary_out,
