@@ -348,7 +348,7 @@ def _canonical_state_snapshot(rows: list[dict[str, Any]]) -> dict[str, tuple[obj
     }
 
 
-def _stable_fingerprint(payload: dict[str, Any]) -> str:
+def score_history_fingerprint(payload: dict[str, Any]) -> str:
     encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
@@ -625,6 +625,8 @@ def inspect_quality_v4_promotion(
         "source_shadow_score_version": QUALITY_SCORE_VERSION,
         "publication_score_threshold": PUBLICATION_SCORE_THRESHOLD,
         "failed_or_incomplete_rows": failed_rows,
+        "stored_current_pointer_distribution_before": _distribution(before_scores),
+        # Backward-compatible alias retained for existing machine-readable artifacts.
         "stored_v3_pointer_distribution_before": _distribution(before_scores),
         "canonical_v3_distribution": _distribution(canonical_v3_scores),
         "v4_score_distribution_after": _distribution(after_scores),
@@ -750,7 +752,7 @@ def _apply_promotion(db_path: Path, plans: list[dict[str, Any]]) -> None:
                 place_id=place_id,
                 source_research_run_id=row.get("source_research_run_id"),
                 score_version=str(row.get("score_version") or "unversioned"),
-                fingerprint=_stable_fingerprint(pre_snapshot),
+                fingerprint=score_history_fingerprint(pre_snapshot),
                 score_json=pre_snapshot,
                 now=now,
             )
@@ -775,7 +777,7 @@ def _apply_promotion(db_path: Path, plans: list[dict[str, Any]]) -> None:
                 place_id=place_id,
                 source_research_run_id=row.get("source_research_run_id"),
                 score_version=QUALITY_PRODUCTION_SCORE_VERSION,
-                fingerprint=_stable_fingerprint(score_payload),
+                fingerprint=score_history_fingerprint(score_payload),
                 score_json=score_payload,
                 now=now,
             )
@@ -883,7 +885,11 @@ def _write_report(path: Path, summary: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     if summary.get("selection_scope") == "cohort_manifest":
         lines = [
-            "# Floor-70 Quality-v4 cohort promotion dry run",
+            (
+                "# Floor-70 Quality-v4 cohort promotion dry run"
+                if summary.get("dry_run")
+                else "# Floor-70 Quality-v4 cohort promotion"
+            ),
             "",
             "## 1. Cohort identity",
             "",

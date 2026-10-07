@@ -179,6 +179,18 @@ def _parser() -> argparse.ArgumentParser:
     quality_v4_promote.add_argument("--report-out")
     quality_v4_promote.add_argument("--verbose", action="store_true")
 
+    quality_v4_version_fix = commands.add_parser(
+        "quality-v4-fix-specialist-version",
+        help="Correct an audited Quality-v4 cohort's specialist-tristate version metadata",
+    )
+    quality_v4_version_fix.add_argument("--cohort-manifest", required=True)
+    quality_v4_version_fix.add_argument("--source-db")
+    quality_v4_version_fix.add_argument("--dry-run", action="store_true")
+    quality_v4_version_fix.add_argument("--backup-out")
+    quality_v4_version_fix.add_argument("--summary-out")
+    quality_v4_version_fix.add_argument("--report-out")
+    quality_v4_version_fix.add_argument("--verbose", action="store_true")
+
     specialist_migrate = commands.add_parser(
         "specialist-tristate-migrate",
         help="Migrate stored specialist booleans to versioned tri-state semantics",
@@ -414,6 +426,18 @@ def main() -> None:
             summary_path=args.summary_out,
             report_path=args.report_out,
         )
+    elif args.command == "quality-v4-fix-specialist-version":
+        from .quality_v4_version_fix import run_specialist_version_fix
+
+        result = run_specialist_version_fix(
+            db,
+            cohort_manifest=args.cohort_manifest,
+            source_db=args.source_db,
+            dry_run=args.dry_run,
+            backup_path=args.backup_out,
+            summary_path=args.summary_out,
+            report_path=args.report_out,
+        )
     elif args.command == "specialist-tristate-migrate":
         from .specialist_tristate_migration import run_migration
 
@@ -448,6 +472,10 @@ def main() -> None:
         from .quality_v4_promotion import compact_promotion_summary
 
         print(compact_promotion_summary(result))
+    elif args.command == "quality-v4-fix-specialist-version" and not args.verbose:
+        from .quality_v4_version_fix import compact_summary
+
+        print(compact_summary(result))
     elif args.command == "specialist-tristate-migrate" and not args.verbose:
         from .specialist_tristate_migration import compact_summary
 

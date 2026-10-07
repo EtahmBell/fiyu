@@ -14,11 +14,12 @@ from typing import Any, Final
 
 from .database import connect
 from .public_score import FiyuEvidence, FiyuScoreResult, rescore_specialist_status
+from .quality_v4 import QUALITY_PRODUCTION_SCORE_VERSION
 
 MIGRATION_VERSION: Final = "specialist-tristate-migration-1"
 SPECIALIST_SCHEMA_VERSION: Final = "specialist-tristate-1"
 V3_SCORE_VERSION: Final = "public-v3-local-discovery-specialist-tristate"
-V4_SCORE_VERSION: Final = "public-v4-quality-research-specialist-tristate"
+V4_SCORE_VERSION: Final = QUALITY_PRODUCTION_SCORE_VERSION
 PUBLICATION_THRESHOLD: Final = 75.0
 VISIBILITY_FIELDS: Final = (
     "is_published",

@@ -1,0 +1,116 @@
+# V4 specialist-tristate lineage fix dry run
+
+## 1. Cohort validation
+
+`{"canonical_matched": 313, "manifest_ids": 313, "manifest_path": "data\\audits\\floor70-prepublication-v4-promotion-cohort.json", "manifest_sha256": "934E651CBDC198A9E9EEE9A53DB8DAF2E6C941DFF28F79A0B621A8EC7C8FAF2E", "unique_ids": 313}`
+
+## 2. Current-pointer label changes
+
+`{"canonical_score_parity": 313, "numeric_score_changes": 0, "score_version_labels_to_change": 313}`
+
+## 3. History label changes
+
+`{"embedded_score_json_labels_to_change": 313, "fingerprints_to_recompute": 313, "v3_history_rows_touched": 0, "v4_history_labels_to_change": 313}`
+
+## 4. Fingerprint changes
+
+Fingerprints to recompute: **313**.
+
+## 5. Numeric score invariant
+
+Numeric score changes: **0**.
+
+## 6. Publication invariant
+
+Published count: **538 -> 538**.
+
+## 7. Threshold invariant
+
+Threshold: **75.0 -> 75.0**.
+
+## 8. Unrelated-row protection
+
+Unrelated rows changed: **0**.
+
+## 9. Post-migration version counts
+
+`{"NULL": 111, "public-v3-local-discovery-specialist-tristate": 231, "public-v4-quality-research": 0, "public-v4-quality-research-specialist-tristate": 861}`
+
+## 10. Idempotency
+
+After a successful real run, expected selected / already correct: **0 / 313**.
+
+## Full machine-readable summary
+
+```json
+{
+  "cohort": {
+    "manifest_path": "data\\audits\\floor70-prepublication-v4-promotion-cohort.json",
+    "manifest_sha256": "934E651CBDC198A9E9EEE9A53DB8DAF2E6C941DFF28F79A0B621A8EC7C8FAF2E",
+    "manifest_ids": 313,
+    "unique_ids": 313,
+    "canonical_matched": 313
+  },
+  "selection": {
+    "selected": 313,
+    "already_correct": 0,
+    "invalid": 0
+  },
+  "current_pointer": {
+    "score_version_labels_to_change": 313,
+    "numeric_score_changes": 0,
+    "canonical_score_parity": 313
+  },
+  "history": {
+    "v4_history_labels_to_change": 313,
+    "embedded_score_json_labels_to_change": 313,
+    "fingerprints_to_recompute": 313,
+    "v3_history_rows_touched": 0
+  },
+  "invariants": {
+    "publication_changes": 0,
+    "product_eligibility_changes": 0,
+    "review_status_changes": 0,
+    "rejection_reason_changes": 0,
+    "threshold_changes": 0,
+    "unrelated_rows_changed": 0,
+    "external_requests": 0,
+    "publication_threshold_before": 75.0,
+    "publication_threshold_after": 75.0,
+    "published_count_before": 538,
+    "published_count_after": 538
+  },
+  "version_counts": {
+    "before": {
+      "NULL": 111,
+      "public-v3-local-discovery-specialist-tristate": 231,
+      "public-v4-quality-research": 313,
+      "public-v4-quality-research-specialist-tristate": 548
+    },
+    "projected_after": {
+      "NULL": 111,
+      "public-v3-local-discovery-specialist-tristate": 231,
+      "public-v4-quality-research": 0,
+      "public-v4-quality-research-specialist-tristate": 861
+    },
+    "projected_total": 1203
+  },
+  "idempotency_expectation": {
+    "selected": 0,
+    "already_correct": 313,
+    "pointer_label_changes": 0,
+    "history_label_changes": 0,
+    "fingerprint_changes": 0,
+    "numeric_score_changes": 0,
+    "publication_changes": 0
+  },
+  "source_shadow_db": "C:\\Users\\ethan\\OneDrive\\Documents\\GitHub\\fiyu-public\\fiyu-backend\\data\\fiyu-floor70-prepublication-v4-shadow.db",
+  "source_shadow_sha256": "98BAA6F48236D6DC33AFD97A3B1BD751CB3E8A324A72636B6C3FB2F44C21F592",
+  "canonical_sha256_before": "A8138441F832266E8CC1BE2338209D49A249D49F68BE0697E0FBA00DAF354938",
+  "canonical_integrity_before": "ok",
+  "source_integrity": "ok",
+  "dry_run": true,
+  "canonical_sha256_after": "A8138441F832266E8CC1BE2338209D49A249D49F68BE0697E0FBA00DAF354938",
+  "canonical_unchanged": true
+}
+```
