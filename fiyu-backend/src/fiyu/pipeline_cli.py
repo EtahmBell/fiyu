@@ -318,6 +318,16 @@ def _parser() -> argparse.ArgumentParser:
             command.add_argument("--report-out")
         if with_changes:
             command.add_argument("--changes-out")
+    completeness_apply = commands.add_parser(
+        "completeness-apply",
+        help="Apply all three exact Phase E1 deterministic cohorts transactionally",
+    )
+    completeness_apply.add_argument("--apply", action="store_true", required=True)
+    completeness_apply.add_argument("--backup-out", required=True)
+    completeness_apply.add_argument("--audit-dir", default="data/audits")
+    completeness_apply.add_argument("--seed", default="seed70.txt")
+    completeness_apply.add_argument("--summary-out", required=True)
+    completeness_apply.add_argument("--report-out", required=True)
     return parser
 
 
@@ -762,6 +772,17 @@ def main(argv: list[str] | None = None, *, canonical: bool = False) -> int:
         )
     elif args.command == "publish":
         result = publish_candidate(db, args.place_id).to_dict()
+    elif args.command == "completeness-apply":
+        from .completeness import run_completeness_apply
+
+        result = run_completeness_apply(
+            db,
+            backup_path=args.backup_out,
+            audit_dir=args.audit_dir,
+            seed_path=args.seed,
+            summary_path=args.summary_out,
+            report_path=args.report_out,
+        )
     elif args.command in {
         "cuisine-normalize", "discovery-area-backfill", "price-normalize", "missing-budget"
     }:

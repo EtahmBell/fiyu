@@ -1,0 +1,24 @@
+{
+  "external_requests": 0,
+  "normalization_version": "discovery-area-derivation-v1",
+  "rows": [
+    {
+      "classification": "ambiguous",
+      "conflicting_evidence": {
+        "address": "7 Chome-11-1F Kamiyamacho, Shibuya, Tokyo 150-0047, Japan",
+        "city": "Shibuya",
+        "discovery_area_conflict": 1,
+        "neighborhood": "7 Chome Kamiyamacho",
+        "normalized_address": null,
+        "search_area": "Shibuya Initial",
+        "verified_address": null,
+        "verified_neighborhood": null
+      },
+      "evidence_needed_later": "reviewed identity-matched neighborhood or ward evidence that resolves the stored conflict",
+      "place_id": "ChIJRR9sB62MGGARDApiYRPtr60",
+      "refusal_reason": "stored_discovery_conflict",
+      "restaurant": "Sushi Tominaka"
+    }
+  ],
+  "unresolved_count": 1
+}

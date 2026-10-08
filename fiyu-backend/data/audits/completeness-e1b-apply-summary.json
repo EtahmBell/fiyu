@@ -1,0 +1,74 @@
+{
+  "after": {
+    "discovery_complete": 850,
+    "normalized_cuisine_rows": 678,
+    "price_complete": 778,
+    "published": 851,
+    "threshold": "70",
+    "total": 1203,
+    "unpublished": 352
+  },
+  "applied": {
+    "cuisine": 678,
+    "discovery_area": 803,
+    "price": 155
+  },
+  "applied_at": "2026-10-08T06:08:27.524245+00:00",
+  "audit_cohort_parity": {
+    "cuisine": true,
+    "discovery_area": true,
+    "price": true
+  },
+  "before": {
+    "discovery_complete": 47,
+    "normalized_cuisine_rows": 0,
+    "price_complete": 623,
+    "published": 851,
+    "threshold": "70",
+    "total": 1203,
+    "unpublished": 352
+  },
+  "database": {
+    "backup_integrity": "ok",
+    "backup_path": "data\\backups\\fiyu-pre-completeness-e1b-20261007T2315-PDT.db",
+    "backup_sha256": "4D38189FE36E319D11F8040EF0B45B63884377FD0C393A55B04D9D0CAA4F0EC6",
+    "canonical_sha256_after": "D3745468750C908EB2592B82DA59BFE140DE037D722305160E59C6BA66427864",
+    "canonical_sha256_before": "184F19B3099E67E63B0680933F0E3847EAD775EF66D93171A33D9782F71F2B90",
+    "duplicate_public_place_ids": 0,
+    "foreign_key_violations": 0,
+    "integrity_check": "ok",
+    "invalid_source_restaurant_pointers": 0,
+    "seed70_sha256_after": "BF5EE61572EB2FB1B12F2487F800673EB965583DDFA1F22DCABFFE860F618C39",
+    "seed70_sha256_before": "BF5EE61572EB2FB1B12F2487F800673EB965583DDFA1F22DCABFFE860F618C39"
+  },
+  "external_requests": 0,
+  "idempotency_pending": {
+    "cuisine": 0,
+    "discovery_area": 0,
+    "price": 0
+  },
+  "operation": "completeness-e1b-apply",
+  "phase_e2_selector": {
+    "artifact": "data\\audits\\missing-budget-selector-v1-post-backfill.json",
+    "count": 73,
+    "exact_prior_set_parity": true
+  },
+  "product_parity": {
+    "api_schema_changed": false,
+    "note": "canonical price completeness can make additional restaurants eligible for the existing affordable-slot rule; the algorithm and threshold are unchanged",
+    "picks_algorithm_changed": false,
+    "protected_public_rows": 1203,
+    "public_score_parity": 1203,
+    "publication_changes": 0,
+    "publication_parity": 1203,
+    "score_changes": 0,
+    "score_version_parity": 1203,
+    "taste_inputs_changed": false
+  },
+  "run_ids": {
+    "cuisine": 1,
+    "discovery_area": 2,
+    "price": 3
+  },
+  "status": "completed"
+}
