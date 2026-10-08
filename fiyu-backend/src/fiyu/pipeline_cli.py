@@ -304,6 +304,20 @@ def _parser() -> argparse.ArgumentParser:
     ):
         report = commands.add_parser(name, help=help_text)
         report.add_argument("--summary-out")
+
+    for name, help_text, with_report, with_changes in (
+        ("cuisine-normalize", "Dry-run versioned cuisine normalization", True, True),
+        ("discovery-area-backfill", "Dry-run deterministic discovery-area fills", True, True),
+        ("price-normalize", "Dry-run deterministic stored price normalization", True, True),
+        ("missing-budget", "Dry-run the future targeted missing-budget selector", False, False),
+    ):
+        command = commands.add_parser(name, help=help_text)
+        command.add_argument("--dry-run", action="store_true", required=True)
+        command.add_argument("--summary-out")
+        if with_report:
+            command.add_argument("--report-out")
+        if with_changes:
+            command.add_argument("--changes-out")
     return parser
 
 
@@ -748,6 +762,39 @@ def main(argv: list[str] | None = None, *, canonical: bool = False) -> int:
         )
     elif args.command == "publish":
         result = publish_candidate(db, args.place_id).to_dict()
+    elif args.command in {
+        "cuisine-normalize", "discovery-area-backfill", "price-normalize", "missing-budget"
+    }:
+        from .completeness import (
+            run_cuisine_dry_run,
+            run_discovery_area_dry_run,
+            run_missing_budget_selector,
+            run_price_dry_run,
+        )
+
+        if args.command == "cuisine-normalize":
+            result = run_cuisine_dry_run(
+                db,
+                summary_path=args.summary_out,
+                report_path=args.report_out,
+                changes_path=args.changes_out,
+            )
+        elif args.command == "discovery-area-backfill":
+            result = run_discovery_area_dry_run(
+                db,
+                summary_path=args.summary_out,
+                report_path=args.report_out,
+                changes_path=args.changes_out,
+            )
+        elif args.command == "price-normalize":
+            result = run_price_dry_run(
+                db,
+                summary_path=args.summary_out,
+                report_path=args.report_out,
+                changes_path=args.changes_out,
+            )
+        else:
+            result = run_missing_budget_selector(db, summary_path=args.summary_out)
     elif args.command in {"catalog-status", "funnel", "coverage"}:
         from .operator_reporting import operator_summary
         from .operator_status import catalog_status, coverage_report, funnel_report

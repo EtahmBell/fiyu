@@ -773,9 +773,18 @@ def practical_info_is_useful(info: PracticalInfo) -> bool:
 
 
 _JPY_PRICE_RANGE = re.compile(
-    r"^\s*[¥￥]\s*([\d,]+)\s*[–—-]\s*([\d,]+)\s*$"
+    r"^\s*(?:[¥￥]\s*)?([\d,]+)\s*(?:円\s*)?[–—\-~〜～]\s*"
+    r"(?:[¥￥]\s*)?([\d,]+)\s*円?\s*$",
+    re.IGNORECASE,
 )
-_JPY_PRICE_PLUS = re.compile(r"^\s*[¥￥]\s*([\d,]+)\s*\+\s*$")
+_JPY_PRICE_PLUS = re.compile(
+    r"^\s*(?:[¥￥]\s*)?([\d,]+)\s*(?:円\s*)?(?:\+|以上)\s*$",
+    re.IGNORECASE,
+)
+_JPY_PRICE_UNDER = re.compile(
+    r"^\s*(?:under\s*)?(?:[¥￥]\s*)?([\d,]+)\s*(?:円\s*)?(?:以下)?\s*$",
+    re.IGNORECASE,
+)
 
 
 def _budget_band(minimum: int | None, maximum: int | None) -> str:
@@ -797,6 +806,8 @@ def normalize_candidate_budget(raw_value: str | None) -> BudgetInfo | None:
     if not raw_value:
         return None
     value = " ".join(raw_value.split()).strip()
+    if not any(marker in value for marker in ("¥", "￥", "円")):
+        return None
     match = _JPY_PRICE_RANGE.fullmatch(value)
     if match:
         minimum, maximum = (int(part.replace(",", "")) for part in match.groups())
@@ -826,6 +837,19 @@ def normalize_candidate_budget(raw_value: str | None) -> BudgetInfo | None:
             source_type="candidate_price_import",
             confidence=0.8,
         )
+    if value.casefold().startswith("under") or "以下" in value or value.startswith(("〜", "～")):
+        match = _JPY_PRICE_UNDER.fullmatch(value.lstrip("〜～"))
+        if match:
+            maximum = int(match.group(1).replace(",", ""))
+            return BudgetInfo(
+                currency="JPY",
+                minimum=0,
+                maximum=maximum,
+                band=_budget_band(0, maximum),
+                source_value=value,
+                source_type="candidate_price_import",
+                confidence=0.8,
+            )
     return None
 
 

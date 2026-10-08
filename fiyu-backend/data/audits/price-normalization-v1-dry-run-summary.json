@@ -1,0 +1,32 @@
+{
+  "band_thresholds": {
+    "budget_max": 2000,
+    "moderate_max": 5000,
+    "splurge_above": 10000,
+    "upscale_max": 10000
+  },
+  "canonical_db_sha256": "184F19B3099E67E63B0680933F0E3847EAD775EF66D93171A33D9782F71F2B90",
+  "canonical_mutations": 0,
+  "conflicts": 0,
+  "current_complete": 623,
+  "current_missing": 228,
+  "external_requests": 0,
+  "field_source_audit": {
+    "api_usage": "canonical budget only",
+    "canonical": "public_restaurants.budget_json and budget_source_value",
+    "product_usage": "Daily Picks affordability continues using the existing canonical budget",
+    "provider_price_levels": "no established mapping exists, so non-JPY/provider-level hints remain unresolved",
+    "raw": "restaurants.price",
+    "researched": "public_restaurants.card_enrichment_json.budget and budget provenance",
+    "scoring_usage": "none"
+  },
+  "insufficient_existing_evidence": 73,
+  "locally_resolvable": 155,
+  "mode": "dry_run",
+  "normalization_version": "price-normalization-v1",
+  "operation": "price-normalize",
+  "projected_complete": 778,
+  "projected_unresolved": 73,
+  "proposed_change_count": 155,
+  "published_rows": 851
+}
