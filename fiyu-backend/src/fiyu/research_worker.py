@@ -424,6 +424,8 @@ def run_research_batch(
     model: str | None = None,
     retry_failed: bool = False,
     place_id: str | None = None,
+    place_ids: list[str] | None = None,
+    max_items: int | None = None,
     dry_run: bool = False,
     resume_run_id: int | None = None,
     worker_id: str | None = None,
@@ -431,6 +433,12 @@ def run_research_batch(
 ) -> dict[str, object]:
     if limit < 1 or limit > 100:
         raise ValueError("limit must be between 1 and 100")
+    if place_id is not None and place_ids is not None:
+        raise ValueError("place_id and place_ids are mutually exclusive")
+    if place_ids is not None and (not place_ids or len(place_ids) != len(set(place_ids))):
+        raise ValueError("place_ids must be a non-empty, duplicate-free allowlist")
+    if max_items is not None and max_items < 1:
+        raise ValueError("max_items must be positive")
     load_dotenv()
     selected_model = model or os.getenv("OPENAI_MODEL", "gpt-5.6-luna")
     if resume_run_id is not None and dry_run:
@@ -439,9 +447,18 @@ def run_research_batch(
         []
         if resume_run_id is not None
         else get_research_queue(
-            db_path, limit=limit, retry_failed=retry_failed, place_id=place_id
+            db_path,
+            limit=len(place_ids) if place_ids is not None else limit,
+            retry_failed=retry_failed,
+            place_id=place_id,
+            place_ids=place_ids,
         )
     )
+    if place_ids is not None:
+        selected_ids = [str(item["place_id"]) for item in queue]
+        if selected_ids != place_ids:
+            unavailable = [item for item in place_ids if item not in set(selected_ids)]
+            raise ValueError(f"cohort contains research-ineligible place_ids: {unavailable}")
     if dry_run:
         return {
             "dry_run": True,
@@ -463,6 +480,7 @@ def run_research_batch(
             selector={
                 "limit": limit,
                 "place_id": place_id,
+                "place_ids": place_ids,
                 "retry_failed": retry_failed,
                 "eligible_statuses": ["pending", *(["failed"] if retry_failed else [])],
             },
@@ -472,7 +490,7 @@ def run_research_batch(
                 "pipeline_version": RESEARCH_PIPELINE_VERSION,
                 "max_search_actions": DEFAULT_MAX_SEARCH_ACTIONS,
             },
-            requested_item_count=limit,
+            requested_item_count=len(place_ids) if place_ids is not None else limit,
         )
     else:
         run_id = resume_run_id
@@ -505,15 +523,18 @@ def run_research_batch(
     actual_requests = 0
     claim_owner = worker_id or f"research-{uuid.uuid4().hex[:12]}"
     attempted_item_ids: set[int] = set()
-    while claim := claim_next_pipeline_item(
-        db_path,
-        run_id,
-        worker_id=claim_owner,
-        lease_seconds=lease_seconds,
-        retry_failed=retry_failed,
-        reclaim_stale=True,
-        exclude_item_ids=attempted_item_ids,
-    ):
+    while max_items is None or len(attempted_item_ids) < max_items:
+        claim = claim_next_pipeline_item(
+            db_path,
+            run_id,
+            worker_id=claim_owner,
+            lease_seconds=lease_seconds,
+            retry_failed=retry_failed,
+            reclaim_stale=True,
+            exclude_item_ids=attempted_item_ids,
+        )
+        if claim is None:
+            break
         item_id = int(claim["id"])
         attempted_item_ids.add(item_id)
         claim_token = str(claim["claim_token"])

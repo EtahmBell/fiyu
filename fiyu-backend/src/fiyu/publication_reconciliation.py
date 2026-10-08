@@ -76,6 +76,19 @@ def _manifest_ids(path: Path) -> list[str]:
     return ids
 
 
+def _is_expansion_manifest(path: Path) -> bool:
+    return _load_json(path).get("manifest_version") == "deterministic-unseeded-cohort-1"
+
+
+def _expansion_manifest_ids(path: Path) -> list[str]:
+    from .cohort_manifest import load_cohort_place_ids
+
+    ids = load_cohort_place_ids(path)
+    if len(ids) > 100:
+        raise ValueError("expansion reconciliation cohort is unexpectedly large")
+    return ids
+
+
 def _version_counts(connection: sqlite3.Connection) -> dict[str, int]:
     counts = Counter(
         "NULL" if row["score_version"] is None else str(row["score_version"])
@@ -304,6 +317,10 @@ def inspect_publication_reconciliation(
     manifest_path = Path(cohort_manifest)
     if threshold != 70.0:
         raise ValueError("this audited reconciliation supports only threshold 70")
+    if _is_expansion_manifest(manifest_path):
+        return _inspect_expansion_publication_reconciliation(
+            source, threshold=threshold, manifest_path=manifest_path
+        )
     manifest_ids = _manifest_ids(manifest_path)
     if len(manifest_ids) != EXPECTED_MANIFEST_COUNT:
         raise ValueError(f"expected {EXPECTED_MANIFEST_COUNT} manifest rows")
@@ -520,6 +537,182 @@ def inspect_publication_reconciliation(
         }
 
 
+def _inspect_expansion_publication_reconciliation(
+    source: Path, *, threshold: float, manifest_path: Path
+) -> dict[str, Any]:
+    """Evaluate one frozen expansion allowlist without changing legacy membership."""
+
+    manifest_ids = _expansion_manifest_ids(manifest_path)
+    manifest = set(manifest_ids)
+    before_sha = _sha256(source)
+    with tempfile.TemporaryDirectory(prefix="fiyu-expansion-publication-") as directory:
+        snapshot = Path(directory) / "counterfactual.db"
+        _snapshot_database(source, snapshot)
+        current_threshold = publication_score_threshold(snapshot)
+        if current_threshold != threshold:
+            raise ValueError(
+                f"canonical publication threshold changed: {current_threshold} != {threshold}"
+            )
+        with connect(snapshot) as connection:
+            if connection.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
+                raise ValueError("database snapshot integrity check failed")
+            rows = _public_rows(connection)
+            version_counts = _version_counts(connection)
+            current_published_ids = {
+                place_id for place_id, row in rows.items() if row["is_published"]
+            }
+            research_digest = _table_digest(connection, "restaurant_research_runs")
+            quality_digest = _table_digest(connection, "quality_v4_research_runs")
+        missing = sorted(manifest - set(rows))
+        if missing:
+            raise ValueError(f"expansion manifest restaurants are missing: {missing}")
+        already_published = manifest & current_published_ids
+
+        evaluated = _evaluate_all(snapshot, threshold)
+        first_additions = {
+            place_id
+            for place_id in manifest - already_published
+            if bool(evaluated[place_id]["published"])
+        }
+        scoped_membership = {
+            place_id: {
+                "published": place_id in current_published_ids or place_id in first_additions
+            }
+            for place_id in rows
+        }
+        _apply_target_membership_for_duplicate_pass(snapshot, scoped_membership, threshold)
+        final = {place_id: evaluated[place_id] for place_id in manifest}
+        with connect(snapshot) as connection:
+            published_rows = [
+                dict(row)
+                for row in connection.execute(
+                    """
+                    SELECT p.*, r.title AS candidate_title
+                    FROM public_restaurants p
+                    LEFT JOIN restaurants r ON r.place_id=p.place_id
+                    WHERE p.is_published=1
+                    ORDER BY p.created_at, p.place_id
+                    """
+                )
+            ]
+            for place_id in sorted(first_additions):
+                final[place_id] = automatic_publication_decision(
+                    snapshot,
+                    place_id,
+                    publication_threshold=threshold,
+                    _connection=connection,
+                    _published_duplicate_rows=published_rows,
+                )
+        additions = {
+            place_id
+            for place_id, decision in final.items()
+            if place_id not in already_published and decision["published"]
+        }
+        if additions != first_additions:
+            raise ValueError("expansion membership is unstable after duplicate reevaluation")
+        target_published_ids = current_published_ids | additions
+        changes: list[dict[str, Any]] = []
+        blocked: list[dict[str, Any]] = []
+        for place_id in manifest_ids:
+            row = rows[place_id]
+            decision = final[place_id]
+            category = _reason_category(decision)
+            if place_id in already_published:
+                continue
+            if place_id in additions:
+                policy = decision["policy"]
+                if row.get("score_version") != QUALITY_PRODUCTION_SCORE_VERSION:
+                    raise ValueError(f"addition has unexpected score version: {place_id}")
+                if float(row.get("fiyu_score") or 0) < threshold:
+                    raise ValueError(f"addition is below threshold: {place_id}")
+                if not row.get("product_eligible"):
+                    raise ValueError(f"addition is product-ineligible: {place_id}")
+                if policy.get("critical_publication_contradiction") or policy.get(
+                    "chain_excluded"
+                ):
+                    raise ValueError(f"addition has a policy contradiction: {place_id}")
+                if policy.get("diagnostics", {}).get("matched_restaurant") is not True:
+                    raise ValueError(f"addition identity is unresolved: {place_id}")
+                changes.append(_row_change(row, decision, category))
+            else:
+                blocked.append(
+                    {
+                        "place_id": place_id,
+                        "restaurant_name": row.get("name_en")
+                        or row.get("name_ja")
+                        or row.get("candidate_title"),
+                        "score": row.get("fiyu_score"),
+                        "reason_category": category,
+                        "missing": decision["readiness"]["missing"],
+                    }
+                )
+        after_sha = _sha256(source)
+        if before_sha != after_sha:
+            raise ValueError("canonical database changed during dry-run inspection")
+        sankei = rows[SANKEI_PLACE_ID]
+        return {
+            "mode": "inspection",
+            "reconciliation_scope": "frozen_expansion_cohort",
+            "canonical_db": str(source),
+            "manifest": str(manifest_path),
+            "database_sha256_before": before_sha,
+            "database_sha256_after": after_sha,
+            "integrity": "ok",
+            "current": {
+                "total": len(rows),
+                "published": len(current_published_ids),
+                "unpublished": len(rows) - len(current_published_ids),
+                "threshold": current_threshold,
+                "score_version_counts": version_counts,
+            },
+            "target_threshold": threshold,
+            "result": {
+                "stays_published": len(current_published_ids),
+                "additions": len(additions),
+                "removals": 0,
+                "stays_unpublished": len(rows) - len(current_published_ids) - len(additions),
+                "resulting_published": len(target_published_ids),
+                "resulting_unpublished": len(rows) - len(target_published_ids),
+            },
+            "cohort_assertion": {
+                "manifest_ids": len(manifest),
+                "exact_overlap": len(additions),
+                "unexpected_additions": [],
+                "manifest_rows_missing": [],
+                "blocked_cohort_rows": sorted(manifest - additions - already_published),
+                "already_published_cohort_rows": sorted(already_published),
+            },
+            "non_score_blocked_at_or_above_threshold": {
+                "count": len(blocked),
+                "categories": dict(Counter(row["reason_category"] for row in blocked)),
+                "rows": blocked,
+                "published": 0,
+            },
+            "changes": sorted(changes, key=lambda row: str(row["place_id"])),
+            "sankei_sushi": {
+                "place_id": SANKEI_PLACE_ID,
+                "score": sankei.get("fiyu_score"),
+                "score_version": sankei.get("score_version"),
+                "current_published": SANKEI_PLACE_ID in current_published_ids,
+                "target_published": SANKEI_PLACE_ID in target_published_ids,
+                "score_mutation": False,
+            },
+            "rescue_cohort": {"ids": 0, "admitted": 0},
+            "floor68_v3_population": {"ids": 0, "admitted": 0},
+            "invariants": {
+                "score_changes": 0,
+                "score_version_changes": 0,
+                "research_changes": 0,
+                "quality_v4_changes": 0,
+                "restaurant_research_digest": research_digest,
+                "quality_v4_research_digest": quality_digest,
+                "external_requests": 0,
+                "existing_published_removals": 0,
+                "unrelated_additions": 0,
+            },
+        }
+
+
 def _write_artifacts(
     summary: dict[str, Any], *, summary_path: Path, report_path: Path, changes_path: Path
 ) -> None:
@@ -672,7 +865,9 @@ def run_publication_reconciliation(
             expected_metadata[PUBLICATION_THRESHOLD_METADATA_KEY] = f"{threshold:g}"
             if after_metadata != expected_metadata:
                 raise RuntimeError("metadata changes exceeded the publication threshold key")
-            if sum(bool(row["is_published"]) for row in after_public.values()) != EXPECTED_FINAL_PUBLISHED:
+            if sum(bool(row["is_published"]) for row in after_public.values()) != summary[
+                "result"
+            ]["resulting_published"]:
                 raise RuntimeError("post-migration published count mismatch")
             connection.commit()
         except Exception:

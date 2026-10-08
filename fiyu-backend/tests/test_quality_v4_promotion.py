@@ -76,6 +76,24 @@ def _cohort_manifest(tmp_path, source, place_ids):
     return path
 
 
+def _expansion_manifest(tmp_path, place_ids):
+    path = tmp_path / "expansion-cohort.json"
+    path.write_text(
+        json.dumps(
+            {
+                "manifest_version": "deterministic-unseeded-cohort-1",
+                "cohort_id": "expansion-smoke-test",
+                "dry_run": True,
+                "min_score": 60,
+                "selected_count": len(place_ids),
+                "ordered_place_ids": place_ids,
+            }
+        ),
+        encoding="utf-8",
+    )
+    return path
+
+
 def _databases(tmp_path):
     canonical = tmp_path / "canonical.db"
     source = tmp_path / "shadow.db"
@@ -366,6 +384,20 @@ def test_scoped_promotion_is_allowlisted_safe_and_idempotent(tmp_path) -> None:
     assert rerun["already_promoted"] == 1
     assert rerun["rows_to_import"] == 0
     assert rerun["rows_to_score"] == 0
+
+
+def test_scoped_promotion_accepts_frozen_expansion_manifest(tmp_path) -> None:
+    canonical, source, _ = _databases(tmp_path)
+    manifest = _expansion_manifest(tmp_path, ["place-0"])
+
+    summary, plans = inspect_quality_v4_promotion(
+        canonical,
+        source_db=source,
+        cohort_manifest=manifest,
+    )
+
+    assert summary["cohort_manifest_version"] == "deterministic-unseeded-cohort-1"
+    assert [plan["place_id"] for plan in plans] == ["place-0"]
 
 
 def test_scoped_promotion_rejects_duplicate_manifest_ids(tmp_path) -> None:

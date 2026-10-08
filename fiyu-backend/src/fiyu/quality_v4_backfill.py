@@ -545,11 +545,15 @@ def inspect_quality_v4_backfill(
     db_path: str | Path,
     *,
     place_id: str | None = None,
+    place_ids: list[str] | None = None,
     start_after: str | None = None,
     force: bool = False,
     retry_failed: bool = False,
     floor70_prepublication: bool = False,
 ) -> dict[str, Any]:
+    if place_id is not None and place_ids is not None:
+        raise ValueError("place_id and place_ids are mutually exclusive")
+    allowlist = set(place_ids) if place_ids is not None else None
     if sum((force, retry_failed, floor70_prepublication)) > 1:
         raise ValueError(
             "--force, --retry-failed, and --floor70-prepublication are mutually exclusive"
@@ -568,6 +572,8 @@ def inspect_quality_v4_backfill(
     already_complete = 0
     blocked_existing = Counter()
     for row in rows:
+        if allowlist is not None and str(row["place_id"]) not in allowlist:
+            continue
         status = row.get("quality_v4_status")
         reason = _exclusion_reason(
             row,
@@ -600,6 +606,9 @@ def inspect_quality_v4_backfill(
             continue
         eligible.append(row)
     eligible = _interleave_score_quartiles(eligible)
+    if place_ids is not None:
+        order = {value: index for index, value in enumerate(place_ids)}
+        eligible.sort(key=lambda row: order[str(row["place_id"])])
     if start_after:
         try:
             position = next(
@@ -673,6 +682,7 @@ def run_quality_v4_backfill(
     *,
     limit: int = 100,
     place_id: str | None = None,
+    place_ids: list[str] | None = None,
     start_after: str | None = None,
     force: bool = False,
     retry_failed: bool = False,
@@ -688,6 +698,7 @@ def run_quality_v4_backfill(
     inspection = inspect_quality_v4_backfill(
         db_path,
         place_id=place_id,
+        place_ids=place_ids,
         start_after=start_after,
         force=force,
         retry_failed=retry_failed,

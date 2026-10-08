@@ -168,7 +168,19 @@ def _load_cohort_manifest(
     payload = _json(path.read_text(encoding="utf-8"), None)
     if not isinstance(payload, dict):
         raise TypeError("cohort manifest must contain a JSON object")
-    if payload.get("manifest_version") != COHORT_MANIFEST_VERSION:
+    manifest_version = payload.get("manifest_version")
+    if manifest_version == "deterministic-unseeded-cohort-1":
+        from .cohort_manifest import load_cohort_place_ids
+
+        place_ids = load_cohort_place_ids(path)
+        if int(payload.get("selected_count", -1)) != len(place_ids):
+            raise ValueError("selected_count does not match expansion cohort allowlist")
+        if float(payload.get("min_score", 0)) < 60:
+            raise ValueError("expansion cohort used a lower-than-production seed floor")
+        if payload.get("dry_run") is not True:
+            raise ValueError("expansion cohort manifest must be frozen before mutation")
+        return payload, place_ids
+    if manifest_version != COHORT_MANIFEST_VERSION:
         raise ValueError("unexpected cohort manifest version")
     if payload.get("cohort_name") != FLOOR70_COHORT_NAME:
         raise ValueError("unexpected cohort name")

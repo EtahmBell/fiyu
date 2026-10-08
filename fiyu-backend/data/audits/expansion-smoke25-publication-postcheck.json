@@ -1,0 +1,174 @@
+{
+  "mode": "dry_run",
+  "reconciliation_scope": "frozen_expansion_cohort",
+  "canonical_db": "data\\fiyu.db",
+  "manifest": "data\\audits\\expansion-smoke25-cohort.json",
+  "database_sha256_before": "DAD1D8A292BBC30282E182F15F39D557E6F4BAB3D682B8AE8D5A3ECDF804E58C",
+  "database_sha256_after": "DAD1D8A292BBC30282E182F15F39D557E6F4BAB3D682B8AE8D5A3ECDF804E58C",
+  "integrity": "ok",
+  "current": {
+    "total": 1228,
+    "published": 868,
+    "unpublished": 360,
+    "threshold": 70.0,
+    "score_version_counts": {
+      "public-v4-quality-research-specialist-tristate": 886,
+      "public-v3-local-discovery-specialist-tristate": 231,
+      "NULL": 111
+    }
+  },
+  "target_threshold": 70.0,
+  "result": {
+    "stays_published": 868,
+    "additions": 0,
+    "removals": 0,
+    "stays_unpublished": 360,
+    "resulting_published": 868,
+    "resulting_unpublished": 360
+  },
+  "cohort_assertion": {
+    "manifest_ids": 25,
+    "exact_overlap": 0,
+    "unexpected_additions": [],
+    "manifest_rows_missing": [],
+    "blocked_cohort_rows": [
+      "ChIJ1UN6JAZhGGARTK85OJ7Cuto",
+      "ChIJ6T1gnYruGGAREbmIYHZ4-Z0",
+      "ChIJH2VBGfSLGGARN4HBRQO-imM",
+      "ChIJHWuFAFiJGGAR_xRXBYDmsSg",
+      "ChIJdcl_ZelhGGARA48p__O1c3U",
+      "ChIJeS0ASmqTGGAR4pb5yY72DMY",
+      "ChIJeYrdqN_vGGARmVHz8aiv7bw",
+      "ChIJjYY_y3P1GGARVQLrP2FLj84"
+    ],
+    "already_published_cohort_rows": [
+      "ChIJ1dE11KWLGGARgLMLmvirJjQ",
+      "ChIJ64Z0Y5mLGGARqcybqkb8MxU",
+      "ChIJ65sPLRiPGGAR7HROZq24QL4",
+      "ChIJE3aOtzCSGGARuOuqIryhveo",
+      "ChIJFUu-VjphGGARQ1wOS57Iuac",
+      "ChIJGXfe96_tGGARM6Y-6F5zdu4",
+      "ChIJJ1GtVLaTGGARn6LJLJYadg0",
+      "ChIJN78X-amSGGAR-rF04MdbbKg",
+      "ChIJOx7W_OFfGGARjyvC0httbVk",
+      "ChIJV0ujdg3zGGARTfrl9_ai-D0",
+      "ChIJW5aBLbyNGGARfVVEjrov9AU",
+      "ChIJaUQmj_GIGGARLUC7UjdqrqI",
+      "ChIJeXgCXqqPGGARfHb4NGv3Vio",
+      "ChIJiXcaXPDvGGAR3kf0qh5iZTw",
+      "ChIJjV3YMT_yGGARu2l0ORvA8LU",
+      "ChIJnak-6xvyGGAR8wDn3EZzYRQ",
+      "ChIJs5CVcTqLGGARprtnC_F-RJ8"
+    ]
+  },
+  "non_score_blocked_at_or_above_threshold": {
+    "count": 8,
+    "categories": {
+      "product_eligibility_failure": 1,
+      "score_floor": 7
+    },
+    "rows": [
+      {
+        "place_id": "ChIJdcl_ZelhGGARA48p__O1c3U",
+        "restaurant_name": "CARNIVAL TOKYO",
+        "score": 49.99,
+        "reason_category": "product_eligibility_failure",
+        "missing": [
+          "deterministic_score_policy"
+        ]
+      },
+      {
+        "place_id": "ChIJH2VBGfSLGGARN4HBRQO-imM",
+        "restaurant_name": "Minamiaoyama Toriyakou",
+        "score": 65.15,
+        "reason_category": "score_floor",
+        "missing": [
+          "deterministic_score_policy"
+        ]
+      },
+      {
+        "place_id": "ChIJeS0ASmqTGGAR4pb5yY72DMY",
+        "restaurant_name": "Buzz Bowl Curry Zone",
+        "score": 68.93,
+        "reason_category": "score_floor",
+        "missing": [
+          "deterministic_score_policy"
+        ]
+      },
+      {
+        "place_id": "ChIJeYrdqN_vGGARmVHz8aiv7bw",
+        "restaurant_name": "Onigiriya Tsubu",
+        "score": 67.47,
+        "reason_category": "score_floor",
+        "missing": [
+          "deterministic_score_policy"
+        ]
+      },
+      {
+        "place_id": "ChIJHWuFAFiJGGAR_xRXBYDmsSg",
+        "restaurant_name": "Nihombashi Sushitetsu Honkan",
+        "score": 62.36,
+        "reason_category": "score_floor",
+        "missing": [
+          "deterministic_score_policy"
+        ]
+      },
+      {
+        "place_id": "ChIJjYY_y3P1GGARVQLrP2FLj84",
+        "restaurant_name": "Abiska",
+        "score": 69.45,
+        "reason_category": "score_floor",
+        "missing": [
+          "deterministic_score_policy"
+        ]
+      },
+      {
+        "place_id": "ChIJ1UN6JAZhGGARTK85OJ7Cuto",
+        "restaurant_name": "Royal Kitchen",
+        "score": 66.98,
+        "reason_category": "score_floor",
+        "missing": [
+          "deterministic_score_policy"
+        ]
+      },
+      {
+        "place_id": "ChIJ6T1gnYruGGAREbmIYHZ4-Z0",
+        "restaurant_name": "Yotteke Sakaba",
+        "score": 67.71,
+        "reason_category": "score_floor",
+        "missing": [
+          "deterministic_score_policy"
+        ]
+      }
+    ],
+    "published": 0
+  },
+  "changes": [],
+  "sankei_sushi": {
+    "place_id": "ChIJi79LD-yIGGAR_8wLG2_pyYE",
+    "score": 82.82,
+    "score_version": "public-v3-local-discovery-specialist-tristate",
+    "current_published": true,
+    "target_published": true,
+    "score_mutation": false
+  },
+  "rescue_cohort": {
+    "ids": 0,
+    "admitted": 0
+  },
+  "floor68_v3_population": {
+    "ids": 0,
+    "admitted": 0
+  },
+  "invariants": {
+    "score_changes": 0,
+    "score_version_changes": 0,
+    "research_changes": 0,
+    "quality_v4_changes": 0,
+    "restaurant_research_digest": "5df123ebb96279e8dd22e6d3538ad0317c3d1731d3f5a4ac1830acf2670a5840",
+    "quality_v4_research_digest": "d2b6ceca3df5886cc6cd68d0edc72c42270a02f488a43eb65114db7690d59c15",
+    "external_requests": 0,
+    "existing_published_removals": 0,
+    "unrelated_additions": 0
+  }
+}

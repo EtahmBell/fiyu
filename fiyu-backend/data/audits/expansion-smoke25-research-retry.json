@@ -1,0 +1,113 @@
+{
+  "operation": "research-retry",
+  "operation_version": "operator-summary-v1",
+  "run_id": 4,
+  "mode": "real",
+  "started_at": null,
+  "completed_at": "2026-10-08T18:17:12.633566+00:00",
+  "status": "completed",
+  "input": {
+    "limit": 1,
+    "model": null
+  },
+  "counts": {
+    "selected": 25,
+    "created": 0,
+    "updated": 0,
+    "unchanged": 0,
+    "skipped": 0,
+    "succeeded": 25,
+    "retryable_failed": 0,
+    "terminal_failed": 0,
+    "blocked": 0
+  },
+  "safety": {
+    "canonical_db": "data\\fiyu.db",
+    "dry_run": false,
+    "external_requests": 1,
+    "mutations": "checkpointed per item"
+  },
+  "artifacts": {},
+  "details": {
+    "run_id": 4,
+    "queued": 25,
+    "completed": 1,
+    "failed": 0,
+    "responses_requests": 1,
+    "web_search_actions": 1,
+    "token_usage": {
+      "input_tokens": 19044,
+      "output_tokens": 4394,
+      "total_tokens": 23438
+    },
+    "address_accepted": 0,
+    "address_needs_fallback": 1,
+    "run_status": {
+      "run_id": 4,
+      "run_type": "standard_restaurant_research",
+      "status": "completed",
+      "selected": 25,
+      "pending": 0,
+      "claimed": 0,
+      "running": 0,
+      "succeeded": 25,
+      "failed_retryable": 0,
+      "failed_terminal": 0,
+      "skipped": 0,
+      "attempts": 26,
+      "abandoned_attempts": 0,
+      "remaining_work": 0,
+      "no_remaining_work": true,
+      "provider_requests": 26,
+      "web_search_actions": 49,
+      "input_tokens": 643359,
+      "output_tokens": 82367,
+      "total_tokens": 725726,
+      "created_at": "2026-10-08T17:53:31.011614+00:00",
+      "started_at": "2026-10-08T17:53:31.095227+00:00",
+      "completed_at": "2026-10-08T18:17:12.619150+00:00",
+      "input_fingerprint": "2de79e8439b61abe787002516c01d743f28a86448132bf9de06701139422187e",
+      "selector": {
+        "eligible_statuses": [
+          "pending"
+        ],
+        "limit": 25,
+        "place_id": null,
+        "place_ids": [
+          "ChIJeXgCXqqPGGARfHb4NGv3Vio",
+          "ChIJdcl_ZelhGGARA48p__O1c3U",
+          "ChIJJ1GtVLaTGGARn6LJLJYadg0",
+          "ChIJiXcaXPDvGGAR3kf0qh5iZTw",
+          "ChIJH2VBGfSLGGARN4HBRQO-imM",
+          "ChIJeS0ASmqTGGAR4pb5yY72DMY",
+          "ChIJW5aBLbyNGGARfVVEjrov9AU",
+          "ChIJeYrdqN_vGGARmVHz8aiv7bw",
+          "ChIJjV3YMT_yGGARu2l0ORvA8LU",
+          "ChIJE3aOtzCSGGARuOuqIryhveo",
+          "ChIJHWuFAFiJGGAR_xRXBYDmsSg",
+          "ChIJOx7W_OFfGGARjyvC0httbVk",
+          "ChIJ1dE11KWLGGARgLMLmvirJjQ",
+          "ChIJs5CVcTqLGGARprtnC_F-RJ8",
+          "ChIJ65sPLRiPGGAR7HROZq24QL4",
+          "ChIJGXfe96_tGGARM6Y-6F5zdu4",
+          "ChIJjYY_y3P1GGARVQLrP2FLj84",
+          "ChIJV0ujdg3zGGARTfrl9_ai-D0",
+          "ChIJ1UN6JAZhGGARTK85OJ7Cuto",
+          "ChIJN78X-amSGGAR-rF04MdbbKg",
+          "ChIJ64Z0Y5mLGGARqcybqkb8MxU",
+          "ChIJ6T1gnYruGGAREbmIYHZ4-Z0",
+          "ChIJaUQmj_GIGGARLUC7UjdqrqI",
+          "ChIJFUu-VjphGGARQ1wOS57Iuac",
+          "ChIJnak-6xvyGGAR8wDn3EZzYRQ"
+        ],
+        "retry_failed": false
+      },
+      "config": {
+        "max_search_actions": 4,
+        "model": "gpt-5.6-luna",
+        "pipeline_version": "catalog-pipeline-v1",
+        "prompt_version": "restaurant-research-v8-specialist-tristate"
+      }
+    }
+  }
+}

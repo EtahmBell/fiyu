@@ -998,7 +998,8 @@ def _unseeded_candidate_rows(
     rows = connection.execute(
         """
         SELECT r.id, r.place_id, r.title, r.internal_fiyu_score,
-               r.search_area, r.source_areas_json, r.category, r.broad_category
+               r.search_area, r.source_areas_json, r.category, r.broad_category,
+               r.rating, r.review_count, r.source_files_json
         FROM restaurants r
         WHERE r.candidate_eligible=1
           AND r.place_id IS NOT NULL
@@ -1038,6 +1039,10 @@ def _candidate_seed_summary(row: dict[str, object]) -> dict[str, object]:
         "source_area": row.get("search_area"),
         "source_areas": source_areas,
         "category": row.get("category") or row.get("broad_category"),
+        "rating": row.get("rating"),
+        "review_count": row.get("review_count"),
+        "source_provenance": json.loads(str(row.get("source_files_json") or "[]")),
+        "seed_status": "unseeded",
     }
 
 
@@ -1048,6 +1053,7 @@ def seed_unseeded_public_queue(
     min_internal_score: float = 60.0,
     seed: str | int,
     dry_run: bool = False,
+    place_ids: list[str] | None = None,
 ) -> dict[str, object]:
     """Deterministically select and seed eligible candidates absent from the queue."""
 
@@ -1071,14 +1077,25 @@ def seed_unseeded_public_queue(
         pool = _unseeded_candidate_rows(
             connection, min_internal_score=min_internal_score
         )
-        ordered = sorted(
-            pool,
-            key=lambda row: (
-                _stable_seed_order(stable_seed, str(row["place_id"])),
-                str(row["place_id"]),
-            ),
-        )
-        selected = ordered[:limit]
+        if place_ids is not None:
+            if not place_ids or len(place_ids) != len(set(place_ids)):
+                raise ValueError("place_ids must be a non-empty, duplicate-free allowlist")
+            by_id = {str(row["place_id"]): row for row in pool}
+            unavailable = [place_id for place_id in place_ids if place_id not in by_id]
+            if unavailable:
+                raise ValueError(f"cohort contains ineligible or already-seeded place_ids: {unavailable}")
+            selected = [by_id[place_id] for place_id in place_ids]
+            if limit != len(selected):
+                raise ValueError("limit must equal the exact cohort size")
+        else:
+            ordered = sorted(
+                pool,
+                key=lambda row: (
+                    _stable_seed_order(stable_seed, str(row["place_id"])),
+                    str(row["place_id"]),
+                ),
+            )
+            selected = ordered[:limit]
         seeded = 0
         if not dry_run:
             seeded = _insert_public_queue_rows(
@@ -1116,6 +1133,17 @@ def seed_unseeded_public_queue(
         "fewer_than_requested": selected_count < limit,
         "selected_place_ids": [str(row["place_id"]) for row in selected],
         "selected_candidates": [_candidate_seed_summary(row) for row in selected],
+        "selector_fingerprint": hashlib.sha256(
+            json.dumps(
+                {
+                    "seed": stable_seed,
+                    "min_score": min_internal_score,
+                    "ordered_place_ids": [str(row["place_id"]) for row in selected],
+                },
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode()
+        ).hexdigest(),
     }
 
 
@@ -1129,7 +1157,10 @@ def get_research_queue(
     limit: int = 10,
     retry_failed: bool = False,
     place_id: str | None = None,
+    place_ids: list[str] | None = None,
 ) -> list[dict[str, object]]:
+    if place_id is not None and place_ids is not None:
+        raise ValueError("place_id and place_ids are mutually exclusive")
     ensure_public_schema(db_path)
     statuses = (
         (*AUTO_RESEARCH_QUEUE_STATUSES, "failed")
@@ -1138,6 +1169,14 @@ def get_research_queue(
     )
     placeholders = ",".join("?" for _ in statuses)
     with connect(db_path) as connection:
+        allowlist_sql = ""
+        parameters: list[object] = [*statuses, place_id, place_id]
+        if place_ids is not None:
+            if not place_ids:
+                return []
+            allowlist_sql = f" AND p.place_id IN ({','.join('?' for _ in place_ids)})"
+            parameters.extend(place_ids)
+        parameters.append(limit)
         rows = connection.execute(
             f"""
             SELECT
@@ -1168,12 +1207,17 @@ def get_research_queue(
             JOIN restaurants r ON r.place_id = p.place_id
             WHERE p.research_status IN ({placeholders})
               AND (? IS NULL OR p.place_id = ?)
+              {allowlist_sql}
             ORDER BY r.internal_fiyu_score DESC, r.confidence_score DESC
             LIMIT ?
             """,
-            (*statuses, place_id, place_id, limit),
+            parameters,
         ).fetchall()
-    return [dict(row) for row in rows]
+    result = [dict(row) for row in rows]
+    if place_ids is not None:
+        order = {value: index for index, value in enumerate(place_ids)}
+        result.sort(key=lambda row: order[str(row["place_id"])])
+    return result
 
 
 def get_research_candidate(

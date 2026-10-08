@@ -1,0 +1,80 @@
+{
+  "operation": "catalog-status",
+  "operation_version": "operator-summary-v1",
+  "run_id": null,
+  "mode": "real",
+  "started_at": null,
+  "completed_at": "2026-10-08T18:31:49.622264+00:00",
+  "status": "completed",
+  "input": {},
+  "counts": {
+    "selected": 1228,
+    "created": 0,
+    "updated": 0,
+    "unchanged": 0,
+    "skipped": 0,
+    "succeeded": 0,
+    "retryable_failed": 0,
+    "terminal_failed": 0,
+    "blocked": 0
+  },
+  "safety": {
+    "canonical_db": "data\\fiyu.db",
+    "dry_run": false,
+    "external_requests": 0,
+    "mutations": 0
+  },
+  "artifacts": {},
+  "details": {
+    "catalog": {
+      "raw_candidate_rows": 8086,
+      "seeded_public_rows": 1228,
+      "total": 1228,
+      "published": 868,
+      "unpublished": 360,
+      "publication_threshold": 70.0
+    },
+    "lineage": {
+      "v4_specialist": 886,
+      "stale_v4": 0,
+      "v3_specialist": 231,
+      "unscored": 111,
+      "score_versions": {
+        "unscored": 111,
+        "public-v3-local-discovery-specialist-tristate": 231,
+        "public-v4-quality-research-specialist-tristate": 886
+      }
+    },
+    "readiness": {
+      "research_pending": 103,
+      "retryable_research_failures": 4,
+      "quality_v4_complete": 886,
+      "quality_v4_remaining": 342,
+      "score_at_or_above_threshold_but_unpublished": 30,
+      "block_reasons": {
+        "score_or_product_policy_rejected": 18,
+        "critical_publication_contradiction:confirmed_address_identity_conflict": 10,
+        "critical_publication_contradiction:confirmed_wrong_restaurant_identity": 1,
+        "critical_publication_contradiction:confirmed_permanent_closure": 1
+      },
+      "map_picks_ready_published": 848
+    },
+    "recent_operations": {
+      "source_run": null,
+      "pipeline_run": {
+        "run_id": 4,
+        "run_type": "standard_restaurant_research",
+        "status": "completed",
+        "selected": 25,
+        "succeeded": 25,
+        "failed": 0,
+        "retryable_failed": 0,
+        "skipped": 0,
+        "external_requests": 26,
+        "created_at": "2026-10-08T17:53:31.011614+00:00",
+        "started_at": "2026-10-08T17:53:31.095227+00:00",
+        "completed_at": "2026-10-08T18:17:12.619150+00:00"
+      }
+    }
+  }
+}

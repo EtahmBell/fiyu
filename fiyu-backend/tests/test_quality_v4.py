@@ -233,6 +233,34 @@ def test_backfill_is_resumable_and_never_replaces_production_score(tmp_path) -> 
     assert second["skipped_existing"] == 1
 
 
+def test_backfill_exact_allowlist_never_selects_unlisted_rows(tmp_path) -> None:
+    path = _db(tmp_path, count=3)
+    research = ChallengeResearchResult(
+        evidence_level="none",
+        quality_evidence_confidence="low",
+        observations=[],
+        research_summary="No useful food-specific evidence was found.",
+    )
+    client = _client(research)
+
+    result = run_quality_v4_backfill(
+        path,
+        limit=3,
+        place_ids=["place-2", "place-0"],
+        client=client,
+        model="test-model",
+        manifest_path=tmp_path / "exact-manifest.json",
+        results_path=tmp_path / "exact-results.jsonl",
+    )
+
+    assert result["ids_selected"] == ["place-2", "place-0"]
+    assert client.responses.calls == 2
+    with connect(path) as connection:
+        assert connection.execute(
+            "SELECT COUNT(*) FROM quality_v4_research_runs WHERE public_restaurant_id='place-1'"
+        ).fetchone()[0] == 0
+
+
 def test_backfill_failure_states_are_checkpointed_and_not_retried(tmp_path) -> None:
     path = _db(tmp_path, count=1)
     error = APIConnectionError(request=httpx.Request("POST", "https://api.openai.com"))

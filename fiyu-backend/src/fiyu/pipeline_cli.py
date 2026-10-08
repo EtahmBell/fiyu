@@ -4,6 +4,7 @@ import argparse
 import json
 import statistics
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 
 from .address_research import recover_address_research_for_retry
@@ -80,9 +81,14 @@ def _parser() -> argparse.ArgumentParser:
         help="Print the full JSON result, including every selected candidate",
     )
     seed_unseeded.add_argument("--manifest-out")
+    seed_unseeded.add_argument(
+        "--cohort-manifest",
+        help="Seed exactly the ordered place-id allowlist in an existing manifest",
+    )
 
     research = commands.add_parser("research")
     research.add_argument("--place-id")
+    research.add_argument("--cohort-manifest")
     research.add_argument("--limit", type=int)
     research.add_argument("--model")
     research.add_argument("--retry-failed", action="store_true")
@@ -90,6 +96,7 @@ def _parser() -> argparse.ArgumentParser:
     research.add_argument("--resume-run", type=int)
     research.add_argument("--worker-id")
     research.add_argument("--lease-seconds", type=int, default=900)
+    research.add_argument("--max-items", type=int)
     research.add_argument("--summary-out")
 
     resume = commands.add_parser(
@@ -99,6 +106,7 @@ def _parser() -> argparse.ArgumentParser:
     resume.add_argument("--model")
     resume.add_argument("--worker-id")
     resume.add_argument("--lease-seconds", type=int, default=900)
+    resume.add_argument("--max-items", type=int)
     resume.add_argument("--dry-run", action="store_true")
     resume.add_argument("--summary-out")
 
@@ -109,6 +117,7 @@ def _parser() -> argparse.ArgumentParser:
     retry_run.add_argument("--model")
     retry_run.add_argument("--worker-id")
     retry_run.add_argument("--lease-seconds", type=int, default=900)
+    retry_run.add_argument("--max-items", type=int)
     retry_run.add_argument("--dry-run", action="store_true")
     retry_run.add_argument("--summary-out")
 
@@ -215,6 +224,7 @@ def _parser() -> argparse.ArgumentParser:
     )
     quality_v4.add_argument("--limit", type=int, default=100)
     quality_v4.add_argument("--place-id")
+    quality_v4.add_argument("--cohort-manifest")
     quality_v4.add_argument("--start-after")
     quality_v4.add_argument("--model")
     quality_v4_selection = quality_v4.add_mutually_exclusive_group()
@@ -506,14 +516,30 @@ def main(argv: list[str] | None = None, *, canonical: bool = False) -> int:
         manifest_path = Path(args.manifest_out) if args.manifest_out else None
         if manifest_path is not None and manifest_path.exists():
             raise FileExistsError(f"Manifest already exists: {manifest_path}")
+        seed_place_ids = None
+        if args.cohort_manifest:
+            from .cohort_manifest import load_cohort_place_ids
+
+            seed_place_ids = load_cohort_place_ids(args.cohort_manifest)
+            if args.limit != len(seed_place_ids):
+                raise ValueError("--limit must equal the cohort manifest size")
         result = seed_unseeded_public_queue(
             db,
             limit=args.limit,
             min_internal_score=args.min_score,
             seed=args.seed,
             dry_run=args.dry_run,
+            place_ids=seed_place_ids,
         )
         if manifest_path is not None:
+            result = {
+                "manifest_version": "deterministic-unseeded-cohort-1",
+                "cohort_id": str(args.seed),
+                "selection_timestamp": datetime.now(UTC).isoformat(),
+                "selector_semantics": "eligible unseeded candidates, stable SHA-256 seed order",
+                "ordered_place_ids": result["selected_place_ids"],
+                **result,
+            }
             manifest_path.parent.mkdir(parents=True, exist_ok=True)
             manifest_path.write_text(
                 json.dumps(result, ensure_ascii=False, indent=2, default=str) + "\n",
@@ -525,10 +551,12 @@ def main(argv: list[str] | None = None, *, canonical: bool = False) -> int:
         from .research_worker import run_research_batch
 
         if args.command == "research":
-            if args.resume_run is not None and (args.place_id or args.limit is not None):
+            if args.resume_run is not None and (
+                args.place_id or args.cohort_manifest or args.limit is not None
+            ):
                 raise ValueError(
                     "--resume-run cannot be combined with fresh selector flags "
-                    "--place-id or --limit"
+                    "--place-id, --cohort-manifest, or --limit"
                 )
             resume_run_id = args.resume_run
             retry_failed = args.retry_failed
@@ -537,6 +565,16 @@ def main(argv: list[str] | None = None, *, canonical: bool = False) -> int:
             resume_run_id = args.run_id
             retry_failed = args.command == "research-retry"
             limit = 1
+        place_ids = None
+        if args.command == "research" and args.cohort_manifest:
+            if args.place_id or args.limit is not None:
+                raise ValueError(
+                    "--cohort-manifest cannot be combined with --place-id or --limit"
+                )
+            from .cohort_manifest import load_cohort_place_ids
+
+            place_ids = load_cohort_place_ids(args.cohort_manifest)
+            limit = len(place_ids)
         if resume_run_id is not None:
             stored = get_pipeline_run_status(db, resume_run_id)
             if stored["run_type"] != "standard_restaurant_research":
@@ -560,6 +598,8 @@ def main(argv: list[str] | None = None, *, canonical: bool = False) -> int:
             model=args.model,
             retry_failed=retry_failed,
             place_id=args.place_id if args.command == "research" else None,
+            place_ids=place_ids,
+            max_items=args.max_items,
             dry_run=args.dry_run,
             resume_run_id=resume_run_id,
             worker_id=args.worker_id,
@@ -700,10 +740,19 @@ def main(argv: list[str] | None = None, *, canonical: bool = False) -> int:
     elif args.command == "quality-v4-backfill":
         from .quality_v4_backfill import run_quality_v4_backfill
 
+        quality_place_ids = None
+        if args.cohort_manifest:
+            if args.place_id:
+                raise ValueError("--cohort-manifest cannot be combined with --place-id")
+            from .cohort_manifest import load_cohort_place_ids
+
+            quality_place_ids = load_cohort_place_ids(args.cohort_manifest)
+
         result = run_quality_v4_backfill(
             db,
             limit=args.limit,
             place_id=args.place_id,
+            place_ids=quality_place_ids,
             start_after=args.start_after,
             model=args.model,
             force=args.force,

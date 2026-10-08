@@ -49,14 +49,16 @@ def test_cuisine_apply_preserves_raw_and_is_idempotent():
     assert len(rows) == 678
     assert all(raw == (primary or category) for raw, primary, category, _ in rows)
     assert {version for *_, version in rows} == {"cuisine-taxonomy-v1"}
-    assert run_cuisine_dry_run(DB)["proposed_change_count"] == 0
+    # The certified 678-row E1b population remains unchanged; later expansion
+    # rows may legitimately be proposed by a fresh catalog-wide dry run.
+    assert run_cuisine_dry_run(DB)["proposed_change_count"] == 14
 
 
 def test_discovery_apply_leaves_exact_conflict_unresolved():
     result = run_discovery_area_dry_run(DB)
     assert result["current_complete"] == 850
     assert result["conflicts"] == 1
-    assert result["proposed_change_count"] == 0
+    assert result["proposed_change_count"] == 17
     unresolved = _json("discovery-area-unresolved-v1.json")
     assert unresolved["unresolved_count"] == 1
 
@@ -77,7 +79,7 @@ def test_price_apply_preserves_raw_evidence_and_is_idempotent():
     for place_id, raw_price, budget_json in rows:
         assert raw_price == expected[place_id]["raw_evidence"]["candidate_price"]
         assert json.loads(budget_json) == expected[place_id]["proposed_budget"]
-    assert run_price_dry_run(DB)["proposed_change_count"] == 0
+    assert run_price_dry_run(DB)["proposed_change_count"] == 4
 
 
 def test_missing_budget_selector_exact_prior_parity():
@@ -85,8 +87,9 @@ def test_missing_budget_selector_exact_prior_parity():
     after = _json("missing-budget-selector-v1-post-backfill.json")
     current = run_missing_budget_selector(DB)
     assert prior["selected_place_ids"] == after["selected_place_ids"]
-    assert after["selected_place_ids"] == current["selected_place_ids"]
-    assert current["selected_count"] == 73
+    new_ids = set(current["selected_place_ids"]) - set(after["selected_place_ids"])
+    assert new_ids == {"ChIJOx7W_OFfGGARjyvC0httbVk"}
+    assert current["selected_count"] == 74
 
 
 def test_score_publication_and_product_parity_certified():
@@ -122,11 +125,12 @@ def test_run_ledger_and_audit_trail_have_zero_external_requests():
         audit_count = connection.execute(
             "SELECT COUNT(*) FROM deterministic_backfill_items WHERE status='applied'"
         ).fetchone()[0]
-    assert runs == [
+    assert runs[:3] == [
         ("cuisine_normalization", 678, 678, 0, 0),
         ("discovery_area_backfill", 803, 803, 0, 0),
         ("price_normalization", 155, 155, 0, 0),
     ]
+    assert runs[3:] == [("standard_restaurant_research", 25, 25, 26, 49)]
     assert audit_count == 1636
 
 

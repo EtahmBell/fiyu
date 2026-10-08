@@ -256,6 +256,43 @@ def test_research_dry_run_never_calls_openai_or_mutates(tmp_path, monkeypatch):
         assert connection.execute("SELECT COUNT(*) FROM restaurant_research_runs").fetchone()[0] == 0
 
 
+def test_research_exact_allowlist_preserves_manifest_order(tmp_path, monkeypatch):
+    path = _db(tmp_path)
+    _add_pipeline_candidate(path, "place-2")
+    _add_pipeline_candidate(path, "place-3")
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+    result = run_research_batch(
+        path, place_ids=["place-3", "place-1"], limit=2, dry_run=True
+    )
+
+    assert result["candidates"] == ["place-3", "place-1"]
+    assert result["maximum_responses_requests"] == 2
+
+
+def test_research_max_items_pauses_one_frozen_run(tmp_path, monkeypatch):
+    import fiyu.research_worker as worker
+
+    path = _db(tmp_path)
+    _add_pipeline_candidate(path, "place-2")
+    client = _RaisingClient(ValueError("candidate-specific failure"))
+    monkeypatch.setenv("OPENAI_API_KEY", "not-real")
+    monkeypatch.setattr(worker, "load_dotenv", lambda: None)
+    monkeypatch.setattr(worker, "OpenAI", lambda **_kwargs: client)
+
+    result = run_research_batch(
+        path,
+        place_ids=["place-1", "place-2"],
+        limit=2,
+        model="test-model",
+        max_items=1,
+    )
+
+    assert client.responses.calls == 1
+    assert result["run_status"]["selected"] == 2
+    assert result["run_status"]["pending"] == 1
+
+
 def test_complete_pipeline_dry_run_plans_without_mutation(tmp_path, monkeypatch):
     path = _db(tmp_path)
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
