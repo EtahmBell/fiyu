@@ -1060,37 +1060,70 @@ def mark_location_attempted(db_path: str | Path, place_id: str) -> None:
         connection.commit()
 
 
-def _published_location_backfill_rows(db_path: str | Path):
-    """Select published rows that are missing a usable or finalized location pass."""
+def _location_backfill_rows(
+    db_path: str | Path,
+    *,
+    place_ids: list[str] | None = None,
+    published_only: bool = True,
+):
+    """Select scoped rows that are missing a usable or finalized location pass."""
 
     ensure_public_schema(db_path)
+    if not published_only and place_ids is None:
+        raise ValueError("unpublished location resolution requires an exact place-id cohort")
+    conditions = []
+    parameters: list[object] = []
+    if published_only:
+        conditions.append("is_published=1")
+    if place_ids is not None:
+        if not place_ids:
+            return []
+        conditions.append(f"place_id IN ({','.join('?' for _ in place_ids)})")
+        parameters.extend(place_ids)
+    conditions.append(
+        """(
+            map_display_eligible=0 OR latitude IS NULL OR longitude IS NULL
+            OR location_attempted_at IS NULL
+            OR map_location_precision IS NULL OR location_status IS NULL
+        )"""
+    )
     with connect(db_path) as connection:
         return connection.execute(
-            """
+            f"""
             SELECT place_id, COALESCE(name_en, name_ja, place_id) AS name,
                    latitude, longitude, map_display_eligible,
                    location_precision, map_location_precision, location_status,
-                   location_source, location_attempted_at
+                   location_source, location_attempted_at, address_resolution_status
             FROM public_restaurants
-            WHERE is_published=1 AND (
-                map_display_eligible=0 OR latitude IS NULL OR longitude IS NULL
-                OR location_attempted_at IS NULL
-                OR map_location_precision IS NULL OR location_status IS NULL
-            )
+            WHERE {' AND '.join(conditions)}
             ORDER BY COALESCE(name_en, name_ja, place_id)
-            """
+            """,
+            parameters,
         ).fetchall()
 
 
+def _published_location_backfill_rows(db_path: str | Path):
+    """Compatibility wrapper for the legacy all-published selector."""
+
+    return _location_backfill_rows(db_path)
+
+
 def _finalize_existing_location_metadata(
-    db_path: str | Path, place_id: str, *, dry_run: bool
+    db_path: str | Path,
+    place_id: str,
+    *,
+    dry_run: bool,
+    published_only: bool = True,
 ) -> dict[str, object] | None:
     """Complete metadata for a valid legacy location without changing its coordinates."""
 
     with connect(db_path) as connection:
         row = connection.execute(
-            "SELECT * FROM public_restaurants WHERE place_id=? AND is_published=1",
-            (place_id,),
+            """
+            SELECT * FROM public_restaurants
+            WHERE place_id=? AND (?=0 OR is_published=1)
+            """,
+            (place_id, int(published_only)),
         ).fetchone()
         if not row:
             return None
@@ -1154,27 +1187,53 @@ def backfill_legacy_published_locations(
     osm_index: str | Path,
     osm_address_index: str | Path,
     dry_run: bool = False,
+    place_ids: list[str] | None = None,
+    published_only: bool = True,
 ) -> dict[str, object]:
-    """Run the local-only finalized location hierarchy for published legacy rows."""
+    """Run the local-only finalized location hierarchy for a safely scoped cohort."""
 
     from .address_geocoder import LocalOSMAddressGeocoder
     from .address_geocoding import geocode_verified_addresses
     from .osm_resolver import resolve_osm_locations
 
     ensure_public_schema(db_path)
+    if not published_only and place_ids is None:
+        raise ValueError("unpublished location resolution requires an exact place-id cohort")
+    scope_conditions = ["1=1"]
+    scope_parameters: list[object] = []
+    if published_only:
+        scope_conditions.append("is_published=1")
+    if place_ids is not None:
+        if place_ids:
+            scope_conditions.append(f"place_id IN ({','.join('?' for _ in place_ids)})")
+            scope_parameters.extend(place_ids)
+        else:
+            scope_conditions.append("0=1")
     with connect(db_path) as connection:
-        inspected = int(
-            connection.execute(
-                "SELECT COUNT(*) FROM public_restaurants WHERE is_published=1"
-            ).fetchone()[0]
+        scope = connection.execute(
+            f"""
+            SELECT COUNT(*) AS inspected,
+                   SUM(is_published=1) AS published,
+                   SUM(map_display_eligible=1 AND latitude IS NOT NULL
+                       AND longitude IS NOT NULL) AS map_ready
+            FROM public_restaurants WHERE {' AND '.join(scope_conditions)}
+            """,
+            scope_parameters,
+        ).fetchone()
+    inspected = int(scope["inspected"] or 0)
+    map_ready_before = int(scope["map_ready"] or 0)
+    selected = [
+        dict(row)
+        for row in _location_backfill_rows(
+            db_path, place_ids=place_ids, published_only=published_only
         )
-    selected = [dict(row) for row in _published_location_backfill_rows(db_path)]
+    ]
     reports: list[dict[str, object]] = []
     for selected_row in selected:
         place_id = str(selected_row["place_id"])
         before = dict(selected_row)
         existing = _finalize_existing_location_metadata(
-            db_path, place_id, dry_run=dry_run
+            db_path, place_id, dry_run=dry_run, published_only=published_only
         )
         method = "existing_location" if existing else None
         detail: dict[str, object] | None = existing
@@ -1185,7 +1244,7 @@ def backfill_legacy_published_locations(
                 osm_index,
                 limit=1,
                 place_id=place_id,
-                published_only=True,
+                published_only=published_only,
                 force=True,
                 dry_run=dry_run,
             )
@@ -1204,7 +1263,7 @@ def backfill_legacy_published_locations(
                     limit=1,
                     place_id=place_id,
                     dry_run=dry_run,
-                    published_only=True,
+                    published_only=published_only,
                 )
                 if int(address.get("location_verified", 0)) or int(
                     address.get("location_provisional", 0)
@@ -1231,7 +1290,10 @@ def backfill_legacy_published_locations(
             if not dry_run:
                 mark_location_attempted(db_path, place_id)
                 finalized = _finalize_existing_location_metadata(
-                    db_path, place_id, dry_run=False
+                    db_path,
+                    place_id,
+                    dry_run=False,
+                    published_only=published_only,
                 )
                 if finalized and method == "poi":
                     detail = {**(detail or {}), **finalized}
@@ -1276,17 +1338,51 @@ def backfill_legacy_published_locations(
             }
         )
 
-    remaining = (
-        sum(not bool(report["success"]) for report in reports)
-        if dry_run
-        else len(_published_location_backfill_rows(db_path))
-    )
+    if dry_run:
+        map_ready_after = map_ready_before + sum(
+            bool(report["success"]) and not bool(report["before"]["map_display_eligible"])
+            for report in reports
+        )
+        remaining = sum(not bool(report["success"]) for report in reports)
+    else:
+        remaining = len(
+            _location_backfill_rows(
+                db_path, place_ids=place_ids, published_only=published_only
+            )
+        )
+        with connect(db_path) as connection:
+            map_ready_after = int(
+                connection.execute(
+                    f"""
+                    SELECT COUNT(*) FROM public_restaurants
+                    WHERE {' AND '.join(scope_conditions)}
+                      AND map_display_eligible=1
+                      AND latitude IS NOT NULL AND longitude IS NOT NULL
+                    """,
+                    scope_parameters,
+                ).fetchone()[0]
+            )
+    methods = Counter(str(report["method"]) for report in reports)
     return {
         "published_inspected": inspected,
+        "cohort_size": inspected,
+        "published_in_cohort": int(scope["published"] or 0),
         "missing_before": len(selected),
+        "already_map_ready": inspected - len(selected),
+        "map_ready_before": map_ready_before,
+        "map_ready_after": map_ready_after,
+        "map_ineligible_after": inspected - map_ready_after,
         "selected_names": [row["name"] for row in selected],
         "successfully_backfilled": sum(bool(row["success"]) for row in reports),
         "missing_after": remaining,
+        "method_distribution": dict(sorted(methods.items())),
+        "conflicts": sum(
+            str(report["before"].get("address_resolution_status") or "").casefold()
+            == "address_conflicting"
+            or str((report.get("detail") or {}).get("status", "")).casefold()
+            in {"conflict", "ambiguous", "address_conflicting"}
+            for report in reports
+        ),
         "dry_run": dry_run,
         "responses_api_calls": 0,
         "web_search_calls": 0,

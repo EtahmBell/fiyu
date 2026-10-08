@@ -1,0 +1,737 @@
+{
+  "verdict": "clean_local_resolution",
+  "root_cause": "the smoke workflow invoked research, Quality-v4, promotion, and publication reconciliation separately and never invoked the existing location stage",
+  "cohort": {
+    "selected": 17,
+    "published_additions": 17,
+    "map_ready_before": 0,
+    "map_ready_after": 17,
+    "unresolved": 0,
+    "conflicts": 1
+  },
+  "location_methods": {
+    "broader_defensible_fallback": 1,
+    "local_osm_verified_address": 5,
+    "neighborhood_or_chome_approximate": 11
+  },
+  "location_precisions": {
+    "area": 1,
+    "chome": 13,
+    "neighborhood": 3
+  },
+  "picks": {
+    "map_ready_published_before": 848,
+    "map_ready_published_after": 865,
+    "newly_eligible_through_existing_map_gate": 17,
+    "algorithm_changed": false
+  },
+  "product_parity": {
+    "rows_compared": 1228,
+    "score_exact": 1228,
+    "score_version_exact": 1228,
+    "publication_exact": 1228,
+    "published_before": 868,
+    "published_after": 868,
+    "additions": 0,
+    "removals": 0,
+    "original_851_count": 851,
+    "original_851_unchanged": 851,
+    "threshold": 70
+  },
+  "map_api_safety": {
+    "finite_tokyo_coordinates": true,
+    "public_detail_http_200": 17,
+    "map_dataset_rows": 17,
+    "map_identity_duplicates": 0,
+    "api_schema_changed": false
+  },
+  "database_safety": {
+    "database_sha256_before": "DAD1D8A292BBC30282E182F15F39D557E6F4BAB3D682B8AE8D5A3ECDF804E58C",
+    "backup_sha256": "C8ACAD3B30766029CC1E44D9B2F324FA17D5E635E1A7DFCA9EE60DAB24DF9532",
+    "database_sha256_after": "A2A50594234F575F960AB9F2270F3CC6E1F588A6B5DCA5EE1C2CC8B09053B586",
+    "seed70_sha256": "BF5EE61572EB2FB1B12F2487F800673EB965583DDFA1F22DCABFFE860F618C39",
+    "integrity": "ok",
+    "foreign_key_violations": 0,
+    "duplicate_place_ids": 0,
+    "broken_public_pointers": 0,
+    "external_requests": 0
+  },
+  "workflow": {
+    "sequence": [
+      "seed",
+      "standard research",
+      "resolve-cohort-locations (local-only)",
+      "Quality-v4",
+      "publication reconciliation",
+      "map/Picks readiness reporting"
+    ],
+    "location_failure_blocks_publication": false
+  },
+  "diagnostics": [
+    {
+      "place_id": "ChIJeXgCXqqPGGARfHb4NGv3Vio",
+      "name": "Kudaka Teppanyaki Asakusa",
+      "published": true,
+      "before": {
+        "latitude": null,
+        "longitude": null,
+        "map_display_eligible": false,
+        "location_attempted_at": null,
+        "location_source": null,
+        "location_precision": null,
+        "address_resolution_status": "address_needs_review"
+      },
+      "stored_context": {
+        "normalized_address": null,
+        "source_address": "Japan, 〒111-0034 Tokyo, Taito City, Kaminarimon, 1 Chome−16−9 MG雷門ビル7F",
+        "neighborhood": "1 Chome Kaminarimon",
+        "ward": "Taito City",
+        "discovery_area": null,
+        "source_search_area": "Taito Initial"
+      },
+      "classification": [
+        "LOCATION STAGE NEVER EXECUTED",
+        "EXISTING DATA IS SUFFICIENT FOR DETERMINISTIC RESOLUTION"
+      ],
+      "failure_reason_before": "no coordinates; map_display_eligible=0; location_attempted_at was null",
+      "after": {
+        "latitude": 35.71076543763991,
+        "longitude": 139.7924157879324,
+        "map_display_eligible": true,
+        "location_source": "local_osm_polygon_fallback",
+        "location_source_reference": "https://www.openstreetmap.org/relation/18158547",
+        "location_precision": "chome",
+        "map_location_approximate": true,
+        "location_status": "location_provisional",
+        "location_provenance": "Map data © OpenStreetMap contributors",
+        "method_group": "neighborhood_or_chome_approximate"
+      }
+    },
+    {
+      "place_id": "ChIJJ1GtVLaTGGARn6LJLJYadg0",
+      "name": "Ajidokoro Nomidokoro Gen",
+      "published": true,
+      "before": {
+        "latitude": null,
+        "longitude": null,
+        "map_display_eligible": false,
+        "location_attempted_at": null,
+        "location_source": null,
+        "location_precision": null,
+        "address_resolution_status": "address_needs_review"
+      },
+      "stored_context": {
+        "normalized_address": null,
+        "source_address": "2 Chome-26-4 Kohoku, Adachi City, Tokyo 123-0872, Japan",
+        "neighborhood": "2 Chome Kohoku",
+        "ward": "Adachi City",
+        "discovery_area": null,
+        "source_search_area": "Adachi Initial"
+      },
+      "classification": [
+        "LOCATION STAGE NEVER EXECUTED",
+        "EXISTING DATA IS SUFFICIENT FOR DETERMINISTIC RESOLUTION"
+      ],
+      "failure_reason_before": "no coordinates; map_display_eligible=0; location_attempted_at was null",
+      "after": {
+        "latitude": 35.77254956849907,
+        "longitude": 139.76154587477012,
+        "map_display_eligible": true,
+        "location_source": "local_osm_polygon_fallback",
+        "location_source_reference": "https://www.openstreetmap.org/relation/8688003",
+        "location_precision": "neighborhood",
+        "map_location_approximate": true,
+        "location_status": "location_provisional",
+        "location_provenance": "Map data © OpenStreetMap contributors",
+        "method_group": "neighborhood_or_chome_approximate"
+      }
+    },
+    {
+      "place_id": "ChIJiXcaXPDvGGAR3kf0qh5iZTw",
+      "name": "Tomarigi",
+      "published": true,
+      "before": {
+        "latitude": null,
+        "longitude": null,
+        "map_display_eligible": false,
+        "location_attempted_at": null,
+        "location_source": null,
+        "location_precision": null,
+        "address_resolution_status": "address_needs_review"
+      },
+      "stored_context": {
+        "normalized_address": null,
+        "source_address": "Japan, 〒177-0051 Tokyo, Nerima City, Sekimachikita, 4 Chome−7−10 パレス関",
+        "neighborhood": "4 Chome Sekimachikita",
+        "ward": "Nerima City",
+        "discovery_area": null,
+        "source_search_area": "Suginami Initial"
+      },
+      "classification": [
+        "LOCATION STAGE NEVER EXECUTED",
+        "EXISTING DATA IS SUFFICIENT FOR DETERMINISTIC RESOLUTION"
+      ],
+      "failure_reason_before": "no coordinates; map_display_eligible=0; location_attempted_at was null",
+      "after": {
+        "latitude": 35.72971197404594,
+        "longitude": 139.5731717533957,
+        "map_display_eligible": true,
+        "location_source": "local_osm_polygon_fallback",
+        "location_source_reference": "https://www.openstreetmap.org/relation/18569905",
+        "location_precision": "chome",
+        "map_location_approximate": true,
+        "location_status": "location_provisional",
+        "location_provenance": "Map data © OpenStreetMap contributors",
+        "method_group": "neighborhood_or_chome_approximate"
+      }
+    },
+    {
+      "place_id": "ChIJW5aBLbyNGGARfVVEjrov9AU",
+      "name": "DAGAYA",
+      "published": true,
+      "before": {
+        "latitude": null,
+        "longitude": null,
+        "map_display_eligible": false,
+        "location_attempted_at": null,
+        "location_source": null,
+        "location_precision": null,
+        "address_resolution_status": "address_verified"
+      },
+      "stored_context": {
+        "normalized_address": "渋谷区千駄ヶ谷1-12-4",
+        "source_address": "Japan, 〒151-0051 Tokyo, Shibuya, Sendagaya, 1 Chome−12−4 B1F",
+        "neighborhood": "1 Chome Sendagaya",
+        "ward": "Shibuya",
+        "discovery_area": null,
+        "source_search_area": "Shibuya Initial"
+      },
+      "classification": [
+        "LOCATION STAGE NEVER EXECUTED",
+        "EXISTING DATA IS SUFFICIENT FOR DETERMINISTIC RESOLUTION"
+      ],
+      "failure_reason_before": "no coordinates; map_display_eligible=0; location_attempted_at was null",
+      "after": {
+        "latitude": 35.67836904510885,
+        "longitude": 139.7118699636652,
+        "map_display_eligible": true,
+        "location_source": "local_osm_addresses",
+        "location_source_reference": "https://www.openstreetmap.org/relation/17054662",
+        "location_precision": "chome",
+        "map_location_approximate": true,
+        "location_status": "location_provisional",
+        "location_provenance": "Map data © OpenStreetMap contributors",
+        "method_group": "local_osm_verified_address"
+      }
+    },
+    {
+      "place_id": "ChIJjV3YMT_yGGARu2l0ORvA8LU",
+      "name": "Yoidokoro Yoshida",
+      "published": true,
+      "before": {
+        "latitude": null,
+        "longitude": null,
+        "map_display_eligible": false,
+        "location_attempted_at": null,
+        "location_source": null,
+        "location_precision": null,
+        "address_resolution_status": "address_verified"
+      },
+      "stored_context": {
+        "normalized_address": "杉並区浜田山2-19-2",
+        "source_address": "Japan, 〒168-0065 Tokyo, Suginami City, Hamadayama, 2 Chome−19−2 居酒屋よしだ",
+        "neighborhood": "2 Chome Hamadayama",
+        "ward": "Suginami City",
+        "discovery_area": null,
+        "source_search_area": "Suginami Initial"
+      },
+      "classification": [
+        "LOCATION STAGE NEVER EXECUTED",
+        "EXISTING DATA IS SUFFICIENT FOR DETERMINISTIC RESOLUTION"
+      ],
+      "failure_reason_before": "no coordinates; map_display_eligible=0; location_attempted_at was null",
+      "after": {
+        "latitude": 35.678138969055205,
+        "longitude": 139.62750758737843,
+        "map_display_eligible": true,
+        "location_source": "local_osm_addresses",
+        "location_source_reference": "https://www.openstreetmap.org/relation/17294924",
+        "location_precision": "chome",
+        "map_location_approximate": true,
+        "location_status": "location_provisional",
+        "location_provenance": "Map data © OpenStreetMap contributors",
+        "method_group": "local_osm_verified_address"
+      }
+    },
+    {
+      "place_id": "ChIJE3aOtzCSGGARuOuqIryhveo",
+      "name": "Ichiriki",
+      "published": true,
+      "before": {
+        "latitude": null,
+        "longitude": null,
+        "map_display_eligible": false,
+        "location_attempted_at": null,
+        "location_source": null,
+        "location_precision": null,
+        "address_resolution_status": "address_needs_review"
+      },
+      "stored_context": {
+        "normalized_address": null,
+        "source_address": "6 Chome-10-7 Shikahama, Adachi City, Tokyo 123-0864, Japan",
+        "neighborhood": "6 Chome Shikahama",
+        "ward": "Adachi City",
+        "discovery_area": null,
+        "source_search_area": "Adachi Initial"
+      },
+      "classification": [
+        "LOCATION STAGE NEVER EXECUTED",
+        "EXISTING DATA IS SUFFICIENT FOR DETERMINISTIC RESOLUTION"
+      ],
+      "failure_reason_before": "no coordinates; map_display_eligible=0; location_attempted_at was null",
+      "after": {
+        "latitude": 35.7804575617915,
+        "longitude": 139.75744888097702,
+        "map_display_eligible": true,
+        "location_source": "local_osm_polygon_fallback",
+        "location_source_reference": "https://www.openstreetmap.org/relation/16612940",
+        "location_precision": "neighborhood",
+        "map_location_approximate": true,
+        "location_status": "location_provisional",
+        "location_provenance": "Map data © OpenStreetMap contributors",
+        "method_group": "neighborhood_or_chome_approximate"
+      }
+    },
+    {
+      "place_id": "ChIJOx7W_OFfGGARjyvC0httbVk",
+      "name": "Shukudokoro Doremi",
+      "published": true,
+      "before": {
+        "latitude": null,
+        "longitude": null,
+        "map_display_eligible": false,
+        "location_attempted_at": null,
+        "location_source": null,
+        "location_precision": null,
+        "address_resolution_status": "address_needs_review"
+      },
+      "stored_context": {
+        "normalized_address": null,
+        "source_address": "Japan, 〒146-0093 Tokyo, Ota City, Yaguchi, 1 Chome−14−12 コーポ勇崎 101",
+        "neighborhood": "1 Chome Yaguchi",
+        "ward": "Ota City",
+        "discovery_area": null,
+        "source_search_area": "Ota Initial"
+      },
+      "classification": [
+        "LOCATION STAGE NEVER EXECUTED",
+        "EXISTING DATA IS SUFFICIENT FOR DETERMINISTIC RESOLUTION"
+      ],
+      "failure_reason_before": "no coordinates; map_display_eligible=0; location_attempted_at was null",
+      "after": {
+        "latitude": 35.56793730560551,
+        "longitude": 139.69309678175526,
+        "map_display_eligible": true,
+        "location_source": "local_osm_polygon_fallback",
+        "location_source_reference": "https://www.openstreetmap.org/relation/18046713",
+        "location_precision": "chome",
+        "map_location_approximate": true,
+        "location_status": "location_provisional",
+        "location_provenance": "Map data © OpenStreetMap contributors",
+        "method_group": "neighborhood_or_chome_approximate"
+      }
+    },
+    {
+      "place_id": "ChIJ1dE11KWLGGARgLMLmvirJjQ",
+      "name": "Teppanyaki Acalli",
+      "published": true,
+      "before": {
+        "latitude": null,
+        "longitude": null,
+        "map_display_eligible": false,
+        "location_attempted_at": null,
+        "location_source": null,
+        "location_precision": null,
+        "address_resolution_status": "address_needs_review"
+      },
+      "stored_context": {
+        "normalized_address": null,
+        "source_address": "Japan, 〒106-0047 Tokyo, Minato City, Minamiazabu, 2 Chome−6−17 2F",
+        "neighborhood": "2 Chome Minamiazabu",
+        "ward": "Minato City",
+        "discovery_area": null,
+        "source_search_area": "Minato Initial"
+      },
+      "classification": [
+        "LOCATION STAGE NEVER EXECUTED",
+        "EXISTING DATA IS SUFFICIENT FOR DETERMINISTIC RESOLUTION"
+      ],
+      "failure_reason_before": "no coordinates; map_display_eligible=0; location_attempted_at was null",
+      "after": {
+        "latitude": 35.6489394295628,
+        "longitude": 139.73412240370052,
+        "map_display_eligible": true,
+        "location_source": "local_osm_polygon_fallback",
+        "location_source_reference": "https://www.openstreetmap.org/relation/18189555",
+        "location_precision": "chome",
+        "map_location_approximate": true,
+        "location_status": "location_provisional",
+        "location_provenance": "Map data © OpenStreetMap contributors",
+        "method_group": "neighborhood_or_chome_approximate"
+      }
+    },
+    {
+      "place_id": "ChIJs5CVcTqLGGARprtnC_F-RJ8",
+      "name": "shu Sake Bar",
+      "published": true,
+      "before": {
+        "latitude": null,
+        "longitude": null,
+        "map_display_eligible": false,
+        "location_attempted_at": null,
+        "location_source": null,
+        "location_precision": null,
+        "address_resolution_status": "address_needs_review"
+      },
+      "stored_context": {
+        "normalized_address": null,
+        "source_address": "1 Chome-17-1 Kamiikedai, Ota City, Tokyo 145-0064, Japan",
+        "neighborhood": "1 Chome Kamiikedai",
+        "ward": "Ota City",
+        "discovery_area": null,
+        "source_search_area": "Ota Initial"
+      },
+      "classification": [
+        "LOCATION STAGE NEVER EXECUTED",
+        "EXISTING DATA IS SUFFICIENT FOR DETERMINISTIC RESOLUTION"
+      ],
+      "failure_reason_before": "no coordinates; map_display_eligible=0; location_attempted_at was null",
+      "after": {
+        "latitude": 35.601425256460395,
+        "longitude": 139.69760533037518,
+        "map_display_eligible": true,
+        "location_source": "local_osm_polygon_fallback",
+        "location_source_reference": "https://www.openstreetmap.org/relation/18047767",
+        "location_precision": "chome",
+        "map_location_approximate": true,
+        "location_status": "location_provisional",
+        "location_provenance": "Map data © OpenStreetMap contributors",
+        "method_group": "neighborhood_or_chome_approximate"
+      }
+    },
+    {
+      "place_id": "ChIJ65sPLRiPGGAR7HROZq24QL4",
+      "name": "Umasando",
+      "published": true,
+      "before": {
+        "latitude": null,
+        "longitude": null,
+        "map_display_eligible": false,
+        "location_attempted_at": null,
+        "location_source": null,
+        "location_precision": null,
+        "address_resolution_status": "address_verified"
+      },
+      "stored_context": {
+        "normalized_address": "台東区入谷1-18-5",
+        "source_address": "1 Chome-18-5 Iriya, Taito City, Tokyo 110-0013, Japan",
+        "neighborhood": "1 Chome Iriya",
+        "ward": "Taito City",
+        "discovery_area": null,
+        "source_search_area": "Taito Initial"
+      },
+      "classification": [
+        "LOCATION STAGE NEVER EXECUTED",
+        "EXISTING DATA IS SUFFICIENT FOR DETERMINISTIC RESOLUTION"
+      ],
+      "failure_reason_before": "no coordinates; map_display_eligible=0; location_attempted_at was null",
+      "after": {
+        "latitude": 35.721938426051786,
+        "longitude": 139.7859949100596,
+        "map_display_eligible": true,
+        "location_source": "local_osm_addresses",
+        "location_source_reference": "https://www.openstreetmap.org/relation/16013250",
+        "location_precision": "chome",
+        "map_location_approximate": true,
+        "location_status": "location_provisional",
+        "location_provenance": "Map data © OpenStreetMap contributors",
+        "method_group": "local_osm_verified_address"
+      }
+    },
+    {
+      "place_id": "ChIJGXfe96_tGGARM6Y-6F5zdu4",
+      "name": "Izakaya Kuji",
+      "published": true,
+      "before": {
+        "latitude": null,
+        "longitude": null,
+        "map_display_eligible": false,
+        "location_attempted_at": null,
+        "location_source": null,
+        "location_precision": null,
+        "address_resolution_status": "address_needs_review"
+      },
+      "stored_context": {
+        "normalized_address": null,
+        "source_address": "4 Chome-20-19 Takamatsu, Nerima City, Tokyo 179-0075, Japan",
+        "neighborhood": "4 Chome Takamatsu",
+        "ward": "Nerima City",
+        "discovery_area": null,
+        "source_search_area": "Suginami Initial"
+      },
+      "classification": [
+        "LOCATION STAGE NEVER EXECUTED",
+        "EXISTING DATA IS SUFFICIENT FOR DETERMINISTIC RESOLUTION"
+      ],
+      "failure_reason_before": "no coordinates; map_display_eligible=0; location_attempted_at was null",
+      "after": {
+        "latitude": 35.75747923777045,
+        "longitude": 139.62162360339224,
+        "map_display_eligible": true,
+        "location_source": "local_osm_polygon_fallback",
+        "location_source_reference": "https://www.openstreetmap.org/relation/18535054",
+        "location_precision": "neighborhood",
+        "map_location_approximate": true,
+        "location_status": "location_provisional",
+        "location_provenance": "Map data © OpenStreetMap contributors",
+        "method_group": "neighborhood_or_chome_approximate"
+      }
+    },
+    {
+      "place_id": "ChIJV0ujdg3zGGARTfrl9_ai-D0",
+      "name": "How Lovely",
+      "published": true,
+      "before": {
+        "latitude": null,
+        "longitude": null,
+        "map_display_eligible": false,
+        "location_attempted_at": null,
+        "location_source": null,
+        "location_precision": null,
+        "address_resolution_status": "address_needs_review"
+      },
+      "stored_context": {
+        "normalized_address": null,
+        "source_address": "Japan, 〒151-0071 Tokyo, Shibuya, Honmachi, 5 Chome−40−6 1階",
+        "neighborhood": "5 Chome Honmachi",
+        "ward": "Shibuya",
+        "discovery_area": null,
+        "source_search_area": "Shibuya Initial"
+      },
+      "classification": [
+        "LOCATION STAGE NEVER EXECUTED",
+        "EXISTING DATA IS SUFFICIENT FOR DETERMINISTIC RESOLUTION"
+      ],
+      "failure_reason_before": "no coordinates; map_display_eligible=0; location_attempted_at was null",
+      "after": {
+        "latitude": 35.68287539155678,
+        "longitude": 139.67687028338648,
+        "map_display_eligible": true,
+        "location_source": "local_osm_polygon_fallback",
+        "location_source_reference": "https://www.openstreetmap.org/relation/17058700",
+        "location_precision": "chome",
+        "map_location_approximate": true,
+        "location_status": "location_provisional",
+        "location_provenance": "Map data © OpenStreetMap contributors",
+        "method_group": "neighborhood_or_chome_approximate"
+      }
+    },
+    {
+      "place_id": "ChIJN78X-amSGGAR-rF04MdbbKg",
+      "name": "Kanei Soba",
+      "published": true,
+      "before": {
+        "latitude": null,
+        "longitude": null,
+        "map_display_eligible": false,
+        "location_attempted_at": null,
+        "location_source": null,
+        "location_precision": null,
+        "address_resolution_status": "address_provisionally_accepted"
+      },
+      "stored_context": {
+        "normalized_address": "豊島区千早1-25-1",
+        "source_address": "1 Chome-25-1 Chihaya, Toshima City, Tokyo 171-0044, Japan",
+        "neighborhood": "1 Chome Chihaya",
+        "ward": "Toshima City",
+        "discovery_area": null,
+        "source_search_area": "Toshima Initial"
+      },
+      "classification": [
+        "LOCATION STAGE NEVER EXECUTED",
+        "EXISTING DATA IS SUFFICIENT FOR DETERMINISTIC RESOLUTION"
+      ],
+      "failure_reason_before": "no coordinates; map_display_eligible=0; location_attempted_at was null",
+      "after": {
+        "latitude": 35.73137508187885,
+        "longitude": 139.6970259614452,
+        "map_display_eligible": true,
+        "location_source": "local_osm_addresses",
+        "location_source_reference": "https://www.openstreetmap.org/relation/18300716",
+        "location_precision": "chome",
+        "map_location_approximate": true,
+        "location_status": "location_provisional",
+        "location_provenance": "Map data © OpenStreetMap contributors",
+        "method_group": "local_osm_verified_address"
+      }
+    },
+    {
+      "place_id": "ChIJ64Z0Y5mLGGARqcybqkb8MxU",
+      "name": "Spice Bistro Dharkan",
+      "published": true,
+      "before": {
+        "latitude": null,
+        "longitude": null,
+        "map_display_eligible": false,
+        "location_attempted_at": null,
+        "location_source": null,
+        "location_precision": null,
+        "address_resolution_status": "address_conflicting"
+      },
+      "stored_context": {
+        "normalized_address": null,
+        "source_address": "Japan, 〒100-0011 Tokyo, Chiyoda City, Uchisaiwaicho, 1 Chome−6−6 URACORI銀座 2F",
+        "neighborhood": "1 Chome Uchisaiwaicho",
+        "ward": "Chiyoda City",
+        "discovery_area": null,
+        "source_search_area": "Chiyoda Initial"
+      },
+      "classification": [
+        "LOCATION STAGE NEVER EXECUTED",
+        "EXISTING DATA IS SUFFICIENT FOR DETERMINISTIC RESOLUTION",
+        "IDENTITY / ADDRESS CONFLICT"
+      ],
+      "failure_reason_before": "no coordinates; map_display_eligible=0; location_attempted_at was null",
+      "after": {
+        "latitude": 35.68745808605805,
+        "longitude": 139.7591309535312,
+        "map_display_eligible": true,
+        "location_source": "local_osm_polygon_fallback",
+        "location_source_reference": "https://www.openstreetmap.org/relation/1761742",
+        "location_precision": "area",
+        "map_location_approximate": true,
+        "location_status": "location_provisional",
+        "location_provenance": "Map data © OpenStreetMap contributors",
+        "method_group": "broader_defensible_fallback"
+      }
+    },
+    {
+      "place_id": "ChIJaUQmj_GIGGARLUC7UjdqrqI",
+      "name": "Tezukuri Pan Cake Fujiya",
+      "published": true,
+      "before": {
+        "latitude": null,
+        "longitude": null,
+        "map_display_eligible": false,
+        "location_attempted_at": null,
+        "location_source": null,
+        "location_precision": null,
+        "address_resolution_status": "address_needs_review"
+      },
+      "stored_context": {
+        "normalized_address": null,
+        "source_address": "3 Chome-14-20 Kitasuna, Koto City, Tokyo 136-0073, Japan",
+        "neighborhood": "3 Chome Kitasuna",
+        "ward": "Koto City",
+        "discovery_area": null,
+        "source_search_area": "Koto Initial"
+      },
+      "classification": [
+        "LOCATION STAGE NEVER EXECUTED",
+        "EXISTING DATA IS SUFFICIENT FOR DETERMINISTIC RESOLUTION"
+      ],
+      "failure_reason_before": "no coordinates; map_display_eligible=0; location_attempted_at was null",
+      "after": {
+        "latitude": 35.68138543285978,
+        "longitude": 139.82981442227486,
+        "map_display_eligible": true,
+        "location_source": "local_osm_polygon_fallback",
+        "location_source_reference": "https://www.openstreetmap.org/relation/17007872",
+        "location_precision": "chome",
+        "map_location_approximate": true,
+        "location_status": "location_provisional",
+        "location_provenance": "Map data © OpenStreetMap contributors",
+        "method_group": "neighborhood_or_chome_approximate"
+      }
+    },
+    {
+      "place_id": "ChIJFUu-VjphGGARQ1wOS57Iuac",
+      "name": "Sosaku Izakaya Jiyu",
+      "published": true,
+      "before": {
+        "latitude": null,
+        "longitude": null,
+        "map_display_eligible": false,
+        "location_attempted_at": null,
+        "location_source": null,
+        "location_precision": null,
+        "address_resolution_status": "address_needs_review"
+      },
+      "stored_context": {
+        "normalized_address": null,
+        "source_address": "102 5 Chome-21-13 Kamata, Ota City, Tokyo 144-0052, Japan",
+        "neighborhood": "5 Chome Kamata",
+        "ward": "Ota City",
+        "discovery_area": null,
+        "source_search_area": "Ota Initial"
+      },
+      "classification": [
+        "LOCATION STAGE NEVER EXECUTED",
+        "EXISTING DATA IS SUFFICIENT FOR DETERMINISTIC RESOLUTION"
+      ],
+      "failure_reason_before": "no coordinates; map_display_eligible=0; location_attempted_at was null",
+      "after": {
+        "latitude": 35.562696981862615,
+        "longitude": 139.71865883140265,
+        "map_display_eligible": true,
+        "location_source": "local_osm_polygon_fallback",
+        "location_source_reference": "https://www.openstreetmap.org/relation/18019741",
+        "location_precision": "chome",
+        "map_location_approximate": true,
+        "location_status": "location_provisional",
+        "location_provenance": "Map data © OpenStreetMap contributors",
+        "method_group": "neighborhood_or_chome_approximate"
+      }
+    },
+    {
+      "place_id": "ChIJnak-6xvyGGAR8wDn3EZzYRQ",
+      "name": "Akafuji",
+      "published": true,
+      "before": {
+        "latitude": null,
+        "longitude": null,
+        "map_display_eligible": false,
+        "location_attempted_at": null,
+        "location_source": null,
+        "location_precision": null,
+        "address_resolution_status": "address_provisionally_accepted"
+      },
+      "stored_context": {
+        "normalized_address": "杉並区高井戸西2-18-25",
+        "source_address": "2 Chome-18-25 Takaidonishi, Suginami City, Tokyo 168-0071, Japan",
+        "neighborhood": "2 Chome Takaidonishi",
+        "ward": "Suginami City",
+        "discovery_area": null,
+        "source_search_area": "Suginami Initial"
+      },
+      "classification": [
+        "LOCATION STAGE NEVER EXECUTED",
+        "EXISTING DATA IS SUFFICIENT FOR DETERMINISTIC RESOLUTION"
+      ],
+      "failure_reason_before": "no coordinates; map_display_eligible=0; location_attempted_at was null",
+      "after": {
+        "latitude": 35.68535508572049,
+        "longitude": 139.61292947663108,
+        "map_display_eligible": true,
+        "location_source": "local_osm_addresses",
+        "location_source_reference": "https://www.openstreetmap.org/relation/17299401",
+        "location_precision": "chome",
+        "map_location_approximate": true,
+        "location_status": "location_provisional",
+        "location_provenance": "Map data © OpenStreetMap contributors",
+        "method_group": "local_osm_verified_address"
+      }
+    }
+  ],
+  "unresolved_rows": []
+}

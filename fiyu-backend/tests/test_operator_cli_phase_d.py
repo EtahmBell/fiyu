@@ -8,7 +8,11 @@ import pytest
 
 from fiyu import cli
 from fiyu.database import SCHEMA, connect
-from fiyu.operator_reporting import COUNT_FIELDS, operator_summary
+from fiyu.operator_reporting import (
+    COUNT_FIELDS,
+    format_operator_summary,
+    operator_summary,
+)
 from fiyu.operator_status import catalog_status, coverage_report, funnel_report
 from fiyu.pipeline_cli import main as pipeline_main
 from fiyu.pipeline_runs import (
@@ -374,3 +378,24 @@ def test_backup_is_integrity_checked_non_overwriting_and_source_safe(tmp_path):
     assert report["sha256"] == _digest(backup)
     with pytest.raises(FileExistsError, match="already exists"):
         create_sqlite_backup(database, backup)
+
+
+def test_location_operator_summary_makes_map_gap_visible():
+    rendered = format_operator_summary(
+        operator_summary(
+            "resolve-cohort-locations",
+            status="completed",
+            details={
+                "map_ready_before": 0,
+                "map_ready_after": 15,
+                "map_ineligible_after": 2,
+                "missing_after": 2,
+                "conflicts": 1,
+                "method_distribution": {"verified_address": 5, "polygon": 10},
+            },
+        )
+    )
+
+    assert "Map-ready before / after: 0 / 15" in rendered
+    assert "Map-ineligible after: 2" in rendered
+    assert "Unresolved / conflicts: 2 / 1" in rendered

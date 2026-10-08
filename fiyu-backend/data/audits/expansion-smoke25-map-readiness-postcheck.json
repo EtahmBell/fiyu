@@ -1,0 +1,52 @@
+{
+  "operation": "resolve-cohort-locations",
+  "operation_version": "operator-summary-v1",
+  "run_id": null,
+  "mode": "dry_run",
+  "started_at": null,
+  "completed_at": "2026-10-08T23:01:56.528068+00:00",
+  "status": "completed",
+  "input": {
+    "cohort_manifest": "data\\audits\\expansion-smoke25-map-readiness-cohort.json",
+    "osm_index": "C:\\data\\osm\\fiyu-kanto-index.sqlite",
+    "osm_address_index": "C:\\data\\osm\\fiyu-kanto-address-index-v2.sqlite"
+  },
+  "counts": {
+    "selected": 17,
+    "created": 0,
+    "updated": 0,
+    "unchanged": 0,
+    "skipped": 17,
+    "succeeded": 0,
+    "retryable_failed": 0,
+    "terminal_failed": 0,
+    "blocked": 0
+  },
+  "safety": {
+    "canonical_db": "data\\fiyu.db",
+    "dry_run": true,
+    "external_requests": 0,
+    "mutations": 0
+  },
+  "artifacts": {},
+  "details": {
+    "published_inspected": 17,
+    "cohort_size": 17,
+    "published_in_cohort": 17,
+    "missing_before": 0,
+    "already_map_ready": 17,
+    "map_ready_before": 17,
+    "map_ready_after": 17,
+    "map_ineligible_after": 0,
+    "selected_names": [],
+    "successfully_backfilled": 0,
+    "missing_after": 0,
+    "method_distribution": {},
+    "conflicts": 0,
+    "dry_run": true,
+    "responses_api_calls": 0,
+    "web_search_calls": 0,
+    "external_geocoding_calls": 0,
+    "reports": []
+  }
+}

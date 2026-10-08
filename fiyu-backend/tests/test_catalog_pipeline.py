@@ -235,6 +235,96 @@ def test_legacy_backfill_finalizes_valid_location_without_changing_catalog_or_us
     assert seen_count == 1
 
 
+def test_location_backfill_exact_cohort_never_selects_other_rows(tmp_path):
+    path = _db(tmp_path)
+    _add_pipeline_candidate(path, "place-2", status="complete")
+    with connect(path) as connection:
+        connection.execute(
+            "UPDATE public_restaurants SET is_published=1 WHERE place_id IN ('place-1', 'place-2')"
+        )
+        connection.execute(
+            """
+            UPDATE public_restaurants
+            SET latitude=35.7, longitude=139.7, map_display_eligible=1,
+                location_source='openstreetmap', location_precision='exact',
+                map_location_precision='exact', location_status='location_active',
+                location_attempted_at='now'
+            WHERE place_id='place-1'
+            """
+        )
+        connection.commit()
+
+    result = backfill_legacy_published_locations(
+        path,
+        osm_index=tmp_path / "unused-poi.sqlite",
+        osm_address_index=tmp_path / "unused-address.sqlite",
+        place_ids=["place-1"],
+        dry_run=True,
+    )
+
+    assert result["cohort_size"] == 1
+    assert result["already_map_ready"] == 1
+    assert result["missing_before"] == 0
+    assert result["map_ready_before"] == result["map_ready_after"] == 1
+    assert result["reports"] == []
+
+
+def test_unpublished_location_resolution_requires_exact_cohort(tmp_path):
+    path = _db(tmp_path)
+    with pytest.raises(ValueError, match="exact place-id cohort"):
+        backfill_legacy_published_locations(
+            path,
+            osm_index=tmp_path / "unused-poi.sqlite",
+            osm_address_index=tmp_path / "unused-address.sqlite",
+            published_only=False,
+            dry_run=True,
+        )
+
+
+@pytest.mark.parametrize(
+    ("location_precision", "map_precision"),
+    [("exact", "exact"), ("approximate", "chome")],
+)
+def test_future_unpublished_cohort_finalizes_existing_location_without_external_calls(
+    tmp_path, location_precision, map_precision
+):
+    path = _db(tmp_path)
+    with connect(path) as connection:
+        connection.execute(
+            """
+            UPDATE public_restaurants
+            SET latitude=35.7, longitude=139.7, map_display_eligible=1,
+                location_source='local_osm_addresses', location_precision=?,
+                map_location_precision=?, location_status=NULL,
+                location_attempted_at=NULL
+            WHERE place_id='place-1'
+            """,
+            (location_precision, map_precision),
+        )
+        connection.commit()
+
+    result = backfill_legacy_published_locations(
+        path,
+        osm_index=tmp_path / "must-not-open-poi.sqlite",
+        osm_address_index=tmp_path / "must-not-open-address.sqlite",
+        place_ids=["place-1"],
+        published_only=False,
+    )
+
+    assert result["cohort_size"] == 1
+    assert result["map_ready_after"] == 1
+    assert result["method_distribution"] == {"existing_location": 1}
+    with connect(path) as connection:
+        row = connection.execute(
+            """
+            SELECT is_published, map_location_precision, location_attempted_at
+            FROM public_restaurants WHERE place_id='place-1'
+            """
+        ).fetchone()
+    assert tuple(row[:2]) == (0, map_precision)
+    assert row[2]
+
+
 def test_rejected_candidate_cannot_publish(tmp_path):
     path = _db(tmp_path)
     _save(path)

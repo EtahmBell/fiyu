@@ -213,4 +213,17 @@ def format_operator_summary(summary: dict[str, Any]) -> str:
                 f"Integrity: {details['integrity']}",
             )
         )
+    elif operation in {"resolve-cohort-locations", "backfill-published-locations"}:
+        lines.extend(
+            (
+                "",
+                (
+                    f"Map-ready before / after: {details['map_ready_before']} / "
+                    f"{details['map_ready_after']}"
+                ),
+                f"Map-ineligible after: {details['map_ineligible_after']}",
+                f"Unresolved / conflicts: {details['missing_after']} / {details['conflicts']}",
+                f"Methods: {json.dumps(details['method_distribution'], sort_keys=True)}",
+            )
+        )
     return "\n".join(lines)

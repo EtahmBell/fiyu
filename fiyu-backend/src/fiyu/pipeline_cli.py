@@ -191,7 +191,19 @@ def _parser() -> argparse.ArgumentParser:
     )
     backfill_locations.add_argument("--osm-index", required=True)
     backfill_locations.add_argument("--osm-address-index", required=True)
+    backfill_locations.add_argument("--cohort-manifest")
     backfill_locations.add_argument("--dry-run", action="store_true")
+    backfill_locations.add_argument("--summary-out")
+
+    resolve_cohort_locations = commands.add_parser(
+        "resolve-cohort-locations",
+        help="Run the existing local-only location hierarchy for one exact expansion cohort",
+    )
+    resolve_cohort_locations.add_argument("--cohort-manifest", required=True)
+    resolve_cohort_locations.add_argument("--osm-index", required=True)
+    resolve_cohort_locations.add_argument("--osm-address-index", required=True)
+    resolve_cohort_locations.add_argument("--dry-run", action="store_true")
+    resolve_cohort_locations.add_argument("--summary-out")
 
     backfill_enrichment = commands.add_parser(
         "backfill-card-enrichment",
@@ -709,13 +721,49 @@ def main(argv: list[str] | None = None, *, canonical: bool = False) -> int:
         )
     elif args.command == "restore-best-location":
         result = restore_best_location_from_history(db, args.place_id, dry_run=args.dry_run)
-    elif args.command == "backfill-published-locations":
+    elif args.command in {"backfill-published-locations", "resolve-cohort-locations"}:
+        location_place_ids = None
+        if args.cohort_manifest:
+            from .cohort_manifest import load_cohort_place_ids
+
+            location_place_ids = load_cohort_place_ids(args.cohort_manifest)
         result = backfill_legacy_published_locations(
             db,
             osm_index=args.osm_index,
             osm_address_index=args.osm_address_index,
             dry_run=args.dry_run,
+            place_ids=location_place_ids,
+            published_only=args.command == "backfill-published-locations",
         )
+        if canonical or args.summary_out:
+            from .operator_reporting import operator_summary
+
+            operator_output = operator_summary(
+                "resolve-cohort-locations"
+                if args.command == "resolve-cohort-locations"
+                else "backfill-published-locations",
+                status="completed",
+                mode="dry_run" if args.dry_run else "real",
+                dry_run=args.dry_run,
+                input_data={
+                    "cohort_manifest": args.cohort_manifest,
+                    "osm_index": args.osm_index,
+                    "osm_address_index": args.osm_address_index,
+                },
+                counts={
+                    "selected": result["cohort_size"],
+                    "succeeded": result["successfully_backfilled"],
+                    "skipped": result["already_map_ready"],
+                    "map_ready": result["map_ready_after"],
+                    "map_ineligible": result["map_ineligible_after"],
+                    "unresolved": result["missing_after"],
+                    "conflicts": result["conflicts"],
+                },
+                canonical_db=db,
+                external_requests=0,
+                mutations="planned" if args.dry_run else "checkpointed per item",
+                details=result,
+            )
     elif args.command == "backfill-card-enrichment":
         from .card_enrichment import backfill_card_enrichment
 

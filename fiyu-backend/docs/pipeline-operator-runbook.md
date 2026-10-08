@@ -108,7 +108,30 @@ It refuses runs with no retryable failures.
 .\.venv\Scripts\python.exe -m fiyu.cli pipeline --db data\fiyu.db research-retry 42
 ```
 
-### I. Run Quality-v4 where required — paid
+### I. Resolve locations for the frozen cohort — local, no external calls
+
+Run the established POI/address/polygon/area-anchor hierarchy after standard
+research and before Quality-v4. Location failure remains nonfatal and is reported
+as map-ineligible; it does not block later scoring or publication.
+
+```powershell
+.\.venv\Scripts\python.exe -m fiyu.cli pipeline --db data\fiyu.db resolve-cohort-locations `
+  --cohort-manifest data\audits\tokyo-expansion-001-seed.json `
+  --osm-index C:\data\osm\fiyu-kanto-index.sqlite `
+  --osm-address-index C:\data\osm\fiyu-kanto-address-index-v2.sqlite `
+  --dry-run --summary-out data\audits\tokyo-expansion-001-location-plan.json
+.\.venv\Scripts\python.exe -m fiyu.cli pipeline --db data\fiyu.db resolve-cohort-locations `
+  --cohort-manifest data\audits\tokyo-expansion-001-seed.json `
+  --osm-index C:\data\osm\fiyu-kanto-index.sqlite `
+  --osm-address-index C:\data\osm\fiyu-kanto-address-index-v2.sqlite `
+  --summary-out data\audits\tokyo-expansion-001-location.json
+```
+
+The summary reports cohort size, published members, map-ready before/after,
+map-ineligible rows, resolution-method distribution, unresolved rows, conflicts,
+and zero external requests. Always review the dry-run before the real mutation.
+
+### J. Run Quality-v4 where required — paid
 
 The established Quality-v4 selector, sequential request behavior, retry
 classification, checkpointing, and manifests are unchanged.
@@ -124,7 +147,7 @@ classification, checkpointing, and manifests are unchanged.
 Retry only provider-retryable failures with `quality-v4-backfill --retry-failed`.
 Never use broad `--force` as a retry substitute.
 
-### J. Promote an audited Quality-v4 cohort
+### K. Promote an audited Quality-v4 cohort
 
 Dry-run first. Real promotion requires the operation-specific backup path and audited
 cohort manifest.
@@ -143,7 +166,7 @@ cohort manifest.
   --report-out data\audits\quality-v4-promotion.md
 ```
 
-### K. Dry-run publication reconciliation
+### L. Dry-run publication reconciliation
 
 ```powershell
 .\.venv\Scripts\python.exe -m fiyu.cli pipeline --db data\fiyu.db reconcile-publication `
@@ -155,7 +178,7 @@ cohort manifest.
   --changes-out data\audits\publication-reconciliation-dry-run.jsonl
 ```
 
-### L. Execute publication reconciliation
+### M. Execute publication reconciliation
 
 Omit `--dry-run` only after reviewing the planned changes. A non-overwriting backup
 is mandatory.
@@ -170,7 +193,7 @@ is mandatory.
   --changes-out data\audits\publication-reconciliation.jsonl
 ```
 
-### M. Check final catalog status
+### N. Check final catalog status
 
 These reports use stored state and do not run full publication reconciliation.
 
@@ -183,7 +206,7 @@ These reports use stored state and do not run full publication reconciliation.
   --summary-out data\audits\catalog-coverage.json
 ```
 
-### N. Back up before mutations
+### O. Back up before mutations
 
 The backup command uses SQLite's backup API, includes committed WAL state, checks
 integrity, and refuses to overwrite an existing file.

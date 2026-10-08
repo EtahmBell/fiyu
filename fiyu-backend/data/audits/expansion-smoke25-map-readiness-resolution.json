@@ -1,0 +1,1050 @@
+{
+  "operation": "resolve-cohort-locations",
+  "operation_version": "operator-summary-v1",
+  "run_id": null,
+  "mode": "real",
+  "started_at": null,
+  "completed_at": "2026-10-08T19:47:10.136289+00:00",
+  "status": "completed",
+  "input": {
+    "cohort_manifest": "data\\audits\\expansion-smoke25-map-readiness-cohort.json",
+    "osm_index": "C:\\data\\osm\\fiyu-kanto-index.sqlite",
+    "osm_address_index": "C:\\data\\osm\\fiyu-kanto-address-index-v2.sqlite"
+  },
+  "counts": {
+    "selected": 17,
+    "created": 0,
+    "updated": 0,
+    "unchanged": 0,
+    "skipped": 0,
+    "succeeded": 17,
+    "retryable_failed": 0,
+    "terminal_failed": 0,
+    "blocked": 0
+  },
+  "safety": {
+    "canonical_db": "data\\fiyu.db",
+    "dry_run": false,
+    "external_requests": 0,
+    "mutations": "checkpointed per item"
+  },
+  "artifacts": {},
+  "details": {
+    "published_inspected": 17,
+    "cohort_size": 17,
+    "published_in_cohort": 17,
+    "missing_before": 17,
+    "already_map_ready": 0,
+    "map_ready_before": 0,
+    "map_ready_after": 17,
+    "map_ineligible_after": 0,
+    "selected_names": [
+      "Ajidokoro Nomidokoro Gen",
+      "Akafuji",
+      "DAGAYA",
+      "How Lovely",
+      "Ichiriki",
+      "Izakaya Kuji",
+      "Kanei Soba",
+      "Kudaka Teppanyaki Asakusa",
+      "Shukudokoro Doremi",
+      "Sosaku Izakaya Jiyu",
+      "Spice Bistro Dharkan",
+      "Teppanyaki Acalli",
+      "Tezukuri Pan Cake Fujiya",
+      "Tomarigi",
+      "Umasando",
+      "Yoidokoro Yoshida",
+      "shu Sake Bar"
+    ],
+    "successfully_backfilled": 17,
+    "missing_after": 0,
+    "method_distribution": {
+      "polygon": 12,
+      "verified_address": 5
+    },
+    "conflicts": 0,
+    "dry_run": false,
+    "responses_api_calls": 0,
+    "web_search_calls": 0,
+    "external_geocoding_calls": 0,
+    "reports": [
+      {
+        "place_id": "ChIJJ1GtVLaTGGARn6LJLJYadg0",
+        "name": "Ajidokoro Nomidokoro Gen",
+        "method": "polygon",
+        "success": true,
+        "precision": "neighborhood",
+        "before": {
+          "place_id": "ChIJJ1GtVLaTGGARn6LJLJYadg0",
+          "name": "Ajidokoro Nomidokoro Gen",
+          "latitude": null,
+          "longitude": null,
+          "map_display_eligible": 0,
+          "location_precision": null,
+          "map_location_precision": null,
+          "location_status": null,
+          "location_source": null,
+          "location_attempted_at": null
+        },
+        "after": {
+          "latitude": 35.77254956849907,
+          "longitude": 139.76154587477012,
+          "map_display_eligible": 1,
+          "location_precision": "approximate",
+          "map_location_precision": "neighborhood",
+          "location_status": "location_provisional",
+          "location_source": "local_osm_polygon_fallback",
+          "location_attempted_at": "2026-10-08T19:46:38.698554+00:00",
+          "is_published": 1
+        },
+        "detail": {
+          "place_id": "ChIJJ1GtVLaTGGARn6LJLJYadg0",
+          "status": "location_provisional",
+          "precision": "neighborhood",
+          "latitude": 35.77254956849907,
+          "longitude": 139.76154587477012,
+          "source": "address_evidence",
+          "source_reference": "https://www.openstreetmap.org/relation/8688003",
+          "representative_point_method": "stable_polygon_interior_point",
+          "dry_run": false,
+          "active_location_updated": true,
+          "preserved_stronger_location": false
+        }
+      },
+      {
+        "place_id": "ChIJnak-6xvyGGAR8wDn3EZzYRQ",
+        "name": "Akafuji",
+        "method": "verified_address",
+        "success": true,
+        "precision": "chome",
+        "before": {
+          "place_id": "ChIJnak-6xvyGGAR8wDn3EZzYRQ",
+          "name": "Akafuji",
+          "latitude": null,
+          "longitude": null,
+          "map_display_eligible": 0,
+          "location_precision": null,
+          "map_location_precision": null,
+          "location_status": null,
+          "location_source": null,
+          "location_attempted_at": null
+        },
+        "after": {
+          "latitude": 35.68535508572049,
+          "longitude": 139.61292947663108,
+          "map_display_eligible": 1,
+          "location_precision": "approximate",
+          "map_location_precision": "chome",
+          "location_status": "location_provisional",
+          "location_source": "local_osm_addresses",
+          "location_attempted_at": "2026-10-08T19:46:40.680879+00:00",
+          "is_published": 1
+        },
+        "detail": {
+          "selected": 1,
+          "dry_run": false,
+          "location_verified": 0,
+          "location_provisional": 1,
+          "needs_review": 0,
+          "failed": 0,
+          "reports": [
+            {
+              "place_id": "ChIJnak-6xvyGGAR8wDn3EZzYRQ",
+              "status": "location_provisional",
+              "reasons": [],
+              "result": {
+                "normalized_address": "杉並区高井戸西2-18-25",
+                "latitude": 35.68535508572049,
+                "longitude": 139.61292947663108,
+                "address_level_match": "chome",
+                "town_id": null,
+                "address_id": null,
+                "precision": "approximate",
+                "warnings": [
+                  "osm_chome_area_fallback_is_approximate"
+                ],
+                "provenance": "Map data © OpenStreetMap contributors",
+                "raw_address": "東京都杉並区高井戸西2-18-25",
+                "prefecture": "東京都",
+                "municipality_or_ward": "Suginami",
+                "provider": "local_osm_addresses",
+                "provider_version": "osm-address-index-v3-area",
+                "source_reference": "https://www.openstreetmap.org/relation/17299401",
+                "place_id": "ChIJnak-6xvyGGAR8wDn3EZzYRQ",
+                "input_fingerprint": "1775489364e243947a4474091a77d828176841ea4f9e8fb0da20525ac69359ba",
+                "interpolation_span_meters": null,
+                "neighborhood": "高井戸西",
+                "matched_components": {
+                  "prefecture": "東京都",
+                  "ward": "Suginami",
+                  "neighborhood": "高井戸西",
+                  "chome": "2"
+                },
+                "unmatched_components": {
+                  "block": "18",
+                  "sub_number": "25"
+                },
+                "match_status": "matched_chome_area_approximate",
+                "map_location_approximate": true,
+                "suggested_verification_tier": "provisional_medium",
+                "osm_type": "relation",
+                "osm_id": 17299401,
+                "osm_version": 1,
+                "osm_timestamp": "2024-03-03 04:46:20+00:00",
+                "representative_point_method": "stable_polygon_interior_point",
+                "map_anchor_type": "chome",
+                "diagnostic_candidates": []
+              },
+              "location_precision": "chome",
+              "map_location_approximate": true,
+              "active_location_updated": true,
+              "preserved_stronger_location": false
+            }
+          ]
+        }
+      },
+      {
+        "place_id": "ChIJW5aBLbyNGGARfVVEjrov9AU",
+        "name": "DAGAYA",
+        "method": "verified_address",
+        "success": true,
+        "precision": "chome",
+        "before": {
+          "place_id": "ChIJW5aBLbyNGGARfVVEjrov9AU",
+          "name": "DAGAYA",
+          "latitude": null,
+          "longitude": null,
+          "map_display_eligible": 0,
+          "location_precision": null,
+          "map_location_precision": null,
+          "location_status": null,
+          "location_source": null,
+          "location_attempted_at": null
+        },
+        "after": {
+          "latitude": 35.67836904510885,
+          "longitude": 139.7118699636652,
+          "map_display_eligible": 1,
+          "location_precision": "approximate",
+          "map_location_precision": "chome",
+          "location_status": "location_provisional",
+          "location_source": "local_osm_addresses",
+          "location_attempted_at": "2026-10-08T19:46:43.097650+00:00",
+          "is_published": 1
+        },
+        "detail": {
+          "selected": 1,
+          "dry_run": false,
+          "location_verified": 0,
+          "location_provisional": 1,
+          "needs_review": 0,
+          "failed": 0,
+          "reports": [
+            {
+              "place_id": "ChIJW5aBLbyNGGARfVVEjrov9AU",
+              "status": "location_provisional",
+              "reasons": [],
+              "result": {
+                "normalized_address": "渋谷区千駄ヶ谷1-12-4",
+                "latitude": 35.67836904510885,
+                "longitude": 139.7118699636652,
+                "address_level_match": "chome",
+                "town_id": null,
+                "address_id": null,
+                "precision": "approximate",
+                "warnings": [
+                  "osm_chome_area_fallback_is_approximate"
+                ],
+                "provenance": "Map data © OpenStreetMap contributors",
+                "raw_address": "東京都渋谷区千駄ヶ谷1-12-4",
+                "prefecture": "東京都",
+                "municipality_or_ward": "Shibuya",
+                "provider": "local_osm_addresses",
+                "provider_version": "osm-address-index-v3-area",
+                "source_reference": "https://www.openstreetmap.org/relation/17054662",
+                "place_id": "ChIJW5aBLbyNGGARfVVEjrov9AU",
+                "input_fingerprint": "4b067ba4df80e73cc4e1e2e87a45a46a82c1476fe7305a682588aa5754d41432",
+                "interpolation_span_meters": null,
+                "neighborhood": "千駄ヶ谷",
+                "matched_components": {
+                  "prefecture": "東京都",
+                  "ward": "Shibuya",
+                  "neighborhood": "千駄ヶ谷",
+                  "chome": "1"
+                },
+                "unmatched_components": {
+                  "block": "12",
+                  "sub_number": "4"
+                },
+                "match_status": "matched_chome_area_approximate",
+                "map_location_approximate": true,
+                "suggested_verification_tier": "provisional_medium",
+                "osm_type": "relation",
+                "osm_id": 17054662,
+                "osm_version": 6,
+                "osm_timestamp": "2025-12-22 19:30:46+00:00",
+                "representative_point_method": "stable_polygon_interior_point",
+                "map_anchor_type": "chome",
+                "diagnostic_candidates": []
+              },
+              "location_precision": "chome",
+              "map_location_approximate": true,
+              "active_location_updated": true,
+              "preserved_stronger_location": false
+            }
+          ]
+        }
+      },
+      {
+        "place_id": "ChIJV0ujdg3zGGARTfrl9_ai-D0",
+        "name": "How Lovely",
+        "method": "polygon",
+        "success": true,
+        "precision": "chome",
+        "before": {
+          "place_id": "ChIJV0ujdg3zGGARTfrl9_ai-D0",
+          "name": "How Lovely",
+          "latitude": null,
+          "longitude": null,
+          "map_display_eligible": 0,
+          "location_precision": null,
+          "map_location_precision": null,
+          "location_status": null,
+          "location_source": null,
+          "location_attempted_at": null
+        },
+        "after": {
+          "latitude": 35.68287539155678,
+          "longitude": 139.67687028338648,
+          "map_display_eligible": 1,
+          "location_precision": "approximate",
+          "map_location_precision": "chome",
+          "location_status": "location_provisional",
+          "location_source": "local_osm_polygon_fallback",
+          "location_attempted_at": "2026-10-08T19:46:45.351945+00:00",
+          "is_published": 1
+        },
+        "detail": {
+          "place_id": "ChIJV0ujdg3zGGARTfrl9_ai-D0",
+          "status": "location_provisional",
+          "precision": "chome",
+          "latitude": 35.68287539155678,
+          "longitude": 139.67687028338648,
+          "source": "address_evidence",
+          "source_reference": "https://www.openstreetmap.org/relation/17058700",
+          "representative_point_method": "stable_polygon_interior_point",
+          "dry_run": false,
+          "active_location_updated": true,
+          "preserved_stronger_location": false
+        }
+      },
+      {
+        "place_id": "ChIJE3aOtzCSGGARuOuqIryhveo",
+        "name": "Ichiriki",
+        "method": "polygon",
+        "success": true,
+        "precision": "neighborhood",
+        "before": {
+          "place_id": "ChIJE3aOtzCSGGARuOuqIryhveo",
+          "name": "Ichiriki",
+          "latitude": null,
+          "longitude": null,
+          "map_display_eligible": 0,
+          "location_precision": null,
+          "map_location_precision": null,
+          "location_status": null,
+          "location_source": null,
+          "location_attempted_at": null
+        },
+        "after": {
+          "latitude": 35.7804575617915,
+          "longitude": 139.75744888097702,
+          "map_display_eligible": 1,
+          "location_precision": "approximate",
+          "map_location_precision": "neighborhood",
+          "location_status": "location_provisional",
+          "location_source": "local_osm_polygon_fallback",
+          "location_attempted_at": "2026-10-08T19:46:47.067036+00:00",
+          "is_published": 1
+        },
+        "detail": {
+          "place_id": "ChIJE3aOtzCSGGARuOuqIryhveo",
+          "status": "location_provisional",
+          "precision": "neighborhood",
+          "latitude": 35.7804575617915,
+          "longitude": 139.75744888097702,
+          "source": "address_evidence",
+          "source_reference": "https://www.openstreetmap.org/relation/16612940",
+          "representative_point_method": "stable_polygon_interior_point",
+          "dry_run": false,
+          "active_location_updated": true,
+          "preserved_stronger_location": false
+        }
+      },
+      {
+        "place_id": "ChIJGXfe96_tGGARM6Y-6F5zdu4",
+        "name": "Izakaya Kuji",
+        "method": "polygon",
+        "success": true,
+        "precision": "neighborhood",
+        "before": {
+          "place_id": "ChIJGXfe96_tGGARM6Y-6F5zdu4",
+          "name": "Izakaya Kuji",
+          "latitude": null,
+          "longitude": null,
+          "map_display_eligible": 0,
+          "location_precision": null,
+          "map_location_precision": null,
+          "location_status": null,
+          "location_source": null,
+          "location_attempted_at": null
+        },
+        "after": {
+          "latitude": 35.75747923777045,
+          "longitude": 139.62162360339224,
+          "map_display_eligible": 1,
+          "location_precision": "approximate",
+          "map_location_precision": "neighborhood",
+          "location_status": "location_provisional",
+          "location_source": "local_osm_polygon_fallback",
+          "location_attempted_at": "2026-10-08T19:46:48.533893+00:00",
+          "is_published": 1
+        },
+        "detail": {
+          "place_id": "ChIJGXfe96_tGGARM6Y-6F5zdu4",
+          "status": "location_provisional",
+          "precision": "neighborhood",
+          "latitude": 35.75747923777045,
+          "longitude": 139.62162360339224,
+          "source": "address_evidence",
+          "source_reference": "https://www.openstreetmap.org/relation/18535054",
+          "representative_point_method": "stable_polygon_interior_point",
+          "dry_run": false,
+          "active_location_updated": true,
+          "preserved_stronger_location": false
+        }
+      },
+      {
+        "place_id": "ChIJN78X-amSGGAR-rF04MdbbKg",
+        "name": "Kanei Soba",
+        "method": "verified_address",
+        "success": true,
+        "precision": "chome",
+        "before": {
+          "place_id": "ChIJN78X-amSGGAR-rF04MdbbKg",
+          "name": "Kanei Soba",
+          "latitude": null,
+          "longitude": null,
+          "map_display_eligible": 0,
+          "location_precision": null,
+          "map_location_precision": null,
+          "location_status": null,
+          "location_source": null,
+          "location_attempted_at": null
+        },
+        "after": {
+          "latitude": 35.73137508187885,
+          "longitude": 139.6970259614452,
+          "map_display_eligible": 1,
+          "location_precision": "approximate",
+          "map_location_precision": "chome",
+          "location_status": "location_provisional",
+          "location_source": "local_osm_addresses",
+          "location_attempted_at": "2026-10-08T19:46:50.248867+00:00",
+          "is_published": 1
+        },
+        "detail": {
+          "selected": 1,
+          "dry_run": false,
+          "location_verified": 0,
+          "location_provisional": 1,
+          "needs_review": 0,
+          "failed": 0,
+          "reports": [
+            {
+              "place_id": "ChIJN78X-amSGGAR-rF04MdbbKg",
+              "status": "location_provisional",
+              "reasons": [],
+              "result": {
+                "normalized_address": "豊島区千早1-25-1",
+                "latitude": 35.73137508187885,
+                "longitude": 139.6970259614452,
+                "address_level_match": "chome",
+                "town_id": null,
+                "address_id": null,
+                "precision": "approximate",
+                "warnings": [
+                  "osm_chome_area_fallback_is_approximate"
+                ],
+                "provenance": "Map data © OpenStreetMap contributors",
+                "raw_address": "東京都豊島区千早1-25-1",
+                "prefecture": "東京都",
+                "municipality_or_ward": "Toshima",
+                "provider": "local_osm_addresses",
+                "provider_version": "osm-address-index-v3-area",
+                "source_reference": "https://www.openstreetmap.org/relation/18300716",
+                "place_id": "ChIJN78X-amSGGAR-rF04MdbbKg",
+                "input_fingerprint": "8ad3927708bfbbdc742062ac4b04ac7163e05e01dcbb2c33605437624e873b3b",
+                "interpolation_span_meters": null,
+                "neighborhood": "千早",
+                "matched_components": {
+                  "prefecture": "東京都",
+                  "ward": "Toshima",
+                  "neighborhood": "千早",
+                  "chome": "1"
+                },
+                "unmatched_components": {
+                  "block": "25",
+                  "sub_number": "1"
+                },
+                "match_status": "matched_chome_area_approximate",
+                "map_location_approximate": true,
+                "suggested_verification_tier": "provisional_medium",
+                "osm_type": "relation",
+                "osm_id": 18300716,
+                "osm_version": 3,
+                "osm_timestamp": "2025-02-09 02:58:04+00:00",
+                "representative_point_method": "stable_polygon_interior_point",
+                "map_anchor_type": "chome",
+                "diagnostic_candidates": []
+              },
+              "location_precision": "chome",
+              "map_location_approximate": true,
+              "active_location_updated": true,
+              "preserved_stronger_location": false
+            }
+          ]
+        }
+      },
+      {
+        "place_id": "ChIJeXgCXqqPGGARfHb4NGv3Vio",
+        "name": "Kudaka Teppanyaki Asakusa",
+        "method": "polygon",
+        "success": true,
+        "precision": "chome",
+        "before": {
+          "place_id": "ChIJeXgCXqqPGGARfHb4NGv3Vio",
+          "name": "Kudaka Teppanyaki Asakusa",
+          "latitude": null,
+          "longitude": null,
+          "map_display_eligible": 0,
+          "location_precision": null,
+          "map_location_precision": null,
+          "location_status": null,
+          "location_source": null,
+          "location_attempted_at": null
+        },
+        "after": {
+          "latitude": 35.71076543763991,
+          "longitude": 139.7924157879324,
+          "map_display_eligible": 1,
+          "location_precision": "approximate",
+          "map_location_precision": "chome",
+          "location_status": "location_provisional",
+          "location_source": "local_osm_polygon_fallback",
+          "location_attempted_at": "2026-10-08T19:46:51.828465+00:00",
+          "is_published": 1
+        },
+        "detail": {
+          "place_id": "ChIJeXgCXqqPGGARfHb4NGv3Vio",
+          "status": "location_provisional",
+          "precision": "chome",
+          "latitude": 35.71076543763991,
+          "longitude": 139.7924157879324,
+          "source": "address_evidence",
+          "source_reference": "https://www.openstreetmap.org/relation/18158547",
+          "representative_point_method": "stable_polygon_interior_point",
+          "dry_run": false,
+          "active_location_updated": true,
+          "preserved_stronger_location": false
+        }
+      },
+      {
+        "place_id": "ChIJOx7W_OFfGGARjyvC0httbVk",
+        "name": "Shukudokoro Doremi",
+        "method": "polygon",
+        "success": true,
+        "precision": "chome",
+        "before": {
+          "place_id": "ChIJOx7W_OFfGGARjyvC0httbVk",
+          "name": "Shukudokoro Doremi",
+          "latitude": null,
+          "longitude": null,
+          "map_display_eligible": 0,
+          "location_precision": null,
+          "map_location_precision": null,
+          "location_status": null,
+          "location_source": null,
+          "location_attempted_at": null
+        },
+        "after": {
+          "latitude": 35.56793730560551,
+          "longitude": 139.69309678175526,
+          "map_display_eligible": 1,
+          "location_precision": "approximate",
+          "map_location_precision": "chome",
+          "location_status": "location_provisional",
+          "location_source": "local_osm_polygon_fallback",
+          "location_attempted_at": "2026-10-08T19:46:53.215454+00:00",
+          "is_published": 1
+        },
+        "detail": {
+          "place_id": "ChIJOx7W_OFfGGARjyvC0httbVk",
+          "status": "location_provisional",
+          "precision": "chome",
+          "latitude": 35.56793730560551,
+          "longitude": 139.69309678175526,
+          "source": "address_evidence",
+          "source_reference": "https://www.openstreetmap.org/relation/18046713",
+          "representative_point_method": "stable_polygon_interior_point",
+          "dry_run": false,
+          "active_location_updated": true,
+          "preserved_stronger_location": false
+        }
+      },
+      {
+        "place_id": "ChIJFUu-VjphGGARQ1wOS57Iuac",
+        "name": "Sosaku Izakaya Jiyu",
+        "method": "polygon",
+        "success": true,
+        "precision": "chome",
+        "before": {
+          "place_id": "ChIJFUu-VjphGGARQ1wOS57Iuac",
+          "name": "Sosaku Izakaya Jiyu",
+          "latitude": null,
+          "longitude": null,
+          "map_display_eligible": 0,
+          "location_precision": null,
+          "map_location_precision": null,
+          "location_status": null,
+          "location_source": null,
+          "location_attempted_at": null
+        },
+        "after": {
+          "latitude": 35.562696981862615,
+          "longitude": 139.71865883140265,
+          "map_display_eligible": 1,
+          "location_precision": "approximate",
+          "map_location_precision": "chome",
+          "location_status": "location_provisional",
+          "location_source": "local_osm_polygon_fallback",
+          "location_attempted_at": "2026-10-08T19:46:54.639349+00:00",
+          "is_published": 1
+        },
+        "detail": {
+          "place_id": "ChIJFUu-VjphGGARQ1wOS57Iuac",
+          "status": "location_provisional",
+          "precision": "chome",
+          "latitude": 35.562696981862615,
+          "longitude": 139.71865883140265,
+          "source": "address_evidence",
+          "source_reference": "https://www.openstreetmap.org/relation/18019741",
+          "representative_point_method": "stable_polygon_interior_point",
+          "dry_run": false,
+          "active_location_updated": true,
+          "preserved_stronger_location": false
+        }
+      },
+      {
+        "place_id": "ChIJ64Z0Y5mLGGARqcybqkb8MxU",
+        "name": "Spice Bistro Dharkan",
+        "method": "polygon",
+        "success": true,
+        "precision": "area",
+        "before": {
+          "place_id": "ChIJ64Z0Y5mLGGARqcybqkb8MxU",
+          "name": "Spice Bistro Dharkan",
+          "latitude": null,
+          "longitude": null,
+          "map_display_eligible": 0,
+          "location_precision": null,
+          "map_location_precision": null,
+          "location_status": null,
+          "location_source": null,
+          "location_attempted_at": null
+        },
+        "after": {
+          "latitude": 35.68745808605805,
+          "longitude": 139.7591309535312,
+          "map_display_eligible": 1,
+          "location_precision": "approximate",
+          "map_location_precision": "area",
+          "location_status": "location_provisional",
+          "location_source": "local_osm_polygon_fallback",
+          "location_attempted_at": "2026-10-08T19:46:59.236269+00:00",
+          "is_published": 1
+        },
+        "detail": {
+          "place_id": "ChIJ64Z0Y5mLGGARqcybqkb8MxU",
+          "status": "location_provisional",
+          "precision": "area",
+          "latitude": 35.68745808605805,
+          "longitude": 139.7591309535312,
+          "source": "address_evidence",
+          "source_reference": "https://www.openstreetmap.org/relation/1761742",
+          "representative_point_method": "stable_polygon_interior_point",
+          "dry_run": false,
+          "active_location_updated": true,
+          "preserved_stronger_location": false
+        }
+      },
+      {
+        "place_id": "ChIJ1dE11KWLGGARgLMLmvirJjQ",
+        "name": "Teppanyaki Acalli",
+        "method": "polygon",
+        "success": true,
+        "precision": "chome",
+        "before": {
+          "place_id": "ChIJ1dE11KWLGGARgLMLmvirJjQ",
+          "name": "Teppanyaki Acalli",
+          "latitude": null,
+          "longitude": null,
+          "map_display_eligible": 0,
+          "location_precision": null,
+          "map_location_precision": null,
+          "location_status": null,
+          "location_source": null,
+          "location_attempted_at": null
+        },
+        "after": {
+          "latitude": 35.6489394295628,
+          "longitude": 139.73412240370052,
+          "map_display_eligible": 1,
+          "location_precision": "approximate",
+          "map_location_precision": "chome",
+          "location_status": "location_provisional",
+          "location_source": "local_osm_polygon_fallback",
+          "location_attempted_at": "2026-10-08T19:47:00.803414+00:00",
+          "is_published": 1
+        },
+        "detail": {
+          "place_id": "ChIJ1dE11KWLGGARgLMLmvirJjQ",
+          "status": "location_provisional",
+          "precision": "chome",
+          "latitude": 35.6489394295628,
+          "longitude": 139.73412240370052,
+          "source": "address_evidence",
+          "source_reference": "https://www.openstreetmap.org/relation/18189555",
+          "representative_point_method": "stable_polygon_interior_point",
+          "dry_run": false,
+          "active_location_updated": true,
+          "preserved_stronger_location": false
+        }
+      },
+      {
+        "place_id": "ChIJaUQmj_GIGGARLUC7UjdqrqI",
+        "name": "Tezukuri Pan Cake Fujiya",
+        "method": "polygon",
+        "success": true,
+        "precision": "chome",
+        "before": {
+          "place_id": "ChIJaUQmj_GIGGARLUC7UjdqrqI",
+          "name": "Tezukuri Pan Cake Fujiya",
+          "latitude": null,
+          "longitude": null,
+          "map_display_eligible": 0,
+          "location_precision": null,
+          "map_location_precision": null,
+          "location_status": null,
+          "location_source": null,
+          "location_attempted_at": null
+        },
+        "after": {
+          "latitude": 35.68138543285978,
+          "longitude": 139.82981442227486,
+          "map_display_eligible": 1,
+          "location_precision": "approximate",
+          "map_location_precision": "chome",
+          "location_status": "location_provisional",
+          "location_source": "local_osm_polygon_fallback",
+          "location_attempted_at": "2026-10-08T19:47:02.524605+00:00",
+          "is_published": 1
+        },
+        "detail": {
+          "place_id": "ChIJaUQmj_GIGGARLUC7UjdqrqI",
+          "status": "location_provisional",
+          "precision": "chome",
+          "latitude": 35.68138543285978,
+          "longitude": 139.82981442227486,
+          "source": "address_evidence",
+          "source_reference": "https://www.openstreetmap.org/relation/17007872",
+          "representative_point_method": "stable_polygon_interior_point",
+          "dry_run": false,
+          "active_location_updated": true,
+          "preserved_stronger_location": false
+        }
+      },
+      {
+        "place_id": "ChIJiXcaXPDvGGAR3kf0qh5iZTw",
+        "name": "Tomarigi",
+        "method": "polygon",
+        "success": true,
+        "precision": "chome",
+        "before": {
+          "place_id": "ChIJiXcaXPDvGGAR3kf0qh5iZTw",
+          "name": "Tomarigi",
+          "latitude": null,
+          "longitude": null,
+          "map_display_eligible": 0,
+          "location_precision": null,
+          "map_location_precision": null,
+          "location_status": null,
+          "location_source": null,
+          "location_attempted_at": null
+        },
+        "after": {
+          "latitude": 35.72971197404594,
+          "longitude": 139.5731717533957,
+          "map_display_eligible": 1,
+          "location_precision": "approximate",
+          "map_location_precision": "chome",
+          "location_status": "location_provisional",
+          "location_source": "local_osm_polygon_fallback",
+          "location_attempted_at": "2026-10-08T19:47:04.553608+00:00",
+          "is_published": 1
+        },
+        "detail": {
+          "place_id": "ChIJiXcaXPDvGGAR3kf0qh5iZTw",
+          "status": "location_provisional",
+          "precision": "chome",
+          "latitude": 35.72971197404594,
+          "longitude": 139.5731717533957,
+          "source": "address_evidence",
+          "source_reference": "https://www.openstreetmap.org/relation/18569905",
+          "representative_point_method": "stable_polygon_interior_point",
+          "dry_run": false,
+          "active_location_updated": true,
+          "preserved_stronger_location": false
+        }
+      },
+      {
+        "place_id": "ChIJ65sPLRiPGGAR7HROZq24QL4",
+        "name": "Umasando",
+        "method": "verified_address",
+        "success": true,
+        "precision": "chome",
+        "before": {
+          "place_id": "ChIJ65sPLRiPGGAR7HROZq24QL4",
+          "name": "Umasando",
+          "latitude": null,
+          "longitude": null,
+          "map_display_eligible": 0,
+          "location_precision": null,
+          "map_location_precision": null,
+          "location_status": null,
+          "location_source": null,
+          "location_attempted_at": null
+        },
+        "after": {
+          "latitude": 35.721938426051786,
+          "longitude": 139.7859949100596,
+          "map_display_eligible": 1,
+          "location_precision": "approximate",
+          "map_location_precision": "chome",
+          "location_status": "location_provisional",
+          "location_source": "local_osm_addresses",
+          "location_attempted_at": "2026-10-08T19:47:06.169729+00:00",
+          "is_published": 1
+        },
+        "detail": {
+          "selected": 1,
+          "dry_run": false,
+          "location_verified": 0,
+          "location_provisional": 1,
+          "needs_review": 0,
+          "failed": 0,
+          "reports": [
+            {
+              "place_id": "ChIJ65sPLRiPGGAR7HROZq24QL4",
+              "status": "location_provisional",
+              "reasons": [],
+              "result": {
+                "normalized_address": "台東区入谷1-18-5",
+                "latitude": 35.721938426051786,
+                "longitude": 139.7859949100596,
+                "address_level_match": "chome",
+                "town_id": null,
+                "address_id": null,
+                "precision": "approximate",
+                "warnings": [
+                  "osm_chome_area_fallback_is_approximate"
+                ],
+                "provenance": "Map data © OpenStreetMap contributors",
+                "raw_address": "東京都台東区入谷一丁目18番5号",
+                "prefecture": "東京都",
+                "municipality_or_ward": "Taito",
+                "provider": "local_osm_addresses",
+                "provider_version": "osm-address-index-v3-area",
+                "source_reference": "https://www.openstreetmap.org/relation/16013250",
+                "place_id": "ChIJ65sPLRiPGGAR7HROZq24QL4",
+                "input_fingerprint": "56daa38855f9cfaecf16ba42febf1d8f2d83bf493b3a3ed38959de8a25227d06",
+                "interpolation_span_meters": null,
+                "neighborhood": "入谷",
+                "matched_components": {
+                  "prefecture": "東京都",
+                  "ward": "Taito",
+                  "neighborhood": "入谷",
+                  "chome": "1"
+                },
+                "unmatched_components": {
+                  "block": "18",
+                  "sub_number": "5"
+                },
+                "match_status": "matched_chome_area_approximate",
+                "map_location_approximate": true,
+                "suggested_verification_tier": "provisional_medium",
+                "osm_type": "relation",
+                "osm_id": 16013250,
+                "osm_version": 5,
+                "osm_timestamp": "2025-02-15 02:44:06+00:00",
+                "representative_point_method": "stable_polygon_interior_point",
+                "map_anchor_type": "chome",
+                "diagnostic_candidates": []
+              },
+              "location_precision": "chome",
+              "map_location_approximate": true,
+              "active_location_updated": true,
+              "preserved_stronger_location": false
+            }
+          ]
+        }
+      },
+      {
+        "place_id": "ChIJjV3YMT_yGGARu2l0ORvA8LU",
+        "name": "Yoidokoro Yoshida",
+        "method": "verified_address",
+        "success": true,
+        "precision": "chome",
+        "before": {
+          "place_id": "ChIJjV3YMT_yGGARu2l0ORvA8LU",
+          "name": "Yoidokoro Yoshida",
+          "latitude": null,
+          "longitude": null,
+          "map_display_eligible": 0,
+          "location_precision": null,
+          "map_location_precision": null,
+          "location_status": null,
+          "location_source": null,
+          "location_attempted_at": null
+        },
+        "after": {
+          "latitude": 35.678138969055205,
+          "longitude": 139.62750758737843,
+          "map_display_eligible": 1,
+          "location_precision": "approximate",
+          "map_location_precision": "chome",
+          "location_status": "location_provisional",
+          "location_source": "local_osm_addresses",
+          "location_attempted_at": "2026-10-08T19:47:08.007273+00:00",
+          "is_published": 1
+        },
+        "detail": {
+          "selected": 1,
+          "dry_run": false,
+          "location_verified": 0,
+          "location_provisional": 1,
+          "needs_review": 0,
+          "failed": 0,
+          "reports": [
+            {
+              "place_id": "ChIJjV3YMT_yGGARu2l0ORvA8LU",
+              "status": "location_provisional",
+              "reasons": [],
+              "result": {
+                "normalized_address": "杉並区浜田山2-19-2",
+                "latitude": 35.678138969055205,
+                "longitude": 139.62750758737843,
+                "address_level_match": "chome",
+                "town_id": null,
+                "address_id": null,
+                "precision": "approximate",
+                "warnings": [
+                  "osm_chome_area_fallback_is_approximate"
+                ],
+                "provenance": "Map data © OpenStreetMap contributors",
+                "raw_address": "東京都杉並区浜田山2-19-2",
+                "prefecture": "東京都",
+                "municipality_or_ward": "Suginami",
+                "provider": "local_osm_addresses",
+                "provider_version": "osm-address-index-v3-area",
+                "source_reference": "https://www.openstreetmap.org/relation/17294924",
+                "place_id": "ChIJjV3YMT_yGGARu2l0ORvA8LU",
+                "input_fingerprint": "a6ff507843d05ab9a8132c0ff009e5bd43bd118c1d2c0e58049ea08814380274",
+                "interpolation_span_meters": null,
+                "neighborhood": "浜田山",
+                "matched_components": {
+                  "prefecture": "東京都",
+                  "ward": "Suginami",
+                  "neighborhood": "浜田山",
+                  "chome": "2"
+                },
+                "unmatched_components": {
+                  "block": "19",
+                  "sub_number": "2"
+                },
+                "match_status": "matched_chome_area_approximate",
+                "map_location_approximate": true,
+                "suggested_verification_tier": "provisional_medium",
+                "osm_type": "relation",
+                "osm_id": 17294924,
+                "osm_version": 2,
+                "osm_timestamp": "2024-03-02 05:07:57+00:00",
+                "representative_point_method": "stable_polygon_interior_point",
+                "map_anchor_type": "chome",
+                "diagnostic_candidates": []
+              },
+              "location_precision": "chome",
+              "map_location_approximate": true,
+              "active_location_updated": true,
+              "preserved_stronger_location": false
+            }
+          ]
+        }
+      },
+      {
+        "place_id": "ChIJs5CVcTqLGGARprtnC_F-RJ8",
+        "name": "shu Sake Bar",
+        "method": "polygon",
+        "success": true,
+        "precision": "chome",
+        "before": {
+          "place_id": "ChIJs5CVcTqLGGARprtnC_F-RJ8",
+          "name": "shu Sake Bar",
+          "latitude": null,
+          "longitude": null,
+          "map_display_eligible": 0,
+          "location_precision": null,
+          "map_location_precision": null,
+          "location_status": null,
+          "location_source": null,
+          "location_attempted_at": null
+        },
+        "after": {
+          "latitude": 35.601425256460395,
+          "longitude": 139.69760533037518,
+          "map_display_eligible": 1,
+          "location_precision": "approximate",
+          "map_location_precision": "chome",
+          "location_status": "location_provisional",
+          "location_source": "local_osm_polygon_fallback",
+          "location_attempted_at": "2026-10-08T19:47:10.055076+00:00",
+          "is_published": 1
+        },
+        "detail": {
+          "place_id": "ChIJs5CVcTqLGGARprtnC_F-RJ8",
+          "status": "location_provisional",
+          "precision": "chome",
+          "latitude": 35.601425256460395,
+          "longitude": 139.69760533037518,
+          "source": "address_evidence",
+          "source_reference": "https://www.openstreetmap.org/relation/18047767",
+          "representative_point_method": "stable_polygon_interior_point",
+          "dry_run": false,
+          "active_location_updated": true,
+          "preserved_stronger_location": false
+        }
+      }
+    ]
+  }
+}
