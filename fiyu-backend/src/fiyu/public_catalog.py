@@ -9,7 +9,7 @@ from collections.abc import Iterable
 from datetime import UTC, datetime
 from pathlib import Path
 
-from .database import connect
+from .database import connect, ensure_core_indexes
 from .local_discovery import ProductEligibility, assess_low_footprint_eligibility
 from .public_score import (
     FiyuEvidence,
@@ -872,6 +872,7 @@ def _low_footprint_snapshot(evidence: FiyuEvidence, score: FiyuScoreResult) -> d
 
 def ensure_public_schema(db_path: str | Path) -> None:
     with connect(db_path) as connection:
+        ensure_core_indexes(connection)
         connection.executescript(PUBLIC_SCHEMA)
         existing = {
             row["name"]

@@ -396,7 +396,10 @@ def publish_readiness(
 
 
 def _strong_published_duplicate_ids(
-    connection, row: dict[str, object]
+    connection,
+    row: dict[str, object],
+    *,
+    published_rows: list[dict[str, object]] | None = None,
 ) -> tuple[str, ...]:
     """Return already-published exact-identity duplicates, never fuzzy matches."""
 
@@ -412,19 +415,26 @@ def _strong_published_duplicate_ids(
     if not current_names:
         return ()
 
-    candidates = connection.execute(
-        """
-        SELECT p.*, r.title AS candidate_title
-        FROM public_restaurants p
-        LEFT JOIN restaurants r ON r.place_id=p.place_id
-        WHERE p.place_id!=? AND p.is_published=1
-        ORDER BY p.created_at, p.place_id
-        """,
-        (row["place_id"],),
-    ).fetchall()
+    candidates = published_rows
+    if candidates is None:
+        candidates = [
+            dict(candidate)
+            for candidate in connection.execute(
+                """
+                SELECT p.*, r.title AS candidate_title
+                FROM public_restaurants p
+                LEFT JOIN restaurants r ON r.place_id=p.place_id
+                WHERE p.place_id!=? AND p.is_published=1
+                ORDER BY p.created_at, p.place_id
+                """,
+                (row["place_id"],),
+            )
+        ]
     duplicates: list[str] = []
     for candidate_row in candidates:
         candidate = dict(candidate_row)
+        if candidate["place_id"] == row["place_id"]:
+            continue
         candidate_names = {
             normalized
             for value in (
@@ -735,6 +745,7 @@ def _current_score_policy_decision(
     *,
     publication_threshold: float | None = None,
     _connection=None,
+    _published_duplicate_rows: list[dict[str, object]] | None = None,
 ) -> dict[str, object]:
     """Return a current policy decision without rewriting historical score JSON."""
 
@@ -803,7 +814,11 @@ def _current_score_policy_decision(
         critical = assess_critical_publication_contradiction(
             evidence, effective_structured
         )
-        duplicate_place_ids = _strong_published_duplicate_ids(connection, row)
+        duplicate_place_ids = _strong_published_duplicate_ids(
+            connection,
+            row,
+            published_rows=_published_duplicate_rows,
+        )
         critical_reasons = tuple(
             dict.fromkeys(
                 [
@@ -892,12 +907,14 @@ def automatic_publication_decision(
     *,
     publication_threshold: float | None = None,
     _connection=None,
+    _row_data: dict[str, object] | None = None,
+    _published_duplicate_rows: list[dict[str, object]] | None = None,
 ) -> dict[str, object]:
     """Evaluate the canonical automatic-publication transition without writing."""
 
     manager = connect(db_path) if _connection is None else nullcontext(_connection)
     with manager as connection:
-        row = _row_from_connection(connection, place_id)
+        row = _row_from_connection(connection, place_id) if _row_data is None else _row_data
         base = _publish_readiness_from_row(
             row, place_id, require_approval=False
         )
@@ -906,6 +923,7 @@ def automatic_publication_decision(
             row,
             publication_threshold=publication_threshold,
             _connection=connection,
+            _published_duplicate_rows=_published_duplicate_rows,
         )
     readiness = _auto_publish_readiness_from_decision(base, policy)
     if readiness.publishable:

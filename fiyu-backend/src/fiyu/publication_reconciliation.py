@@ -19,7 +19,7 @@ from .catalog_pipeline import (
 )
 from .database import connect
 from .quality_v4 import QUALITY_PRODUCTION_SCORE_VERSION
-from .quality_v4_promotion import _create_backup, _integrity, _sha256
+from .quality_v4_promotion import _create_backup, _sha256
 from .sqlite_snapshot import readonly_sqlite_snapshot
 
 EXPECTED_TOTAL = 1203
@@ -210,10 +210,30 @@ def _reconciliation_decision(
 
 def _evaluate_all(db_path: Path, threshold: float) -> dict[str, dict[str, Any]]:
     with connect(db_path) as connection:
-        ids = [
-            str(row[0])
+        rows = {
+            str(row["place_id"]): dict(row)
             for row in connection.execute(
-                "SELECT place_id FROM public_restaurants ORDER BY place_id"
+                """
+                SELECT p.*, r.title AS candidate_title, r.address AS source_address,
+                       r.neighborhood, r.image_url,
+                       r.category AS candidate_category,
+                       r.broad_category AS candidate_broad_category
+                FROM public_restaurants p
+                LEFT JOIN restaurants r ON r.place_id=p.place_id
+                ORDER BY p.place_id
+                """
+            )
+        }
+        published_rows = [
+            dict(row)
+            for row in connection.execute(
+                """
+                SELECT p.*, r.title AS candidate_title
+                FROM public_restaurants p
+                LEFT JOIN restaurants r ON r.place_id=p.place_id
+                WHERE p.is_published=1
+                ORDER BY p.created_at, p.place_id
+                """
             )
         ]
         return {
@@ -222,8 +242,10 @@ def _evaluate_all(db_path: Path, threshold: float) -> dict[str, dict[str, Any]]:
                 place_id,
                 publication_threshold=threshold,
                 _connection=connection,
+                _row_data=row,
+                _published_duplicate_rows=published_rows,
             )
-            for place_id in ids
+            for place_id, row in rows.items()
         }
 
 
@@ -286,14 +308,14 @@ def inspect_publication_reconciliation(
     if len(manifest_ids) != EXPECTED_MANIFEST_COUNT:
         raise ValueError(f"expected {EXPECTED_MANIFEST_COUNT} manifest rows")
     before_sha = _sha256(source)
-    if _integrity(source) != "ok":
-        raise ValueError("canonical database integrity check failed")
 
     with tempfile.TemporaryDirectory(prefix="fiyu-floor70-") as directory:
         snapshot = Path(directory) / "counterfactual.db"
         _snapshot_database(source, snapshot)
         current_threshold = publication_score_threshold(snapshot)
         with connect(snapshot) as connection:
+            if connection.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
+                raise ValueError("database snapshot integrity check failed")
             rows = _public_rows(connection)
             version_counts = _version_counts(connection)
             current_published_ids = {
@@ -326,12 +348,25 @@ def inspect_publication_reconciliation(
         }
         final = dict(first)
         with connect(snapshot) as connection:
+            published_rows = [
+                dict(row)
+                for row in connection.execute(
+                    """
+                    SELECT p.*, r.title AS candidate_title
+                    FROM public_restaurants p
+                    LEFT JOIN restaurants r ON r.place_id=p.place_id
+                    WHERE p.is_published=1
+                    ORDER BY p.created_at, p.place_id
+                    """
+                )
+            ]
             for place_id in sorted(first_additions):
                 reevaluated = automatic_publication_decision(
                     snapshot,
                     place_id,
                     publication_threshold=threshold,
                     _connection=connection,
+                    _published_duplicate_rows=published_rows,
                 )
                 final[place_id] = _reconciliation_decision(
                     rows[place_id], reevaluated, threshold

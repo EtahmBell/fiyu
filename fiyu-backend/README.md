@@ -231,6 +231,21 @@ SUPABASE_SERVICE_ROLE_KEY=...
 OpenAI credentials are not required for normal public/account runtime traffic.
 Use `/health` for liveness and `/ready` for the catalog readiness check.
 
+### SQLite operating policy
+
+Application and pipeline connections use WAL, foreign-key enforcement, a 15-second
+connection timeout, and a matching 15,000 ms SQLite `busy_timeout`. Transactions use
+SQLite's default deferred mode unless a bounded catalog mutation or atomic work claim
+explicitly starts `BEGIN IMMEDIATE`.
+
+Run only one catalog-mutating pipeline/admin process at a time against a writable catalog.
+API readers may coexist with that writer under WAL, and Phase B claims remain atomic, but
+the claim guarantee is not authorization to run multiple general catalog writers. Source
+imports, publication reconciliation, promotions, and other catalog-wide mutations must be
+serialized operationally. Paid research remains sequential and commits each restaurant's
+checkpoint separately. The hosted Railway catalog remains a read-only snapshot on one
+backend replica; never run local pipeline mutation against that hosted snapshot.
+
 Open:
 
 ```text

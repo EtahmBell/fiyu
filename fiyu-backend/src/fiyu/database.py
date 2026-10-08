@@ -57,12 +57,16 @@ CREATE INDEX IF NOT EXISTS idx_restaurants_score ON restaurants(internal_fiyu_sc
 CREATE INDEX IF NOT EXISTS idx_restaurants_area ON restaurants(search_area);
 CREATE INDEX IF NOT EXISTS idx_restaurants_category ON restaurants(broad_category);
 CREATE INDEX IF NOT EXISTS idx_restaurants_candidate ON restaurants(candidate_eligible, internal_fiyu_score DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_restaurants_place_id ON restaurants(place_id);
 
 CREATE TABLE IF NOT EXISTS metadata (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
 );
 """
+
+SQLITE_TIMEOUT_SECONDS = 15.0
+SQLITE_BUSY_TIMEOUT_MS = 15_000
 
 
 INSERT_COLUMNS = [
@@ -122,11 +126,29 @@ class ClosingConnection(sqlite3.Connection):
 def connect(db_path: str | Path) -> sqlite3.Connection:
     path = Path(db_path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    connection = sqlite3.connect(path, factory=ClosingConnection)
+    connection = sqlite3.connect(
+        path,
+        timeout=SQLITE_TIMEOUT_SECONDS,
+        factory=ClosingConnection,
+    )
     connection.row_factory = sqlite3.Row
+    connection.execute(f"PRAGMA busy_timeout={SQLITE_BUSY_TIMEOUT_MS}")
     connection.execute("PRAGMA journal_mode=WAL")
     connection.execute("PRAGMA foreign_keys=ON")
     return connection
+
+
+def ensure_core_indexes(connection: sqlite3.Connection) -> None:
+    """Apply additive core indexes to an existing initialized database."""
+
+    if connection.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='restaurants'"
+    ).fetchone() is None:
+        return
+    connection.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_restaurants_place_id "
+        "ON restaurants(place_id)"
+    )
 
 
 def _row_values(record: dict[str, object]) -> tuple[object, ...]:

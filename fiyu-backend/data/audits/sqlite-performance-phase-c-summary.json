@@ -1,0 +1,136 @@
+{
+  "phase": "Phase C - SQLite / index / transaction / performance optimization",
+  "date": "2026-10-07",
+  "canonical_state": {
+    "database": "data/fiyu.db",
+    "database_sha256_before": "184F19B3099E67E63B0680933F0E3847EAD775EF66D93171A33D9782F71F2B90",
+    "database_sha256_after": "184F19B3099E67E63B0680933F0E3847EAD775EF66D93171A33D9782F71F2B90",
+    "seed70_sha256_before": "BF5EE61572EB2FB1B12F2487F800673EB965583DDFA1F22DCABFFE860F618C39",
+    "seed70_sha256_after": "BF5EE61572EB2FB1B12F2487F800673EB965583DDFA1F22DCABFFE860F618C39",
+    "total": 1203,
+    "published": 851,
+    "unpublished": 352,
+    "publication_threshold": 70,
+    "integrity": "ok",
+    "external_requests": 0
+  },
+  "connection_policy": {
+    "timeout_seconds": 15.0,
+    "busy_timeout_ms": 15000,
+    "foreign_keys": true,
+    "journal_mode": "WAL (pre-existing policy, retained)",
+    "default_transaction_mode": "SQLite deferred transactions",
+    "bounded_writer_mode": "BEGIN IMMEDIATE where an operation requires an atomic writer claim or mutation",
+    "operational_policy": "one catalog-mutating pipeline/admin writer at a time, with concurrent readers and atomic run-item claims"
+  },
+  "index": {
+    "name": "idx_restaurants_place_id",
+    "definition": "CREATE UNIQUE INDEX IF NOT EXISTS idx_restaurants_place_id ON restaurants(place_id)",
+    "data_validation": {
+      "rows": 8086,
+      "nonblank_place_ids": 8086,
+      "distinct_nonblank_place_ids": 8086,
+      "duplicates": 0
+    }
+  },
+  "benchmarks": {
+    "public_catalog": {
+      "rows": 851,
+      "before_median_ms": 5194.269,
+      "after_median_ms": 13.901,
+      "before_p90_ms": 5585.102,
+      "after_p90_ms": 14.735,
+      "speedup": 373.66,
+      "parity": "exact"
+    },
+    "public_detail": {
+      "rows": 1,
+      "before_median_ms": 5.447,
+      "after_median_ms": 0.004,
+      "before_p90_ms": 6.292,
+      "after_p90_ms": 0.005,
+      "speedup": 1361.75,
+      "parity": "exact"
+    },
+    "picks_map_pool": {
+      "rows": 848,
+      "before_median_ms": 14.665,
+      "after_median_ms": 14.677,
+      "before_p90_ms": 18.008,
+      "after_p90_ms": 15.953,
+      "speedup": 1.0,
+      "parity": "exact"
+    },
+    "seed_selector": {
+      "rows": 918,
+      "before_median_ms": 8.489,
+      "after_median_ms": 9.425,
+      "before_p90_ms": 9.291,
+      "after_p90_ms": 13.738,
+      "speedup": 0.9,
+      "parity": "exact"
+    },
+    "research_selector": {
+      "rows": 100,
+      "before_median_ms": 22.607,
+      "after_median_ms": 0.265,
+      "before_p90_ms": 25.169,
+      "after_p90_ms": 0.35,
+      "speedup": 85.31,
+      "parity": "exact"
+    },
+    "quality_v4_selector": {
+      "rows": 342,
+      "before_median_ms": 49.463,
+      "after_median_ms": 56.061,
+      "before_p90_ms": 51.328,
+      "after_p90_ms": 63.851,
+      "speedup": 0.88,
+      "parity": "exact"
+    },
+    "publication_reconciliation": {
+      "same_machine_baseline_seconds": 390.535,
+      "prior_audit_baseline_seconds": 196.332,
+      "optimized_seconds": 15.81,
+      "same_machine_speedup": 24.7,
+      "prior_audit_speedup": 12.42,
+      "all_1203_decisions": "exact",
+      "historical_floor_70": {
+        "published_before": 538,
+        "additions": 313,
+        "removals": 0,
+        "published_after": 851,
+        "parity": "exact"
+      }
+    },
+    "pipeline_run_ledger": {
+      "create_1000_items_ms": 47.375,
+      "claim_median_ms": 16.951,
+      "claim_p90_ms": 20.865,
+      "status_median_ms": 11.149,
+      "status_p90_ms": 14.784
+    },
+    "source_ingestion": {
+      "10000_candidates_seconds": 3.487,
+      "20000_candidates_seconds": 6.514,
+      "semantics": "unchanged complete retained-corpus recomputation"
+    }
+  },
+  "verdict": {
+    "sqlite_appropriate_for_1500_published": true,
+    "p0_blocker": false,
+    "database_migration_required_before_nyc_la": false,
+    "next_phase": "Phase D - CLI consolidation + unified operator reporting"
+  },
+  "validation": {
+    "phase_c_snapshot_and_backup_group": "126 passed",
+    "phase_a_group": "89 passed",
+    "phase_b_group": "17 passed",
+    "catalog_api_picks_group": "71 passed, 1 upstream deprecation warning",
+    "publication_quality_v4_group": "62 passed",
+    "full_backend_suite": "986 passed, 1 upstream deprecation warning",
+    "ruff": "passed",
+    "fiyu_cli_demo": "passed against disposable outputs",
+    "git_diff_check": "passed"
+  }
+}
