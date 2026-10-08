@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 
 from .config import ScoringConfig
@@ -40,6 +41,12 @@ def _config_from_args(args: argparse.Namespace) -> ScoringConfig:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="fiyu", description="Fiyu candidate scoring backend")
     subparsers = parser.add_subparsers(dest="command", required=True)
+
+    pipeline = subparsers.add_parser(
+        "pipeline",
+        help="Canonical restaurant pipeline operator commands",
+    )
+    pipeline.add_argument("pipeline_args", nargs=argparse.REMAINDER)
 
     ingest = subparsers.add_parser("ingest", help="Combine, clean, deduplicate, and score datasets")
     ingest.add_argument("inputs", nargs="+", help="Input files or directories")
@@ -97,9 +104,14 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> int | None:
+    raw_args = list(sys.argv[1:] if argv is None else argv)
+    if raw_args and raw_args[0] == "pipeline":
+        from .pipeline_cli import main as pipeline_main
+
+        return pipeline_main(raw_args[1:], canonical=True)
     parser = build_parser()
-    args = parser.parse_args()
+    args = parser.parse_args(raw_args)
 
     if args.command == "write-config":
         path = Path(args.path)
@@ -130,6 +142,10 @@ def main() -> None:
         inputs = [sample]
         include_all_categories = False
     else:
+        print(
+            "Notice: `fiyu ingest` is a legacy alias; use `fiyu pipeline ingest`.",
+            file=sys.stderr,
+        )
         inputs = args.inputs
         include_all_categories = args.include_all_categories
 
@@ -155,4 +171,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

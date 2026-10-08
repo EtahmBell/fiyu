@@ -1,0 +1,74 @@
+{
+  "phase": "Phase D - CLI consolidation and unified operator reporting",
+  "date": "2026-10-07",
+  "canonical_namespace": "python -m fiyu.cli pipeline",
+  "summary_schema": "operator-summary-v1",
+  "catalog_status": {
+    "raw_candidates": 8086,
+    "total": 1203,
+    "published": 851,
+    "unpublished": 352,
+    "publication_threshold": 70,
+    "v4_specialist": 861,
+    "stale_v4": 0,
+    "v3_specialist": 231,
+    "unscored": 111,
+    "research_pending": 103,
+    "retryable_research_failures": 4,
+    "quality_v4_remaining": 342,
+    "score_at_or_above_threshold_but_unpublished": 30,
+    "map_picks_ready_published": 848
+  },
+  "funnel": {
+    "raw_candidates": 8086,
+    "internal_eligible": 2765,
+    "seeded": 1203,
+    "researched": 1092,
+    "quality_v4_complete": 861,
+    "score_at_or_above_threshold": 881,
+    "publication_ready": 851,
+    "published": 851
+  },
+  "coverage": {
+    "published": 851,
+    "price_complete": 623,
+    "discovery_area_complete": 47,
+    "map_ready": 848
+  },
+  "performance_median_ms": {
+    "catalog_status": 27.358,
+    "funnel": 11.839,
+    "coverage": 36.529,
+    "pipeline_run_listing": 1.869,
+    "source_run_listing": 1.774
+  },
+  "canonical_safety": {
+    "database_sha256_before": "184F19B3099E67E63B0680933F0E3847EAD775EF66D93171A33D9782F71F2B90",
+    "database_sha256_after": "184F19B3099E67E63B0680933F0E3847EAD775EF66D93171A33D9782F71F2B90",
+    "seed70_sha256_before": "BF5EE61572EB2FB1B12F2487F800673EB965583DDFA1F22DCABFFE860F618C39",
+    "seed70_sha256_after": "BF5EE61572EB2FB1B12F2487F800673EB965583DDFA1F22DCABFFE860F618C39",
+    "integrity": "ok",
+    "external_requests": 0
+  },
+  "validation": {
+    "focused": "11 passed",
+    "phase_a": "89 passed",
+    "phase_b": "27 passed",
+    "phase_c": "16 passed",
+    "catalog": "147 passed, 1 upstream deprecation warning",
+    "research": "187 passed",
+    "publication": "70 passed",
+    "quality_v4": "53 passed",
+    "full_suite": "997 passed, 1 upstream deprecation warning",
+    "fiyu_cli_demo": "passed against disposable outputs",
+    "ruff": "passed",
+    "diff_check": "passed"
+  },
+  "verdict": {
+    "one_clear_production_workflow": true,
+    "legacy_dangerous_paths_guarded": true,
+    "ready_for_data_completeness_workloads": true,
+    "p0_catalog_expansion_blocker": false,
+    "next_phase": "Phase E - Data completeness / normalization"
+  }
+}

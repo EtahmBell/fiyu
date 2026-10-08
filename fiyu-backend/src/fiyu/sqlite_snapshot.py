@@ -10,7 +10,6 @@ from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
-
 _SQLITE_ARTIFACT_SUFFIXES = ("", "-wal", "-shm", "-journal")
 
 
@@ -93,6 +92,42 @@ def _build_consistent_snapshot(source: Path, directory: Path) -> Path:
         snapshot_connection.close()
         staging_connection.close()
     return snapshot
+
+
+def create_sqlite_backup(db_path: str | Path, output_path: str | Path) -> dict[str, object]:
+    """Create one integrity-checked, non-overwriting SQLite backup."""
+
+    source = Path(db_path).resolve()
+    output = Path(output_path).resolve()
+    if source == output:
+        raise ValueError("backup output must differ from the source database")
+    if output.exists():
+        raise FileExistsError(f"Backup already exists: {output}")
+    output.parent.mkdir(parents=True, exist_ok=True)
+    source_connection = sqlite3.connect(f"file:{source.as_posix()}?mode=ro", uri=True)
+    output_connection = sqlite3.connect(output)
+    try:
+        source_connection.backup(output_connection)
+        integrity = str(output_connection.execute("PRAGMA integrity_check").fetchone()[0])
+        if integrity != "ok":
+            raise RuntimeError(f"backup integrity check failed: {integrity}")
+    except BaseException:
+        output_connection.close()
+        output.unlink(missing_ok=True)
+        raise
+    finally:
+        source_connection.close()
+        try:
+            output_connection.close()
+        except sqlite3.Error:
+            pass
+    digest = hashlib.sha256(output.read_bytes()).hexdigest()
+    return {
+        "source": str(source),
+        "output": str(output),
+        "sha256": digest,
+        "integrity": integrity,
+    }
 
 
 @contextmanager

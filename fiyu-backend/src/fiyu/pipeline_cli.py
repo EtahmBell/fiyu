@@ -29,6 +29,35 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--db", default="data/fiyu.db")
     commands = parser.add_subparsers(dest="command", required=True)
 
+    ingest = commands.add_parser(
+        "ingest", help="Import or refresh one complete source snapshot additively"
+    )
+    ingest.add_argument("inputs", nargs="+")
+    ingest.add_argument("--source-key", required=True)
+    ingest.add_argument("--csv-out")
+    ingest.add_argument("--include-all-categories", action="store_true")
+    ingest.add_argument("--summary-out")
+    from .cli import _add_scoring_arguments
+
+    _add_scoring_arguments(ingest)
+
+    source_status = commands.add_parser(
+        "source-run-status", help="Inspect one durable source-provenance run"
+    )
+    source_status.add_argument("run_id", type=int)
+    source_status.add_argument("--summary-out")
+
+    source_runs = commands.add_parser("source-runs", help="List recent source import runs")
+    source_runs.add_argument("--source-key")
+    source_runs.add_argument("--limit", type=int, default=20)
+    source_runs.add_argument("--summary-out")
+
+    backup = commands.add_parser(
+        "backup", help="Create a non-overwriting integrity-checked SQLite backup"
+    )
+    backup.add_argument("--output", required=True)
+    backup.add_argument("--summary-out")
+
     inspect = commands.add_parser("inspect")
     inspect.add_argument("--place-id")
     inspect.add_argument("--limit", type=int, default=20)
@@ -54,18 +83,51 @@ def _parser() -> argparse.ArgumentParser:
 
     research = commands.add_parser("research")
     research.add_argument("--place-id")
-    research.add_argument("--limit", type=int, default=1)
+    research.add_argument("--limit", type=int)
     research.add_argument("--model")
     research.add_argument("--retry-failed", action="store_true")
     research.add_argument("--dry-run", action="store_true")
     research.add_argument("--resume-run", type=int)
     research.add_argument("--worker-id")
     research.add_argument("--lease-seconds", type=int, default=900)
+    research.add_argument("--summary-out")
+
+    resume = commands.add_parser(
+        "research-resume", help="Resume pending or stale work in one frozen research run"
+    )
+    resume.add_argument("run_id", type=int)
+    resume.add_argument("--model")
+    resume.add_argument("--worker-id")
+    resume.add_argument("--lease-seconds", type=int, default=900)
+    resume.add_argument("--dry-run", action="store_true")
+    resume.add_argument("--summary-out")
+
+    retry_run = commands.add_parser(
+        "research-retry", help="Retry only retryable failures in one frozen research run"
+    )
+    retry_run.add_argument("run_id", type=int)
+    retry_run.add_argument("--model")
+    retry_run.add_argument("--worker-id")
+    retry_run.add_argument("--lease-seconds", type=int, default=900)
+    retry_run.add_argument("--dry-run", action="store_true")
+    retry_run.add_argument("--summary-out")
 
     run_status = commands.add_parser(
         "pipeline-run-status", help="Show durable pipeline run and item-state totals"
     )
     run_status.add_argument("run_id", type=int)
+    run_status.add_argument("--summary-out")
+
+    canonical_run_status = commands.add_parser(
+        "run-status", help="Inspect one durable pipeline run"
+    )
+    canonical_run_status.add_argument("run_id", type=int)
+    canonical_run_status.add_argument("--summary-out")
+
+    runs = commands.add_parser("runs", help="List recent durable pipeline runs")
+    runs.add_argument("--type", dest="run_type")
+    runs.add_argument("--limit", type=int, default=20)
+    runs.add_argument("--summary-out")
 
     low_footprint = commands.add_parser(
         "research-low-footprint",
@@ -235,6 +297,13 @@ def _parser() -> argparse.ArgumentParser:
     publish.add_argument("--place-id", required=True)
 
     commands.add_parser("status")
+    for name, help_text in (
+        ("catalog-status", "Show the current stored catalog and readiness state"),
+        ("funnel", "Show the stored candidate-to-publication funnel"),
+        ("coverage", "Show ward, cuisine, price, discovery, and map coverage"),
+    ):
+        report = commands.add_parser(name, help=help_text)
+        report.add_argument("--summary-out")
     return parser
 
 
@@ -307,12 +376,98 @@ def _format_seed_unseeded_summary(result: dict[str, object]) -> str:
     )
 
 
-def main() -> None:
+def main(argv: list[str] | None = None, *, canonical: bool = False) -> int:
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
-    args = _parser().parse_args()
+    args = _parser().parse_args(argv)
     db = Path(args.db)
-    if args.command == "inspect":
+    operator_output: dict[str, object] | None = None
+    summary_out = getattr(args, "summary_out", None)
+    if args.command == "ingest":
+        from .cli import _config_from_args
+        from .operator_reporting import operator_summary
+        from .source_ingestion import run_source_ingestion
+
+        result = run_source_ingestion(
+            args.inputs,
+            source_key=args.source_key,
+            db_path=db,
+            csv_output=args.csv_out,
+            config=_config_from_args(args),
+            include_all_categories=args.include_all_categories,
+        )
+        impact = result["impact"]
+        operator_output = operator_summary(
+            "source-ingest",
+            status=str(result["status"]),
+            run_id=int(result["run_id"]),
+            input_data={"source_key": args.source_key, "files": result["files"]},
+            counts={
+                "selected": result["cleaning"]["input_rows"],
+                "created": result["new_candidates"],
+                "updated": result["updated_candidates"],
+                "unchanged": impact["unchanged_candidates"],
+            },
+            canonical_db=db,
+            mutations=int(result["new_candidates"]) + int(result["updated_candidates"]),
+            artifacts={"csv": args.csv_out},
+            details={"source": result, "impact": impact},
+        )
+    elif args.command == "source-run-status":
+        from .operator_reporting import operator_summary
+        from .source_ingestion import get_source_run_status
+
+        result = get_source_run_status(db, args.run_id)
+        operator_output = operator_summary(
+            "source-run-status",
+            status=str(result["status"]),
+            run_id=int(result["id"]),
+            started_at=result["started_at"],
+            completed_at=result["completed_at"],
+            input_data={
+                "source_key": result["source_key"],
+                "input_fingerprint": result["input_fingerprint"],
+            },
+            counts={
+                "selected": result["total_rows_seen"],
+                "created": result["new_candidates"],
+                "updated": result["updated_candidates"],
+                "unchanged": result["unchanged_candidates"],
+            },
+            canonical_db=db,
+            mutations=0,
+            details=result,
+        )
+    elif args.command == "source-runs":
+        from .operator_reporting import operator_summary
+        from .source_ingestion import list_source_runs
+
+        result = list_source_runs(db, source_key=args.source_key, limit=args.limit)
+        operator_output = operator_summary(
+            "source-runs",
+            status="completed",
+            input_data={"source_key": args.source_key, "limit": args.limit},
+            counts={"selected": len(result)},
+            canonical_db=db,
+            mutations=0,
+            details={"runs": result},
+        )
+    elif args.command == "backup":
+        from .operator_reporting import operator_summary
+        from .sqlite_snapshot import create_sqlite_backup
+
+        result = create_sqlite_backup(db, args.output)
+        operator_output = operator_summary(
+            "sqlite-backup",
+            status="completed",
+            input_data={"source": str(db)},
+            counts={"created": 1},
+            canonical_db=db,
+            mutations=0,
+            artifacts={"backup": result["output"]},
+            details=result,
+        )
+    elif args.command == "inspect":
         if args.place_id:
             result = inspect_candidate(db, args.place_id)
         else:
@@ -341,24 +496,116 @@ def main() -> None:
                 encoding="utf-8",
             )
             result["manifest_out"] = str(manifest_path)
-    elif args.command == "research":
+    elif args.command in {"research", "research-resume", "research-retry"}:
+        from .pipeline_runs import get_pipeline_run_status
         from .research_worker import run_research_batch
 
+        if args.command == "research":
+            if args.resume_run is not None and (args.place_id or args.limit is not None):
+                raise ValueError(
+                    "--resume-run cannot be combined with fresh selector flags "
+                    "--place-id or --limit"
+                )
+            resume_run_id = args.resume_run
+            retry_failed = args.retry_failed
+            limit = args.limit or 1
+        else:
+            resume_run_id = args.run_id
+            retry_failed = args.command == "research-retry"
+            limit = 1
+        if resume_run_id is not None:
+            stored = get_pipeline_run_status(db, resume_run_id)
+            if stored["run_type"] != "standard_restaurant_research":
+                raise ValueError(
+                    f"Pipeline run {resume_run_id} is not a standard research run"
+                )
+            if retry_failed and not stored["failed_retryable"]:
+                raise ValueError(f"Pipeline run {resume_run_id} has no retryable failures")
+            if not retry_failed and not (
+                stored["pending"] or stored["claimed"] or stored["running"]
+            ):
+                if stored["failed_retryable"]:
+                    raise ValueError(
+                        f"Pipeline run {resume_run_id} has only retryable failures; "
+                        "use research-retry"
+                    )
+                raise ValueError(f"Pipeline run {resume_run_id} has no remaining work")
         result = run_research_batch(
             db,
-            limit=args.limit,
+            limit=limit,
             model=args.model,
-            retry_failed=args.retry_failed,
-            place_id=args.place_id,
+            retry_failed=retry_failed,
+            place_id=args.place_id if args.command == "research" else None,
             dry_run=args.dry_run,
-            resume_run_id=args.resume_run,
+            resume_run_id=resume_run_id,
             worker_id=args.worker_id,
             lease_seconds=args.lease_seconds,
         )
-    elif args.command == "pipeline-run-status":
+        if canonical or args.command != "research" or summary_out:
+            from .operator_reporting import operator_summary
+
+            run_status = result.get("run_status", result)
+            operator_output = operator_summary(
+                "research-retry"
+                if retry_failed and resume_run_id is not None
+                else "research-resume"
+                if resume_run_id is not None
+                else "research-create",
+                status=str(run_status.get("status", "planned")),
+                mode="dry_run" if args.dry_run else "real",
+                dry_run=args.dry_run,
+                run_id=result.get("run_id", resume_run_id),
+                input_data={"limit": limit, "model": args.model},
+                counts={
+                    "selected": run_status.get("selected", len(result.get("candidates", []))),
+                    "succeeded": run_status.get("succeeded", result.get("completed", 0)),
+                    "retryable_failed": run_status.get("failed_retryable", 0),
+                    "terminal_failed": run_status.get("failed_terminal", 0),
+                    "skipped": run_status.get("skipped", 0),
+                },
+                canonical_db=db,
+                external_requests=int(result.get("responses_requests", 0)),
+                mutations="planned" if args.dry_run else "checkpointed per item",
+                details=result,
+            )
+    elif args.command in {"pipeline-run-status", "run-status"}:
+        from .operator_reporting import operator_summary
         from .pipeline_runs import get_pipeline_run_status
 
         result = get_pipeline_run_status(db, args.run_id)
+        operator_output = operator_summary(
+            "pipeline-run-status",
+            status=str(result["status"]),
+            run_id=int(result["run_id"]),
+            started_at=result["started_at"],
+            completed_at=result["completed_at"],
+            input_data={"run_type": result["run_type"]},
+            counts={
+                "selected": result["selected"],
+                "succeeded": result["succeeded"],
+                "retryable_failed": result["failed_retryable"],
+                "terminal_failed": result["failed_terminal"],
+                "skipped": result["skipped"],
+            },
+            canonical_db=db,
+            external_requests=int(result["provider_requests"]),
+            mutations=0,
+            details=result,
+        )
+    elif args.command == "runs":
+        from .operator_reporting import operator_summary
+        from .pipeline_runs import list_pipeline_runs
+
+        result = list_pipeline_runs(db, run_type=args.run_type, limit=args.limit)
+        operator_output = operator_summary(
+            "pipeline-runs",
+            status="completed",
+            input_data={"run_type": args.run_type, "limit": args.limit},
+            counts={"selected": len(result)},
+            canonical_db=db,
+            mutations=0,
+            details={"runs": result},
+        )
     elif args.command == "retry-research":
         result = recover_research_for_retry(db, args.place_id, dry_run=args.dry_run)
     elif args.command == "research-low-footprint":
@@ -501,9 +748,36 @@ def main() -> None:
         )
     elif args.command == "publish":
         result = publish_candidate(db, args.place_id).to_dict()
+    elif args.command in {"catalog-status", "funnel", "coverage"}:
+        from .operator_reporting import operator_summary
+        from .operator_status import catalog_status, coverage_report, funnel_report
+
+        operation = args.command
+        if operation == "catalog-status":
+            result = catalog_status(db)
+            selected = int(result["catalog"]["total"])
+        elif operation == "funnel":
+            result = funnel_report(db)
+            selected = int(result["stages"]["seeded"])
+        else:
+            result = coverage_report(db)
+            selected = int(result["completeness"]["published"])
+        operator_output = operator_summary(
+            operation,
+            status="completed",
+            counts={"selected": selected},
+            canonical_db=db,
+            mutations=0,
+            details=result,
+        )
     else:
         result = pipeline_status(db)
-    if args.command == "seed-unseeded" and not args.verbose:
+    if operator_output is not None:
+        from .operator_reporting import format_operator_summary, write_operator_summary
+
+        write_operator_summary(operator_output, summary_out)
+        print(format_operator_summary(operator_output))
+    elif args.command == "seed-unseeded" and not args.verbose:
         print(_format_seed_unseeded_summary(result))
     elif args.command == "quality-v4-backfill" and not args.verbose:
         from .quality_v4_backfill import compact_backfill_summary
@@ -527,7 +801,21 @@ def main() -> None:
         print(compact_summary(result))
     else:
         print(json.dumps(result, ensure_ascii=False, indent=2, default=str))
+    if (
+        operator_output is not None
+        and operator_output["mode"] != "dry_run"
+        and str(operator_output["operation"]).startswith("research-")
+    ):
+        counts = operator_output["counts"]
+        if counts["retryable_failed"] or counts["terminal_failed"]:
+            return 3
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    print(
+        "Notice: `python -m fiyu.pipeline_cli` is a compatibility entry point; "
+        "prefer `fiyu pipeline`.",
+        file=sys.stderr,
+    )
+    raise SystemExit(main())

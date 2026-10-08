@@ -8,7 +8,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from .database import connect
+from .database import connect, connect_readonly
 
 PIPELINE_RUN_SCHEMA_VERSION = "pipeline-run-ledger-v1"
 
@@ -581,8 +581,12 @@ def finalize_pipeline_run(db_path: str | Path, run_id: int) -> dict[str, object]
 
 
 def get_pipeline_run_status(db_path: str | Path, run_id: int) -> dict[str, object]:
-    ensure_pipeline_run_schema(db_path)
-    with connect(db_path) as connection:
+    with connect_readonly(db_path) as connection:
+        table = connection.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='pipeline_runs'"
+        ).fetchone()
+        if table is None:
+            raise ValueError("Pipeline run ledger has not been initialized")
         run = connection.execute("SELECT * FROM pipeline_runs WHERE id=?", (run_id,)).fetchone()
         if run is None:
             raise ValueError(f"Unknown pipeline run: {run_id}")
@@ -597,6 +601,19 @@ def get_pipeline_run_status(db_path: str | Path, run_id: int) -> dict[str, objec
             "SELECT COALESCE(SUM(attempt_count), 0) FROM pipeline_run_items WHERE run_id=?",
             (run_id,),
         ).fetchone()[0]
+        abandoned = connection.execute(
+            """
+            SELECT COUNT(*)
+            FROM pipeline_run_item_attempts a
+            JOIN pipeline_run_items i ON i.id=a.run_item_id
+            WHERE i.run_id=? AND a.state='abandoned'
+            """,
+            (run_id,),
+        ).fetchone()[0]
+    remaining_work = sum(
+        states.get(state, 0)
+        for state in ("pending", "claimed", "running", "failed_retryable")
+    )
     return {
         "run_id": int(run["id"]),
         "run_type": str(run["run_type"]),
@@ -610,6 +627,9 @@ def get_pipeline_run_status(db_path: str | Path, run_id: int) -> dict[str, objec
         "failed_terminal": states.get("failed_terminal", 0),
         "skipped": states.get("skipped", 0),
         "attempts": int(attempts),
+        "abandoned_attempts": int(abandoned),
+        "remaining_work": remaining_work,
+        "no_remaining_work": remaining_work == 0,
         "provider_requests": int(run["provider_request_count"]),
         "web_search_actions": int(run["web_search_action_count"]),
         "input_tokens": int(run["input_token_count"]),
@@ -622,6 +642,36 @@ def get_pipeline_run_status(db_path: str | Path, run_id: int) -> dict[str, objec
         "selector": json.loads(run["selector_json"]),
         "config": json.loads(run["config_json"]),
     }
+
+
+def list_pipeline_runs(
+    db_path: str | Path, *, run_type: str | None = None, limit: int = 20
+) -> list[dict[str, object]]:
+    """Return concise recent run records without initializing the ledger."""
+
+    if limit < 1 or limit > 200:
+        raise ValueError("limit must be between 1 and 200")
+    with connect_readonly(db_path) as connection:
+        table = connection.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='pipeline_runs'"
+        ).fetchone()
+        if table is None:
+            return []
+        where = "WHERE run_type=?" if run_type else ""
+        parameters: tuple[object, ...] = (run_type, limit) if run_type else (limit,)
+        rows = connection.execute(
+            f"""
+            SELECT id AS run_id, run_type, status, selected_item_count AS selected,
+                   completed_count AS succeeded, failed_count AS failed,
+                   retryable_count AS retryable_failed, skipped_count AS skipped,
+                   provider_request_count AS external_requests,
+                   created_at, started_at, completed_at
+            FROM pipeline_runs {where}
+            ORDER BY id DESC LIMIT ?
+            """,
+            parameters,
+        ).fetchall()
+    return [dict(row) for row in rows]
 
 
 def get_pipeline_run_item(db_path: str | Path, item_id: int) -> dict[str, Any]:

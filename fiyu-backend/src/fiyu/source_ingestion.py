@@ -11,12 +11,20 @@ import hashlib
 import json
 import re
 import sqlite3
+import statistics
 from datetime import UTC, datetime
 from pathlib import Path
 
 from .columns import raw_record_from_row
 from .config import ScoringConfig
-from .database import INSERT_COLUMNS, SCHEMA, _row_values, connect, decode_restaurant_row
+from .database import (
+    INSERT_COLUMNS,
+    SCHEMA,
+    _row_values,
+    connect,
+    connect_readonly,
+    decode_restaurant_row,
+)
 from .normalize import CleaningStats, add_chain_features, clean_and_dedupe, merge_records
 from .readers import iter_input_files, iter_rows
 from .scoring import score_records
@@ -39,6 +47,7 @@ CREATE TABLE IF NOT EXISTS candidate_source_runs (
     updated_candidates INTEGER NOT NULL DEFAULT 0,
     unchanged_candidates INTEGER NOT NULL DEFAULT 0,
     source_local_missing INTEGER NOT NULL DEFAULT 0,
+    impact_json TEXT NOT NULL DEFAULT '{}',
     error_summary TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_candidate_source_runs_source
@@ -151,7 +160,90 @@ def ensure_source_ingestion_schema(db_path: str | Path) -> None:
     with connect(db_path) as connection:
         connection.executescript(SCHEMA)
         connection.executescript(SOURCE_INGESTION_SCHEMA)
+        columns = {
+            str(row["name"])
+            for row in connection.execute("PRAGMA table_info(candidate_source_runs)")
+        }
+        if "impact_json" not in columns:
+            connection.execute(
+                "ALTER TABLE candidate_source_runs "
+                "ADD COLUMN impact_json TEXT NOT NULL DEFAULT '{}'"
+            )
         connection.commit()
+
+
+def _candidate_selection_snapshot(connection: sqlite3.Connection) -> dict[str, tuple[float, bool]]:
+    """Capture cheap score/default seed eligibility for impact-only comparison."""
+
+    return {
+        str(row["place_id"]): (
+            float(row["internal_fiyu_score"] or 0),
+            bool(row["candidate_eligible"])
+            and float(row["internal_fiyu_score"] or 0) >= 60.0,
+        )
+        for row in connection.execute(
+            "SELECT place_id, internal_fiyu_score, candidate_eligible FROM restaurants "
+            "WHERE place_id IS NOT NULL AND TRIM(place_id)!=''"
+        )
+    }
+
+
+def _source_impact(
+    before: dict[str, tuple[float, bool]],
+    after: dict[str, tuple[float, bool]],
+    *,
+    source_updated_candidates: int,
+) -> dict[str, object]:
+    shared = sorted(before.keys() & after.keys())
+    deltas = {
+        place_id: after[place_id][0] - before[place_id][0]
+        for place_id in shared
+        if abs(after[place_id][0] - before[place_id][0]) > 1e-9
+    }
+    absolute_deltas = [abs(value) for value in deltas.values()]
+    became_eligible = [
+        place_id for place_id in shared if not before[place_id][1] and after[place_id][1]
+    ]
+    became_ineligible = [
+        place_id for place_id in shared if before[place_id][1] and not after[place_id][1]
+    ]
+    remained_eligible = [
+        place_id for place_id in shared if before[place_id][1] and after[place_id][1]
+    ]
+    remained_ineligible = [
+        place_id for place_id in shared if not before[place_id][1] and not after[place_id][1]
+    ]
+    new_ids = sorted(after.keys() - before.keys())
+    return {
+        "canonical_candidates_before": len(before),
+        "canonical_candidates_after": len(after),
+        "new_candidates": len(new_ids),
+        "source_updated_candidates": source_updated_candidates,
+        "unchanged_candidates": max(
+            0, len(after) - len(new_ids) - source_updated_candidates
+        ),
+        "cheap_score": {
+            "scores_changed": len(deltas),
+            "median_absolute_delta": round(statistics.median(absolute_deltas), 6)
+            if absolute_deltas
+            else 0.0,
+            "max_absolute_delta": round(max(absolute_deltas), 6)
+            if absolute_deltas
+            else 0.0,
+            "became_seed_eligible": len(became_eligible),
+            "became_seed_ineligible": len(became_ineligible),
+            "remained_seed_eligible": len(remained_eligible),
+            "remained_seed_ineligible": len(remained_ineligible),
+            "new_seed_eligible": sum(after[place_id][1] for place_id in new_ids),
+            "became_seed_eligible_place_ids": became_eligible,
+            "became_seed_ineligible_place_ids": became_ineligible,
+            "score_changed_place_ids": sorted(deltas),
+        },
+        "seed_criteria": {
+            "candidate_eligible": True,
+            "minimum_internal_score": 60.0,
+        },
+    }
 
 
 def _start_run(
@@ -414,6 +506,7 @@ def run_source_ingestion(
         now = _utc_now()
         with connect(db_path) as connection:
             connection.execute("BEGIN IMMEDIATE")
+            selection_before = _candidate_selection_snapshot(connection)
             observation_counts = _upsert_observations(
                 connection,
                 source_key=source_key,
@@ -432,6 +525,12 @@ def run_source_ingestion(
             unchanged_candidates = observation_counts["unchanged_observations"]
             updated_candidates = max(
                 0, len(source_records) - inserted - unchanged_candidates
+            )
+            selection_after = _candidate_selection_snapshot(connection)
+            impact = _source_impact(
+                selection_before,
+                selection_after,
+                source_updated_candidates=updated_candidates,
             )
             if csv_output:
                 from .ingest import export_csv
@@ -456,7 +555,8 @@ def run_source_ingestion(
                 SET status='complete', completed_at=?, input_fingerprint=?,
                     input_files_json=?, total_rows_seen=?, valid_rows=?, invalid_rows=?,
                     duplicate_rows=?, new_candidates=?, updated_candidates=?,
-                    unchanged_candidates=?, source_local_missing=?, error_summary=NULL
+                    unchanged_candidates=?, source_local_missing=?, error_summary=NULL,
+                    impact_json=?
                 WHERE id=?
                 """,
                 (
@@ -471,6 +571,7 @@ def run_source_ingestion(
                     updated_candidates,
                     unchanged_candidates,
                     observation_counts["source_local_missing"],
+                    json.dumps(impact, ensure_ascii=False, sort_keys=True),
                     run_id,
                 ),
             )
@@ -499,7 +600,60 @@ def run_source_ingestion(
         "updated_candidates": updated_candidates,
         "unchanged_candidates": unchanged_candidates,
         "canonical_candidate_count": len(materialized),
+        "impact": impact,
         "database": str(db_path),
         "csv_output": str(csv_output) if csv_output else None,
         "scoring_config": config.to_dict(),
     }
+
+
+def get_source_run_status(db_path: str | Path, run_id: int) -> dict[str, object]:
+    """Return one durable source-provenance run without changing the database."""
+
+    with connect_readonly(db_path) as connection:
+        table = connection.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='candidate_source_runs'"
+        ).fetchone()
+        if table is None:
+            raise ValueError("Source ingestion run ledger has not been initialized")
+        row = connection.execute(
+            "SELECT * FROM candidate_source_runs WHERE id=?", (run_id,)
+        ).fetchone()
+    if row is None:
+        raise ValueError(f"Unknown source run: {run_id}")
+    item = dict(row)
+    impact_raw = item.pop("impact_json", "{}") or "{}"
+    item["impact"] = json.loads(str(impact_raw))
+    item["input_files"] = json.loads(str(item.pop("input_files_json", "[]") or "[]"))
+    item["scoring_config"] = json.loads(
+        str(item.pop("scoring_config_json", "{}") or "{}")
+    )
+    return item
+
+
+def list_source_runs(
+    db_path: str | Path, *, source_key: str | None = None, limit: int = 20
+) -> list[dict[str, object]]:
+    """List recent source runs without initializing or mutating their ledger."""
+
+    if limit < 1 or limit > 200:
+        raise ValueError("limit must be between 1 and 200")
+    with connect_readonly(db_path) as connection:
+        table = connection.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='candidate_source_runs'"
+        ).fetchone()
+        if table is None:
+            return []
+        where = "WHERE source_key=?" if source_key else ""
+        parameters: tuple[object, ...] = (source_key, limit) if source_key else (limit,)
+        rows = connection.execute(
+            f"""
+            SELECT id, source_key, status, input_fingerprint, total_rows_seen,
+                   valid_rows, invalid_rows, new_candidates, updated_candidates,
+                   unchanged_candidates, source_local_missing, started_at, completed_at
+            FROM candidate_source_runs {where}
+            ORDER BY id DESC LIMIT ?
+            """,
+            parameters,
+        ).fetchall()
+    return [dict(row) for row in rows]

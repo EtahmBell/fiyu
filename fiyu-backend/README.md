@@ -144,17 +144,22 @@ When `searchString` is missing, the filename becomes the fallback area name.
 
 ## Run ingestion
 
+The supported production workflow is documented in
+[`docs/pipeline-operator-runbook.md`](docs/pipeline-operator-runbook.md). Use the
+`fiyu pipeline` namespace for current catalog operations; direct `fiyu.pipeline_cli`
+and `fiyu ingest` invocations remain compatibility aliases.
+
 ```bash
-python -m fiyu.cli ingest data/raw \
+python -m fiyu.cli pipeline --db data/fiyu.db ingest data/raw \
   --source-key apify-tokyo-v1 \
-  --db data/fiyu.db \
-  --csv-out data/processed/restaurants_scored.csv
+  --csv-out data/processed/restaurants_scored.csv \
+  --summary-out data/audits/apify-tokyo-v1-import.json
 ```
 
 PowerShell equivalent:
 
 ```powershell
-python -m fiyu.cli ingest data/raw --source-key apify-tokyo-v1 --db data/fiyu.db --csv-out data/processed/restaurants_scored.csv
+python -m fiyu.cli pipeline --db data/fiyu.db ingest data/raw --source-key apify-tokyo-v1 --csv-out data/processed/restaurants_scored.csv --summary-out data/audits/apify-tokyo-v1-import.json
 ```
 
 `--source-key` is a stable operator-defined identity for one source, independent of
@@ -167,9 +172,8 @@ new/updated/unchanged observations, new candidates, and source-local omissions.
 ### Flexible thresholds
 
 ```bash
-python -m fiyu.cli ingest data/raw \
+python -m fiyu.cli pipeline --db data/fiyu.db ingest data/raw \
   --source-key apify-tokyo-v1 \
-  --db data/fiyu.db \
   --csv-out data/processed/restaurants_scored.csv \
   --target-rating 4.2 \
   --minimum-rating 3.9 \
@@ -182,7 +186,7 @@ python -m fiyu.cli ingest data/raw \
 Or edit a JSON file:
 
 ```bash
-python -m fiyu.cli ingest data/raw --source-key apify-tokyo-v1 --config scoring.example.json
+python -m fiyu.cli pipeline --db data/fiyu.db ingest data/raw --source-key apify-tokyo-v1 --config scoring.example.json
 ```
 
 ## Run the included demo
@@ -289,25 +293,25 @@ scraped data
 Research and score recalculation leave rows unpublished. Review and explicitly change
 publication status with:
 
-The unified operator entry point reuses the existing candidate import, Responses API research,
+The canonical operator entry point reuses the existing candidate import, Responses API research,
 deterministic score, OSM POI resolver, and verified-address area fallbacks. The normal `run`
 command automatically publishes candidates that pass the stored deterministic score policy and
 obtain an exact or defensible approximate map location. Repeat research remains append-only in
 `restaurant_research_runs`:
 
 ```powershell
-python -m fiyu.pipeline_cli --db data/fiyu.db status
-python -m fiyu.pipeline_cli --db data/fiyu.db inspect --limit 20
-python -m fiyu.pipeline_cli --db data/fiyu.db import-candidates --limit 25
-python -m fiyu.pipeline_cli --db data/fiyu.db retry-research --place-id PLACE_ID --dry-run
-python -m fiyu.pipeline_cli --db data/fiyu.db retry-address-research --place-id PLACE_ID --dry-run
-python -m fiyu.pipeline_cli --db data/fiyu.db run --place-id PLACE_ID `
+python -m fiyu.cli pipeline --db data/fiyu.db catalog-status
+python -m fiyu.cli pipeline --db data/fiyu.db inspect --limit 20
+python -m fiyu.cli pipeline --db data/fiyu.db seed-unseeded --limit 25 --min-score 60 --seed BATCH_ID --dry-run
+python -m fiyu.cli pipeline --db data/fiyu.db retry-research --place-id PLACE_ID --dry-run
+python -m fiyu.cli pipeline --db data/fiyu.db retry-address-research --place-id PLACE_ID --dry-run
+python -m fiyu.cli pipeline --db data/fiyu.db run --place-id PLACE_ID `
   --osm-index C:\data\osm\fiyu-kanto-index.sqlite `
   --osm-address-index C:\data\osm\fiyu-kanto-address-index.sqlite --dry-run
-python -m fiyu.pipeline_cli --db data/fiyu.db review --place-id PLACE_ID
-python -m fiyu.pipeline_cli --db data/fiyu.db approve --place-id PLACE_ID `
+python -m fiyu.cli pipeline --db data/fiyu.db review --place-id PLACE_ID
+python -m fiyu.cli pipeline --db data/fiyu.db approve --place-id PLACE_ID `
   --reviewed-by OPERATOR
-python -m fiyu.pipeline_cli --db data/fiyu.db publish --place-id PLACE_ID
+python -m fiyu.cli pipeline --db data/fiyu.db publish --place-id PLACE_ID
 ```
 
 Omit `--dry-run` only after reviewing the reported Responses API and web-search budget. `run`

@@ -138,6 +138,23 @@ def connect(db_path: str | Path) -> sqlite3.Connection:
     return connection
 
 
+def connect_readonly(db_path: str | Path) -> sqlite3.Connection:
+    """Open an existing database without schema, journal, or data mutation."""
+
+    path = Path(db_path).resolve()
+    connection = sqlite3.connect(
+        f"file:{path.as_posix()}?mode=ro",
+        uri=True,
+        timeout=SQLITE_TIMEOUT_SECONDS,
+        factory=ClosingConnection,
+    )
+    connection.row_factory = sqlite3.Row
+    connection.execute(f"PRAGMA busy_timeout={SQLITE_BUSY_TIMEOUT_MS}")
+    connection.execute("PRAGMA query_only=ON")
+    connection.execute("PRAGMA foreign_keys=ON")
+    return connection
+
+
 def ensure_core_indexes(connection: sqlite3.Connection) -> None:
     """Apply additive core indexes to an existing initialized database."""
 
