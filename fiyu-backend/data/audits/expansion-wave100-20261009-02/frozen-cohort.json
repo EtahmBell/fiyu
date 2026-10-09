@@ -1,0 +1,1847 @@
+{
+  "manifest_version": "deterministic-unseeded-cohort-1",
+  "cohort_id": "expansion-wave100-20261009-02",
+  "selection_timestamp": "2026-10-09T19:12:17.031063+00:00",
+  "selector_semantics": "eligible unseeded candidates, stable SHA-256 seed order",
+  "ordered_place_ids": [
+    "ChIJgTBTYADtGGAR5x4JOAJ4bJY",
+    "ChIJGf0mn1PyGGARaOQuAI7NSIM",
+    "ChIJSyDMTb6OGGAR9emNj5Zj3SU",
+    "ChIJU1QIL6mLGGARHGUC6xk1sGM",
+    "ChIJsVYRKb6PGGARI672xYyxNRc",
+    "ChIJM1rqWwDzGGARKQ7hQiixLBM",
+    "ChIJ77PsHafyGGARXGPond0h_cw",
+    "ChIJF0MHUgCLGGARc15pQskW97k",
+    "ChIJBQWkoJiLGGARVc7Zzqv-klQ",
+    "ChIJreo2rYL1GGARvNG6MOcONlw",
+    "ChIJK7KIVESNGGARNmX8zJd7DWU",
+    "ChIJK_UaJ9KNGGARzGtBMfDnV2M",
+    "ChIJLxsQkl6LGGARatTmxtTYXw8",
+    "ChIJq9tsoP-KGGARWicGzXy8nYI",
+    "ChIJHcjrimiMGGARicI64jTsJJY",
+    "ChIJMQ6SsLSLGGAR8P-s9DDXPrs",
+    "ChIJTXk6uBWMGGAR3TsADefF17w",
+    "ChIJ5wjGj-2RGGARTQGK66FrCVI",
+    "ChIJHc5UEyeLGGAR1lyLxtZ8phE",
+    "ChIJS-ww_Fb0GGARgbqCXdZXEEE",
+    "ChIJCXD9zuGLGGARrvarid1BzGk",
+    "ChIJUSi2FouIGGARGWRKFUcK0do",
+    "ChIJowyLU2LzGGARmmDMc97q2ys",
+    "ChIJE5nlZWeIGGARD6Zefds0iR0",
+    "ChIJQ7N57bNhGGARtVUmNnOMkHw",
+    "ChIJEeLbjWqLGGARupQeVeTR5So",
+    "ChIJj2ms-BqNGGARAZS3ie2TyZ4",
+    "ChIJ39xQMLuMGGARvSJXf5sIsh4",
+    "ChIJTRBULFmJGGARltqpH0Qn4O8",
+    "ChIJz5n05wCPGGARBQUmRDFx4vg",
+    "ChIJ900slhOLGGARSqX_N_CAPTI",
+    "ChIJoy4hKFqJGGARt-HvuNeOMe8",
+    "ChIJgevyy2f0GGARKWSzu00ds_o",
+    "ChIJmfy4zpSLGGAR5B4WMSK6CiU",
+    "ChIJ2d5EVPyRGGARVyzI9ivtqTo",
+    "ChIJAw_zJvvuGGARK4J44Szvmi8",
+    "ChIJLdDR8CRhGGARn9UKT7gLxC0",
+    "ChIJl3jqmhaNGGAR2-jmyu_iQ-k",
+    "ChIJwbbTn3L0GGAReSxB9VaGSk0",
+    "ChIJHz_fI_-KGGARXAvyUoa5Yak",
+    "ChIJd2kULJ2LGGARu00B5lTn1jU",
+    "ChIJz2Pn-jqSGGARUadaHsO0DYM",
+    "ChIJWaoddIz0GGARirMkmxg-LNw",
+    "ChIJM2ekaACNGGARCrA-yUBj-m8",
+    "ChIJ1aUBhaiOGGARkc58Hc2d5p0",
+    "ChIJHTVvfPqPGGAR4jzz85YQMuI",
+    "ChIJLZuqLFmNGGAR6XkJb-BR8GU",
+    "ChIJM7Ju9XuJGGARjf-Q6tmSZtI",
+    "ChIJT2hJa3yJGGARNPeOLToaGXI",
+    "ChIJQ3lIyWntGGARVObMHv26BP4",
+    "ChIJQ6DT26iLGGAR51xgcun1uvw",
+    "ChIJ8zKOv8OIGGARL0VJWSFTKHc",
+    "ChIJsbUqij-LGGARebAJ7BDH3vU",
+    "ChIJFRX0IwCJGGARigpLnWuEmFA",
+    "ChIJLxMf7MnzGGARIvsdAe8FfF0",
+    "ChIJhzt6v31hGGARmPWdR9EVd7Q",
+    "ChIJnd3hnQntGGARvlpIw_ACw-w",
+    "ChIJla_XmXD1GGARXbr0f2fDreQ",
+    "ChIJ76_qvCORGGARDBSjEUkAvCk",
+    "ChIJwdBvrNOPGGARY0ipU4k7LCw",
+    "ChIJaYEh52GPGGARvb26wyw19tE",
+    "ChIJDd8uCEBhGGARHQwFHbJ3qXI",
+    "ChIJj6lP03qLGGARIGiXq2yaCzM",
+    "ChIJ4QB_HQCRGGARVMQ3Uli-_Uk",
+    "ChIJNzlobNSTGGARAIk0ZgSdsiM",
+    "ChIJJwp6rhruGGARDI7snTafH-E",
+    "ChIJWcgKxDuSGGARfE4-AycGBPo",
+    "ChIJr8txpz6LGGARezlq9eLEtek",
+    "ChIJ5Zl80EqRGGARzW2ekHt129A",
+    "ChIJ8R1KzDuLGGARCHnIvMLpshI",
+    "ChIJtTgHcwD1GGARdKvWgoeCIEY",
+    "ChIJd3DTthmOGGARRhyngXtjV5E",
+    "ChIJAUYUwexhGGARzcBY_vznsS0",
+    "ChIJB0Xdx3FgGGAR1nrfN3irCv4",
+    "ChIJg6UbKACNGGARBtvVM4UdEeU",
+    "ChIJS1tA_WuLGGARFkFAmYgS3nw",
+    "ChIJU_yDFkKPGGARickTmvyer9s",
+    "ChIJ0T3WaFWLGGAR0j7hB53mKNg",
+    "ChIJ-4iHS6mSGGARlvYL9lTD6DA",
+    "ChIJqY0Tj-yOGGARmrdaKa9vdQE",
+    "ChIJC2U__JXyGGAR8YXn1zirqnA",
+    "ChIJTV8k4EfsGGARYe3NSgkfGUg",
+    "ChIJUw2TsQ5hGGARCskNP5CImi8",
+    "ChIJC_1jju2JGGARpF6ERUXh4aQ",
+    "ChIJgzlVVXaRGGARSekwZ1wkL2o",
+    "ChIJIVOD-dCJGGARgjkIi6KEBUw",
+    "ChIJSw8BGFCPGGAR1z2jYcGzcA0",
+    "ChIJ3SwazWzzGGAR-oSv2YiWpSA",
+    "ChIJ_wVbsH6NGGARyq_-E_DL3-E",
+    "ChIJy0KknYXzGGARJUUmB9T9_uI",
+    "ChIJ5XL2NEWKGGARzE-kfwOfSLU",
+    "ChIJH2dpkxuJGGARGRi6wvah6Dw",
+    "ChIJt6uAkTjuGGARvJ7LDWgnhvc",
+    "ChIJwbhoX16NGGARCS0C0rNfLs4",
+    "ChIJT1qLE8ePGGARTpIPXgOXyq4",
+    "ChIJq6pWrdSRGGARcWbT-jzJ4q0",
+    "ChIJibDdydiRGGARKAkSs-vdp5w",
+    "ChIJrVY_krlhGGARcOTMbLiONG8",
+    "ChIJTYYx03hhGGARp6BUy48SrsI",
+    "ChIJVzpA74mRGGAR9CRnMPVc_0U"
+  ],
+  "dry_run": true,
+  "eligible_unseeded_pool_before": 743,
+  "requested_count": 100,
+  "selected_count": 100,
+  "seeded_count": 0,
+  "already_existing_race_skips": 0,
+  "eligible_unseeded_pool_remaining": 743,
+  "seed": "expansion-wave100-20261009-02",
+  "min_score": 60.0,
+  "fewer_than_requested": false,
+  "selected_place_ids": [
+    "ChIJgTBTYADtGGAR5x4JOAJ4bJY",
+    "ChIJGf0mn1PyGGARaOQuAI7NSIM",
+    "ChIJSyDMTb6OGGAR9emNj5Zj3SU",
+    "ChIJU1QIL6mLGGARHGUC6xk1sGM",
+    "ChIJsVYRKb6PGGARI672xYyxNRc",
+    "ChIJM1rqWwDzGGARKQ7hQiixLBM",
+    "ChIJ77PsHafyGGARXGPond0h_cw",
+    "ChIJF0MHUgCLGGARc15pQskW97k",
+    "ChIJBQWkoJiLGGARVc7Zzqv-klQ",
+    "ChIJreo2rYL1GGARvNG6MOcONlw",
+    "ChIJK7KIVESNGGARNmX8zJd7DWU",
+    "ChIJK_UaJ9KNGGARzGtBMfDnV2M",
+    "ChIJLxsQkl6LGGARatTmxtTYXw8",
+    "ChIJq9tsoP-KGGARWicGzXy8nYI",
+    "ChIJHcjrimiMGGARicI64jTsJJY",
+    "ChIJMQ6SsLSLGGAR8P-s9DDXPrs",
+    "ChIJTXk6uBWMGGAR3TsADefF17w",
+    "ChIJ5wjGj-2RGGARTQGK66FrCVI",
+    "ChIJHc5UEyeLGGAR1lyLxtZ8phE",
+    "ChIJS-ww_Fb0GGARgbqCXdZXEEE",
+    "ChIJCXD9zuGLGGARrvarid1BzGk",
+    "ChIJUSi2FouIGGARGWRKFUcK0do",
+    "ChIJowyLU2LzGGARmmDMc97q2ys",
+    "ChIJE5nlZWeIGGARD6Zefds0iR0",
+    "ChIJQ7N57bNhGGARtVUmNnOMkHw",
+    "ChIJEeLbjWqLGGARupQeVeTR5So",
+    "ChIJj2ms-BqNGGARAZS3ie2TyZ4",
+    "ChIJ39xQMLuMGGARvSJXf5sIsh4",
+    "ChIJTRBULFmJGGARltqpH0Qn4O8",
+    "ChIJz5n05wCPGGARBQUmRDFx4vg",
+    "ChIJ900slhOLGGARSqX_N_CAPTI",
+    "ChIJoy4hKFqJGGARt-HvuNeOMe8",
+    "ChIJgevyy2f0GGARKWSzu00ds_o",
+    "ChIJmfy4zpSLGGAR5B4WMSK6CiU",
+    "ChIJ2d5EVPyRGGARVyzI9ivtqTo",
+    "ChIJAw_zJvvuGGARK4J44Szvmi8",
+    "ChIJLdDR8CRhGGARn9UKT7gLxC0",
+    "ChIJl3jqmhaNGGAR2-jmyu_iQ-k",
+    "ChIJwbbTn3L0GGAReSxB9VaGSk0",
+    "ChIJHz_fI_-KGGARXAvyUoa5Yak",
+    "ChIJd2kULJ2LGGARu00B5lTn1jU",
+    "ChIJz2Pn-jqSGGARUadaHsO0DYM",
+    "ChIJWaoddIz0GGARirMkmxg-LNw",
+    "ChIJM2ekaACNGGARCrA-yUBj-m8",
+    "ChIJ1aUBhaiOGGARkc58Hc2d5p0",
+    "ChIJHTVvfPqPGGAR4jzz85YQMuI",
+    "ChIJLZuqLFmNGGAR6XkJb-BR8GU",
+    "ChIJM7Ju9XuJGGARjf-Q6tmSZtI",
+    "ChIJT2hJa3yJGGARNPeOLToaGXI",
+    "ChIJQ3lIyWntGGARVObMHv26BP4",
+    "ChIJQ6DT26iLGGAR51xgcun1uvw",
+    "ChIJ8zKOv8OIGGARL0VJWSFTKHc",
+    "ChIJsbUqij-LGGARebAJ7BDH3vU",
+    "ChIJFRX0IwCJGGARigpLnWuEmFA",
+    "ChIJLxMf7MnzGGARIvsdAe8FfF0",
+    "ChIJhzt6v31hGGARmPWdR9EVd7Q",
+    "ChIJnd3hnQntGGARvlpIw_ACw-w",
+    "ChIJla_XmXD1GGARXbr0f2fDreQ",
+    "ChIJ76_qvCORGGARDBSjEUkAvCk",
+    "ChIJwdBvrNOPGGARY0ipU4k7LCw",
+    "ChIJaYEh52GPGGARvb26wyw19tE",
+    "ChIJDd8uCEBhGGARHQwFHbJ3qXI",
+    "ChIJj6lP03qLGGARIGiXq2yaCzM",
+    "ChIJ4QB_HQCRGGARVMQ3Uli-_Uk",
+    "ChIJNzlobNSTGGARAIk0ZgSdsiM",
+    "ChIJJwp6rhruGGARDI7snTafH-E",
+    "ChIJWcgKxDuSGGARfE4-AycGBPo",
+    "ChIJr8txpz6LGGARezlq9eLEtek",
+    "ChIJ5Zl80EqRGGARzW2ekHt129A",
+    "ChIJ8R1KzDuLGGARCHnIvMLpshI",
+    "ChIJtTgHcwD1GGARdKvWgoeCIEY",
+    "ChIJd3DTthmOGGARRhyngXtjV5E",
+    "ChIJAUYUwexhGGARzcBY_vznsS0",
+    "ChIJB0Xdx3FgGGAR1nrfN3irCv4",
+    "ChIJg6UbKACNGGARBtvVM4UdEeU",
+    "ChIJS1tA_WuLGGARFkFAmYgS3nw",
+    "ChIJU_yDFkKPGGARickTmvyer9s",
+    "ChIJ0T3WaFWLGGAR0j7hB53mKNg",
+    "ChIJ-4iHS6mSGGARlvYL9lTD6DA",
+    "ChIJqY0Tj-yOGGARmrdaKa9vdQE",
+    "ChIJC2U__JXyGGAR8YXn1zirqnA",
+    "ChIJTV8k4EfsGGARYe3NSgkfGUg",
+    "ChIJUw2TsQ5hGGARCskNP5CImi8",
+    "ChIJC_1jju2JGGARpF6ERUXh4aQ",
+    "ChIJgzlVVXaRGGARSekwZ1wkL2o",
+    "ChIJIVOD-dCJGGARgjkIi6KEBUw",
+    "ChIJSw8BGFCPGGAR1z2jYcGzcA0",
+    "ChIJ3SwazWzzGGAR-oSv2YiWpSA",
+    "ChIJ_wVbsH6NGGARyq_-E_DL3-E",
+    "ChIJy0KknYXzGGARJUUmB9T9_uI",
+    "ChIJ5XL2NEWKGGARzE-kfwOfSLU",
+    "ChIJH2dpkxuJGGARGRi6wvah6Dw",
+    "ChIJt6uAkTjuGGARvJ7LDWgnhvc",
+    "ChIJwbhoX16NGGARCS0C0rNfLs4",
+    "ChIJT1qLE8ePGGARTpIPXgOXyq4",
+    "ChIJq6pWrdSRGGARcWbT-jzJ4q0",
+    "ChIJibDdydiRGGARKAkSs-vdp5w",
+    "ChIJrVY_krlhGGARcOTMbLiONG8",
+    "ChIJTYYx03hhGGARp6BUy48SrsI",
+    "ChIJVzpA74mRGGAR9CRnMPVc_0U"
+  ],
+  "selected_candidates": [
+    {
+      "place_id": "ChIJgTBTYADtGGAR5x4JOAJ4bJY",
+      "title": "ホルモン焼肉酒場 ふたば",
+      "internal_score": 69.4,
+      "source_area": "Toshima Initial",
+      "source_areas": [
+        "Toshima Initial"
+      ],
+      "category": "Offal barbecue restaurant",
+      "rating": 4.6,
+      "review_count": 40,
+      "source_provenance": [
+        "Toshima_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJGf0mn1PyGGARaOQuAI7NSIM",
+      "title": "Sushi Mikawa-ya",
+      "internal_score": 60.79,
+      "source_area": "Suginami Initial",
+      "source_areas": [
+        "Suginami Initial"
+      ],
+      "category": "Sushi restaurant",
+      "rating": 4.4,
+      "review_count": 72,
+      "source_provenance": [
+        "Suginami_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJSyDMTb6OGGAR9emNj5Zj3SU",
+      "title": "NISHI ASAKUSA YAMAZAKI",
+      "internal_score": 69.75,
+      "source_area": "Taito Initial",
+      "source_areas": [
+        "Taito Initial"
+      ],
+      "category": "Izakaya restaurant",
+      "rating": 4.7,
+      "review_count": 81,
+      "source_provenance": [
+        "Taito_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJU1QIL6mLGGARHGUC6xk1sGM",
+      "title": "Gyorantei",
+      "internal_score": 67.13,
+      "source_area": "Minato Initial",
+      "source_areas": [
+        "Minato Initial"
+      ],
+      "category": "Izakaya restaurant",
+      "rating": 4.0,
+      "review_count": 24,
+      "source_provenance": [
+        "Minato_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJsVYRKb6PGGARI672xYyxNRc",
+      "title": "丸福",
+      "internal_score": 60.99,
+      "source_area": "Adachi Initial",
+      "source_areas": [
+        "Adachi Initial"
+      ],
+      "category": "Izakaya restaurant",
+      "rating": 4.3,
+      "review_count": 28,
+      "source_provenance": [
+        "Adachi_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJM1rqWwDzGGARKQ7hQiixLBM",
+      "title": "チョデ新井薬師前店",
+      "internal_score": 63.15,
+      "source_area": "Shinjuku Initial",
+      "source_areas": [
+        "Shinjuku Initial"
+      ],
+      "category": "Korean restaurant",
+      "rating": 5.0,
+      "review_count": 6,
+      "source_provenance": [
+        "Shinjuku_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJ77PsHafyGGARXGPond0h_cw",
+      "title": "遊食彩旬乃'SAN",
+      "internal_score": 68.31,
+      "source_area": "Shinjuku Initial",
+      "source_areas": [
+        "Shinjuku Initial"
+      ],
+      "category": "Izakaya restaurant",
+      "rating": 4.5,
+      "review_count": 50,
+      "source_provenance": [
+        "Shinjuku_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJF0MHUgCLGGARc15pQskW97k",
+      "title": "芝浦 牡蠣屋",
+      "internal_score": 63.6,
+      "source_area": "Minato Initial",
+      "source_areas": [
+        "Minato Initial"
+      ],
+      "category": "Oyster bar restaurant",
+      "rating": 4.5,
+      "review_count": 108,
+      "source_provenance": [
+        "Minato_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJBQWkoJiLGGARVc7Zzqv-klQ",
+      "title": "Hiroo Okumura",
+      "internal_score": 63.4,
+      "source_area": "Minato Initial",
+      "source_areas": [
+        "Minato Initial"
+      ],
+      "category": "Kaiseki restaurant",
+      "rating": 4.4,
+      "review_count": 56,
+      "source_provenance": [
+        "Minato_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJreo2rYL1GGARvNG6MOcONlw",
+      "title": "そうざいラボ",
+      "internal_score": 63.09,
+      "source_area": "Setagaya Initial",
+      "source_areas": [
+        "Setagaya Initial"
+      ],
+      "category": "Takeout Restaurant",
+      "rating": 4.4,
+      "review_count": 14,
+      "source_provenance": [
+        "Setagaya_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJK7KIVESNGGARNmX8zJd7DWU",
+      "title": "Sasaki",
+      "internal_score": 66.15,
+      "source_area": "Toshima Initial",
+      "source_areas": [
+        "Toshima Initial"
+      ],
+      "category": "Syokudo and Teishoku restaurant",
+      "rating": 4.4,
+      "review_count": 98,
+      "source_provenance": [
+        "Toshima_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJK_UaJ9KNGGARzGtBMfDnV2M",
+      "title": "慶",
+      "internal_score": 61.41,
+      "source_area": "Taito Initial",
+      "source_areas": [
+        "Taito Initial"
+      ],
+      "category": "Izakaya restaurant",
+      "rating": 4.0,
+      "review_count": 42,
+      "source_provenance": [
+        "Taito_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJLxsQkl6LGGARatTmxtTYXw8",
+      "title": "Rin",
+      "internal_score": 62.46,
+      "source_area": "Shibuya Initial",
+      "source_areas": [
+        "Shibuya Initial"
+      ],
+      "category": "Soba noodle shop",
+      "rating": 4.2,
+      "review_count": 151,
+      "source_provenance": [
+        "Shibuya_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJq9tsoP-KGGARWicGzXy8nYI",
+      "title": "Sushi Koshiki",
+      "internal_score": 67.41,
+      "source_area": "Minato Initial",
+      "source_areas": [
+        "Minato Initial"
+      ],
+      "category": "Sushi restaurant",
+      "rating": 4.6,
+      "review_count": 54,
+      "source_provenance": [
+        "Minato_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJHcjrimiMGGARicI64jTsJJY",
+      "title": "Sen",
+      "internal_score": 60.1,
+      "source_area": "Chiyoda Initial",
+      "source_areas": [
+        "Chiyoda Initial",
+        "Shinjuku Initial"
+      ],
+      "category": "French restaurant",
+      "rating": 4.2,
+      "review_count": 48,
+      "source_provenance": [
+        "Chiyoda_Initial.csv",
+        "Shinjuku_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJMQ6SsLSLGGAR8P-s9DDXPrs",
+      "title": "せりざわ",
+      "internal_score": 63.53,
+      "source_area": "Minato Initial",
+      "source_areas": [
+        "Minato Initial"
+      ],
+      "category": "Japanese restaurant",
+      "rating": 4.4,
+      "review_count": 30,
+      "source_provenance": [
+        "Minato_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJTXk6uBWMGGAR3TsADefF17w",
+      "title": "Jimbocho Hanaya",
+      "internal_score": 62.84,
+      "source_area": "Chiyoda Initial",
+      "source_areas": [
+        "Chiyoda Initial"
+      ],
+      "category": "Kaiseki restaurant",
+      "rating": 4.3,
+      "review_count": 104,
+      "source_provenance": [
+        "Chiyoda_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJ5wjGj-2RGGARTQGK66FrCVI",
+      "title": "青い鳥",
+      "internal_score": 62.94,
+      "source_area": "Adachi Initial",
+      "source_areas": [
+        "Adachi Initial"
+      ],
+      "category": "Izakaya restaurant",
+      "rating": 4.6,
+      "review_count": 5,
+      "source_provenance": [
+        "Adachi_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJHc5UEyeLGGAR1lyLxtZ8phE",
+      "title": "GINZA ARMS",
+      "internal_score": 69.4,
+      "source_area": "Chuo Initial",
+      "source_areas": [
+        "Chuo Initial"
+      ],
+      "category": "Pub",
+      "rating": 4.6,
+      "review_count": 24,
+      "source_provenance": [
+        "Chuo_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJS-ww_Fb0GGARgbqCXdZXEEE",
+      "title": "とよだ",
+      "internal_score": 68.13,
+      "source_area": "Setagaya Initial",
+      "source_areas": [
+        "Setagaya Initial"
+      ],
+      "category": "Yakitori restaurant",
+      "rating": 4.2,
+      "review_count": 25,
+      "source_provenance": [
+        "Setagaya_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJCXD9zuGLGGARrvarid1BzGk",
+      "title": "TEN-ASA",
+      "internal_score": 69.7,
+      "source_area": "Chuo Initial",
+      "source_areas": [
+        "Chuo Initial"
+      ],
+      "category": "Tempura restaurant",
+      "rating": 4.5,
+      "review_count": 44,
+      "source_provenance": [
+        "Chuo_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJUSi2FouIGGARGWRKFUcK0do",
+      "title": "Kazan",
+      "internal_score": 60.05,
+      "source_area": "Koto Initial",
+      "source_areas": [
+        "Koto Initial"
+      ],
+      "category": "Izakaya restaurant",
+      "rating": 4.1,
+      "review_count": 7,
+      "source_provenance": [
+        "Koto_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJowyLU2LzGGARmmDMc97q2ys",
+      "title": "Mini Indian Restaurant (Shinjuku)ミニインドレストラン",
+      "internal_score": 69.31,
+      "source_area": "Shinjuku Initial",
+      "source_areas": [
+        "Shinjuku Initial"
+      ],
+      "category": "Indian restaurant",
+      "rating": 4.5,
+      "review_count": 145,
+      "source_provenance": [
+        "Shinjuku_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJE5nlZWeIGGARD6Zefds0iR0",
+      "title": "Saboten",
+      "internal_score": 66.63,
+      "source_area": "Koto Initial",
+      "source_areas": [
+        "Koto Initial"
+      ],
+      "category": "Izakaya restaurant",
+      "rating": 4.4,
+      "review_count": 39,
+      "source_provenance": [
+        "Koto_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJQ7N57bNhGGARtVUmNnOMkHw",
+      "title": "Shun-Ka",
+      "internal_score": 61.48,
+      "source_area": "Ota Initial",
+      "source_areas": [
+        "Ota Initial"
+      ],
+      "category": "Izakaya restaurant",
+      "rating": 4.5,
+      "review_count": 36,
+      "source_provenance": [
+        "Ota_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJEeLbjWqLGGARupQeVeTR5So",
+      "title": "Air",
+      "internal_score": 61.38,
+      "source_area": "Chuo Initial",
+      "source_areas": [
+        "Chuo Initial"
+      ],
+      "category": "French restaurant",
+      "rating": 4.6,
+      "review_count": 295,
+      "source_provenance": [
+        "Chuo_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJj2ms-BqNGGARAZS3ie2TyZ4",
+      "title": "Shinobu",
+      "internal_score": 60.26,
+      "source_area": "Shinjuku Initial",
+      "source_areas": [
+        "Shinjuku Initial"
+      ],
+      "category": "Oden restaurant",
+      "rating": 4.3,
+      "review_count": 112,
+      "source_provenance": [
+        "Shinjuku_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJ39xQMLuMGGARvSJXf5sIsh4",
+      "title": "Harry's Sandwich Company",
+      "internal_score": 66.55,
+      "source_area": "Shibuya Initial",
+      "source_areas": [
+        "Shibuya Initial"
+      ],
+      "category": "Bar",
+      "rating": 4.8,
+      "review_count": 497,
+      "source_provenance": [
+        "Shibuya_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJTRBULFmJGGARltqpH0Qn4O8",
+      "title": "Caprice",
+      "internal_score": 66.43,
+      "source_area": "Chuo Initial",
+      "source_areas": [
+        "Chuo Initial"
+      ],
+      "category": "Restaurant",
+      "rating": 4.1,
+      "review_count": 69,
+      "source_provenance": [
+        "Chuo_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJz5n05wCPGGARBQUmRDFx4vg",
+      "title": "Ethnic Food GITA",
+      "internal_score": 62.22,
+      "source_area": "Taito Initial",
+      "source_areas": [
+        "Taito Initial"
+      ],
+      "category": "Indian restaurant",
+      "rating": 4.6,
+      "review_count": 230,
+      "source_provenance": [
+        "Taito_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJ900slhOLGGARSqX_N_CAPTI",
+      "title": "INSIGNIA",
+      "internal_score": 69.55,
+      "source_area": "Shibuya Initial",
+      "source_areas": [
+        "Shibuya Initial"
+      ],
+      "category": "Bar",
+      "rating": 4.5,
+      "review_count": 41,
+      "source_provenance": [
+        "Shibuya_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJoy4hKFqJGGARt-HvuNeOMe8",
+      "title": "Suzu Kō",
+      "internal_score": 67.49,
+      "source_area": "Chuo Initial",
+      "source_areas": [
+        "Chuo Initial"
+      ],
+      "category": "Tempura restaurant",
+      "rating": 4.4,
+      "review_count": 51,
+      "source_provenance": [
+        "Chuo_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJgevyy2f0GGARKWSzu00ds_o",
+      "title": "TEN-YUU",
+      "internal_score": 63.54,
+      "source_area": "Setagaya Initial",
+      "source_areas": [
+        "Setagaya Initial"
+      ],
+      "category": "Tempura restaurant",
+      "rating": 4.2,
+      "review_count": 42,
+      "source_provenance": [
+        "Setagaya_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJmfy4zpSLGGAR5B4WMSK6CiU",
+      "title": "No.Sushi Tokyo Ginza “ナンバードット スシ”",
+      "internal_score": 61.33,
+      "source_area": "Chuo Initial",
+      "source_areas": [
+        "Chuo Initial"
+      ],
+      "category": "Sushi takeaway",
+      "rating": 4.1,
+      "review_count": 30,
+      "source_provenance": [
+        "Chuo_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJ2d5EVPyRGGARVyzI9ivtqTo",
+      "title": "Yanagizushi",
+      "internal_score": 64.86,
+      "source_area": "Adachi Initial",
+      "source_areas": [
+        "Adachi Initial"
+      ],
+      "category": "Sushi restaurant",
+      "rating": 4.1,
+      "review_count": 20,
+      "source_provenance": [
+        "Adachi_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJAw_zJvvuGGARK4J44Szvmi8",
+      "title": "魚とし",
+      "internal_score": 64.86,
+      "source_area": "Suginami Initial",
+      "source_areas": [
+        "Suginami Initial"
+      ],
+      "category": "Izakaya restaurant",
+      "rating": 4.0,
+      "review_count": 18,
+      "source_provenance": [
+        "Suginami_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJLdDR8CRhGGARn9UKT7gLxC0",
+      "title": "Satsuki",
+      "internal_score": 67.85,
+      "source_area": "Shinjuku Initial",
+      "source_areas": [
+        "Shinjuku Initial"
+      ],
+      "category": "Yakiniku restaurant",
+      "rating": 4.7,
+      "review_count": 187,
+      "source_provenance": [
+        "Shinjuku_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJl3jqmhaNGGAR2-jmyu_iQ-k",
+      "title": "Tonton",
+      "internal_score": 61.81,
+      "source_area": "Toshima Initial",
+      "source_areas": [
+        "Toshima Initial"
+      ],
+      "category": "Korean restaurant",
+      "rating": 4.2,
+      "review_count": 76,
+      "source_provenance": [
+        "Toshima_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJwbbTn3L0GGAReSxB9VaGSk0",
+      "title": "Dhaba",
+      "internal_score": 64.04,
+      "source_area": "Setagaya Initial",
+      "source_areas": [
+        "Setagaya Initial"
+      ],
+      "category": "Indian restaurant",
+      "rating": 4.3,
+      "review_count": 82,
+      "source_provenance": [
+        "Setagaya_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJHz_fI_-KGGARXAvyUoa5Yak",
+      "title": "Yuuzen Takanawadai",
+      "internal_score": 60.8,
+      "source_area": "Minato Initial",
+      "source_areas": [
+        "Minato Initial"
+      ],
+      "category": "Izakaya restaurant",
+      "rating": 4.0,
+      "review_count": 13,
+      "source_provenance": [
+        "Minato_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJd2kULJ2LGGARu00B5lTn1jU",
+      "title": "立ち呑み かみや",
+      "internal_score": 64.06,
+      "source_area": "Adachi Initial",
+      "source_areas": [
+        "Adachi Initial"
+      ],
+      "category": "Izakaya restaurant",
+      "rating": 4.5,
+      "review_count": 39,
+      "source_provenance": [
+        "Adachi_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJz2Pn-jqSGGARUadaHsO0DYM",
+      "title": "Himawari",
+      "internal_score": 63.0,
+      "source_area": "Adachi Initial",
+      "source_areas": [
+        "Adachi Initial"
+      ],
+      "category": "Izakaya restaurant",
+      "rating": 4.1,
+      "review_count": 15,
+      "source_provenance": [
+        "Adachi_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJWaoddIz0GGARirMkmxg-LNw",
+      "title": "Il Giotto",
+      "internal_score": 64.89,
+      "source_area": "Setagaya Initial",
+      "source_areas": [
+        "Setagaya Initial"
+      ],
+      "category": "Italian restaurant",
+      "rating": 4.3,
+      "review_count": 68,
+      "source_provenance": [
+        "Setagaya_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJM2ekaACNGGARCrA-yUBj-m8",
+      "title": "Thailand Myanmar Asian Restaurant M3",
+      "internal_score": 65.28,
+      "source_area": "Shinjuku Initial",
+      "source_areas": [
+        "Shinjuku Initial"
+      ],
+      "category": "Asian restaurant",
+      "rating": 4.3,
+      "review_count": 17,
+      "source_provenance": [
+        "Shinjuku_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJ1aUBhaiOGGARkc58Hc2d5p0",
+      "title": "Budōya",
+      "internal_score": 65.34,
+      "source_area": "Chiyoda Initial",
+      "source_areas": [
+        "Chiyoda Initial"
+      ],
+      "category": "Japanese restaurant",
+      "rating": 4.4,
+      "review_count": 54,
+      "source_provenance": [
+        "Chiyoda_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJHTVvfPqPGGAR4jzz85YQMuI",
+      "title": "南インドGolden Crown 亀有本店",
+      "internal_score": 67.5,
+      "source_area": "Adachi Initial",
+      "source_areas": [
+        "Adachi Initial"
+      ],
+      "category": "South Indian restaurant",
+      "rating": 4.7,
+      "review_count": 189,
+      "source_provenance": [
+        "Adachi_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJLZuqLFmNGGAR6XkJb-BR8GU",
+      "title": "Kintaro",
+      "internal_score": 61.35,
+      "source_area": "Toshima Initial",
+      "source_areas": [
+        "Shinjuku Initial",
+        "Toshima Initial"
+      ],
+      "category": "Teppanyaki restaurant",
+      "rating": 4.6,
+      "review_count": 162,
+      "source_provenance": [
+        "Shinjuku_Initial.csv",
+        "Toshima_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJM7Ju9XuJGGARjf-Q6tmSZtI",
+      "title": "居酒屋はな",
+      "internal_score": 61.73,
+      "source_area": "Koto Initial",
+      "source_areas": [
+        "Koto Initial"
+      ],
+      "category": "Izakaya restaurant",
+      "rating": 4.4,
+      "review_count": 9,
+      "source_provenance": [
+        "Koto_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJT2hJa3yJGGARNPeOLToaGXI",
+      "title": "のみくい処 酒菜や",
+      "internal_score": 64.9,
+      "source_area": "Chuo Initial",
+      "source_areas": [
+        "Chuo Initial"
+      ],
+      "category": "Izakaya restaurant",
+      "rating": 4.0,
+      "review_count": 45,
+      "source_provenance": [
+        "Chuo_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJQ3lIyWntGGARVObMHv26BP4",
+      "title": "Doluca Mahsen Turkish Mediterranean Restaurant",
+      "internal_score": 61.24,
+      "source_area": "Suginami Initial",
+      "source_areas": [
+        "Suginami Initial"
+      ],
+      "category": "Turkish restaurant",
+      "rating": 4.7,
+      "review_count": 159,
+      "source_provenance": [
+        "Suginami_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJQ6DT26iLGGAR51xgcun1uvw",
+      "title": "Ōfuna",
+      "internal_score": 68.32,
+      "source_area": "Minato Initial",
+      "source_areas": [
+        "Minato Initial"
+      ],
+      "category": "Yakitori restaurant",
+      "rating": 4.4,
+      "review_count": 123,
+      "source_provenance": [
+        "Minato_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJ8zKOv8OIGGARL0VJWSFTKHc",
+      "title": "Ciel",
+      "internal_score": 61.06,
+      "source_area": "Koto Initial",
+      "source_areas": [
+        "Koto Initial"
+      ],
+      "category": "Italian restaurant",
+      "rating": 4.2,
+      "review_count": 57,
+      "source_provenance": [
+        "Koto_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJsbUqij-LGGARebAJ7BDH3vU",
+      "title": "Taverna Quale Italia",
+      "internal_score": 66.88,
+      "source_area": "Shibuya Initial",
+      "source_areas": [
+        "Shibuya Initial"
+      ],
+      "category": "Italian restaurant",
+      "rating": 4.3,
+      "review_count": 103,
+      "source_provenance": [
+        "Shibuya_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJFRX0IwCJGGARigpLnWuEmFA",
+      "title": "砂町 ほるもん焼肉たけし 北砂",
+      "internal_score": 60.47,
+      "source_area": "Koto Initial",
+      "source_areas": [
+        "Koto Initial"
+      ],
+      "category": "Offal barbecue restaurant",
+      "rating": 4.6,
+      "review_count": 65,
+      "source_provenance": [
+        "Koto_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJLxMf7MnzGGARIvsdAe8FfF0",
+      "title": "サカバハヤシヤ 上北沢",
+      "internal_score": 69.16,
+      "source_area": "Setagaya Initial",
+      "source_areas": [
+        "Setagaya Initial",
+        "Suginami Initial"
+      ],
+      "category": "Izakaya restaurant",
+      "rating": 4.7,
+      "review_count": 32,
+      "source_provenance": [
+        "Setagaya_Initial.csv",
+        "Suginami_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJhzt6v31hGGARmPWdR9EVd7Q",
+      "title": "BRISKSTAND Haneda Airport Garden",
+      "internal_score": 65.05,
+      "source_area": "Ota Initial",
+      "source_areas": [
+        "Ota Initial"
+      ],
+      "category": "Hamburger restaurant",
+      "rating": 4.6,
+      "review_count": 5,
+      "source_provenance": [
+        "Ota_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJnd3hnQntGGARvlpIw_ACw-w",
+      "title": "ひと花",
+      "internal_score": 69.39,
+      "source_area": "Suginami Initial",
+      "source_areas": [
+        "Suginami Initial"
+      ],
+      "category": "Kaiseki restaurant",
+      "rating": 4.7,
+      "review_count": 16,
+      "source_provenance": [
+        "Suginami_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJla_XmXD1GGARXbr0f2fDreQ",
+      "title": "KITCHEN FLYER(キッチンフライヤー)",
+      "internal_score": 68.72,
+      "source_area": "Setagaya Initial",
+      "source_areas": [
+        "Setagaya Initial"
+      ],
+      "category": "Snack bar",
+      "rating": 5.0,
+      "review_count": 5,
+      "source_provenance": [
+        "Setagaya_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJ76_qvCORGGARDBSjEUkAvCk",
+      "title": "多伊夢",
+      "internal_score": 69.32,
+      "source_area": "Adachi Initial",
+      "source_areas": [
+        "Adachi Initial"
+      ],
+      "category": "Chinese restaurant",
+      "rating": 4.3,
+      "review_count": 37,
+      "source_provenance": [
+        "Adachi_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJwdBvrNOPGGARY0ipU4k7LCw",
+      "title": "Shabon: Creative Peruvian Cuisine in Asakusa",
+      "internal_score": 61.54,
+      "source_area": "Taito Initial",
+      "source_areas": [
+        "Taito Initial"
+      ],
+      "category": "Izakaya restaurant",
+      "rating": 4.3,
+      "review_count": 35,
+      "source_provenance": [
+        "Taito_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJaYEh52GPGGARvb26wyw19tE",
+      "title": "Umeda",
+      "internal_score": 65.91,
+      "source_area": "Adachi Initial",
+      "source_areas": [
+        "Adachi Initial"
+      ],
+      "category": "Izakaya restaurant",
+      "rating": 4.5,
+      "review_count": 26,
+      "source_provenance": [
+        "Adachi_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJDd8uCEBhGGARHQwFHbJ3qXI",
+      "title": "Petit Restaurant Mami",
+      "internal_score": 65.61,
+      "source_area": "Ota Initial",
+      "source_areas": [
+        "Ota Initial"
+      ],
+      "category": "Restaurant",
+      "rating": 4.3,
+      "review_count": 50,
+      "source_provenance": [
+        "Ota_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJj6lP03qLGGARIGiXq2yaCzM",
+      "title": "French Restaurant AZUR et MASA UEKI",
+      "internal_score": 63.89,
+      "source_area": "Shinjuku Initial",
+      "source_areas": [
+        "Shinjuku Initial"
+      ],
+      "category": "French restaurant",
+      "rating": 4.7,
+      "review_count": 209,
+      "source_provenance": [
+        "Shinjuku_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJ4QB_HQCRGGARVMQ3Uli-_Uk",
+      "title": "アダチクラブ",
+      "internal_score": 67.3,
+      "source_area": "Adachi Initial",
+      "source_areas": [
+        "Adachi Initial"
+      ],
+      "category": "Meat dish restaurant",
+      "rating": 4.8,
+      "review_count": 12,
+      "source_provenance": [
+        "Adachi_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJNzlobNSTGGARAIk0ZgSdsiM",
+      "title": "Janome Sushi",
+      "internal_score": 67.01,
+      "source_area": "Adachi Initial",
+      "source_areas": [
+        "Adachi Initial"
+      ],
+      "category": "Sushi restaurant",
+      "rating": 4.3,
+      "review_count": 26,
+      "source_provenance": [
+        "Adachi_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJJwp6rhruGGARDI7snTafH-E",
+      "title": "居酒屋えんづ",
+      "internal_score": 68.3,
+      "source_area": "Suginami Initial",
+      "source_areas": [
+        "Suginami Initial"
+      ],
+      "category": "Izakaya restaurant",
+      "rating": 4.4,
+      "review_count": 39,
+      "source_provenance": [
+        "Suginami_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJWcgKxDuSGGARfE4-AycGBPo",
+      "title": "和",
+      "internal_score": 69.5,
+      "source_area": "Adachi Initial",
+      "source_areas": [
+        "Adachi Initial"
+      ],
+      "category": "Izakaya restaurant",
+      "rating": 4.6,
+      "review_count": 18,
+      "source_provenance": [
+        "Adachi_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJr8txpz6LGGARezlq9eLEtek",
+      "title": "Gion Kitagawa Hanbee Tokyo Marunouchi Building Store",
+      "internal_score": 60.18,
+      "source_area": "Chiyoda Initial",
+      "source_areas": [
+        "Chiyoda Initial"
+      ],
+      "category": "Souvenir store",
+      "rating": 4.1,
+      "review_count": 11,
+      "source_provenance": [
+        "Chiyoda_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJ5Zl80EqRGGARzW2ekHt129A",
+      "title": "Myoki dumpling restaurant",
+      "internal_score": 64.35,
+      "source_area": "Adachi Initial",
+      "source_areas": [
+        "Adachi Initial"
+      ],
+      "category": "Chinese restaurant",
+      "rating": 4.2,
+      "review_count": 48,
+      "source_provenance": [
+        "Adachi_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJ8R1KzDuLGGARCHnIvMLpshI",
+      "title": "品川 和食 三福",
+      "internal_score": 61.51,
+      "source_area": "Minato Initial",
+      "source_areas": [
+        "Minato Initial"
+      ],
+      "category": "Kaiseki restaurant",
+      "rating": 4.3,
+      "review_count": 9,
+      "source_provenance": [
+        "Minato_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJtTgHcwD1GGARdKvWgoeCIEY",
+      "title": "R369 Organic Restaurant & Wine",
+      "internal_score": 67.59,
+      "source_area": "Setagaya Initial",
+      "source_areas": [
+        "Setagaya Initial"
+      ],
+      "category": "Organic restaurant",
+      "rating": 4.7,
+      "review_count": 23,
+      "source_provenance": [
+        "Setagaya_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJd3DTthmOGGARRhyngXtjV5E",
+      "title": "アジアンレストラン&BAR RUJI「ルジ」",
+      "internal_score": 60.44,
+      "source_area": "Adachi Initial",
+      "source_areas": [
+        "Adachi Initial"
+      ],
+      "category": "Pan-Asian restaurant",
+      "rating": 4.0,
+      "review_count": 5,
+      "source_provenance": [
+        "Adachi_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJAUYUwexhGGARzcBY_vznsS0",
+      "title": "Sakura Dining",
+      "internal_score": 66.68,
+      "source_area": "Ota Initial",
+      "source_areas": [
+        "Ota Initial"
+      ],
+      "category": "Indian restaurant",
+      "rating": 4.5,
+      "review_count": 100,
+      "source_provenance": [
+        "Ota_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJB0Xdx3FgGGAR1nrfN3irCv4",
+      "title": "さくらんぼ",
+      "internal_score": 60.86,
+      "source_area": "Ota Initial",
+      "source_areas": [
+        "Ota Initial"
+      ],
+      "category": "Snack bar",
+      "rating": 4.1,
+      "review_count": 9,
+      "source_provenance": [
+        "Ota_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJg6UbKACNGGARBtvVM4UdEeU",
+      "title": "natuRe tokyo",
+      "internal_score": 64.86,
+      "source_area": "Shibuya Initial",
+      "source_areas": [
+        "Shibuya Initial"
+      ],
+      "category": "Bar & grill",
+      "rating": 4.5,
+      "review_count": 149,
+      "source_provenance": [
+        "Shibuya_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJS1tA_WuLGGARFkFAmYgS3nw",
+      "title": "よし澤",
+      "internal_score": 65.61,
+      "source_area": "Shinjuku Initial",
+      "source_areas": [
+        "Shinjuku Initial"
+      ],
+      "category": "Kaiseki restaurant",
+      "rating": 4.8,
+      "review_count": 402,
+      "source_provenance": [
+        "Shinjuku_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJU_yDFkKPGGARickTmvyer9s",
+      "title": "やきとり光",
+      "internal_score": 67.27,
+      "source_area": "Adachi Initial",
+      "source_areas": [
+        "Adachi Initial"
+      ],
+      "category": "Izakaya restaurant",
+      "rating": 4.2,
+      "review_count": 10,
+      "source_provenance": [
+        "Adachi_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJ0T3WaFWLGGAR0j7hB53mKNg",
+      "title": "土濱笑店",
+      "internal_score": 61.63,
+      "source_area": "Shibuya Initial",
+      "source_areas": [
+        "Shibuya Initial"
+      ],
+      "category": "Izakaya restaurant",
+      "rating": 4.2,
+      "review_count": 54,
+      "source_provenance": [
+        "Shibuya_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJ-4iHS6mSGGARlvYL9lTD6DA",
+      "title": "叶",
+      "internal_score": 65.29,
+      "source_area": "Toshima Initial",
+      "source_areas": [
+        "Toshima Initial"
+      ],
+      "category": "Japanese restaurant",
+      "rating": 4.5,
+      "review_count": 6,
+      "source_provenance": [
+        "Toshima_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJqY0Tj-yOGGARmrdaKa9vdQE",
+      "title": "まる",
+      "internal_score": 69.33,
+      "source_area": "Taito Initial",
+      "source_areas": [
+        "Taito Initial"
+      ],
+      "category": "Teppanyaki restaurant",
+      "rating": 4.0,
+      "review_count": 12,
+      "source_provenance": [
+        "Taito_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJC2U__JXyGGAR8YXn1zirqnA",
+      "title": "Gopinatha",
+      "internal_score": 60.69,
+      "source_area": "Suginami Initial",
+      "source_areas": [
+        "Shinjuku Initial",
+        "Suginami Initial"
+      ],
+      "category": "Vegetarian restaurant",
+      "rating": 4.6,
+      "review_count": 141,
+      "source_provenance": [
+        "Shinjuku_Initial.csv",
+        "Suginami_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJTV8k4EfsGGARYe3NSgkfGUg",
+      "title": "さつき",
+      "internal_score": 64.44,
+      "source_area": "Suginami Initial",
+      "source_areas": [
+        "Suginami Initial"
+      ],
+      "category": "Izakaya restaurant",
+      "rating": 4.4,
+      "review_count": 5,
+      "source_provenance": [
+        "Suginami_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJUw2TsQ5hGGARCskNP5CImi8",
+      "title": "和食 神来月",
+      "internal_score": 63.99,
+      "source_area": "Ota Initial",
+      "source_areas": [
+        "Ota Initial"
+      ],
+      "category": "Japanese restaurant",
+      "rating": 4.4,
+      "review_count": 27,
+      "source_provenance": [
+        "Ota_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJC_1jju2JGGARpF6ERUXh4aQ",
+      "title": "Macchan Takoyaki Bar",
+      "internal_score": 69.71,
+      "source_area": "Koto Initial",
+      "source_areas": [
+        "Koto Initial"
+      ],
+      "category": "Takoyaki restaurant",
+      "rating": 4.5,
+      "review_count": 58,
+      "source_provenance": [
+        "Koto_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJgzlVVXaRGGARSekwZ1wkL2o",
+      "title": "家庭料理ちさと",
+      "internal_score": 68.58,
+      "source_area": "Adachi Initial",
+      "source_areas": [
+        "Adachi Initial"
+      ],
+      "category": "Izakaya restaurant",
+      "rating": 4.5,
+      "review_count": 16,
+      "source_provenance": [
+        "Adachi_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJIVOD-dCJGGARgjkIi6KEBUw",
+      "title": "グリーンアンドグリーン",
+      "internal_score": 61.12,
+      "source_area": "Minato Initial",
+      "source_areas": [
+        "Minato Initial"
+      ],
+      "category": "Vegetarian restaurant",
+      "rating": 4.0,
+      "review_count": 6,
+      "source_provenance": [
+        "Minato_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJSw8BGFCPGGAR1z2jYcGzcA0",
+      "title": "New Himalaya Dining &Bar,Indian & Nepali Restaurant.",
+      "internal_score": 61.98,
+      "source_area": "Taito Initial",
+      "source_areas": [
+        "Taito Initial"
+      ],
+      "category": "Nepalese restaurant",
+      "rating": 4.2,
+      "review_count": 126,
+      "source_provenance": [
+        "Taito_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJ3SwazWzzGGAR-oSv2YiWpSA",
+      "title": "SENNE",
+      "internal_score": 64.06,
+      "source_area": "Shibuya Initial",
+      "source_areas": [
+        "Shibuya Initial"
+      ],
+      "category": "Restaurant",
+      "rating": 4.4,
+      "review_count": 28,
+      "source_provenance": [
+        "Shibuya_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJ_wVbsH6NGGARyq_-E_DL3-E",
+      "title": "PUL プウル",
+      "internal_score": 62.94,
+      "source_area": "Toshima Initial",
+      "source_areas": [
+        "Toshima Initial"
+      ],
+      "category": "Izakaya restaurant",
+      "rating": 4.3,
+      "review_count": 15,
+      "source_provenance": [
+        "Toshima_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJy0KknYXzGGARJUUmB9T9_uI",
+      "title": "Koma Sushi",
+      "internal_score": 65.19,
+      "source_area": "Setagaya Initial",
+      "source_areas": [
+        "Setagaya Initial"
+      ],
+      "category": "Sushi restaurant",
+      "rating": 4.4,
+      "review_count": 7,
+      "source_provenance": [
+        "Setagaya_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJ5XL2NEWKGGARzE-kfwOfSLU",
+      "title": "Iburi-ya",
+      "internal_score": 61.03,
+      "source_area": "Minato Initial",
+      "source_areas": [
+        "Minato Initial"
+      ],
+      "category": "Yakiniku restaurant",
+      "rating": 4.2,
+      "review_count": 192,
+      "source_provenance": [
+        "Minato_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJH2dpkxuJGGARGRi6wvah6Dw",
+      "title": "グレートインドレストラン",
+      "internal_score": 67.55,
+      "source_area": "Koto Initial",
+      "source_areas": [
+        "Koto Initial"
+      ],
+      "category": "Restaurant",
+      "rating": 4.4,
+      "review_count": 57,
+      "source_provenance": [
+        "Koto_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJt6uAkTjuGGARvJ7LDWgnhvc",
+      "title": "World Kitchen BAOBAB",
+      "internal_score": 60.39,
+      "source_area": "Suginami Initial",
+      "source_areas": [
+        "Suginami Initial"
+      ],
+      "category": "Pan-Latin restaurant",
+      "rating": 4.3,
+      "review_count": 84,
+      "source_provenance": [
+        "Suginami_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJwbhoX16NGGARCS0C0rNfLs4",
+      "title": "JAPANESE RESTAURANT SANGA IKEBUKURO",
+      "internal_score": 61.43,
+      "source_area": "Toshima Initial",
+      "source_areas": [
+        "Shinjuku Initial",
+        "Toshima Initial"
+      ],
+      "category": "Japanese restaurant",
+      "rating": 4.7,
+      "review_count": 245,
+      "source_provenance": [
+        "Shinjuku_Initial.csv",
+        "Toshima_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJT1qLE8ePGGARTpIPXgOXyq4",
+      "title": "Sakae Sushi",
+      "internal_score": 61.45,
+      "source_area": "Adachi Initial",
+      "source_areas": [
+        "Adachi Initial"
+      ],
+      "category": "Sushi restaurant",
+      "rating": 4.5,
+      "review_count": 68,
+      "source_provenance": [
+        "Adachi_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJq6pWrdSRGGARcWbT-jzJ4q0",
+      "title": "鉄板ダイニング髙橋",
+      "internal_score": 64.89,
+      "source_area": "Adachi Initial",
+      "source_areas": [
+        "Adachi Initial"
+      ],
+      "category": "Teppanyaki restaurant",
+      "rating": 4.3,
+      "review_count": 28,
+      "source_provenance": [
+        "Adachi_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJibDdydiRGGARKAkSs-vdp5w",
+      "title": "cafe foop tokyo",
+      "internal_score": 61.79,
+      "source_area": "Adachi Initial",
+      "source_areas": [
+        "Adachi Initial"
+      ],
+      "category": "Cafe",
+      "rating": 4.7,
+      "review_count": 81,
+      "source_provenance": [
+        "Adachi_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJrVY_krlhGGARcOTMbLiONG8",
+      "title": "Shaily dining",
+      "internal_score": 67.5,
+      "source_area": "Ota Initial",
+      "source_areas": [
+        "Ota Initial"
+      ],
+      "category": "Nepalese restaurant",
+      "rating": 4.6,
+      "review_count": 23,
+      "source_provenance": [
+        "Ota_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJTYYx03hhGGARp6BUy48SrsI",
+      "title": "麺屋ごせつ",
+      "internal_score": 64.18,
+      "source_area": "Ota Initial",
+      "source_areas": [
+        "Ota Initial"
+      ],
+      "category": "Ramen restaurant",
+      "rating": 4.4,
+      "review_count": 217,
+      "source_provenance": [
+        "Ota_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    },
+    {
+      "place_id": "ChIJVzpA74mRGGAR9CRnMPVc_0U",
+      "title": "おてんとさん",
+      "internal_score": 69.88,
+      "source_area": "Adachi Initial",
+      "source_areas": [
+        "Adachi Initial"
+      ],
+      "category": "Izakaya restaurant",
+      "rating": 4.6,
+      "review_count": 17,
+      "source_provenance": [
+        "Adachi_Initial.csv"
+      ],
+      "seed_status": "unseeded"
+    }
+  ],
+  "selector_fingerprint": "24ea54a8d627656dfe178033a00c6d1dd31ac721f8ba7a5a3fec97adc2d4e73f",
+  "score_summary": {
+    "minimum": 60.05,
+    "median": 64.65,
+    "mean": 64.6923,
+    "maximum": 69.88,
+    "distribution": {
+      "<60": 0,
+      "60-64.99": 56,
+      "65-69.99": 44,
+      "70-71.99": 0,
+      "72-73.99": 0,
+      "74+": 0
+    }
+  }
+}
