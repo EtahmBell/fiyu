@@ -30,13 +30,48 @@ def _jsonl(name: str) -> list[dict[str, object]]:
     ]
 
 
+def _jsonl_path(path: Path) -> list[dict[str, object]]:
+    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+
+
+def _assert_post_backfill_additions(
+    operation_type: str, place_ids: set[str]
+) -> None:
+    if not place_ids:
+        return
+    with sqlite3.connect(DB) as connection:
+        cutoff = connection.execute(
+            """
+            SELECT MAX(completed_at)
+            FROM deterministic_backfill_items
+            WHERE operation_type=? AND status='applied'
+            """,
+            (operation_type,),
+        ).fetchone()[0]
+        created = dict(
+            connection.execute(
+                """
+                SELECT place_id, created_at
+                FROM public_restaurants
+                WHERE place_id IN ({})
+                """.format(",".join("?" for _ in place_ids)),
+                tuple(place_ids),
+            ).fetchall()
+        )
+    assert cutoff is not None
+    assert set(created) == place_ids
+    assert all(created_at > cutoff for created_at in created.values())
+
+
 def test_exact_applied_artifact_counts():
     assert len(_jsonl("cuisine-normalization-v1-applied.jsonl")) == 678
     assert len(_jsonl("discovery-area-backfill-v1-applied.jsonl")) == 803
     assert len(_jsonl("price-normalization-v1-applied.jsonl")) == 155
 
 
-def test_cuisine_apply_preserves_raw_and_is_idempotent():
+def test_cuisine_apply_preserves_raw_and_is_idempotent(tmp_path: Path):
+    applied = _jsonl("cuisine-normalization-v1-applied.jsonl")
+    applied_ids = {str(row["place_id"]) for row in applied}
     with sqlite3.connect(DB) as connection:
         rows = connection.execute(
             """
@@ -49,21 +84,38 @@ def test_cuisine_apply_preserves_raw_and_is_idempotent():
     assert len(rows) == 678
     assert all(raw == (primary or category) for raw, primary, category, _ in rows)
     assert {version for *_, version in rows} == {"cuisine-taxonomy-v1"}
-    # The certified 678-row E1b population remains unchanged; later expansion
-    # rows may legitimately be proposed by a fresh catalog-wide dry run.
-    assert run_cuisine_dry_run(DB)["proposed_change_count"] == 14
+    changes_path = tmp_path / "cuisine-changes.jsonl"
+    result = run_cuisine_dry_run(DB, changes_path=changes_path)
+    proposed_ids = {
+        str(row["place_id"]) for row in _jsonl_path(changes_path)
+    }
+    assert result["proposed_change_count"] == len(proposed_ids)
+    assert applied_ids.isdisjoint(proposed_ids)
+    _assert_post_backfill_additions("cuisine_normalization", proposed_ids)
 
 
-def test_discovery_apply_leaves_exact_conflict_unresolved():
-    result = run_discovery_area_dry_run(DB)
-    assert result["current_complete"] == 850
+def test_discovery_apply_leaves_exact_conflict_unresolved(tmp_path: Path):
+    changes_path = tmp_path / "discovery-changes.jsonl"
+    result = run_discovery_area_dry_run(DB, changes_path=changes_path)
+    proposed_ids = {
+        str(row["place_id"]) for row in _jsonl_path(changes_path)
+    }
+    applied_ids = {
+        str(row["place_id"])
+        for row in _jsonl("discovery-area-backfill-v1-applied.jsonl")
+    }
     assert result["conflicts"] == 1
-    assert result["proposed_change_count"] == 17
+    assert result["proposed_change_count"] == len(proposed_ids)
+    assert result["projected_complete"] == (
+        result["current_complete"] + result["proposed_change_count"]
+    )
+    assert applied_ids.isdisjoint(proposed_ids)
+    _assert_post_backfill_additions("discovery_area_backfill", proposed_ids)
     unresolved = _json("discovery-area-unresolved-v1.json")
     assert unresolved["unresolved_count"] == 1
 
 
-def test_price_apply_preserves_raw_evidence_and_is_idempotent():
+def test_price_apply_preserves_raw_evidence_and_is_idempotent(tmp_path: Path):
     changes = _jsonl("price-normalization-v1-applied.jsonl")
     expected = {str(row["place_id"]): row for row in changes}
     with sqlite3.connect(DB) as connection:
@@ -79,7 +131,14 @@ def test_price_apply_preserves_raw_evidence_and_is_idempotent():
     for place_id, raw_price, budget_json in rows:
         assert raw_price == expected[place_id]["raw_evidence"]["candidate_price"]
         assert json.loads(budget_json) == expected[place_id]["proposed_budget"]
-    assert run_price_dry_run(DB)["proposed_change_count"] == 4
+    changes_path = tmp_path / "price-changes.jsonl"
+    result = run_price_dry_run(DB, changes_path=changes_path)
+    proposed_ids = {
+        str(row["place_id"]) for row in _jsonl_path(changes_path)
+    }
+    assert result["proposed_change_count"] == len(proposed_ids)
+    assert set(expected).isdisjoint(proposed_ids)
+    _assert_post_backfill_additions("price_normalization", proposed_ids)
 
 
 def test_missing_budget_selector_exact_prior_parity():
@@ -87,9 +146,13 @@ def test_missing_budget_selector_exact_prior_parity():
     after = _json("missing-budget-selector-v1-post-backfill.json")
     current = run_missing_budget_selector(DB)
     assert prior["selected_place_ids"] == after["selected_place_ids"]
-    new_ids = set(current["selected_place_ids"]) - set(after["selected_place_ids"])
-    assert new_ids == {"ChIJOx7W_OFfGGARjyvC0httbVk"}
-    assert current["selected_count"] == 74
+    prior_ids = set(after["selected_place_ids"])
+    current_ids = set(current["selected_place_ids"])
+    assert prior_ids.issubset(current_ids)
+    assert current["selected_count"] == len(current_ids)
+    _assert_post_backfill_additions(
+        "price_normalization", current_ids - prior_ids
+    )
 
 
 def test_score_publication_and_product_parity_certified():
@@ -118,19 +181,35 @@ def test_run_ledger_and_audit_trail_have_zero_external_requests():
         runs = connection.execute(
             """
             SELECT run_type, selected_item_count, completed_count,
-                   provider_request_count, web_search_action_count
+                   provider_request_count, web_search_action_count, status
             FROM pipeline_runs ORDER BY id
             """
         ).fetchall()
         audit_count = connection.execute(
             "SELECT COUNT(*) FROM deterministic_backfill_items WHERE status='applied'"
         ).fetchone()[0]
-    assert runs[:3] == [
-        ("cuisine_normalization", 678, 678, 0, 0),
-        ("discovery_area_backfill", 803, 803, 0, 0),
-        ("price_normalization", 155, 155, 0, 0),
+    deterministic_runs = [row for row in runs if row[0] != "standard_restaurant_research"]
+    assert deterministic_runs == [
+        ("cuisine_normalization", 678, 678, 0, 0, "completed"),
+        ("discovery_area_backfill", 803, 803, 0, 0, "completed"),
+        ("price_normalization", 155, 155, 0, 0, "completed"),
     ]
-    assert runs[3:] == [("standard_restaurant_research", 25, 25, 26, 49)]
+    research_runs = [row for row in runs if row[0] == "standard_restaurant_research"]
+    assert research_runs[0] == (
+        "standard_restaurant_research",
+        25,
+        25,
+        26,
+        49,
+        "completed",
+    )
+    assert all(
+        selected == completed
+        and provider_requests >= selected
+        and web_actions > 0
+        and status == "completed"
+        for _, selected, completed, provider_requests, web_actions, status in research_runs
+    )
     assert audit_count == 1636
 
 
