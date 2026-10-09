@@ -54,11 +54,21 @@ def _artifact_changes(
         new = after[suffix]
         if old == new:
             continue
+        # The SHM file is a transient shared-memory/WAL-index and reader-lock
+        # coordination artifact. SQLite may create, resize, or rewrite it while
+        # opening and closing read-only WAL connections. It is not durable source
+        # data; the main database and WAL remain the authoritative durable state.
+        transient_coordination_change = suffix == "-shm"
+        meaningful_change = (
+            not transient_coordination_change
+            and old.meaningful_state != new.meaningful_state
+        )
         changes.append(
             {
                 "artifact": new.path,
                 "suffix": suffix or "main",
-                "meaningful_change": old.meaningful_state != new.meaningful_state,
+                "meaningful_change": meaningful_change,
+                "transient_coordination_change": transient_coordination_change,
                 "mtime_only": (
                     old.meaningful_state == new.meaningful_state
                     and old.mtime_ns != new.mtime_ns

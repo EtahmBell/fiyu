@@ -95,9 +95,8 @@ def test_snapshot_reports_source_content_mutation_details(tmp_path):
     path = tmp_path / "mutated.sqlite"
     _create_database(path, journal_mode="DELETE")
 
-    with pytest.raises(RuntimeError) as error:
-        with readonly_sqlite_snapshot(path):
-            path.write_bytes(path.read_bytes() + b"changed")
+    with pytest.raises(RuntimeError) as error, readonly_sqlite_snapshot(path):
+        path.write_bytes(path.read_bytes() + b"changed")
 
     message = str(error.value)
     assert str(path) in message
@@ -107,17 +106,61 @@ def test_snapshot_reports_source_content_mutation_details(tmp_path):
     assert '"size"' in message
 
 
-def test_snapshot_reports_sidecar_content_mutation_details(tmp_path):
+def test_snapshot_ignores_transient_shm_content_changes(tmp_path):
     path = tmp_path / "sidecar.sqlite"
     _create_database(path, journal_mode="DELETE")
     shm = Path(f"{path}-shm")
     shm.write_bytes(b"before")
 
-    with pytest.raises(RuntimeError) as error:
-        with readonly_sqlite_snapshot(path):
-            shm.write_bytes(b"after")
+    with readonly_sqlite_snapshot(path) as connection:
+        assert connection.execute("PRAGMA query_only").fetchone()[0] == 1
+        with pytest.raises(sqlite3.OperationalError):
+            connection.execute("INSERT INTO sample VALUES ('not-allowed')")
+        shm.write_bytes(b"after")
+
+    assert shm.read_bytes() == b"after"
+
+
+def test_snapshot_allows_readonly_wal_connection_shm_coordination(tmp_path):
+    path = tmp_path / "wal-readonly-shm.sqlite"
+    writer = sqlite3.connect(path)
+    try:
+        writer.execute("PRAGMA journal_mode=WAL")
+        writer.execute("PRAGMA wal_autocheckpoint=0")
+        writer.execute("CREATE TABLE sample (value TEXT NOT NULL)")
+        writer.execute("INSERT INTO sample VALUES ('committed')")
+        writer.commit()
+
+        with readonly_sqlite_snapshot(path) as snapshot:
+            assert snapshot.execute("SELECT value FROM sample").fetchone()[0] == "committed"
+            reader = sqlite3.connect(f"{path.resolve().as_uri()}?mode=ro", uri=True)
+            try:
+                reader.execute("PRAGMA query_only=ON")
+                assert reader.execute("SELECT value FROM sample").fetchone()[0] == "committed"
+            finally:
+                reader.close()
+    finally:
+        writer.close()
+
+
+def test_snapshot_reports_meaningful_wal_mutation(tmp_path):
+    path = tmp_path / "wal-mutated.sqlite"
+    writer = sqlite3.connect(path)
+    try:
+        writer.execute("PRAGMA journal_mode=WAL")
+        writer.execute("PRAGMA wal_autocheckpoint=0")
+        writer.execute("CREATE TABLE sample (value TEXT NOT NULL)")
+        writer.execute("INSERT INTO sample VALUES ('before')")
+        writer.commit()
+
+        with pytest.raises(RuntimeError) as error, readonly_sqlite_snapshot(path) as snapshot:
+            assert snapshot.execute("SELECT COUNT(*) FROM sample").fetchone()[0] == 1
+            writer.execute("INSERT INTO sample VALUES ('after')")
+            writer.commit()
+    finally:
+        writer.close()
 
     message = str(error.value)
-    assert str(shm) in message
-    assert '"suffix": "-shm"' in message
+    assert str(Path(f"{path}-wal")) in message
+    assert '"suffix": "-wal"' in message
     assert '"meaningful_change": true' in message

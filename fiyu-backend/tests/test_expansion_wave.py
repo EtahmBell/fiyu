@@ -261,6 +261,39 @@ def test_dry_run_makes_no_database_mutations(tmp_path):
     assert result["external_requests"] == result["database_mutations"] == 0
 
 
+def test_dry_run_computes_baseline_against_live_wal_database(tmp_path):
+    db = _db(tmp_path, 3)
+    poi, address = _indexes(tmp_path)
+    writer = sqlite3.connect(db)
+    try:
+        writer.execute("PRAGMA journal_mode=WAL")
+        writer.execute("PRAGMA wal_autocheckpoint=0")
+        writer.execute(
+            "INSERT INTO metadata(key, value) VALUES ('wal-regression-test', 'committed')"
+        )
+        writer.commit()
+        before = writer.execute("SELECT COUNT(*) FROM public_restaurants").fetchone()[0]
+
+        result = expansion_wave.run_expansion_wave(
+            db,
+            count=3,
+            min_score=60,
+            seed="wal-dry-wave",
+            osm_index=poi,
+            osm_address_index=address,
+            output_dir=tmp_path / "wal-dry-wave",
+            dry_run=True,
+        )
+
+        after = writer.execute("SELECT COUNT(*) FROM public_restaurants").fetchone()[0]
+        assert result["baseline"]["sqlite_integrity"] == "ok"
+        assert result["external_requests"] == 0
+        assert result["database_mutations"] == 0
+        assert after == before
+    finally:
+        writer.close()
+
+
 def test_count_100_dry_run_path(tmp_path):
     _, result = _dry_run(tmp_path, count=100, seed="wave-100")
     assert result["frozen"] == 100
