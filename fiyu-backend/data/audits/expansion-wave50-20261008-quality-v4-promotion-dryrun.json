@@ -1,0 +1,262 @@
+{
+  "dry_run": true,
+  "selection_scope": "cohort_manifest",
+  "cohort_manifest": "data\\audits\\expansion-wave50-20261008-promotion-cohort.json",
+  "cohort_name": null,
+  "cohort_manifest_version": "deterministic-unseeded-cohort-1",
+  "cohort_ids": 49,
+  "unique_cohort_ids": 49,
+  "source_complete_v4_rows": 49,
+  "source_incomplete_rows": 0,
+  "source_failed_rows": 0,
+  "matched_canonical_identities": 49,
+  "missing_canonical_identities": 0,
+  "duplicate_or_conflicting_identities": 0,
+  "already_v4_rows": 0,
+  "already_promoted": 0,
+  "selected_for_promotion": 49,
+  "excluded_from_cohort": 0,
+  "missing_from_cohort": 0,
+  "unrelated_rows_selected": 0,
+  "sankei_sushi_selected": false,
+  "below_floor_rescue_overlap": 0,
+  "rows_to_import": 0,
+  "rows_to_score": 49,
+  "expected_score_history_additions": 98,
+  "expected_score_version_changes": 49,
+  "expected_publication_state_changes": 0,
+  "expected_is_published_changes": 0,
+  "expected_product_eligible_changes": 0,
+  "expected_review_status_changes": 0,
+  "expected_rejection_reason_changes": 0,
+  "expected_threshold_changes": 0,
+  "production_score_version": "public-v4-quality-research-specialist-tristate",
+  "source_shadow_score_version": "quality-v4-shadow-1",
+  "publication_score_threshold": 75.0,
+  "failed_or_incomplete_rows": [],
+  "stored_current_pointer_distribution_before": {
+    "count": 49,
+    "min": 54.99,
+    "p10": 64.7,
+    "median": 71.2,
+    "mean": 70.86,
+    "p90": 76.15,
+    "max": 78.6
+  },
+  "stored_v3_pointer_distribution_before": {
+    "count": 49,
+    "min": 54.99,
+    "p10": 64.7,
+    "median": 71.2,
+    "mean": 70.86,
+    "p90": 76.15,
+    "max": 78.6
+  },
+  "canonical_v3_distribution": {
+    "count": 49,
+    "min": 54.99,
+    "p10": 64.7,
+    "median": 71.2,
+    "mean": 70.86,
+    "p90": 76.15,
+    "max": 78.6
+  },
+  "v4_score_distribution_after": {
+    "count": 49,
+    "min": 54.99,
+    "p10": 65.98,
+    "median": 72.77,
+    "mean": 72.45,
+    "p90": 77.72,
+    "max": 80.98
+  },
+  "stored_pointer_to_v4_delta_distribution": {
+    "count": 49,
+    "min": 0.0,
+    "p10": 0.71,
+    "median": 1.48,
+    "mean": 1.59,
+    "p90": 2.71,
+    "max": 3.799999999999997
+  },
+  "shadow_v4_delta_distribution": {
+    "count": 49,
+    "min": 0.0,
+    "p10": 0.71,
+    "median": 1.48,
+    "mean": 1.59,
+    "p90": 2.71,
+    "max": 3.799999999999997
+  },
+  "documented_stored_v3_pointer_mismatches": 0,
+  "stored_pointer_decreases": 0,
+  "positive_adjustment_stored_pointer_decreases": 0,
+  "zero_adjustment_stored_pointer_differences": 0,
+  "quality_adjustment_distribution": {
+    "count": 49,
+    "min": 0.0,
+    "p10": 1.77,
+    "median": 3.33,
+    "mean": 3.61,
+    "p90": 6.04,
+    "max": 8.45
+  },
+  "quality_adjustment_bands": {
+    "<= -12": 0,
+    "-11.99 to -8": 0,
+    "-7.99 to -5": 0,
+    "-4.99 to -3": 0,
+    "-2.99 to -1": 0,
+    "-0.99 to -0.5": 0,
+    "-0.49 to +0.49": 2,
+    "+0.5 to +0.99": 1,
+    "+1 to +2.99": 14,
+    "+3 to +4.99": 22,
+    "+5 to +7.99": 7,
+    "+8 to +11.99": 3,
+    ">= +12": 0
+  },
+  "large_adjustments_ge_8": 3,
+  "large_adjustments_ge_12": 0,
+  "large_adjustment_rows": [
+    {
+      "place_id": "ChIJf6YCQuiPGGARjnh__M1zRTk",
+      "restaurant": "Kikusui",
+      "adjustment": 8.45,
+      "production_v4_score": 75.73
+    },
+    {
+      "place_id": "ChIJkwGL1OaLGGARVAkJIJrVZqQ",
+      "restaurant": "Hiroyuki",
+      "adjustment": 8.1,
+      "production_v4_score": 73.82
+    },
+    {
+      "place_id": "ChIJnx1ruZ6JGGARRqaBEduBkLU",
+      "restaurant": "Otsu Yogashi-ten",
+      "adjustment": 8.4,
+      "production_v4_score": 74.98
+    }
+  ],
+  "guardrail_interventions": 0,
+  "shadow_production_exact_matches": 49,
+  "shadow_production_mismatches": 0,
+  "maximum_shadow_production_mismatch": 0.0,
+  "directional_violations": 0,
+  "total_canonical_restaurants": 1278,
+  "canonical_sha256_before": "AF9CF586AF158E1D0BC3E585040E98C70CD661A05C7A4B041D3F0431A81E4803",
+  "source_shadow_sha256": "AF9CF586AF158E1D0BC3E585040E98C70CD661A05C7A4B041D3F0431A81E4803",
+  "canonical_integrity_before": "ok",
+  "source_integrity_before": "ok",
+  "external_requests": 0,
+  "publication_threshold_before": 75.0,
+  "publication_threshold_after": 75.0,
+  "published_count_before": 868,
+  "published_count_after": 868,
+  "cohort_manifest_sha256": "228C0A344489836ABCC84F0513B0F40BC8BC5847C504D0958488A90E7F3F2E1D",
+  "representative_rows": [
+    {
+      "sample": "zero",
+      "place_id": "ChIJn5GdWACJGGAR8NtSBKsxfK4",
+      "restaurant": "Shōmon",
+      "previous_v3_score": 75.71,
+      "base_quality": 56.97,
+      "quality_adjustment": 0.0,
+      "researched_quality": 56.97,
+      "production_v4_score": 75.71,
+      "score_version": "public-v4-quality-research-specialist-tristate",
+      "is_published_before_after": [
+        false,
+        false
+      ],
+      "product_eligible_before_after": [
+        true,
+        true
+      ]
+    },
+    {
+      "sample": "+1_to_+3",
+      "place_id": "ChIJ2ekk1VONGGARrubaTjDFqmc",
+      "restaurant": "Kiraku",
+      "previous_v3_score": 68.71,
+      "base_quality": 38.36,
+      "quality_adjustment": 1.65,
+      "researched_quality": 40.01,
+      "production_v4_score": 69.46,
+      "score_version": "public-v4-quality-research-specialist-tristate",
+      "is_published_before_after": [
+        false,
+        false
+      ],
+      "product_eligible_before_after": [
+        true,
+        true
+      ]
+    },
+    {
+      "sample": "+3_to_+5",
+      "place_id": "ChIJ-4Qld5_yGGARMesP8al4D2A",
+      "restaurant": "Trattoria Etna",
+      "previous_v3_score": 76.63,
+      "base_quality": 65.8,
+      "quality_adjustment": 3.24,
+      "researched_quality": 69.04,
+      "production_v4_score": 78.09,
+      "score_version": "public-v4-quality-research-specialist-tristate",
+      "is_published_before_after": [
+        false,
+        false
+      ],
+      "product_eligible_before_after": [
+        true,
+        true
+      ]
+    },
+    {
+      "sample": "+5_to_+8",
+      "place_id": "ChIJ2XjrbcBhGGARQw6QQDODVYY",
+      "restaurant": "Autentico",
+      "previous_v3_score": 69.72,
+      "base_quality": 59.2,
+      "quality_adjustment": 5.45,
+      "researched_quality": 64.65,
+      "production_v4_score": 72.18,
+      "score_version": "public-v4-quality-research-specialist-tristate",
+      "is_published_before_after": [
+        false,
+        false
+      ],
+      "product_eligible_before_after": [
+        true,
+        true
+      ]
+    },
+    {
+      "sample": ">=+8",
+      "place_id": "ChIJf6YCQuiPGGARjnh__M1zRTk",
+      "restaurant": "Kikusui",
+      "previous_v3_score": 71.93,
+      "base_quality": 66.95,
+      "quality_adjustment": 8.45,
+      "researched_quality": 75.4,
+      "production_v4_score": 75.73,
+      "score_version": "public-v4-quality-research-specialist-tristate",
+      "is_published_before_after": [
+        false,
+        false
+      ],
+      "product_eligible_before_after": [
+        true,
+        true
+      ]
+    }
+  ],
+  "recommended_dry_run_command": ".\\.venv\\Scripts\\python.exe -m fiyu.pipeline_cli --db data\\fiyu.db quality-v4-promote --source-db data\\fiyu.db --cohort-manifest data\\audits\\expansion-wave50-20261008-promotion-cohort.json --dry-run",
+  "recommended_real_command": ".\\.venv\\Scripts\\python.exe -m fiyu.pipeline_cli --db data\\fiyu.db quality-v4-promote --source-db data\\fiyu.db --cohort-manifest data\\audits\\expansion-wave50-20261008-promotion-cohort.json --backup-out data\\audits\\pre-floor70-v4-promotion-20261006.db",
+  "canonical_sha256_after": "AF9CF586AF158E1D0BC3E585040E98C70CD661A05C7A4B041D3F0431A81E4803",
+  "canonical_unchanged": true,
+  "source_shadow_unchanged": true,
+  "publication_state_changes": 0,
+  "threshold_changes": 0,
+  "unrelated_rows_changed": 0
+}

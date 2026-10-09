@@ -9,6 +9,41 @@ artifact names deliberately. Paid commands are explicitly labeled.
 
 ## Normal production commands
 
+### Preferred: run one complete expansion wave
+
+Use `expansion-wave` for routine 1–100 restaurant additions. It freezes the
+deterministic cohort before mutation, seeds and processes only those IDs, uses the
+local OSM hierarchy, derives the valid Quality-v4 promotion subset, and reconciles
+publication only inside that subset at threshold 70. Start with a dry-run; executing
+the same frozen plan then requires the explicit `--resume` flag.
+
+```powershell
+.\.venv\Scripts\python.exe -m fiyu.cli pipeline --db data\fiyu.db expansion-wave `
+  --count 100 --min-score 60 --seed expansion-wave100-YYYYMMDD-01 `
+  --osm-index C:\data\osm\fiyu-kanto-index.sqlite `
+  --osm-address-index C:\data\osm\fiyu-kanto-address-index-v2.sqlite `
+  --dry-run
+
+.\.venv\Scripts\python.exe -m fiyu.cli pipeline --db data\fiyu.db expansion-wave `
+  --count 100 --min-score 60 --seed expansion-wave100-YYYYMMDD-01 `
+  --osm-index C:\data\osm\fiyu-kanto-index.sqlite `
+  --osm-address-index C:\data\osm\fiyu-kanto-address-index-v2.sqlite `
+  --resume
+```
+
+Artifacts are kept together under `data\audits\<wave-id>\`. The state file records
+completed stages and the durable research run ID. Re-run the same command with
+`--resume` after an interruption. Completed research and Quality-v4 rows are not
+requested again. If research has retryable failures, use `research-retry <run-id>`;
+if Quality-v4 has retryable failures, use `quality-v4-backfill --retry-failed
+--cohort-manifest <frozen-cohort.json>`; then resume the wave. A wave hard-stops
+before promotion while either paid stage has unresolved failures.
+
+The default fails if fewer candidates than requested are available. Use
+`--allow-short-cohort` only after deliberately accepting the smaller frozen set.
+Wave size is capped at 100 to match the durable research batch limit. Lower-level
+commands below remain supported for recovery, inspection, and debugging.
+
 ### A. Import a new source snapshot
 
 One invocation represents the complete current snapshot for one stable `source_key`.

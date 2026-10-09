@@ -205,6 +205,21 @@ def _parser() -> argparse.ArgumentParser:
     resolve_cohort_locations.add_argument("--dry-run", action="store_true")
     resolve_cohort_locations.add_argument("--summary-out")
 
+    expansion_wave = commands.add_parser(
+        "expansion-wave",
+        help="Run or resume one exact, additive catalog expansion wave",
+    )
+    expansion_wave.add_argument("--count", type=int, required=True)
+    expansion_wave.add_argument("--min-score", type=float, default=60.0)
+    expansion_wave.add_argument("--seed", required=True)
+    expansion_wave.add_argument("--osm-index", required=True)
+    expansion_wave.add_argument("--osm-address-index", required=True)
+    expansion_wave.add_argument("--output-dir")
+    expansion_wave.add_argument("--model")
+    expansion_wave.add_argument("--dry-run", action="store_true")
+    expansion_wave.add_argument("--resume", action="store_true")
+    expansion_wave.add_argument("--allow-short-cohort", action="store_true")
+
     backfill_enrichment = commands.add_parser(
         "backfill-card-enrichment",
         help="Backfill published restaurant card metadata from stored evidence or explicit research",
@@ -764,6 +779,22 @@ def main(argv: list[str] | None = None, *, canonical: bool = False) -> int:
                 mutations="planned" if args.dry_run else "checkpointed per item",
                 details=result,
             )
+    elif args.command == "expansion-wave":
+        from .expansion_wave import run_expansion_wave
+
+        result = run_expansion_wave(
+            db,
+            count=args.count,
+            min_score=args.min_score,
+            seed=args.seed,
+            osm_index=args.osm_index,
+            osm_address_index=args.osm_address_index,
+            output_dir=args.output_dir,
+            model=args.model,
+            dry_run=args.dry_run,
+            resume=args.resume,
+            allow_short_cohort=args.allow_short_cohort,
+        )
     elif args.command == "backfill-card-enrichment":
         from .card_enrichment import backfill_card_enrichment
 
@@ -964,6 +995,10 @@ def main(argv: list[str] | None = None, *, canonical: bool = False) -> int:
         from .publication_reconciliation import compact_summary
 
         print(compact_summary(result))
+    elif args.command == "expansion-wave":
+        from .expansion_wave import compact_expansion_wave_summary
+
+        print(compact_expansion_wave_summary(result))
     else:
         print(json.dumps(result, ensure_ascii=False, indent=2, default=str))
     if (
