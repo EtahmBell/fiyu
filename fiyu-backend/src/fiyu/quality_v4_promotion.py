@@ -489,7 +489,7 @@ def inspect_quality_v4_promotion(
         research = ChallengeResearchResult.model_validate(_json(source["research_result_json"], {}))
         evidence_payload = _json(row["evidence_json"], {})
         specialist_status = str(evidence_payload.get("specialist_status") or "unknown")
-        if specialist_status not in {"specialist", "not_specialist", "unknown"}:
+        if specialist_status not in {"specialist", "non_specialist", "unknown"}:
             raise ValueError(f"unexpected specialist tri-state for {place_id}")
         evidence = FiyuEvidence(**evidence_payload)
         internal = InternalSignals(

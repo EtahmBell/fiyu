@@ -94,10 +94,14 @@ def _expansion_manifest(tmp_path, place_ids):
     return path
 
 
-def _databases(tmp_path):
+def _databases(tmp_path, *, specialist_status="unknown"):
     canonical = tmp_path / "canonical.db"
     source = tmp_path / "shadow.db"
-    evidence = FiyuEvidence(matched_restaurant=True, identity_confidence=0.9)
+    evidence = FiyuEvidence(
+        matched_restaurant=True,
+        identity_confidence=0.9,
+        specialist_status=specialist_status,
+    )
     internal = InternalSignals(70, 75, 80)
     score = calculate_quality_v4_shadow([], evidence=evidence, internal=internal)
     with connect(canonical) as connection:
@@ -156,6 +160,14 @@ def _databases(tmp_path):
                     score.production_v3.tourist_orientation_basis,
                     1 if index == 0 else 0,
                 ),
+            )
+            connection.execute(
+                """
+                UPDATE public_restaurants
+                SET specialist_status=?, specialist_schema_version='specialist-tristate-1'
+                WHERE place_id=?
+                """,
+                (specialist_status, place_id),
             )
             connection.execute(
                 """
@@ -235,6 +247,55 @@ def _databases(tmp_path):
         )
         connection.commit()
     return canonical, source, score.production_v3.fiyu_score
+
+
+@pytest.mark.parametrize(
+    "specialist_status",
+    ["specialist", "non_specialist", "unknown"],
+)
+def test_expansion_promotion_accepts_canonical_specialist_tristate(
+    tmp_path, specialist_status
+) -> None:
+    canonical, source, _ = _databases(
+        tmp_path, specialist_status=specialist_status
+    )
+    manifest = _expansion_manifest(tmp_path, ["place-0"])
+
+    summary, plans = inspect_quality_v4_promotion(
+        canonical,
+        source_db=source,
+        cohort_manifest=manifest,
+    )
+
+    assert summary["source_complete_v4_rows"] == 1
+    assert summary["shadow_production_mismatches"] == 0
+    assert [plan["place_id"] for plan in plans] == ["place-0"]
+
+
+@pytest.mark.parametrize("invalid_status", ["not_specialist", "invalid"])
+def test_expansion_promotion_rejects_noncanonical_specialist_state(
+    tmp_path, invalid_status
+) -> None:
+    canonical, source, _ = _databases(tmp_path)
+    manifest = _expansion_manifest(tmp_path, ["place-0"])
+    with connect(canonical) as connection:
+        row = connection.execute(
+            "SELECT evidence_json FROM public_restaurants WHERE place_id='place-0'"
+        ).fetchone()
+        evidence = json.loads(row[0])
+        evidence["specialist_status"] = invalid_status
+        connection.execute(
+            "UPDATE public_restaurants SET evidence_json=? WHERE place_id='place-0'",
+            (json.dumps(evidence),),
+        )
+        connection.commit()
+
+    with pytest.raises(ValueError, match="unexpected specialist tri-state"):
+        inspect_quality_v4_promotion(
+            canonical,
+            source_db=source,
+            cohort_manifest=manifest,
+        )
 
 
 def test_promotion_is_atomic_safe_and_idempotent(tmp_path) -> None:

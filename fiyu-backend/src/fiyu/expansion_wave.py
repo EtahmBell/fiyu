@@ -571,6 +571,7 @@ def run_expansion_wave(
             threshold=PUBLICATION_THRESHOLD,
             cohort_manifest=artifacts["promotion_cohort"],
             dry_run=True,
+            backup_path=None,
             summary_path=artifacts["reconcile_dry_summary"],
             report_path=artifacts["reconcile_dry_report"],
             changes_path=artifacts["reconcile_dry_changes"],

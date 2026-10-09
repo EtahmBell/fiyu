@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import sqlite3
 from pathlib import Path
 
@@ -385,6 +386,7 @@ def test_final_count_invariants_and_resume_do_not_duplicate_paid_work(
     output = tmp_path / "complete-wave"
     calls = {"research": 0, "quality": 0}
     quality_done = False
+    promotion_blocked = True
 
     monkeypatch.setattr(
         expansion_wave,
@@ -475,6 +477,8 @@ def test_final_count_invariants_and_resume_do_not_duplicate_paid_work(
     monkeypatch.setattr(expansion_wave, "_latest_quality_statuses", latest)
 
     def promotion(*_args, **kwargs):
+        if kwargs["dry_run"] and promotion_blocked:
+            raise ValueError("promotion validation stopped the wave")
         if kwargs["dry_run"]:
             return {
                 "cohort_ids": 1,
@@ -489,7 +493,8 @@ def test_final_count_invariants_and_resume_do_not_duplicate_paid_work(
 
     monkeypatch.setattr(expansion_wave, "run_quality_v4_promotion", promotion)
 
-    def reconcile(db_path, **kwargs):
+    def reconcile(db_path, *, backup_path, **kwargs):
+        assert (backup_path is None) is kwargs["dry_run"]
         summary = {
             "result": {"additions": 1, "removals": 0},
             "cohort_assertion": {
@@ -520,6 +525,25 @@ def test_final_count_invariants_and_resume_do_not_duplicate_paid_work(
         },
     )
 
+    with pytest.raises(ValueError, match="promotion validation stopped"):
+        expansion_wave.run_expansion_wave(
+            db,
+            count=2,
+            min_score=60,
+            seed="complete-wave",
+            osm_index=poi,
+            osm_address_index=address,
+            output_dir=output,
+        )
+    stopped_state = json.loads((output / "wave-state.json").read_text(encoding="utf-8"))
+    assert stopped_state["completed_stages"][-3:] == [
+        "locations",
+        "quality_v4",
+        "promotion_cohort",
+    ]
+    assert calls == {"research": 1, "quality": 1}
+
+    promotion_blocked = False
     result = expansion_wave.run_expansion_wave(
         db,
         count=2,
@@ -528,6 +552,7 @@ def test_final_count_invariants_and_resume_do_not_duplicate_paid_work(
         osm_index=poi,
         osm_address_index=address,
         output_dir=output,
+        resume=True,
     )
     assert result["seeded"] == 2
     assert result["published_additions"] == 1
