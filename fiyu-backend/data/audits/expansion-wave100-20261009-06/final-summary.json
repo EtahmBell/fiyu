@@ -1,0 +1,67 @@
+{
+  "wave_id": "expansion-wave100-20261009-06",
+  "frozen": 100,
+  "seeded": 100,
+  "research": {
+    "completed": 100,
+    "selected": 100
+  },
+  "locations": {
+    "cohort_size": 100,
+    "map_ready_before": 0,
+    "map_ready_after": 100,
+    "map_ineligible_after": 0,
+    "method_distribution": {
+      "polygon": 77,
+      "verified_address": 23
+    },
+    "missing_after": 0,
+    "conflicts": 10
+  },
+  "quality_v4": {
+    "completed": 99,
+    "excluded": 1,
+    "exclusions_by_reason": {
+      "unresolved_identity": 1
+    }
+  },
+  "promoted": 99,
+  "published_additions": 67,
+  "removals": 0,
+  "unexpected_additions": 0,
+  "new_published_total": 1274,
+  "new_map_picks_ready_total": 1271,
+  "external_requests": 200,
+  "web_actions": 441,
+  "tokens": {
+    "input_tokens": 5218264,
+    "output_tokens": 492080,
+    "total_tokens": 5710344
+  },
+  "sqlite_integrity": "ok",
+  "historical_backlog_is_non_blocking": true,
+  "artifacts": {
+    "state": "data\\audits\\expansion-wave100-20261009-06\\wave-state.json",
+    "cohort": "data\\audits\\expansion-wave100-20261009-06\\frozen-cohort.json",
+    "backup": "data\\audits\\expansion-wave100-20261009-06\\pre-wave.db",
+    "backup_summary": "data\\audits\\expansion-wave100-20261009-06\\pre-wave-backup.json",
+    "research": "data\\audits\\expansion-wave100-20261009-06\\research-summary.json",
+    "location": "data\\audits\\expansion-wave100-20261009-06\\location-summary.json",
+    "quality_manifest": "data\\audits\\expansion-wave100-20261009-06\\quality-v4-manifest.json",
+    "quality_results": "data\\audits\\expansion-wave100-20261009-06\\quality-v4-results.jsonl",
+    "promotion_cohort": "data\\audits\\expansion-wave100-20261009-06\\promotion-cohort.json",
+    "promotion_dry_summary": "data\\audits\\expansion-wave100-20261009-06\\promotion-dry-run-summary.json",
+    "promotion_dry_report": "data\\audits\\expansion-wave100-20261009-06\\promotion-dry-run-report.md",
+    "promotion_backup": "data\\audits\\expansion-wave100-20261009-06\\pre-promotion.db",
+    "promotion_summary": "data\\audits\\expansion-wave100-20261009-06\\promotion-summary.json",
+    "promotion_report": "data\\audits\\expansion-wave100-20261009-06\\promotion-report.md",
+    "reconcile_dry_summary": "data\\audits\\expansion-wave100-20261009-06\\reconciliation-dry-run-summary.json",
+    "reconcile_dry_report": "data\\audits\\expansion-wave100-20261009-06\\reconciliation-dry-run-report.md",
+    "reconcile_dry_changes": "data\\audits\\expansion-wave100-20261009-06\\reconciliation-dry-run-changes.jsonl",
+    "reconcile_backup": "data\\audits\\expansion-wave100-20261009-06\\pre-reconciliation.db",
+    "reconcile_summary": "data\\audits\\expansion-wave100-20261009-06\\reconciliation-summary.json",
+    "reconcile_report": "data\\audits\\expansion-wave100-20261009-06\\reconciliation-report.md",
+    "reconcile_changes": "data\\audits\\expansion-wave100-20261009-06\\reconciliation-changes.jsonl",
+    "final": "data\\audits\\expansion-wave100-20261009-06\\final-summary.json"
+  }
+}

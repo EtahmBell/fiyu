@@ -1,0 +1,242 @@
+{
+  "dry_run": false,
+  "selection_scope": "cohort_manifest",
+  "cohort_manifest": "data\\audits\\expansion-wave100-20261009-06\\promotion-cohort.json",
+  "cohort_name": "expansion-wave100-20261009-06 promotable Quality-v4 subset",
+  "cohort_manifest_version": "deterministic-unseeded-cohort-1",
+  "cohort_ids": 99,
+  "unique_cohort_ids": 99,
+  "source_complete_v4_rows": 99,
+  "source_incomplete_rows": 0,
+  "source_failed_rows": 0,
+  "matched_canonical_identities": 99,
+  "missing_canonical_identities": 0,
+  "duplicate_or_conflicting_identities": 0,
+  "already_v4_rows": 0,
+  "already_promoted": 0,
+  "selected_for_promotion": 99,
+  "excluded_from_cohort": 0,
+  "missing_from_cohort": 0,
+  "unrelated_rows_selected": 0,
+  "sankei_sushi_selected": false,
+  "below_floor_rescue_overlap": 0,
+  "rows_to_import": 0,
+  "rows_to_score": 99,
+  "expected_score_history_additions": 198,
+  "expected_score_version_changes": 99,
+  "expected_publication_state_changes": 0,
+  "expected_is_published_changes": 0,
+  "expected_product_eligible_changes": 0,
+  "expected_review_status_changes": 0,
+  "expected_rejection_reason_changes": 0,
+  "expected_threshold_changes": 0,
+  "production_score_version": "public-v4-quality-research-specialist-tristate",
+  "source_shadow_score_version": "quality-v4-shadow-1",
+  "publication_score_threshold": 75.0,
+  "failed_or_incomplete_rows": [],
+  "stored_current_pointer_distribution_before": {
+    "count": 99,
+    "min": 54.99,
+    "p10": 65.12,
+    "median": 70.81,
+    "mean": 70.83,
+    "p90": 77.3,
+    "max": 82.75
+  },
+  "stored_v3_pointer_distribution_before": {
+    "count": 99,
+    "min": 54.99,
+    "p10": 65.12,
+    "median": 70.81,
+    "mean": 70.83,
+    "p90": 77.3,
+    "max": 82.75
+  },
+  "canonical_v3_distribution": {
+    "count": 99,
+    "min": 54.99,
+    "p10": 64.66,
+    "median": 70.81,
+    "mean": 70.7,
+    "p90": 77.3,
+    "max": 82.75
+  },
+  "v4_score_distribution_after": {
+    "count": 99,
+    "min": 54.99,
+    "p10": 66.09,
+    "median": 72.31,
+    "mean": 72.2,
+    "p90": 78.34,
+    "max": 83.96
+  },
+  "stored_pointer_to_v4_delta_distribution": {
+    "count": 99,
+    "min": -12.380000000000003,
+    "p10": 0.12,
+    "median": 1.61,
+    "mean": 1.37,
+    "p90": 2.45,
+    "max": 3.5900000000000034
+  },
+  "shadow_v4_delta_distribution": {
+    "count": 99,
+    "min": 0.0,
+    "p10": 0.12,
+    "median": 1.61,
+    "mean": 1.5,
+    "p90": 2.45,
+    "max": 3.5900000000000034
+  },
+  "documented_stored_v3_pointer_mismatches": 1,
+  "stored_pointer_decreases": 1,
+  "positive_adjustment_stored_pointer_decreases": 1,
+  "zero_adjustment_stored_pointer_differences": 0,
+  "quality_adjustment_distribution": {
+    "count": 99,
+    "min": 0.0,
+    "p10": 0.46,
+    "median": 3.59,
+    "mean": 3.44,
+    "p90": 5.59,
+    "max": 7.97
+  },
+  "quality_adjustment_bands": {
+    "<= -12": 0,
+    "-11.99 to -8": 0,
+    "-7.99 to -5": 0,
+    "-4.99 to -3": 0,
+    "-2.99 to -1": 0,
+    "-0.99 to -0.5": 0,
+    "-0.49 to +0.49": 11,
+    "+0.5 to +0.99": 2,
+    "+1 to +2.99": 25,
+    "+3 to +4.99": 40,
+    "+5 to +7.99": 21,
+    "+8 to +11.99": 0,
+    ">= +12": 0
+  },
+  "large_adjustments_ge_8": 0,
+  "large_adjustments_ge_12": 0,
+  "large_adjustment_rows": [],
+  "guardrail_interventions": 0,
+  "shadow_production_exact_matches": 99,
+  "shadow_production_mismatches": 0,
+  "maximum_shadow_production_mismatch": 0.0,
+  "directional_violations": 0,
+  "total_canonical_restaurants": 1878,
+  "canonical_sha256_before": "98EA409AF08496F930B5861C21C235BD13C77E12BBB2D6B96D7255928FE5CE37",
+  "source_shadow_sha256": "98EA409AF08496F930B5861C21C235BD13C77E12BBB2D6B96D7255928FE5CE37",
+  "canonical_integrity_before": "ok",
+  "source_integrity_before": "ok",
+  "external_requests": 0,
+  "publication_threshold_before": 75.0,
+  "publication_threshold_after": 75.0,
+  "published_count_before": 1207,
+  "published_count_after": 1207,
+  "cohort_manifest_sha256": "9760993BDFFA2B1031BF069C0EAF024891409EB8D5472D1653AC0E064DAE776F",
+  "representative_rows": [
+    {
+      "sample": "zero",
+      "place_id": "ChIJ19E9Eo2JGGARzpGiGTMmBOw",
+      "restaurant": "HAN Yaki Dining",
+      "previous_v3_score": 72.22,
+      "base_quality": 55.22,
+      "quality_adjustment": 0.0,
+      "researched_quality": 55.22,
+      "production_v4_score": 72.22,
+      "score_version": "public-v4-quality-research-specialist-tristate",
+      "is_published_before_after": [
+        false,
+        false
+      ],
+      "product_eligible_before_after": [
+        true,
+        true
+      ]
+    },
+    {
+      "sample": "+1_to_+3",
+      "place_id": "ChIJ1-WssFhgGGARUl79iosroZQ",
+      "restaurant": "Yakitori Shouchan",
+      "previous_v3_score": 73.33,
+      "base_quality": 53.29,
+      "quality_adjustment": 2.0,
+      "researched_quality": 55.29,
+      "production_v4_score": 74.23,
+      "score_version": "public-v4-quality-research-specialist-tristate",
+      "is_published_before_after": [
+        false,
+        false
+      ],
+      "product_eligible_before_after": [
+        true,
+        true
+      ]
+    },
+    {
+      "sample": "+3_to_+5",
+      "place_id": "ChIJ09-SbgCNGGARWps-UF19R8Y",
+      "restaurant": "Creative Dining Piacere",
+      "previous_v3_score": 71.49,
+      "base_quality": 59.06,
+      "quality_adjustment": 3.58,
+      "researched_quality": 62.64,
+      "production_v4_score": 73.11,
+      "score_version": "public-v4-quality-research-specialist-tristate",
+      "is_published_before_after": [
+        false,
+        false
+      ],
+      "product_eligible_before_after": [
+        true,
+        true
+      ]
+    },
+    {
+      "sample": "+5_to_+8",
+      "place_id": "ChIJ0z_FzySNGGAR-T06iiIvZ1M",
+      "restaurant": "Restaurant Hyène",
+      "previous_v3_score": 63.44,
+      "base_quality": 68.16,
+      "quality_adjustment": 5.53,
+      "researched_quality": 73.69,
+      "production_v4_score": 65.93,
+      "score_version": "public-v4-quality-research-specialist-tristate",
+      "is_published_before_after": [
+        false,
+        false
+      ],
+      "product_eligible_before_after": [
+        true,
+        true
+      ]
+    }
+  ],
+  "recommended_dry_run_command": ".\\.venv\\Scripts\\python.exe -m fiyu.pipeline_cli --db data\\fiyu.db quality-v4-promote --source-db data\\fiyu.db --cohort-manifest data\\audits\\expansion-wave100-20261009-06\\promotion-cohort.json --dry-run",
+  "recommended_real_command": ".\\.venv\\Scripts\\python.exe -m fiyu.pipeline_cli --db data\\fiyu.db quality-v4-promote --source-db data\\fiyu.db --cohort-manifest data\\audits\\expansion-wave100-20261009-06\\promotion-cohort.json --backup-out data\\audits\\pre-floor70-v4-promotion-20261006.db",
+  "backup_path": "data\\audits\\expansion-wave100-20261009-06\\pre-promotion.db",
+  "backup_sha256": "98EA409AF08496F930B5861C21C235BD13C77E12BBB2D6B96D7255928FE5CE37",
+  "backup_matches_pre_migration": true,
+  "v4_research_records_imported": 99,
+  "production_score_version_counts": {
+    "NULL": 111,
+    "public-v3-local-discovery-specialist-tristate": 256,
+    "public-v4-quality-research-specialist-tristate": 1511
+  },
+  "current_production_v4_rows": 1511,
+  "rows_remaining_non_v4": 367,
+  "duplicate_production_v4_history_rows": 0,
+  "is_published_changes": 0,
+  "product_eligible_changes": 0,
+  "review_status_changes": 0,
+  "total_visibility_state_changes": 0,
+  "publication_state_changes": 0,
+  "unrelated_rows_changed": 0,
+  "threshold_changes": 0,
+  "idempotency_rows_to_import": 0,
+  "idempotency_rows_to_score": 0,
+  "canonical_integrity_after": "ok",
+  "canonical_sha256_after": "22EA723DF1D534D0E1EB64AB5CB81BFFA7B01F3EF4AA06022DA75D9E0F9CC112",
+  "source_shadow_unchanged": false
+}
