@@ -1,0 +1,1347 @@
+{
+  "mode": "real",
+  "reconciliation_scope": "frozen_expansion_cohort",
+  "canonical_db": "data\\fiyu.db",
+  "manifest": "data\\audits\\expansion-wave100-20261009-03\\promotion-cohort.json",
+  "database_sha256_before": "822670E3D2FE4D5942DD07BFDFA5326147EFC39EB7B71E7FA2E5965AD4F17224",
+  "database_sha256_after": "822670E3D2FE4D5942DD07BFDFA5326147EFC39EB7B71E7FA2E5965AD4F17224",
+  "integrity": "ok",
+  "current": {
+    "total": 1578,
+    "published": 1021,
+    "unpublished": 557,
+    "threshold": 70.0,
+    "score_version_counts": {
+      "public-v4-quality-research-specialist-tristate": 1221,
+      "public-v3-local-discovery-specialist-tristate": 246,
+      "NULL": 111
+    }
+  },
+  "target_threshold": 70.0,
+  "result": {
+    "stays_published": 1021,
+    "additions": 63,
+    "removals": 0,
+    "stays_unpublished": 494,
+    "resulting_published": 1084,
+    "resulting_unpublished": 494
+  },
+  "cohort_assertion": {
+    "manifest_ids": 95,
+    "exact_overlap": 63,
+    "unexpected_additions": [],
+    "manifest_rows_missing": [],
+    "blocked_cohort_rows": [
+      "ChIJ18HoEceKGGARuWp2c3Oj6Js",
+      "ChIJ251TzxP0GGARHFBfnnMfG9M",
+      "ChIJ6-dyP_-KGGAR-7ERdms9DOE",
+      "ChIJ65sV2feLGGARemo_DxqrE0g",
+      "ChIJ6xNvacCLGGARaShVxYNC-Os",
+      "ChIJ90NR4CmNGGARRKcnyHok73o",
+      "ChIJB0pOTn-PGGARSeWCBB7YCTQ",
+      "ChIJB2K5OUSNGGARMY723feyzMI",
+      "ChIJCfdLOXBgGGARD5GfAGdlwGY",
+      "ChIJD3v6fvdfGGARcRd_uKRltG8",
+      "ChIJD68ByVFjGGAR5iM8dmSK9sE",
+      "ChIJHY6WOneNGGARxfioXdaxoEM",
+      "ChIJOywn8h6NGGARnNouO2WPQVA",
+      "ChIJPVj4WTGSGGARtC8Wi3CeRw4",
+      "ChIJPzLWNa7zGGARhLomVKqe1Qs",
+      "ChIJQeTXd92LGGARQTHMZlUiyLQ",
+      "ChIJT-NfBvD0GGARBeYigiZuSSA",
+      "ChIJXyrf3QKLGGARuIZ6jV4AYjY",
+      "ChIJY2MPJOiLGGARe0bZTvfI44w",
+      "ChIJYw9uJA6LGGARkFTg5kX9F6Y",
+      "ChIJ_z-LAX-NGGARS304e6FFhrg",
+      "ChIJb83JTBuNGGARU2s7f-uNuNk",
+      "ChIJccTLKF1gGGARwqfRVKM2vOQ",
+      "ChIJg9Tqi0CJGGARucQLynCcCzE",
+      "ChIJk4-nhkX1GGARdODW2oUW_FQ",
+      "ChIJnTxXNf6JGGARefZ0zS1P4Uo",
+      "ChIJp8fthBOMGGAR7MoUwFSt42I",
+      "ChIJpxm24mvvGGARxpL3oMf32V8",
+      "ChIJr1BJK-KIGGARaYAVrD3jG1Y",
+      "ChIJubm7E_SJGGARHANxVxJtyv0",
+      "ChIJvZcZTErxGGAR1dlPSmEWuUQ",
+      "ChIJyx2Y0zWLGGARFzb8YzNxM80"
+    ],
+    "already_published_cohort_rows": []
+  },
+  "non_score_blocked_at_or_above_threshold": {
+    "count": 32,
+    "categories": {
+      "score_floor": 28,
+      "chain_exclusion": 4
+    },
+    "rows": [
+      {
+        "place_id": "ChIJY2MPJOiLGGARe0bZTvfI44w",
+        "restaurant_name": "The Momentum by Porsche",
+        "score": 67.19,
+        "reason_category": "score_floor",
+        "missing": [
+          "deterministic_score_policy"
+        ]
+      },
+      {
+        "place_id": "ChIJr1BJK-KIGGARaYAVrD3jG1Y",
+        "restaurant_name": "Sakaeya",
+        "score": 68.64,
+        "reason_category": "score_floor",
+        "missing": [
+          "deterministic_score_policy"
+        ]
+      },
+      {
+        "place_id": "ChIJD68ByVFjGGAR5iM8dmSK9sE",
+        "restaurant_name": "TOKYO Tulip Rose Haneda Airport Terminal 2",
+        "score": 54.99,
+        "reason_category": "chain_exclusion",
+        "missing": [
+          "deterministic_score_policy"
+        ]
+      },
+      {
+        "place_id": "ChIJXyrf3QKLGGARuIZ6jV4AYjY",
+        "restaurant_name": "Hibiya Mon Cher Ton Ton",
+        "score": 64.33,
+        "reason_category": "score_floor",
+        "missing": [
+          "deterministic_score_policy"
+        ]
+      },
+      {
+        "place_id": "ChIJ65sV2feLGGARemo_DxqrE0g",
+        "restaurant_name": "Sake to Sakana Non Shibuya 2-chome Honkan",
+        "score": 69.18,
+        "reason_category": "score_floor",
+        "missing": [
+          "deterministic_score_policy"
+        ]
+      },
+      {
+        "place_id": "ChIJQeTXd92LGGARQTHMZlUiyLQ",
+        "restaurant_name": "Ginza Asakawa",
+        "score": 67.95,
+        "reason_category": "score_floor",
+        "missing": [
+          "deterministic_score_policy"
+        ]
+      },
+      {
+        "place_id": "ChIJvZcZTErxGGAR1dlPSmEWuUQ",
+        "restaurant_name": "Taiyaki Sawada Soshigaya-Okura",
+        "score": 63.41,
+        "reason_category": "score_floor",
+        "missing": [
+          "deterministic_score_policy"
+        ]
+      },
+      {
+        "place_id": "ChIJT-NfBvD0GGARBeYigiZuSSA",
+        "restaurant_name": "Sobakiri Tokyo Hanada",
+        "score": 66.54,
+        "reason_category": "score_floor",
+        "missing": [
+          "deterministic_score_policy"
+        ]
+      },
+      {
+        "place_id": "ChIJB0pOTn-PGGARSeWCBB7YCTQ",
+        "restaurant_name": "COBACHI CHAI",
+        "score": 63.42,
+        "reason_category": "score_floor",
+        "missing": [
+          "deterministic_score_policy"
+        ]
+      },
+      {
+        "place_id": "ChIJubm7E_SJGGARHANxVxJtyv0",
+        "restaurant_name": "Ankitto no Kimochi Ningyocho",
+        "score": 54.99,
+        "reason_category": "chain_exclusion",
+        "missing": [
+          "deterministic_score_policy"
+        ]
+      },
+      {
+        "place_id": "ChIJ6-dyP_-KGGAR-7ERdms9DOE",
+        "restaurant_name": "Gyū Kizoku Takanawa Dōjō",
+        "score": 64.71,
+        "reason_category": "score_floor",
+        "missing": [
+          "deterministic_score_policy"
+        ]
+      },
+      {
+        "place_id": "ChIJHY6WOneNGGARxfioXdaxoEM",
+        "restaurant_name": "Chuka Izakaya Sen no Ka",
+        "score": 67.02,
+        "reason_category": "score_floor",
+        "missing": [
+          "deterministic_score_policy"
+        ]
+      },
+      {
+        "place_id": "ChIJb83JTBuNGGARU2s7f-uNuNk",
+        "restaurant_name": "Chinese Restaurant Royal Ryuho",
+        "score": 54.99,
+        "reason_category": "chain_exclusion",
+        "missing": [
+          "deterministic_score_policy"
+        ]
+      },
+      {
+        "place_id": "ChIJp8fthBOMGGAR7MoUwFSt42I",
+        "restaurant_name": "Imasho",
+        "score": 68.48,
+        "reason_category": "score_floor",
+        "missing": [
+          "deterministic_score_policy"
+        ]
+      },
+      {
+        "place_id": "ChIJg9Tqi0CJGGARucQLynCcCzE",
+        "restaurant_name": "HOUSE OF SPICES & The Curry Garden",
+        "score": 68.86,
+        "reason_category": "score_floor",
+        "missing": [
+          "deterministic_score_policy"
+        ]
+      },
+      {
+        "place_id": "ChIJOywn8h6NGGARnNouO2WPQVA",
+        "restaurant_name": "GOSU",
+        "score": 62.68,
+        "reason_category": "score_floor",
+        "missing": [
+          "deterministic_score_policy"
+        ]
+      },
+      {
+        "place_id": "ChIJB2K5OUSNGGARMY723feyzMI",
+        "restaurant_name": "Tensaku",
+        "score": 65.42,
+        "reason_category": "score_floor",
+        "missing": [
+          "deterministic_score_policy"
+        ]
+      },
+      {
+        "place_id": "ChIJ_z-LAX-NGGARS304e6FFhrg",
+        "restaurant_name": "Izakaya Shusentei Jimbocho",
+        "score": 61.25,
+        "reason_category": "score_floor",
+        "missing": [
+          "deterministic_score_policy"
+        ]
+      },
+      {
+        "place_id": "ChIJ18HoEceKGGARuWp2c3Oj6Js",
+        "restaurant_name": "Aun Kitchen",
+        "score": 67.05,
+        "reason_category": "score_floor",
+        "missing": [
+          "deterministic_score_policy"
+        ]
+      },
+      {
+        "place_id": "ChIJ90NR4CmNGGARRKcnyHok73o",
+        "restaurant_name": "Okura Cafe & Restaurant Medico Kudan-zaka",
+        "score": 67.04,
+        "reason_category": "score_floor",
+        "missing": [
+          "deterministic_score_policy"
+        ]
+      },
+      {
+        "place_id": "ChIJCfdLOXBgGGARD5GfAGdlwGY",
+        "restaurant_name": "DEEPSON",
+        "score": 65.19,
+        "reason_category": "score_floor",
+        "missing": [
+          "deterministic_score_policy"
+        ]
+      },
+      {
+        "place_id": "ChIJ6xNvacCLGGARaShVxYNC-Os",
+        "restaurant_name": "MOTO TOKYO",
+        "score": 67.17,
+        "reason_category": "score_floor",
+        "missing": [
+          "deterministic_score_policy"
+        ]
+      },
+      {
+        "place_id": "ChIJccTLKF1gGGARwqfRVKM2vOQ",
+        "restaurant_name": "Tokyo Ramen Ichibantei",
+        "score": 65.99,
+        "reason_category": "score_floor",
+        "missing": [
+          "deterministic_score_policy"
+        ]
+      },
+      {
+        "place_id": "ChIJPzLWNa7zGGARhLomVKqe1Qs",
+        "restaurant_name": "Miyagawa Shimotakaido-ten",
+        "score": 68.37,
+        "reason_category": "score_floor",
+        "missing": [
+          "deterministic_score_policy"
+        ]
+      },
+      {
+        "place_id": "ChIJD3v6fvdfGGARcRd_uKRltG8",
+        "restaurant_name": "Himchuli Indo Curry",
+        "score": 68.08,
+        "reason_category": "score_floor",
+        "missing": [
+          "deterministic_score_policy"
+        ]
+      },
+      {
+        "place_id": "ChIJPVj4WTGSGGARtC8Wi3CeRw4",
+        "restaurant_name": "Ringo Gorilla Lamp Goya",
+        "score": 68.13,
+        "reason_category": "score_floor",
+        "missing": [
+          "deterministic_score_policy"
+        ]
+      },
+      {
+        "place_id": "ChIJk4-nhkX1GGARdODW2oUW_FQ",
+        "restaurant_name": "Kongo-en",
+        "score": 69.0,
+        "reason_category": "score_floor",
+        "missing": [
+          "deterministic_score_policy"
+        ]
+      },
+      {
+        "place_id": "ChIJnTxXNf6JGGARefZ0zS1P4Uo",
+        "restaurant_name": "Indo Asian Dining RHINO",
+        "score": 69.46,
+        "reason_category": "score_floor",
+        "missing": [
+          "deterministic_score_policy"
+        ]
+      },
+      {
+        "place_id": "ChIJpxm24mvvGGARxpL3oMf32V8",
+        "restaurant_name": "Akatsuki Yakitori",
+        "score": 69.97,
+        "reason_category": "score_floor",
+        "missing": [
+          "deterministic_score_policy"
+        ]
+      },
+      {
+        "place_id": "ChIJ251TzxP0GGARHFBfnnMfG9M",
+        "restaurant_name": "Suppuru",
+        "score": 51.65,
+        "reason_category": "chain_exclusion",
+        "missing": [
+          "deterministic_score_policy"
+        ]
+      },
+      {
+        "place_id": "ChIJyx2Y0zWLGGARFzb8YzNxM80",
+        "restaurant_name": "X Azabu Juban",
+        "score": 69.55,
+        "reason_category": "score_floor",
+        "missing": [
+          "deterministic_score_policy"
+        ]
+      },
+      {
+        "place_id": "ChIJYw9uJA6LGGARkFTg5kX9F6Y",
+        "restaurant_name": "Café and Snack HARMONIA",
+        "score": 63.86,
+        "reason_category": "score_floor",
+        "missing": [
+          "deterministic_score_policy"
+        ]
+      }
+    ],
+    "published": 0
+  },
+  "changes": [
+    {
+      "place_id": "ChIJ-4KcYgDtGGARAi7sB6WKtZM",
+      "restaurant_name": "TAKUMI Nerima",
+      "current_score": 71.14,
+      "score_version": "public-v4-quality-research-specialist-tristate",
+      "previous_is_published": false,
+      "target_is_published": true,
+      "product_eligible": true,
+      "previous_review_status": "needs_review",
+      "target_review_status": "auto_published",
+      "previous_rejection_reason": null,
+      "target_rejection_reason": null,
+      "previous_product_eligibility_classification": "eligible_visit_ready_venue",
+      "reason_for_transition": "score_floor"
+    },
+    {
+      "place_id": "ChIJ02NwSUlhGGARu11CV8Hadwg",
+      "restaurant_name": "Yakitori Sawa",
+      "current_score": 75.33,
+      "score_version": "public-v4-quality-research-specialist-tristate",
+      "previous_is_published": false,
+      "target_is_published": true,
+      "product_eligible": true,
+      "previous_review_status": "needs_review",
+      "target_review_status": "auto_published",
+      "previous_rejection_reason": null,
+      "target_rejection_reason": null,
+      "previous_product_eligibility_classification": "eligible_visit_ready_venue",
+      "reason_for_transition": "score_floor"
+    },
+    {
+      "place_id": "ChIJ10vWAE-NGGARNGJOZMX-zKU",
+      "restaurant_name": "Kankoku Shokudo Chan",
+      "current_score": 70.54,
+      "score_version": "public-v4-quality-research-specialist-tristate",
+      "previous_is_published": false,
+      "target_is_published": true,
+      "product_eligible": true,
+      "previous_review_status": "needs_review",
+      "target_review_status": "auto_published",
+      "previous_rejection_reason": null,
+      "target_rejection_reason": null,
+      "previous_product_eligibility_classification": "eligible_visit_ready_venue",
+      "reason_for_transition": "score_floor"
+    },
+    {
+      "place_id": "ChIJ2et3spGOGGARcPNfa_FVfaY",
+      "restaurant_name": "Ten San",
+      "current_score": 73.47,
+      "score_version": "public-v4-quality-research-specialist-tristate",
+      "previous_is_published": false,
+      "target_is_published": true,
+      "product_eligible": true,
+      "previous_review_status": "needs_review",
+      "target_review_status": "auto_published",
+      "previous_rejection_reason": null,
+      "target_rejection_reason": null,
+      "previous_product_eligibility_classification": "eligible_visit_ready_venue",
+      "reason_for_transition": "score_floor"
+    },
+    {
+      "place_id": "ChIJ2yaJasOLGGAR8ZekvVPYli0",
+      "restaurant_name": "MOSS CROSS TOKYO",
+      "current_score": 74.37,
+      "score_version": "public-v4-quality-research-specialist-tristate",
+      "previous_is_published": false,
+      "target_is_published": true,
+      "product_eligible": true,
+      "previous_review_status": "needs_review",
+      "target_review_status": "auto_published",
+      "previous_rejection_reason": null,
+      "target_rejection_reason": null,
+      "previous_product_eligibility_classification": "eligible_visit_ready_venue",
+      "reason_for_transition": "score_floor"
+    },
+    {
+      "place_id": "ChIJ30Qqv8eMGGARLE_tGKH7GoQ",
+      "restaurant_name": "élan vital",
+      "current_score": 70.9,
+      "score_version": "public-v4-quality-research-specialist-tristate",
+      "previous_is_published": false,
+      "target_is_published": true,
+      "product_eligible": true,
+      "previous_review_status": "needs_review",
+      "target_review_status": "auto_published",
+      "previous_rejection_reason": null,
+      "target_rejection_reason": null,
+      "previous_product_eligibility_classification": "eligible_visit_ready_venue",
+      "reason_for_transition": "score_floor"
+    },
+    {
+      "place_id": "ChIJ3yTKwYiTGGARdlK9h69pKLQ",
+      "restaurant_name": "Nikuman Kenkyujo Kita-Ikebukuro",
+      "current_score": 70.94,
+      "score_version": "public-v4-quality-research-specialist-tristate",
+      "previous_is_published": false,
+      "target_is_published": true,
+      "product_eligible": true,
+      "previous_review_status": "needs_review",
+      "target_review_status": "auto_published",
+      "previous_rejection_reason": null,
+      "target_rejection_reason": null,
+      "previous_product_eligibility_classification": "eligible_visit_ready_venue",
+      "reason_for_transition": "score_floor"
+    },
+    {
+      "place_id": "ChIJ44jrSf9gGGAR3HERq-mAJWg",
+      "restaurant_name": "Tomi Zushi",
+      "current_score": 72.37,
+      "score_version": "public-v4-quality-research-specialist-tristate",
+      "previous_is_published": false,
+      "target_is_published": true,
+      "product_eligible": true,
+      "previous_review_status": "needs_review",
+      "target_review_status": "auto_published",
+      "previous_rejection_reason": null,
+      "target_rejection_reason": null,
+      "previous_product_eligibility_classification": "eligible_visit_ready_venue",
+      "reason_for_transition": "score_floor"
+    },
+    {
+      "place_id": "ChIJ4ZdPU5rzGGARYnfXys0qsIA",
+      "restaurant_name": "Sept et huit",
+      "current_score": 79.87,
+      "score_version": "public-v4-quality-research-specialist-tristate",
+      "previous_is_published": false,
+      "target_is_published": true,
+      "product_eligible": true,
+      "previous_review_status": "needs_review",
+      "target_review_status": "auto_published",
+      "previous_rejection_reason": null,
+      "target_rejection_reason": null,
+      "previous_product_eligibility_classification": "eligible_visit_ready_venue",
+      "reason_for_transition": "score_floor"
+    },
+    {
+      "place_id": "ChIJ5S7Q_pmOGGARiiUh2xii--g",
+      "restaurant_name": "Fujiyoshi",
+      "current_score": 75.24,
+      "score_version": "public-v4-quality-research-specialist-tristate",
+      "previous_is_published": false,
+      "target_is_published": true,
+      "product_eligible": true,
+      "previous_review_status": "needs_review",
+      "target_review_status": "auto_published",
+      "previous_rejection_reason": null,
+      "target_rejection_reason": null,
+      "previous_product_eligibility_classification": "eligible_visit_ready_venue",
+      "reason_for_transition": "score_floor"
+    },
+    {
+      "place_id": "ChIJ5dn7OB6JGGARyePKpanKOc0",
+      "restaurant_name": "Manyo",
+      "current_score": 72.92,
+      "score_version": "public-v4-quality-research-specialist-tristate",
+      "previous_is_published": false,
+      "target_is_published": true,
+      "product_eligible": true,
+      "previous_review_status": "needs_review",
+      "target_review_status": "auto_published",
+      "previous_rejection_reason": null,
+      "target_rejection_reason": null,
+      "previous_product_eligibility_classification": "eligible_visit_ready_venue",
+      "reason_for_transition": "score_floor"
+    },
+    {
+      "place_id": "ChIJ8d81bn6PGGARdjY4aA6rWQ4",
+      "restaurant_name": "Tachinomiya Kokoro",
+      "current_score": 71.84,
+      "score_version": "public-v4-quality-research-specialist-tristate",
+      "previous_is_published": false,
+      "target_is_published": true,
+      "product_eligible": true,
+      "previous_review_status": "needs_review",
+      "target_review_status": "auto_published",
+      "previous_rejection_reason": null,
+      "target_rejection_reason": null,
+      "previous_product_eligibility_classification": "eligible_visit_ready_venue",
+      "reason_for_transition": "score_floor"
+    },
+    {
+      "place_id": "ChIJAQCMKs2MGGAR6HL5klkCPbc",
+      "restaurant_name": "Bon.nu",
+      "current_score": 71.84,
+      "score_version": "public-v4-quality-research-specialist-tristate",
+      "previous_is_published": false,
+      "target_is_published": true,
+      "product_eligible": true,
+      "previous_review_status": "needs_review",
+      "target_review_status": "auto_published",
+      "previous_rejection_reason": null,
+      "target_rejection_reason": null,
+      "previous_product_eligibility_classification": "eligible_visit_ready_venue",
+      "reason_for_transition": "score_floor"
+    },
+    {
+      "place_id": "ChIJAYE5of_tGGARSjw1J5q5nCs",
+      "restaurant_name": "Rojiura no Ginchan",
+      "current_score": 78.73,
+      "score_version": "public-v4-quality-research-specialist-tristate",
+      "previous_is_published": false,
+      "target_is_published": true,
+      "product_eligible": true,
+      "previous_review_status": "needs_review",
+      "target_review_status": "auto_published",
+      "previous_rejection_reason": null,
+      "target_rejection_reason": null,
+      "previous_product_eligibility_classification": "eligible_visit_ready_venue",
+      "reason_for_transition": "score_floor"
+    },
+    {
+      "place_id": "ChIJB-dyvjjyGGARdifxGsaFs24",
+      "restaurant_name": "Funky Chicken",
+      "current_score": 75.72,
+      "score_version": "public-v4-quality-research-specialist-tristate",
+      "previous_is_published": false,
+      "target_is_published": true,
+      "product_eligible": true,
+      "previous_review_status": "needs_review",
+      "target_review_status": "auto_published",
+      "previous_rejection_reason": null,
+      "target_rejection_reason": null,
+      "previous_product_eligibility_classification": "eligible_visit_ready_venue",
+      "reason_for_transition": "score_floor"
+    },
+    {
+      "place_id": "ChIJBV8-4ViNGGARblWwjozH_ng",
+      "restaurant_name": "Ikebukuro Barrelhouse",
+      "current_score": 74.03,
+      "score_version": "public-v4-quality-research-specialist-tristate",
+      "previous_is_published": false,
+      "target_is_published": true,
+      "product_eligible": true,
+      "previous_review_status": "needs_review",
+      "target_review_status": "auto_published",
+      "previous_rejection_reason": null,
+      "target_rejection_reason": null,
+      "previous_product_eligibility_classification": "eligible_visit_ready_venue",
+      "reason_for_transition": "score_floor"
+    },
+    {
+      "place_id": "ChIJCe_VExLtGGARoym82CHu7Nc",
+      "restaurant_name": "Fuu",
+      "current_score": 77.82,
+      "score_version": "public-v4-quality-research-specialist-tristate",
+      "previous_is_published": false,
+      "target_is_published": true,
+      "product_eligible": true,
+      "previous_review_status": "needs_review",
+      "target_review_status": "auto_published",
+      "previous_rejection_reason": null,
+      "target_rejection_reason": null,
+      "previous_product_eligibility_classification": "eligible_visit_ready_venue",
+      "reason_for_transition": "score_floor"
+    },
+    {
+      "place_id": "ChIJDW04At7zGGARNGGRWT1r2QM",
+      "restaurant_name": "29 Dining BOSCO",
+      "current_score": 75.75,
+      "score_version": "public-v4-quality-research-specialist-tristate",
+      "previous_is_published": false,
+      "target_is_published": true,
+      "product_eligible": true,
+      "previous_review_status": "needs_review",
+      "target_review_status": "auto_published",
+      "previous_rejection_reason": null,
+      "target_rejection_reason": null,
+      "previous_product_eligibility_classification": "eligible_visit_ready_venue",
+      "reason_for_transition": "score_floor"
+    },
+    {
+      "place_id": "ChIJE3wM2quNGGAR8ViEECe1kog",
+      "restaurant_name": "Bhatti Lakhey",
+      "current_score": 76.91,
+      "score_version": "public-v4-quality-research-specialist-tristate",
+      "previous_is_published": false,
+      "target_is_published": true,
+      "product_eligible": true,
+      "previous_review_status": "needs_review",
+      "target_review_status": "auto_published",
+      "previous_rejection_reason": null,
+      "target_rejection_reason": null,
+      "previous_product_eligibility_classification": "eligible_visit_ready_venue",
+      "reason_for_transition": "score_floor"
+    },
+    {
+      "place_id": "ChIJE5s4OgCJGGARJUHdFzV5PNE",
+      "restaurant_name": "Danran",
+      "current_score": 71.15,
+      "score_version": "public-v4-quality-research-specialist-tristate",
+      "previous_is_published": false,
+      "target_is_published": true,
+      "product_eligible": true,
+      "previous_review_status": "needs_review",
+      "target_review_status": "auto_published",
+      "previous_rejection_reason": null,
+      "target_rejection_reason": null,
+      "previous_product_eligibility_classification": "eligible_visit_ready_venue",
+      "reason_for_transition": "score_floor"
+    },
+    {
+      "place_id": "ChIJFXOLyg31GGARX6s4DRTfogU",
+      "restaurant_name": "Sumiyakidokoro Miyazaki Yokaban",
+      "current_score": 72.1,
+      "score_version": "public-v4-quality-research-specialist-tristate",
+      "previous_is_published": false,
+      "target_is_published": true,
+      "product_eligible": true,
+      "previous_review_status": "needs_review",
+      "target_review_status": "auto_published",
+      "previous_rejection_reason": null,
+      "target_rejection_reason": null,
+      "previous_product_eligibility_classification": "eligible_visit_ready_venue",
+      "reason_for_transition": "score_floor"
+    },
+    {
+      "place_id": "ChIJGXpctwiPGGARkb4jeXqvmd8",
+      "restaurant_name": "Nomikui-dokoro Ieji",
+      "current_score": 73.25,
+      "score_version": "public-v4-quality-research-specialist-tristate",
+      "previous_is_published": false,
+      "target_is_published": true,
+      "product_eligible": true,
+      "previous_review_status": "needs_review",
+      "target_review_status": "auto_published",
+      "previous_rejection_reason": null,
+      "target_rejection_reason": null,
+      "previous_product_eligibility_classification": "eligible_visit_ready_venue",
+      "reason_for_transition": "score_floor"
+    },
+    {
+      "place_id": "ChIJGam3Bl2LGGARZ_Eq6VFr9wU",
+      "restaurant_name": "KIYAS",
+      "current_score": 78.55,
+      "score_version": "public-v4-quality-research-specialist-tristate",
+      "previous_is_published": false,
+      "target_is_published": true,
+      "product_eligible": true,
+      "previous_review_status": "needs_review",
+      "target_review_status": "auto_published",
+      "previous_rejection_reason": null,
+      "target_rejection_reason": null,
+      "previous_product_eligibility_classification": "eligible_visit_ready_venue",
+      "reason_for_transition": "score_floor"
+    },
+    {
+      "place_id": "ChIJJRcx9-nzGGARNrmTf0pdURU",
+      "restaurant_name": "Ken",
+      "current_score": 76.8,
+      "score_version": "public-v4-quality-research-specialist-tristate",
+      "previous_is_published": false,
+      "target_is_published": true,
+      "product_eligible": true,
+      "previous_review_status": "needs_review",
+      "target_review_status": "auto_published",
+      "previous_rejection_reason": null,
+      "target_rejection_reason": null,
+      "previous_product_eligibility_classification": "eligible_visit_ready_venue",
+      "reason_for_transition": "score_floor"
+    },
+    {
+      "place_id": "ChIJJSkkwNuTGGAR3qUkPE6ptro",
+      "restaurant_name": "Ma-bo + dining",
+      "current_score": 79.77,
+      "score_version": "public-v4-quality-research-specialist-tristate",
+      "previous_is_published": false,
+      "target_is_published": true,
+      "product_eligible": true,
+      "previous_review_status": "needs_review",
+      "target_review_status": "auto_published",
+      "previous_rejection_reason": null,
+      "target_rejection_reason": null,
+      "previous_product_eligibility_classification": "eligible_visit_ready_venue",
+      "reason_for_transition": "score_floor"
+    },
+    {
+      "place_id": "ChIJJZTSIgiLGGARZgdKOyB2zFA",
+      "restaurant_name": "Suzukiya",
+      "current_score": 78.75,
+      "score_version": "public-v4-quality-research-specialist-tristate",
+      "previous_is_published": false,
+      "target_is_published": true,
+      "product_eligible": true,
+      "previous_review_status": "needs_review",
+      "target_review_status": "auto_published",
+      "previous_rejection_reason": null,
+      "target_rejection_reason": null,
+      "previous_product_eligibility_classification": "eligible_visit_ready_venue",
+      "reason_for_transition": "score_floor"
+    },
+    {
+      "place_id": "ChIJJeqZRQDvGGARm2HNvim8or0",
+      "restaurant_name": "Miris Nishiogikubo",
+      "current_score": 77.55,
+      "score_version": "public-v4-quality-research-specialist-tristate",
+      "previous_is_published": false,
+      "target_is_published": true,
+      "product_eligible": true,
+      "previous_review_status": "needs_review",
+      "target_review_status": "auto_published",
+      "previous_rejection_reason": null,
+      "target_rejection_reason": null,
+      "previous_product_eligibility_classification": "eligible_visit_ready_venue",
+      "reason_for_transition": "score_floor"
+    },
+    {
+      "place_id": "ChIJJyKVDB6NGGAR3I1Hcfj0KAo",
+      "restaurant_name": "Seoul Pocha",
+      "current_score": 70.23,
+      "score_version": "public-v4-quality-research-specialist-tristate",
+      "previous_is_published": false,
+      "target_is_published": true,
+      "product_eligible": true,
+      "previous_review_status": "needs_review",
+      "target_review_status": "auto_published",
+      "previous_rejection_reason": null,
+      "target_rejection_reason": null,
+      "previous_product_eligibility_classification": "eligible_visit_ready_venue",
+      "reason_for_transition": "score_floor"
+    },
+    {
+      "place_id": "ChIJKwPFukJgGGAR0HDOznhdPoU",
+      "restaurant_name": "Iron",
+      "current_score": 82.25,
+      "score_version": "public-v4-quality-research-specialist-tristate",
+      "previous_is_published": false,
+      "target_is_published": true,
+      "product_eligible": true,
+      "previous_review_status": "needs_review",
+      "target_review_status": "auto_published",
+      "previous_rejection_reason": null,
+      "target_rejection_reason": null,
+      "previous_product_eligibility_classification": "eligible_visit_ready_venue",
+      "reason_for_transition": "score_floor"
+    },
+    {
+      "place_id": "ChIJN-6MQdNfGGAR9my83ierOmo",
+      "restaurant_name": "Fabbrica Marco",
+      "current_score": 71.56,
+      "score_version": "public-v4-quality-research-specialist-tristate",
+      "previous_is_published": false,
+      "target_is_published": true,
+      "product_eligible": true,
+      "previous_review_status": "needs_review",
+      "target_review_status": "auto_published",
+      "previous_rejection_reason": null,
+      "target_rejection_reason": null,
+      "previous_product_eligibility_classification": "eligible_visit_ready_venue",
+      "reason_for_transition": "score_floor"
+    },
+    {
+      "place_id": "ChIJNXtnWABhGGARhn4nOmgiy4U",
+      "restaurant_name": "Izakaya 1010 Tento",
+      "current_score": 79.57,
+      "score_version": "public-v4-quality-research-specialist-tristate",
+      "previous_is_published": false,
+      "target_is_published": true,
+      "product_eligible": true,
+      "previous_review_status": "needs_review",
+      "target_review_status": "auto_published",
+      "previous_rejection_reason": null,
+      "target_rejection_reason": null,
+      "previous_product_eligibility_classification": "eligible_visit_ready_venue",
+      "reason_for_transition": "score_floor"
+    },
+    {
+      "place_id": "ChIJNbuhcuyOGGARUtPmzv8bTVg",
+      "restaurant_name": "Unagi Suzune",
+      "current_score": 70.53,
+      "score_version": "public-v4-quality-research-specialist-tristate",
+      "previous_is_published": false,
+      "target_is_published": true,
+      "product_eligible": true,
+      "previous_review_status": "needs_review",
+      "target_review_status": "auto_published",
+      "previous_rejection_reason": null,
+      "target_rejection_reason": null,
+      "previous_product_eligibility_classification": "eligible_visit_ready_venue",
+      "reason_for_transition": "score_floor"
+    },
+    {
+      "place_id": "ChIJNdZfo0SLGGARdCfefT1Fb8g",
+      "restaurant_name": "L’éclaireur",
+      "current_score": 72.83,
+      "score_version": "public-v4-quality-research-specialist-tristate",
+      "previous_is_published": false,
+      "target_is_published": true,
+      "product_eligible": true,
+      "previous_review_status": "needs_review",
+      "target_review_status": "auto_published",
+      "previous_rejection_reason": null,
+      "target_rejection_reason": null,
+      "previous_product_eligibility_classification": "eligible_visit_ready_venue",
+      "reason_for_transition": "score_floor"
+    },
+    {
+      "place_id": "ChIJNdf9pDKJGGAROLMVYzKuZoQ",
+      "restaurant_name": "Taka Banh Mi",
+      "current_score": 72.94,
+      "score_version": "public-v4-quality-research-specialist-tristate",
+      "previous_is_published": false,
+      "target_is_published": true,
+      "product_eligible": true,
+      "previous_review_status": "needs_review",
+      "target_review_status": "auto_published",
+      "previous_rejection_reason": null,
+      "target_rejection_reason": null,
+      "previous_product_eligibility_classification": "eligible_visit_ready_venue",
+      "reason_for_transition": "score_floor"
+    },
+    {
+      "place_id": "ChIJO3Ut0Qf1GGARD337o3ZIUdg",
+      "restaurant_name": "Saido",
+      "current_score": 78.76,
+      "score_version": "public-v4-quality-research-specialist-tristate",
+      "previous_is_published": false,
+      "target_is_published": true,
+      "product_eligible": true,
+      "previous_review_status": "needs_review",
+      "target_review_status": "auto_published",
+      "previous_rejection_reason": null,
+      "target_rejection_reason": null,
+      "previous_product_eligibility_classification": "eligible_visit_ready_venue",
+      "reason_for_transition": "score_floor"
+    },
+    {
+      "place_id": "ChIJQTnu_l1hGGARfFmU0q1Ildc",
+      "restaurant_name": "Sasaki",
+      "current_score": 77.53,
+      "score_version": "public-v4-quality-research-specialist-tristate",
+      "previous_is_published": false,
+      "target_is_published": true,
+      "product_eligible": true,
+      "previous_review_status": "needs_review",
+      "target_review_status": "auto_published",
+      "previous_rejection_reason": null,
+      "target_rejection_reason": null,
+      "previous_product_eligibility_classification": "eligible_visit_ready_venue",
+      "reason_for_transition": "score_floor"
+    },
+    {
+      "place_id": "ChIJRUBX45aOGGARP-flBs0gYYg",
+      "restaurant_name": "Makino",
+      "current_score": 74.8,
+      "score_version": "public-v4-quality-research-specialist-tristate",
+      "previous_is_published": false,
+      "target_is_published": true,
+      "product_eligible": true,
+      "previous_review_status": "needs_review",
+      "target_review_status": "auto_published",
+      "previous_rejection_reason": null,
+      "target_rejection_reason": null,
+      "previous_product_eligibility_classification": "eligible_visit_ready_venue",
+      "reason_for_transition": "score_floor"
+    },
+    {
+      "place_id": "ChIJU-nlbwvtGGAR-E792dUo_hs",
+      "restaurant_name": "Restaurant Arai",
+      "current_score": 71.22,
+      "score_version": "public-v4-quality-research-specialist-tristate",
+      "previous_is_published": false,
+      "target_is_published": true,
+      "product_eligible": true,
+      "previous_review_status": "needs_review",
+      "target_review_status": "auto_published",
+      "previous_rejection_reason": null,
+      "target_rejection_reason": null,
+      "previous_product_eligibility_classification": "eligible_visit_ready_venue",
+      "reason_for_transition": "score_floor"
+    },
+    {
+      "place_id": "ChIJUaiY9cKJGGARXrJCN1HmMns",
+      "restaurant_name": "Teruchan",
+      "current_score": 78.59,
+      "score_version": "public-v4-quality-research-specialist-tristate",
+      "previous_is_published": false,
+      "target_is_published": true,
+      "product_eligible": true,
+      "previous_review_status": "needs_review",
+      "target_review_status": "auto_published",
+      "previous_rejection_reason": null,
+      "target_rejection_reason": null,
+      "previous_product_eligibility_classification": "eligible_visit_ready_venue",
+      "reason_for_transition": "score_floor"
+    },
+    {
+      "place_id": "ChIJWdvadxD1GGAREdL8tmMIXQo",
+      "restaurant_name": "COZARU",
+      "current_score": 71.19,
+      "score_version": "public-v4-quality-research-specialist-tristate",
+      "previous_is_published": false,
+      "target_is_published": true,
+      "product_eligible": true,
+      "previous_review_status": "needs_review",
+      "target_review_status": "auto_published",
+      "previous_rejection_reason": null,
+      "target_rejection_reason": null,
+      "previous_product_eligibility_classification": "eligible_visit_ready_venue",
+      "reason_for_transition": "score_floor"
+    },
+    {
+      "place_id": "ChIJY-9sBVuSGGAR6AJ-IUnYoY0",
+      "restaurant_name": "Nanami",
+      "current_score": 71.71,
+      "score_version": "public-v4-quality-research-specialist-tristate",
+      "previous_is_published": false,
+      "target_is_published": true,
+      "product_eligible": true,
+      "previous_review_status": "needs_review",
+      "target_review_status": "auto_published",
+      "previous_rejection_reason": null,
+      "target_rejection_reason": null,
+      "previous_product_eligibility_classification": "eligible_visit_ready_venue",
+      "reason_for_transition": "score_floor"
+    },
+    {
+      "place_id": "ChIJZ1T3aGSIGGARWP8z2rvKHcI",
+      "restaurant_name": "Tonchinkan",
+      "current_score": 70.67,
+      "score_version": "public-v4-quality-research-specialist-tristate",
+      "previous_is_published": false,
+      "target_is_published": true,
+      "product_eligible": true,
+      "previous_review_status": "needs_review",
+      "target_review_status": "auto_published",
+      "previous_rejection_reason": null,
+      "target_rejection_reason": null,
+      "previous_product_eligibility_classification": "eligible_visit_ready_venue",
+      "reason_for_transition": "score_floor"
+    },
+    {
+      "place_id": "ChIJ_QvMAF7zGGARJJoZsWuiqOc",
+      "restaurant_name": "Hawaiian Style Ohana Cafe",
+      "current_score": 71.3,
+      "score_version": "public-v4-quality-research-specialist-tristate",
+      "previous_is_published": false,
+      "target_is_published": true,
+      "product_eligible": true,
+      "previous_review_status": "needs_review",
+      "target_review_status": "auto_published",
+      "previous_rejection_reason": null,
+      "target_rejection_reason": null,
+      "previous_product_eligibility_classification": "eligible_visit_ready_venue",
+      "reason_for_transition": "score_floor"
+    },
+    {
+      "place_id": "ChIJ_XPXSiHxGGARDE_R7O7oY3E",
+      "restaurant_name": "Purin-ya Hohoemi Kitchen",
+      "current_score": 76.58,
+      "score_version": "public-v4-quality-research-specialist-tristate",
+      "previous_is_published": false,
+      "target_is_published": true,
+      "product_eligible": true,
+      "previous_review_status": "needs_review",
+      "target_review_status": "auto_published",
+      "previous_rejection_reason": null,
+      "target_rejection_reason": null,
+      "previous_product_eligibility_classification": "eligible_visit_ready_venue",
+      "reason_for_transition": "score_floor"
+    },
+    {
+      "place_id": "ChIJ__8DxBvyGGARxinYH2JiXJc",
+      "restaurant_name": "Giardino dal 1971",
+      "current_score": 70.07,
+      "score_version": "public-v4-quality-research-specialist-tristate",
+      "previous_is_published": false,
+      "target_is_published": true,
+      "product_eligible": true,
+      "previous_review_status": "needs_review",
+      "target_review_status": "auto_published",
+      "previous_rejection_reason": null,
+      "target_rejection_reason": null,
+      "previous_product_eligibility_classification": "eligible_visit_ready_venue",
+      "reason_for_transition": "score_floor"
+    },
+    {
+      "place_id": "ChIJ_wZF7laLGGARN0_wlLO4124",
+      "restaurant_name": "Thai Dining Plaloma",
+      "current_score": 73.13,
+      "score_version": "public-v4-quality-research-specialist-tristate",
+      "previous_is_published": false,
+      "target_is_published": true,
+      "product_eligible": true,
+      "previous_review_status": "needs_review",
+      "target_review_status": "auto_published",
+      "previous_rejection_reason": null,
+      "target_rejection_reason": null,
+      "previous_product_eligibility_classification": "eligible_visit_ready_venue",
+      "reason_for_transition": "score_floor"
+    },
+    {
+      "place_id": "ChIJaQAL4VSNGGARFb5dnzvHaDY",
+      "restaurant_name": "Kushiyaki Kameya",
+      "current_score": 77.77,
+      "score_version": "public-v4-quality-research-specialist-tristate",
+      "previous_is_published": false,
+      "target_is_published": true,
+      "product_eligible": true,
+      "previous_review_status": "needs_review",
+      "target_review_status": "auto_published",
+      "previous_rejection_reason": null,
+      "target_rejection_reason": null,
+      "previous_product_eligibility_classification": "eligible_visit_ready_venue",
+      "reason_for_transition": "score_floor"
+    },
+    {
+      "place_id": "ChIJf15SpxOLGGAReoLuTwgSkRM",
+      "restaurant_name": "Kazan Mala Tang",
+      "current_score": 71.73,
+      "score_version": "public-v4-quality-research-specialist-tristate",
+      "previous_is_published": false,
+      "target_is_published": true,
+      "product_eligible": true,
+      "previous_review_status": "needs_review",
+      "target_review_status": "auto_published",
+      "previous_rejection_reason": null,
+      "target_rejection_reason": null,
+      "previous_product_eligibility_classification": "eligible_visit_ready_venue",
+      "reason_for_transition": "score_floor"
+    },
+    {
+      "place_id": "ChIJgeryPe-LGGARgCun_uVs3Nk",
+      "restaurant_name": "Restaurant L'Affinage",
+      "current_score": 77.15,
+      "score_version": "public-v4-quality-research-specialist-tristate",
+      "previous_is_published": false,
+      "target_is_published": true,
+      "product_eligible": true,
+      "previous_review_status": "needs_review",
+      "target_review_status": "auto_published",
+      "previous_rejection_reason": null,
+      "target_rejection_reason": null,
+      "previous_product_eligibility_classification": "eligible_visit_ready_venue",
+      "reason_for_transition": "score_floor"
+    },
+    {
+      "place_id": "ChIJmxn53fWPGGAR-1eBFHG7Vd4",
+      "restaurant_name": "Devi Restaurant & Bar",
+      "current_score": 71.84,
+      "score_version": "public-v4-quality-research-specialist-tristate",
+      "previous_is_published": false,
+      "target_is_published": true,
+      "product_eligible": true,
+      "previous_review_status": "needs_review",
+      "target_review_status": "auto_published",
+      "previous_rejection_reason": null,
+      "target_rejection_reason": null,
+      "previous_product_eligibility_classification": "eligible_visit_ready_venue",
+      "reason_for_transition": "score_floor"
+    },
+    {
+      "place_id": "ChIJpeO3QKyOGGAR2RnH7FSmUW8",
+      "restaurant_name": "Washusaisai Yuugetsutei",
+      "current_score": 70.39,
+      "score_version": "public-v4-quality-research-specialist-tristate",
+      "previous_is_published": false,
+      "target_is_published": true,
+      "product_eligible": true,
+      "previous_review_status": "needs_review",
+      "target_review_status": "auto_published",
+      "previous_rejection_reason": null,
+      "target_rejection_reason": null,
+      "previous_product_eligibility_classification": "eligible_visit_ready_venue",
+      "reason_for_transition": "score_floor"
+    },
+    {
+      "place_id": "ChIJq6rmEUSNGGARLQb2mx9r33A",
+      "restaurant_name": "Mejiro Sushi Ozaki",
+      "current_score": 77.86,
+      "score_version": "public-v4-quality-research-specialist-tristate",
+      "previous_is_published": false,
+      "target_is_published": true,
+      "product_eligible": true,
+      "previous_review_status": "needs_review",
+      "target_review_status": "auto_published",
+      "previous_rejection_reason": null,
+      "target_rejection_reason": null,
+      "previous_product_eligibility_classification": "eligible_visit_ready_venue",
+      "reason_for_transition": "score_floor"
+    },
+    {
+      "place_id": "ChIJqQcDEqyMGGARerFdc3v4z70",
+      "restaurant_name": "Los Barbados",
+      "current_score": 75.03,
+      "score_version": "public-v4-quality-research-specialist-tristate",
+      "previous_is_published": false,
+      "target_is_published": true,
+      "product_eligible": true,
+      "previous_review_status": "needs_review",
+      "target_review_status": "auto_published",
+      "previous_rejection_reason": null,
+      "target_rejection_reason": null,
+      "previous_product_eligibility_classification": "eligible_visit_ready_venue",
+      "reason_for_transition": "score_floor"
+    },
+    {
+      "place_id": "ChIJqSo04yOQGGARWykZNVNAN_M",
+      "restaurant_name": "Katase",
+      "current_score": 70.43,
+      "score_version": "public-v4-quality-research-specialist-tristate",
+      "previous_is_published": false,
+      "target_is_published": true,
+      "product_eligible": true,
+      "previous_review_status": "needs_review",
+      "target_review_status": "auto_published",
+      "previous_rejection_reason": null,
+      "target_rejection_reason": null,
+      "previous_product_eligibility_classification": "eligible_visit_ready_venue",
+      "reason_for_transition": "score_floor"
+    },
+    {
+      "place_id": "ChIJqcogNPWRGGAR_8jiUT5hmUQ",
+      "restaurant_name": "Sakedokoro Fuji",
+      "current_score": 79.46,
+      "score_version": "public-v4-quality-research-specialist-tristate",
+      "previous_is_published": false,
+      "target_is_published": true,
+      "product_eligible": true,
+      "previous_review_status": "needs_review",
+      "target_review_status": "auto_published",
+      "previous_rejection_reason": null,
+      "target_rejection_reason": null,
+      "previous_product_eligibility_classification": "eligible_visit_ready_venue",
+      "reason_for_transition": "score_floor"
+    },
+    {
+      "place_id": "ChIJr0K-Y4HzGGARtHm812gATY0",
+      "restaurant_name": "Puchi Bonheur",
+      "current_score": 73.13,
+      "score_version": "public-v4-quality-research-specialist-tristate",
+      "previous_is_published": false,
+      "target_is_published": true,
+      "product_eligible": true,
+      "previous_review_status": "needs_review",
+      "target_review_status": "auto_published",
+      "previous_rejection_reason": null,
+      "target_rejection_reason": null,
+      "previous_product_eligibility_classification": "eligible_visit_ready_venue",
+      "reason_for_transition": "score_floor"
+    },
+    {
+      "place_id": "ChIJrRGFSfXuGGARVJRZnxP3zzA",
+      "restaurant_name": "Zaku",
+      "current_score": 73.19,
+      "score_version": "public-v4-quality-research-specialist-tristate",
+      "previous_is_published": false,
+      "target_is_published": true,
+      "product_eligible": true,
+      "previous_review_status": "needs_review",
+      "target_review_status": "auto_published",
+      "previous_rejection_reason": null,
+      "target_rejection_reason": null,
+      "previous_product_eligibility_classification": "eligible_visit_ready_venue",
+      "reason_for_transition": "score_floor"
+    },
+    {
+      "place_id": "ChIJt2XxQTaRGGARAC7ySWJJVGo",
+      "restaurant_name": "Yakiniku Yamamoto",
+      "current_score": 79.65,
+      "score_version": "public-v4-quality-research-specialist-tristate",
+      "previous_is_published": false,
+      "target_is_published": true,
+      "product_eligible": true,
+      "previous_review_status": "needs_review",
+      "target_review_status": "auto_published",
+      "previous_rejection_reason": null,
+      "target_rejection_reason": null,
+      "previous_product_eligibility_classification": "eligible_visit_ready_venue",
+      "reason_for_transition": "score_floor"
+    },
+    {
+      "place_id": "ChIJtS9MFADzGGARifelc6cgFuA",
+      "restaurant_name": "Kappo Reigetsu",
+      "current_score": 81.02,
+      "score_version": "public-v4-quality-research-specialist-tristate",
+      "previous_is_published": false,
+      "target_is_published": true,
+      "product_eligible": true,
+      "previous_review_status": "needs_review",
+      "target_review_status": "auto_published",
+      "previous_rejection_reason": null,
+      "target_rejection_reason": null,
+      "previous_product_eligibility_classification": "eligible_visit_ready_venue",
+      "reason_for_transition": "score_floor"
+    },
+    {
+      "place_id": "ChIJtbpg4-nzGGARhzAR2N1P8sE",
+      "restaurant_name": "Aburi",
+      "current_score": 82.35,
+      "score_version": "public-v4-quality-research-specialist-tristate",
+      "previous_is_published": false,
+      "target_is_published": true,
+      "product_eligible": true,
+      "previous_review_status": "needs_review",
+      "target_review_status": "auto_published",
+      "previous_rejection_reason": null,
+      "target_rejection_reason": null,
+      "previous_product_eligibility_classification": "eligible_visit_ready_venue",
+      "reason_for_transition": "score_floor"
+    },
+    {
+      "place_id": "ChIJw5hAIi_yGGARQ0BWAaq4pLo",
+      "restaurant_name": "Gyutan Kushiage Sakurai",
+      "current_score": 71.88,
+      "score_version": "public-v4-quality-research-specialist-tristate",
+      "previous_is_published": false,
+      "target_is_published": true,
+      "product_eligible": true,
+      "previous_review_status": "needs_review",
+      "target_review_status": "auto_published",
+      "previous_rejection_reason": null,
+      "target_rejection_reason": null,
+      "previous_product_eligibility_classification": "eligible_visit_ready_venue",
+      "reason_for_transition": "score_floor"
+    },
+    {
+      "place_id": "ChIJwdIDt7WRGGAR9Uwhg70JBwI",
+      "restaurant_name": "Izakaya Teru",
+      "current_score": 73.16,
+      "score_version": "public-v4-quality-research-specialist-tristate",
+      "previous_is_published": false,
+      "target_is_published": true,
+      "product_eligible": true,
+      "previous_review_status": "needs_review",
+      "target_review_status": "auto_published",
+      "previous_rejection_reason": null,
+      "target_rejection_reason": null,
+      "previous_product_eligibility_classification": "eligible_visit_ready_venue",
+      "reason_for_transition": "score_floor"
+    },
+    {
+      "place_id": "ChIJxUhCTRJgGGARG_qnEe9ZIPU",
+      "restaurant_name": "Shokako",
+      "current_score": 71.71,
+      "score_version": "public-v4-quality-research-specialist-tristate",
+      "previous_is_published": false,
+      "target_is_published": true,
+      "product_eligible": true,
+      "previous_review_status": "needs_review",
+      "target_review_status": "auto_published",
+      "previous_rejection_reason": null,
+      "target_rejection_reason": null,
+      "previous_product_eligibility_classification": "eligible_visit_ready_venue",
+      "reason_for_transition": "score_floor"
+    }
+  ],
+  "sankei_sushi": {
+    "place_id": "ChIJi79LD-yIGGAR_8wLG2_pyYE",
+    "score": 82.82,
+    "score_version": "public-v3-local-discovery-specialist-tristate",
+    "current_published": true,
+    "target_published": true,
+    "score_mutation": false
+  },
+  "rescue_cohort": {
+    "ids": 0,
+    "admitted": 0
+  },
+  "floor68_v3_population": {
+    "ids": 0,
+    "admitted": 0
+  },
+  "invariants": {
+    "score_changes": 0,
+    "score_version_changes": 0,
+    "research_changes": 0,
+    "quality_v4_changes": 0,
+    "restaurant_research_digest": "88f3e59aa33e80d38072822968e26f6313ce601057bc85d6f929fa2defb295a4",
+    "quality_v4_research_digest": "5946f448b3df9e96b0b30ed3c62b697ebda8ec1fb39d378dcfa0d809addb8c3f",
+    "external_requests": 0,
+    "existing_published_removals": 0,
+    "unrelated_additions": 0
+  },
+  "backup_path": "data\\audits\\expansion-wave100-20261009-03\\pre-reconciliation.db",
+  "pre_migration_sha256": "822670E3D2FE4D5942DD07BFDFA5326147EFC39EB7B71E7FA2E5965AD4F17224",
+  "backup_sha256": "822670E3D2FE4D5942DD07BFDFA5326147EFC39EB7B71E7FA2E5965AD4F17224",
+  "post_migration_sha256": "D9F3C60B6083D8F18F71225C432E12DF2B3D634665DBCB821ECE9645451762FF",
+  "post_migration_idempotent": true
+}
