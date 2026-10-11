@@ -5,7 +5,7 @@
   "frozen_count": 100,
   "min_score": 60.0,
   "created_at": "2026-10-10T18:16:40.166730+00:00",
-  "updated_at": "2026-10-10T20:12:33.620555+00:00",
+  "updated_at": "2026-10-11T00:53:23.336992+00:00",
   "dry_run_plan": true,
   "frozen_manifest": "data\\audits\\expansion-wave100-20261010-08\\frozen-cohort.json",
   "completed_stages": [
@@ -20,7 +20,8 @@
     "promotion_cohort",
     "promoted",
     "reconciliation_planned",
-    "reconciled"
+    "reconciled",
+    "verified"
   ],
   "baseline": {
     "seeded_public_rows": 1978,
@@ -6062,5 +6063,6 @@
     "backup_sha256": "AE2A79F843678E6BEEE63FE47AE7378E7D647123EADCD45B445E24EC4C998A91",
     "post_migration_sha256": "873B7143B8187C1D1682E5CE33B9A8F31E4CAED62622461C841570490CC71BFD",
     "post_migration_idempotent": true
-  }
+  },
+  "final_summary": "data\\audits\\expansion-wave100-20261010-08\\final-summary.json"
 }
