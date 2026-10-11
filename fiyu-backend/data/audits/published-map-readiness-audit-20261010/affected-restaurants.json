@@ -1,0 +1,311 @@
+{
+  "audit": "published-map-readiness-audit-20261010",
+  "generated_date": "2026-10-10",
+  "database": "data/fiyu.db",
+  "selection_predicate": "is_published = 1 AND NOT (map_display_eligible = 1 AND latitude IS NOT NULL AND longitude IS NOT NULL)",
+  "canonical_helper": "fiyu.catalog_pipeline.is_map_ready",
+  "current_totals": {
+    "published": 1430,
+    "published_map_ready": 1427,
+    "published_not_map_ready": 3
+  },
+  "recommended_totals": {
+    "published": 1429,
+    "published_map_ready": 1429,
+    "published_not_map_ready": 0,
+    "explanation": "Repair Hamonica Sakaba with the already-established Kichijoji Honcho area anchor; accept the corroborated same-restaurant OSM point for Bakawarai Junsui; unpublish KARAIMOYA Juttoku pending location review."
+  },
+  "safety_controls": {
+    "database_sha256": "94119158B1306545264475FBA552EDBF11B4D7E803E243DE52753C96B3053127",
+    "seed70_sha256": "BF5EE61572EB2FB1B12F2487F800673EB965583DDFA1F22DCABFFE860F618C39",
+    "integrity_check": "ok",
+    "database_open_mode": "SQLite URI mode=ro with PRAGMA query_only=ON",
+    "external_calls": 0
+  },
+  "restaurants": [
+    {
+      "classification": "B",
+      "classification_definition": "Existing local evidence supports only an area/neighborhood/chome anchor.",
+      "place_id": "ChIJVc9odEbvGGARLlVzvSkBFGk",
+      "name": "Hamonica Sakaba",
+      "name_ja": "ハモニカ酒場",
+      "current_state": {
+        "fiyu_score": 71.1,
+        "score_version": "public-v4-quality-research-specialist-tristate",
+        "is_published": 1,
+        "review_status": "auto_published",
+        "product_eligible": 1,
+        "product_eligibility_classification": "eligible_visit_ready_venue",
+        "map_display_eligible": 0,
+        "latitude": null,
+        "longitude": null,
+        "location_status": null,
+        "location_precision": null,
+        "map_location_precision": null,
+        "map_anchor_type": null,
+        "map_location_approximate": 0,
+        "location_verification_status": "unresolved",
+        "location_resolution_reason": "unresolved_missing_area_mapping",
+        "address_resolution_status": "address_verified",
+        "location_attempted_at": "2026-10-04T00:34:42.784966+00:00"
+      },
+      "addresses": {
+        "public_normalized_address": null,
+        "verified_core_address": "東京都武蔵野市吉祥寺本町1-1-1",
+        "raw_researched_address": "東京都武蔵野市吉祥寺本町1-1-1 ハーモニカ横丁 1F・2F",
+        "candidate_raw_address": "1 Chome-1-1 Kichijoji Honcho, Musashino, Tokyo 180-0004, Japan",
+        "postal_code": "180-0004",
+        "prefecture": "東京都",
+        "municipality_or_ward": "武蔵野市",
+        "neighborhood": "吉祥寺本町",
+        "street_or_block": "1-1-1",
+        "building": "ハーモニカ横丁",
+        "core_address_verified": true,
+        "full_address_verified": true,
+        "address_confidence_tier": "verified",
+        "approved_location_precision": "parcel_or_street_number"
+      },
+      "context": {
+        "discovery_area": "1 chome kichijoji honcho",
+        "discovery_area_type": "neighborhood",
+        "candidate_city": "Musashino",
+        "candidate_neighborhood": "1 Chome Kichijoji Honcho",
+        "candidate_search_area": "Suginami Initial",
+        "candidate_latitude": 35.7036697,
+        "candidate_longitude": 139.5794043
+      },
+      "location_match_candidates": {
+        "count": 20,
+        "decision": "unresolved",
+        "best_score": 18.261,
+        "top_candidates": [
+          {"rank": 1, "name": "Hanasaku", "latitude": 35.4495734, "longitude": 139.6295908, "score": 18.261, "warnings": ["neighborhood_not_confirmed", "fuzzy_name_only"]},
+          {"rank": 2, "name": "Hanayaka", "latitude": 35.6779576, "longitude": 139.7800021, "score": 18.261, "warnings": ["neighborhood_not_confirmed", "fuzzy_name_only"]},
+          {"rank": 3, "name": "Halal Sakura", "latitude": 35.7251012, "longitude": 139.7771863, "score": 17.778, "warnings": ["neighborhood_not_confirmed", "fuzzy_name_only"]}
+        ],
+        "assessment": "No restaurant-level candidate is trustworthy; the candidates are unrelated fuzzy-name matches."
+      },
+      "stronger_local_location": {
+        "same_address_match": false,
+        "address_geocode_result": false,
+        "location_history_record": false,
+        "area_anchor_available": true,
+        "area_anchor": {
+          "latitude": 35.7033,
+          "longitude": 139.5798,
+          "precision": "area",
+          "source": "reviewed_osm_area_anchor",
+          "support": "Three other map-ready public rows in the same canonical discovery area use this anchor. It is approximately 54 metres from the raw candidate coordinate."
+        }
+      },
+      "root_cause": "The address was verified, but no address geocode or accepted restaurant-level OSM location was stored. The legacy resolver ended with unresolved_missing_area_mapping even though a reviewed area anchor now exists elsewhere in the local catalog.",
+      "predates_fixed_publication_invariant": {
+        "established": true,
+        "evidence": "data/audits/floor70-publication-reconciliation-changes.jsonl records this row changing from unpublished to auto_published for score_floor while it lacked map readiness."
+      },
+      "recommended_action": {
+        "summary": "Use the existing reviewed Kichijoji Honcho area anchor as an approximate map location, then re-evaluate publication readiness.",
+        "expected_state": {
+          "is_published": 1,
+          "review_status": "auto_published after canonical readiness reconciliation",
+          "product_eligible": 1,
+          "map_display_eligible": 1,
+          "latitude": 35.7033,
+          "longitude": 139.5798,
+          "map_location_precision": "area",
+          "map_location_approximate": 1,
+          "location_source": "reviewed_osm_area_anchor"
+        },
+        "can_be_completed_from_existing_local_data": true,
+        "caution": "Do not promote any of the fuzzy restaurant-match candidates or blindly copy the raw source coordinate."
+      }
+    },
+    {
+      "classification": "C",
+      "classification_definition": "Existing evidence is contradictory or insufficient; keep unresolved.",
+      "place_id": "ChIJqTrILQCRGGAR6ZVcLw1KnHg",
+      "name": "KARAIMOYA Juttoku",
+      "name_ja": "KARAIMOYA 十徳",
+      "current_state": {
+        "fiyu_score": 83.25,
+        "score_version": "public-v4-quality-research-specialist-tristate",
+        "is_published": 1,
+        "review_status": "auto_published",
+        "product_eligible": 1,
+        "product_eligibility_classification": "eligible_visit_ready_venue",
+        "map_display_eligible": 0,
+        "latitude": null,
+        "longitude": null,
+        "location_status": null,
+        "location_precision": null,
+        "map_location_precision": null,
+        "map_anchor_type": null,
+        "map_location_approximate": 0,
+        "location_verification_status": "unresolved",
+        "location_resolution_reason": "unresolved_missing_area_mapping",
+        "address_resolution_status": "address_provisionally_accepted",
+        "location_attempted_at": "2026-10-02T22:23:44.376730+00:00"
+      },
+      "addresses": {
+        "public_normalized_address": null,
+        "verified_core_address": "埼玉県八潮市浮塚850-6",
+        "raw_researched_address": "埼玉県八潮市浮塚850-6",
+        "candidate_raw_address": "850-6 Ukizuka, Yashio, Saitama 340-0835, Japan",
+        "postal_code": "340-0835",
+        "prefecture": "埼玉県",
+        "municipality_or_ward": "八潮市",
+        "neighborhood": "浮塚",
+        "street_or_block": "850-6",
+        "building": null,
+        "core_address_verified": true,
+        "full_address_verified": true,
+        "address_confidence_tier": "provisional_high",
+        "approved_location_precision": "parcel_or_street_number"
+      },
+      "context": {
+        "discovery_area": "ukizuka",
+        "discovery_area_type": "neighborhood",
+        "candidate_city": "Yashio",
+        "candidate_neighborhood": "Ukizuka",
+        "candidate_search_area": "Adachi Initial",
+        "candidate_latitude": 35.7964825,
+        "candidate_longitude": 139.8303554,
+        "scope_note": "The verified address is in Yashio, Saitama, while the ingestion search area was Adachi. This does not by itself reject the candidate, but it prevents treating the Adachi search context as corroborating location evidence."
+      },
+      "location_match_candidates": {
+        "count": 20,
+        "decision": "unresolved",
+        "best_score": 18.621,
+        "top_candidates": [
+          {"rank": 1, "name": "KARABI TOKYO", "latitude": 35.7870011, "longitude": 139.6730947, "score": 18.621, "warnings": ["neighborhood_not_confirmed", "fuzzy_name_only"]},
+          {"rank": 2, "name": "KARAKATTA", "latitude": 35.6454658, "longitude": 139.6974515, "score": 16.154, "warnings": ["neighborhood_not_confirmed", "fuzzy_name_only"]},
+          {"rank": 3, "name": "Karugamo Coffee", "latitude": 35.7855166, "longitude": 139.8980327, "score": 15.0, "warnings": ["neighborhood_not_confirmed", "fuzzy_name_only"]}
+        ],
+        "assessment": "All retained candidates are unrelated fuzzy-name matches and provide no defensible coordinate."
+      },
+      "stronger_local_location": {
+        "same_address_match": false,
+        "same_discovery_area_map_ready_row": false,
+        "address_geocode_result": false,
+        "location_history_record": false,
+        "assessment": "No independent coordinate or reusable area anchor exists in the local database. The original source coordinate is consistent with the raw address but is not independently corroborated."
+      },
+      "root_cause": "The address was provisionally corroborated, but local resolution produced neither a matching OSM feature nor a reusable Yashio/Ukizuka anchor. The only coordinate is the original raw candidate coordinate, and the stored Tokyo/Adachi search context does not corroborate the verified Saitama location.",
+      "predates_fixed_publication_invariant": {
+        "established": "probable, exact event unavailable",
+        "evidence": "The row was created on 2026-08-21 and is already auto_published with no map-ready state. It is absent from the later floor-70 transition file, implying it was retained rather than newly published there. The database does not store a per-row publication event timestamp, so the exact publication transition cannot be proven."
+      },
+      "recommended_action": {
+        "summary": "Do not manufacture a coordinate. Keep the restaurant product-eligible, but remove it from publication and send its location to review until a defensible local anchor or corroborated coordinate exists.",
+        "expected_state": {
+          "is_published": 0,
+          "review_status": "needs_review",
+          "product_eligible": 1,
+          "map_display_eligible": 0,
+          "latitude": null,
+          "longitude": null
+        },
+        "can_be_completed_from_existing_local_data": false,
+        "caution": "Do not copy the raw candidate coordinate or any fuzzy OSM candidate without independent confirmation."
+      }
+    },
+    {
+      "classification": "A",
+      "classification_definition": "Already enough trustworthy local evidence exists to make it map-ready.",
+      "place_id": "ChIJxylpaU_uGGARkxm5B_JFPHU",
+      "name": "Bakawarai Junsui",
+      "name_ja": "バカワライ じゅん粋",
+      "current_state": {
+        "fiyu_score": 73.25,
+        "score_version": "public-v4-quality-research-specialist-tristate",
+        "is_published": 1,
+        "review_status": "auto_published",
+        "product_eligible": 1,
+        "product_eligibility_classification": "eligible_visit_ready_venue",
+        "map_display_eligible": 0,
+        "latitude": null,
+        "longitude": null,
+        "location_status": null,
+        "location_precision": null,
+        "map_location_precision": null,
+        "map_anchor_type": null,
+        "map_location_approximate": 0,
+        "location_verification_status": "unresolved",
+        "location_resolution_reason": "unresolved_missing_area_mapping",
+        "address_resolution_status": "address_provisionally_accepted",
+        "location_attempted_at": "2026-10-03T10:24:12.161534+00:00"
+      },
+      "addresses": {
+        "public_normalized_address": null,
+        "verified_core_address": "東京都武蔵野市吉祥寺北町一丁目10-22",
+        "raw_researched_address": "Japan, 〒180-0001 Tokyo, Musashino, Kichijoji Kitamachi, 1 Chome−10−22 ベルハイム吉祥寺",
+        "candidate_raw_address": "Japan, 〒180-0001 Tokyo, Musashino, Kichijoji Kitamachi, 1 Chome−10−22 ベルハイム吉祥寺",
+        "postal_code": "180-0001",
+        "prefecture": "東京都",
+        "municipality_or_ward": "武蔵野市",
+        "neighborhood": "吉祥寺北町一丁目",
+        "street_or_block": "10-22",
+        "building": "ベルハイム吉祥寺",
+        "core_address_verified": true,
+        "full_address_verified": true,
+        "address_confidence_tier": "provisional_high",
+        "approved_location_precision": "parcel_or_street_number"
+      },
+      "context": {
+        "discovery_area": "1 chome kichijoji kitamachi",
+        "discovery_area_type": "neighborhood",
+        "candidate_city": "Musashino",
+        "candidate_neighborhood": "1 Chome Kichijoji Kitamachi",
+        "candidate_search_area": "Suginami Initial",
+        "candidate_latitude": 35.7079796,
+        "candidate_longitude": 139.5779903
+      },
+      "location_match_candidates": {
+        "count": 20,
+        "decision": "unresolved",
+        "best_score": 21.429,
+        "top_candidates": [
+          {"rank": 1, "name": "Bakawari Junsui (Isakayas)", "latitude": 35.707988, "longitude": 139.5779807, "osm_type": "node", "osm_id": 3154357166, "score": 21.429, "warnings": ["neighborhood_not_confirmed", "fuzzy_name_only"]},
+          {"rank": 2, "name": "Bar kansui", "latitude": 35.7013792, "longitude": 139.7415092, "score": 18.462, "warnings": ["neighborhood_not_confirmed", "fuzzy_name_only"]},
+          {"rank": 3, "name": "BAR Ktrain", "latitude": 35.6246355, "longitude": 139.7101418, "score": 16.154, "warnings": ["neighborhood_not_confirmed", "fuzzy_name_only"]}
+        ],
+        "assessment": "The rank-1 OSM node is a spelling variant of the restaurant and lies approximately 1.3 metres from the same-place raw candidate coordinate. Lower-ranked candidates are unrelated."
+      },
+      "stronger_local_location": {
+        "same_address_match": false,
+        "address_geocode_result": false,
+        "location_history_record": false,
+        "matching_osm_candidate": true,
+        "evidence_convergence": [
+          "confirmed restaurant identity",
+          "multiple-source, non-conflicting full address",
+          "matching restaurant-name variant in the local OSM candidate table",
+          "OSM coordinate approximately 1.3 metres from the independently stored same-place raw candidate coordinate"
+        ]
+      },
+      "root_cause": "The legacy deterministic resolver scored the correct OSM feature too low because it treated the name as fuzzy and could not confirm neighborhood/address components. The candidate was therefore left unresolved despite strong cross-table convergence.",
+      "predates_fixed_publication_invariant": {
+        "established": true,
+        "evidence": "data/audits/floor70-publication-reconciliation-changes.jsonl records this row changing from unpublished to auto_published for score_floor while it lacked map readiness."
+      },
+      "recommended_action": {
+        "summary": "Review and accept the stored rank-1 OSM node as the restaurant location, then re-evaluate publication readiness.",
+        "expected_state": {
+          "is_published": 1,
+          "review_status": "auto_published after canonical readiness reconciliation",
+          "product_eligible": 1,
+          "map_display_eligible": 1,
+          "latitude": 35.707988,
+          "longitude": 139.5779807,
+          "map_location_precision": "poi",
+          "map_location_approximate": 0,
+          "location_source": "openstreetmap",
+          "location_osm_type": "node",
+          "location_osm_id": 3154357166
+        },
+        "can_be_completed_from_existing_local_data": true,
+        "caution": "Accept only rank 1; the remaining fuzzy candidates do not identify this restaurant."
+      }
+    }
+  ]
+}
