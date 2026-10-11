@@ -1,0 +1,96 @@
+relationship_type,feature_a,feature_b,n,statistic,value,interpretation,notes
+numeric_pair,fiyu_score,quality_signal,1430,pearson_r,0.539354,moderately related,Pairwise complete published rows
+numeric_pair,fiyu_score,quality_signal,1430,spearman_rho,0.533592,moderately related,Pairwise complete published rows
+numeric_pair,fiyu_score,hiddenness_signal,1430,pearson_r,0.142646,largely orthogonal,Pairwise complete published rows
+numeric_pair,fiyu_score,hiddenness_signal,1430,spearman_rho,0.138827,largely orthogonal,Pairwise complete published rows
+numeric_pair,fiyu_score,independence_signal,1430,pearson_r,0.163574,largely orthogonal,Pairwise complete published rows
+numeric_pair,fiyu_score,independence_signal,1430,spearman_rho,0.13344,largely orthogonal,Pairwise complete published rows
+numeric_pair,fiyu_score,local_signal,1430,pearson_r,0.047991,largely orthogonal,Pairwise complete published rows
+numeric_pair,fiyu_score,local_signal,1430,spearman_rho,0.022171,largely orthogonal,Pairwise complete published rows
+numeric_pair,fiyu_score,local_discovery_score,1430,pearson_r,0.151703,largely orthogonal,Pairwise complete published rows
+numeric_pair,fiyu_score,local_discovery_score,1430,spearman_rho,0.137,largely orthogonal,Pairwise complete published rows
+numeric_pair,fiyu_score,researched_quality,1428,pearson_r,0.539464,moderately related,Pairwise complete published rows
+numeric_pair,fiyu_score,researched_quality,1428,spearman_rho,0.533589,moderately related,Pairwise complete published rows
+numeric_pair,quality_signal,hiddenness_signal,1430,pearson_r,-0.67117,moderately related,Pairwise complete published rows
+numeric_pair,quality_signal,hiddenness_signal,1430,spearman_rho,-0.645923,moderately related,Pairwise complete published rows
+numeric_pair,quality_signal,independence_signal,1430,pearson_r,-0.244226,largely orthogonal,Pairwise complete published rows
+numeric_pair,quality_signal,independence_signal,1430,spearman_rho,-0.107865,largely orthogonal,Pairwise complete published rows
+numeric_pair,quality_signal,local_signal,1430,pearson_r,-0.353421,weakly related,Pairwise complete published rows
+numeric_pair,quality_signal,local_signal,1430,spearman_rho,-0.34219,weakly related,Pairwise complete published rows
+numeric_pair,quality_signal,local_discovery_score,1430,pearson_r,-0.734715,moderately related,Pairwise complete published rows
+numeric_pair,quality_signal,local_discovery_score,1430,spearman_rho,-0.720036,moderately related,Pairwise complete published rows
+numeric_pair,quality_signal,researched_quality,1428,pearson_r,1.0,strongly overlapping,Pairwise complete published rows
+numeric_pair,quality_signal,researched_quality,1428,spearman_rho,1.0,strongly overlapping,Pairwise complete published rows
+numeric_pair,hiddenness_signal,independence_signal,1430,pearson_r,0.008004,largely orthogonal,Pairwise complete published rows
+numeric_pair,hiddenness_signal,independence_signal,1430,spearman_rho,-0.15824,largely orthogonal,Pairwise complete published rows
+numeric_pair,hiddenness_signal,local_signal,1430,pearson_r,0.395989,weakly related,Pairwise complete published rows
+numeric_pair,hiddenness_signal,local_signal,1430,spearman_rho,0.341795,weakly related,Pairwise complete published rows
+numeric_pair,hiddenness_signal,local_discovery_score,1430,pearson_r,0.897028,strongly overlapping,Pairwise complete published rows
+numeric_pair,hiddenness_signal,local_discovery_score,1430,spearman_rho,0.885473,strongly overlapping,Pairwise complete published rows
+numeric_pair,hiddenness_signal,researched_quality,1428,pearson_r,-0.671839,moderately related,Pairwise complete published rows
+numeric_pair,hiddenness_signal,researched_quality,1428,spearman_rho,-0.646992,moderately related,Pairwise complete published rows
+numeric_pair,independence_signal,local_signal,1430,pearson_r,0.139256,largely orthogonal,Pairwise complete published rows
+numeric_pair,independence_signal,local_signal,1430,spearman_rho,0.065758,largely orthogonal,Pairwise complete published rows
+numeric_pair,independence_signal,local_discovery_score,1430,pearson_r,0.317177,weakly related,Pairwise complete published rows
+numeric_pair,independence_signal,local_discovery_score,1430,spearman_rho,0.13292,largely orthogonal,Pairwise complete published rows
+numeric_pair,independence_signal,researched_quality,1428,pearson_r,-0.244859,largely orthogonal,Pairwise complete published rows
+numeric_pair,independence_signal,researched_quality,1428,spearman_rho,-0.10831,largely orthogonal,Pairwise complete published rows
+numeric_pair,local_signal,local_discovery_score,1430,pearson_r,0.481197,moderately related,Pairwise complete published rows
+numeric_pair,local_signal,local_discovery_score,1430,spearman_rho,0.434847,weakly related,Pairwise complete published rows
+numeric_pair,local_signal,researched_quality,1428,pearson_r,-0.35362,weakly related,Pairwise complete published rows
+numeric_pair,local_signal,researched_quality,1428,spearman_rho,-0.3422,weakly related,Pairwise complete published rows
+numeric_pair,local_discovery_score,researched_quality,1428,pearson_r,-0.735128,moderately related,Pairwise complete published rows
+numeric_pair,local_discovery_score,researched_quality,1428,spearman_rho,-0.720779,moderately related,Pairwise complete published rows
+ordinal_numeric,budget_band,fiyu_score,1176,spearman_rho,0.021221,largely orthogonal,"budget=0, moderate=1, upscale=2, splurge=3"
+ordinal_numeric,budget_band,quality_signal,1176,spearman_rho,0.269314,weakly related,"budget=0, moderate=1, upscale=2, splurge=3"
+ordinal_numeric,budget_band,hiddenness_signal,1176,spearman_rho,-0.388521,weakly related,"budget=0, moderate=1, upscale=2, splurge=3"
+ordinal_numeric,budget_band,independence_signal,1176,spearman_rho,0.168216,largely orthogonal,"budget=0, moderate=1, upscale=2, splurge=3"
+ordinal_numeric,budget_band,local_signal,1176,spearman_rho,-0.171294,largely orthogonal,"budget=0, moderate=1, upscale=2, splurge=3"
+ordinal_numeric,budget_band,local_discovery_score,1176,spearman_rho,-0.31218,weakly related,"budget=0, moderate=1, upscale=2, splurge=3"
+ordinal_numeric,budget_band,researched_quality,1175,spearman_rho,0.269525,weakly related,"budget=0, moderate=1, upscale=2, splurge=3"
+categorical_numeric,primary_category,fiyu_score,703,eta_squared,0.051826,small group effect,Descriptive variance explained across 21 groups with at least 10 published restaurants; missing and smaller groups excluded
+categorical_numeric,primary_category,quality_signal,703,eta_squared,0.160926,large group effect,Descriptive variance explained across 21 groups with at least 10 published restaurants; missing and smaller groups excluded
+categorical_numeric,primary_category,hiddenness_signal,703,eta_squared,0.232358,large group effect,Descriptive variance explained across 21 groups with at least 10 published restaurants; missing and smaller groups excluded
+categorical_numeric,primary_category,independence_signal,703,eta_squared,0.073206,moderate group effect,Descriptive variance explained across 21 groups with at least 10 published restaurants; missing and smaller groups excluded
+categorical_numeric,primary_category,local_signal,703,eta_squared,0.201309,large group effect,Descriptive variance explained across 21 groups with at least 10 published restaurants; missing and smaller groups excluded
+categorical_numeric,primary_category,local_discovery_score,703,eta_squared,0.19508,large group effect,Descriptive variance explained across 21 groups with at least 10 published restaurants; missing and smaller groups excluded
+categorical_numeric,primary_category,researched_quality,702,eta_squared,0.160708,large group effect,Descriptive variance explained across 21 groups with at least 10 published restaurants; missing and smaller groups excluded
+categorical_numeric,normalized_cuisine,fiyu_score,614,eta_squared,0.056079,small group effect,Descriptive variance explained across 17 groups with at least 10 published restaurants; missing and smaller groups excluded
+categorical_numeric,normalized_cuisine,quality_signal,614,eta_squared,0.128862,moderate group effect,Descriptive variance explained across 17 groups with at least 10 published restaurants; missing and smaller groups excluded
+categorical_numeric,normalized_cuisine,hiddenness_signal,614,eta_squared,0.190108,large group effect,Descriptive variance explained across 17 groups with at least 10 published restaurants; missing and smaller groups excluded
+categorical_numeric,normalized_cuisine,independence_signal,614,eta_squared,0.069093,moderate group effect,Descriptive variance explained across 17 groups with at least 10 published restaurants; missing and smaller groups excluded
+categorical_numeric,normalized_cuisine,local_signal,614,eta_squared,0.152106,large group effect,Descriptive variance explained across 17 groups with at least 10 published restaurants; missing and smaller groups excluded
+categorical_numeric,normalized_cuisine,local_discovery_score,614,eta_squared,0.145505,large group effect,Descriptive variance explained across 17 groups with at least 10 published restaurants; missing and smaller groups excluded
+categorical_numeric,normalized_cuisine,researched_quality,613,eta_squared,0.128761,moderate group effect,Descriptive variance explained across 17 groups with at least 10 published restaurants; missing and smaller groups excluded
+categorical_numeric,cuisine_family,fiyu_score,656,eta_squared,0.020024,small group effect,Descriptive variance explained across 7 groups with at least 10 published restaurants; missing and smaller groups excluded
+categorical_numeric,cuisine_family,quality_signal,656,eta_squared,0.027681,small group effect,Descriptive variance explained across 7 groups with at least 10 published restaurants; missing and smaller groups excluded
+categorical_numeric,cuisine_family,hiddenness_signal,656,eta_squared,0.044813,small group effect,Descriptive variance explained across 7 groups with at least 10 published restaurants; missing and smaller groups excluded
+categorical_numeric,cuisine_family,independence_signal,656,eta_squared,0.031256,small group effect,Descriptive variance explained across 7 groups with at least 10 published restaurants; missing and smaller groups excluded
+categorical_numeric,cuisine_family,local_signal,656,eta_squared,0.053591,small group effect,Descriptive variance explained across 7 groups with at least 10 published restaurants; missing and smaller groups excluded
+categorical_numeric,cuisine_family,local_discovery_score,656,eta_squared,0.031485,small group effect,Descriptive variance explained across 7 groups with at least 10 published restaurants; missing and smaller groups excluded
+categorical_numeric,cuisine_family,researched_quality,655,eta_squared,0.02772,small group effect,Descriptive variance explained across 7 groups with at least 10 published restaurants; missing and smaller groups excluded
+categorical_numeric,geography,fiyu_score,1398,eta_squared,0.037287,small group effect,Descriptive variance explained across 15 groups with at least 10 published restaurants; missing and smaller groups excluded
+categorical_numeric,geography,quality_signal,1398,eta_squared,0.111396,moderate group effect,Descriptive variance explained across 15 groups with at least 10 published restaurants; missing and smaller groups excluded
+categorical_numeric,geography,hiddenness_signal,1398,eta_squared,0.10406,moderate group effect,Descriptive variance explained across 15 groups with at least 10 published restaurants; missing and smaller groups excluded
+categorical_numeric,geography,independence_signal,1398,eta_squared,0.017866,small group effect,Descriptive variance explained across 15 groups with at least 10 published restaurants; missing and smaller groups excluded
+categorical_numeric,geography,local_signal,1398,eta_squared,0.1008,moderate group effect,Descriptive variance explained across 15 groups with at least 10 published restaurants; missing and smaller groups excluded
+categorical_numeric,geography,local_discovery_score,1398,eta_squared,0.093994,moderate group effect,Descriptive variance explained across 15 groups with at least 10 published restaurants; missing and smaller groups excluded
+categorical_numeric,geography,researched_quality,1396,eta_squared,0.111611,moderate group effect,Descriptive variance explained across 15 groups with at least 10 published restaurants; missing and smaller groups excluded
+categorical_numeric,budget_band,fiyu_score,1176,eta_squared,0.013802,small group effect,Descriptive variance explained across 4 groups with at least 10 published restaurants; missing and smaller groups excluded
+categorical_numeric,budget_band,quality_signal,1176,eta_squared,0.087749,moderate group effect,Descriptive variance explained across 4 groups with at least 10 published restaurants; missing and smaller groups excluded
+categorical_numeric,budget_band,hiddenness_signal,1176,eta_squared,0.147747,large group effect,Descriptive variance explained across 4 groups with at least 10 published restaurants; missing and smaller groups excluded
+categorical_numeric,budget_band,independence_signal,1176,eta_squared,0.008616,negligible group effect,Descriptive variance explained across 4 groups with at least 10 published restaurants; missing and smaller groups excluded
+categorical_numeric,budget_band,local_signal,1176,eta_squared,0.058257,small group effect,Descriptive variance explained across 4 groups with at least 10 published restaurants; missing and smaller groups excluded
+categorical_numeric,budget_band,local_discovery_score,1176,eta_squared,0.097453,moderate group effect,Descriptive variance explained across 4 groups with at least 10 published restaurants; missing and smaller groups excluded
+categorical_numeric,budget_band,researched_quality,1175,eta_squared,0.087888,moderate group effect,Descriptive variance explained across 4 groups with at least 10 published restaurants; missing and smaller groups excluded
+categorical_numeric,specialist_status,fiyu_score,1429,eta_squared,0.0,negligible group effect,Descriptive variance explained across 2 groups with at least 10 published restaurants; missing and smaller groups excluded
+categorical_numeric,specialist_status,quality_signal,1429,eta_squared,0.047091,small group effect,Descriptive variance explained across 2 groups with at least 10 published restaurants; missing and smaller groups excluded
+categorical_numeric,specialist_status,hiddenness_signal,1429,eta_squared,0.118256,moderate group effect,Descriptive variance explained across 2 groups with at least 10 published restaurants; missing and smaller groups excluded
+categorical_numeric,specialist_status,independence_signal,1429,eta_squared,0.013761,small group effect,Descriptive variance explained across 2 groups with at least 10 published restaurants; missing and smaller groups excluded
+categorical_numeric,specialist_status,local_signal,1429,eta_squared,0.016331,small group effect,Descriptive variance explained across 2 groups with at least 10 published restaurants; missing and smaller groups excluded
+categorical_numeric,specialist_status,local_discovery_score,1429,eta_squared,0.065714,moderate group effect,Descriptive variance explained across 2 groups with at least 10 published restaurants; missing and smaller groups excluded
+categorical_numeric,specialist_status,researched_quality,1427,eta_squared,0.047181,small group effect,Descriptive variance explained across 2 groups with at least 10 published restaurants; missing and smaller groups excluded
+categorical_cluster_association,primary_category,exploratory_profile,1430,cramers_v,0.208271,weakly related,Bias-corrected association is descriptive; profiles were fit without cuisine or geography. Primary categories under 10 rows are pooled.
+categorical_cluster_association,geography,exploratory_profile,1430,cramers_v,0.227942,weakly related,Bias-corrected association is descriptive; profiles were fit without cuisine or geography. Primary categories under 10 rows are pooled.
+categorical_cluster_association,budget_band,exploratory_profile,1430,cramers_v,0.293762,weakly related,Bias-corrected association is descriptive; profiles were fit without cuisine or geography. Primary categories under 10 rows are pooled.
+categorical_cluster_association,specialist_status,exploratory_profile,1430,cramers_v,0.209206,weakly related,Bias-corrected association is descriptive; profiles were fit without cuisine or geography. Primary categories under 10 rows are pooled.

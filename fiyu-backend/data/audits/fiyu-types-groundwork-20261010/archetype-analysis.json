@@ -1,0 +1,899 @@
+{
+  "methodology": {
+    "population": 1430,
+    "features": [
+      "quality_signal",
+      "hiddenness_signal",
+      "independence_signal",
+      "local_signal",
+      "local_discovery_score",
+      "budget_ordinal"
+    ],
+    "excluded_from_clustering": [
+      "cuisine",
+      "geography",
+      "restaurant name",
+      "free text",
+      "composite fiyu_score"
+    ],
+    "standardization": "median imputation followed by z-score standardization",
+    "algorithm": "deterministic multi-start k-means; k selected from 4..8 by mean silhouette subject to minimum cluster size",
+    "k_comparison": [
+      {
+        "k": 4,
+        "silhouette": 0.274457,
+        "inertia": 3932.5012,
+        "smallest_cluster": 209,
+        "largest_cluster": 603
+      },
+      {
+        "k": 5,
+        "silhouette": 0.252991,
+        "inertia": 3540.9822,
+        "smallest_cluster": 189,
+        "largest_cluster": 508
+      },
+      {
+        "k": 6,
+        "silhouette": 0.257983,
+        "inertia": 3195.5101,
+        "smallest_cluster": 123,
+        "largest_cluster": 474
+      },
+      {
+        "k": 7,
+        "silhouette": 0.258347,
+        "inertia": 2979.3064,
+        "smallest_cluster": 86,
+        "largest_cluster": 452
+      },
+      {
+        "k": 8,
+        "silhouette": 0.230209,
+        "inertia": 2798.8956,
+        "smallest_cluster": 80,
+        "largest_cluster": 354
+      }
+    ],
+    "selected_k": 4,
+    "selected_silhouette": 0.274457,
+    "warning": "Profiles are exploratory restaurant-side patterns, not final Fiyu Types or user labels."
+  },
+  "profiles": [
+    {
+      "profile_id": "profile_1",
+      "count": 603,
+      "pct_of_catalog": 42.17,
+      "defining_standardized_deltas": [
+        {
+          "feature": "local_discovery_score",
+          "z_delta": 0.823
+        },
+        {
+          "feature": "quality_signal",
+          "z_delta": -0.7429
+        },
+        {
+          "feature": "hiddenness_signal",
+          "z_delta": 0.7213
+        },
+        {
+          "feature": "independence_signal",
+          "z_delta": 0.4681
+        },
+        {
+          "feature": "budget_ordinal",
+          "z_delta": -0.4557
+        },
+        {
+          "feature": "local_signal",
+          "z_delta": 0.4075
+        }
+      ],
+      "feature_means": {
+        "quality_signal": 61.3008,
+        "hiddenness_signal": 86.4597,
+        "independence_signal": 99.0788,
+        "local_signal": 76.218,
+        "local_discovery_score": 85.547,
+        "budget_ordinal": 0.9154
+      },
+      "specialist_distribution": {
+        "unknown": 178,
+        "specialist": 425
+      },
+      "cuisine_diversity": {
+        "distinct_primary_categories": 224,
+        "normalized_entropy": 0.8065,
+        "largest_category_share": 0.1808,
+        "top_categories": [
+          [
+            "居酒屋",
+            109
+          ],
+          [
+            "Izakaya",
+            53
+          ],
+          [
+            "Sushi restaurant",
+            21
+          ],
+          [
+            "Italian restaurant",
+            16
+          ],
+          [
+            "寿司",
+            15
+          ],
+          [
+            "焼肉",
+            14
+          ],
+          [
+            "焼き鳥",
+            11
+          ],
+          [
+            "Yakitori restaurant",
+            9
+          ]
+        ]
+      },
+      "geographic_diversity": {
+        "distinct_areas": 20,
+        "normalized_entropy": 0.8339,
+        "top_areas": [
+          [
+            "Adachi City",
+            107
+          ],
+          [
+            "Toshima City",
+            83
+          ],
+          [
+            "Ota City",
+            68
+          ],
+          [
+            "Koto City",
+            60
+          ],
+          [
+            "Taito City",
+            55
+          ],
+          [
+            "Setagaya City",
+            51
+          ],
+          [
+            "Suginami City",
+            37
+          ],
+          [
+            "Nerima City",
+            32
+          ]
+        ]
+      },
+      "price_diversity": {
+        "known_count": 454,
+        "distinct_bands": 4,
+        "distribution": {
+          "moderate": 279,
+          "budget": 114,
+          "upscale": 59,
+          "splurge": 2
+        }
+      },
+      "representative_restaurants": [
+        {
+          "place_id": "ChIJKeJ6EOuOGGARL8WQRRzW6bA",
+          "name": "Shodai Choberiba",
+          "primary_category": "Yakitori / izakaya",
+          "geography": "Taito City",
+          "budget_band": "moderate",
+          "distance_to_centroid": 0.3039
+        },
+        {
+          "place_id": "ChIJ__-zgETxGGARCBA-gZLHB3U",
+          "name": "Ryūya",
+          "primary_category": "居酒屋",
+          "geography": "Setagaya City",
+          "budget_band": "moderate",
+          "distance_to_centroid": 0.3045
+        },
+        {
+          "place_id": "ChIJ5UfKWayJGGARStNqtx3aJkg",
+          "name": "Kitchen Shima",
+          "primary_category": "弁当・惣菜",
+          "geography": "Koto City",
+          "budget_band": null,
+          "distance_to_centroid": 0.3141
+        },
+        {
+          "place_id": "ChIJIaqUGT9gGGAREXPpXUvI6Ck",
+          "name": "Shun no Ie",
+          "primary_category": "小料理・和食",
+          "geography": "Ota City",
+          "budget_band": "moderate",
+          "distance_to_centroid": 0.3197
+        },
+        {
+          "place_id": "ChIJVZUCComIGGARnjyHH7BdQT8",
+          "name": "Toshichan Motsuyaki",
+          "primary_category": "もつ焼・焼き鳥",
+          "geography": "Koto City",
+          "budget_band": "moderate",
+          "distance_to_centroid": 0.3536
+        }
+      ],
+      "cross_cuisine_archetype": true,
+      "product_coverage_assessment": "strong"
+    },
+    {
+      "profile_id": "profile_2",
+      "count": 223,
+      "pct_of_catalog": 15.59,
+      "defining_standardized_deltas": [
+        {
+          "feature": "independence_signal",
+          "z_delta": -1.9023
+        },
+        {
+          "feature": "hiddenness_signal",
+          "z_delta": 0.4062
+        },
+        {
+          "feature": "budget_ordinal",
+          "z_delta": -0.3073
+        },
+        {
+          "feature": "local_discovery_score",
+          "z_delta": -0.2109
+        },
+        {
+          "feature": "quality_signal",
+          "z_delta": 0.1745
+        },
+        {
+          "feature": "local_signal",
+          "z_delta": -0.0455
+        }
+      ],
+      "feature_means": {
+        "quality_signal": 73.1821,
+        "hiddenness_signal": 81.4863,
+        "independence_signal": 78.2085,
+        "local_signal": 72.1408,
+        "local_discovery_score": 75.8096,
+        "budget_ordinal": 1.0359
+      },
+      "specialist_distribution": {
+        "specialist": 176,
+        "unknown": 47
+      },
+      "cuisine_diversity": {
+        "distinct_primary_categories": 128,
+        "normalized_entropy": 0.9008,
+        "largest_category_share": 0.1435,
+        "top_categories": [
+          [
+            "居酒屋",
+            32
+          ],
+          [
+            "Indian restaurant",
+            8
+          ],
+          [
+            "Sushi restaurant",
+            7
+          ],
+          [
+            "Izakaya",
+            7
+          ],
+          [
+            "寿司",
+            6
+          ],
+          [
+            "Italian restaurant",
+            5
+          ],
+          [
+            "韓国料理",
+            4
+          ],
+          [
+            "Japanese restaurant",
+            4
+          ]
+        ]
+      },
+      "geographic_diversity": {
+        "distinct_areas": 18,
+        "normalized_entropy": 0.901,
+        "top_areas": [
+          [
+            "Toshima City",
+            29
+          ],
+          [
+            "Ota City",
+            28
+          ],
+          [
+            "Adachi City",
+            25
+          ],
+          [
+            "Shibuya",
+            22
+          ],
+          [
+            "Koto City",
+            18
+          ],
+          [
+            "Setagaya City",
+            16
+          ],
+          [
+            "Chiyoda City",
+            15
+          ],
+          [
+            "Taito City",
+            14
+          ]
+        ]
+      },
+      "price_diversity": {
+        "known_count": 180,
+        "distinct_bands": 4,
+        "distribution": {
+          "splurge": 6,
+          "moderate": 86,
+          "upscale": 42,
+          "budget": 46
+        }
+      },
+      "representative_restaurants": [
+        {
+          "place_id": "ChIJxakJLpqNGGARIpc4I9vtosQ",
+          "name": "Cho-i Nomi-dokoro Yorimichi",
+          "primary_category": "居酒屋",
+          "geography": "Bunkyo City",
+          "budget_band": "moderate",
+          "distance_to_centroid": 0.4799
+        },
+        {
+          "place_id": "ChIJ4YEj2fntGGAR-MtbBPyfPNk",
+          "name": "Mutsumiya",
+          "primary_category": "日本料理・居酒屋",
+          "geography": "Suginami City",
+          "budget_band": "moderate",
+          "distance_to_centroid": 0.6114
+        },
+        {
+          "place_id": "ChIJiZR3v55hGGARxcEEujTSXBg",
+          "name": "Sasasaisai",
+          "primary_category": "おでん",
+          "geography": "Ota City",
+          "budget_band": "moderate",
+          "distance_to_centroid": 0.6227
+        },
+        {
+          "place_id": "ChIJO8PMP1aNGGARpTBO4ci1Q_0",
+          "name": "Gyoza Izakaya Shimizu",
+          "primary_category": "Izakaya",
+          "geography": "Toshima City",
+          "budget_band": "moderate",
+          "distance_to_centroid": 0.6253
+        },
+        {
+          "place_id": "ChIJLePkiXaLGGARd_CZbep5Sw0",
+          "name": "Gyumotsu Gyuniku Sake Banrai",
+          "primary_category": "居酒屋",
+          "geography": "Shibuya",
+          "budget_band": "moderate",
+          "distance_to_centroid": 0.6846
+        }
+      ],
+      "cross_cuisine_archetype": true,
+      "product_coverage_assessment": "strong"
+    },
+    {
+      "profile_id": "profile_3",
+      "count": 395,
+      "pct_of_catalog": 27.62,
+      "defining_standardized_deltas": [
+        {
+          "feature": "budget_ordinal",
+          "z_delta": 0.5623
+        },
+        {
+          "feature": "independence_signal",
+          "z_delta": 0.5397
+        },
+        {
+          "feature": "hiddenness_signal",
+          "z_delta": -0.4676
+        },
+        {
+          "feature": "quality_signal",
+          "z_delta": 0.3212
+        },
+        {
+          "feature": "local_discovery_score",
+          "z_delta": -0.2427
+        },
+        {
+          "feature": "local_signal",
+          "z_delta": 0.0647
+        }
+      ],
+      "feature_means": {
+        "quality_signal": 75.082,
+        "hiddenness_signal": 67.6972,
+        "independence_signal": 99.7089,
+        "local_signal": 73.1324,
+        "local_discovery_score": 75.5103,
+        "budget_ordinal": 1.7418
+      },
+      "specialist_distribution": {
+        "specialist": 372,
+        "unknown": 22,
+        "non_specialist": 1
+      },
+      "cuisine_diversity": {
+        "distinct_primary_categories": 186,
+        "normalized_entropy": 0.8784,
+        "largest_category_share": 0.0506,
+        "top_categories": [
+          [
+            "French restaurant",
+            20
+          ],
+          [
+            "居酒屋",
+            20
+          ],
+          [
+            "Izakaya",
+            19
+          ],
+          [
+            "Sushi restaurant",
+            19
+          ],
+          [
+            "Italian restaurant",
+            17
+          ],
+          [
+            "焼肉",
+            17
+          ],
+          [
+            "寿司",
+            13
+          ],
+          [
+            "Japanese cuisine",
+            12
+          ]
+        ]
+      },
+      "geographic_diversity": {
+        "distinct_areas": 20,
+        "normalized_entropy": 0.8792,
+        "top_areas": [
+          [
+            "Minato City",
+            44
+          ],
+          [
+            "Setagaya City",
+            43
+          ],
+          [
+            "Shibuya",
+            37
+          ],
+          [
+            "Ota City",
+            37
+          ],
+          [
+            "Toshima City",
+            36
+          ],
+          [
+            "Chuo City",
+            35
+          ],
+          [
+            "Taito City",
+            33
+          ],
+          [
+            "Koto City",
+            28
+          ]
+        ]
+      },
+      "price_diversity": {
+        "known_count": 357,
+        "distinct_bands": 4,
+        "distribution": {
+          "moderate": 120,
+          "upscale": 148,
+          "splurge": 78,
+          "budget": 11
+        }
+      },
+      "representative_restaurants": [
+        {
+          "place_id": "ChIJC07yjElhGGARclL4gXoRruQ",
+          "name": "Wasou Hikichi",
+          "primary_category": "Japanese cuisine / izakaya",
+          "geography": "Ota City",
+          "budget_band": "upscale",
+          "distance_to_centroid": 0.4146
+        },
+        {
+          "place_id": "ChIJw6mQGQhgGGARbmI_CiIbi5U",
+          "name": "Ukare Ebi",
+          "primary_category": "居酒屋",
+          "geography": "Ota City",
+          "budget_band": "upscale",
+          "distance_to_centroid": 0.4549
+        },
+        {
+          "place_id": "ChIJKdWxmR71GGAR1vIkBomBWiY",
+          "name": "de’Afrique (De Afrique)",
+          "primary_category": "African restaurant and bar",
+          "geography": "Setagaya City",
+          "budget_band": "upscale",
+          "distance_to_centroid": 0.4625
+        },
+        {
+          "place_id": "ChIJOaLUu2yNGGARpWxr4zEBD6s",
+          "name": "Edoichi",
+          "primary_category": "うなぎ料理店",
+          "geography": "Toshima City",
+          "budget_band": "upscale",
+          "distance_to_centroid": 0.463
+        },
+        {
+          "place_id": "ChIJVVVxgeqOGGARJFRW6C5zseY",
+          "name": "Horumon Kemuri",
+          "primary_category": "焼肉",
+          "geography": "Taito City",
+          "budget_band": "upscale",
+          "distance_to_centroid": 0.5307
+        }
+      ],
+      "cross_cuisine_archetype": true,
+      "product_coverage_assessment": "strong"
+    },
+    {
+      "profile_id": "profile_4",
+      "count": 209,
+      "pct_of_catalog": 14.62,
+      "defining_standardized_deltas": [
+        {
+          "feature": "local_discovery_score",
+          "z_delta": -1.6908
+        },
+        {
+          "feature": "hiddenness_signal",
+          "z_delta": -1.6308
+        },
+        {
+          "feature": "quality_signal",
+          "z_delta": 1.35
+        },
+        {
+          "feature": "local_signal",
+          "z_delta": -1.2494
+        },
+        {
+          "feature": "budget_ordinal",
+          "z_delta": 0.5798
+        },
+        {
+          "feature": "independence_signal",
+          "z_delta": -0.341
+        }
+      ],
+      "feature_means": {
+        "quality_signal": 88.4051,
+        "hiddenness_signal": 49.3393,
+        "independence_signal": 91.9545,
+        "local_signal": 61.3069,
+        "local_discovery_score": 61.8729,
+        "budget_ordinal": 1.756
+      },
+      "specialist_distribution": {
+        "specialist": 202,
+        "unknown": 7
+      },
+      "cuisine_diversity": {
+        "distinct_primary_categories": 106,
+        "normalized_entropy": 0.8998,
+        "largest_category_share": 0.0909,
+        "top_categories": [
+          [
+            "Sushi restaurant",
+            19
+          ],
+          [
+            "French restaurant",
+            14
+          ],
+          [
+            "Sushi",
+            11
+          ],
+          [
+            "Izakaya",
+            11
+          ],
+          [
+            "Teppanyaki",
+            7
+          ],
+          [
+            "Italian restaurant",
+            6
+          ],
+          [
+            "焼肉",
+            6
+          ],
+          [
+            "Teppanyaki restaurant",
+            4
+          ]
+        ]
+      },
+      "geographic_diversity": {
+        "distinct_areas": 18,
+        "normalized_entropy": 0.8238,
+        "top_areas": [
+          [
+            "Minato City",
+            44
+          ],
+          [
+            "Shibuya",
+            42
+          ],
+          [
+            "Taito City",
+            20
+          ],
+          [
+            "Chiyoda City",
+            16
+          ],
+          [
+            "Chuo City",
+            15
+          ],
+          [
+            "Toshima City",
+            14
+          ],
+          [
+            "Ota City",
+            13
+          ],
+          [
+            "Setagaya City",
+            13
+          ]
+        ]
+      },
+      "price_diversity": {
+        "known_count": 185,
+        "distinct_bands": 4,
+        "distribution": {
+          "moderate": 59,
+          "splurge": 56,
+          "budget": 12,
+          "upscale": 58
+        }
+      },
+      "representative_restaurants": [
+        {
+          "place_id": "ChIJGam3Bl2LGGARZ_Eq6VFr9wU",
+          "name": "KIYAS",
+          "primary_category": "Mexican restaurant",
+          "geography": "Shibuya",
+          "budget_band": "upscale",
+          "distance_to_centroid": 1.1135
+        },
+        {
+          "place_id": "ChIJG82EKUOLGGARGrQymGkphdA",
+          "name": "Mamma Luisa's Table",
+          "primary_category": "Italian restaurant",
+          "geography": "Shibuya",
+          "budget_band": "upscale",
+          "distance_to_centroid": 1.1884
+        },
+        {
+          "place_id": "ChIJT_2RXoyLGGARKuZV7eUIkzI",
+          "name": "Restaurant Seiyoginza",
+          "primary_category": "French restaurant",
+          "geography": "Chuo City",
+          "budget_band": "upscale",
+          "distance_to_centroid": 1.2323
+        },
+        {
+          "place_id": "ChIJrcgaAGlhGGARN7IabxPfuJo",
+          "name": "Wasai Nanao",
+          "primary_category": "Izakaya",
+          "geography": "Ota City",
+          "budget_band": "upscale",
+          "distance_to_centroid": 1.2461
+        },
+        {
+          "place_id": "ChIJt5zGCmWNGGARxzZXLKI63i8",
+          "name": "Nœud. TOKYO",
+          "primary_category": "French restaurant",
+          "geography": "Chiyoda City",
+          "budget_band": "upscale",
+          "distance_to_centroid": 1.2918
+        }
+      ],
+      "cross_cuisine_archetype": true,
+      "product_coverage_assessment": "strong"
+    }
+  ],
+  "latent_dimensions": [
+    {
+      "axis_id": "axis_1",
+      "explained_variance_pct": 50.467,
+      "cumulative_variance_pct": 50.467,
+      "loadings": [
+        {
+          "feature": "local_discovery_score",
+          "loading": -0.54452
+        },
+        {
+          "feature": "hiddenness_signal",
+          "loading": -0.51417
+        },
+        {
+          "feature": "quality_signal",
+          "loading": 0.48057
+        },
+        {
+          "feature": "local_signal",
+          "loading": -0.34316
+        },
+        {
+          "feature": "budget_ordinal",
+          "loading": 0.25568
+        },
+        {
+          "feature": "independence_signal",
+          "loading": -0.15828
+        }
+      ],
+      "usable_restaurants": 1430,
+      "mathematical_independence": "orthogonal to the other PCA axes in the standardized feature space",
+      "confidence": "strong"
+    },
+    {
+      "axis_id": "axis_2",
+      "explained_variance_pct": 18.923,
+      "cumulative_variance_pct": 69.391,
+      "loadings": [
+        {
+          "feature": "independence_signal",
+          "loading": 0.7865
+        },
+        {
+          "feature": "budget_ordinal",
+          "loading": 0.56139
+        },
+        {
+          "feature": "hiddenness_signal",
+          "loading": -0.20116
+        },
+        {
+          "feature": "local_signal",
+          "loading": 0.11059
+        },
+        {
+          "feature": "local_discovery_score",
+          "loading": 0.09043
+        },
+        {
+          "feature": "quality_signal",
+          "loading": -0.07343
+        }
+      ],
+      "usable_restaurants": 1430,
+      "mathematical_independence": "orthogonal to the other PCA axes in the standardized feature space",
+      "confidence": "strong"
+    },
+    {
+      "axis_id": "axis_3",
+      "explained_variance_pct": 12.68,
+      "cumulative_variance_pct": 82.07,
+      "loadings": [
+        {
+          "feature": "local_signal",
+          "loading": 0.71752
+        },
+        {
+          "feature": "budget_ordinal",
+          "loading": 0.51762
+        },
+        {
+          "feature": "independence_signal",
+          "loading": -0.44232
+        },
+        {
+          "feature": "quality_signal",
+          "loading": 0.13592
+        },
+        {
+          "feature": "hiddenness_signal",
+          "loading": 0.05456
+        },
+        {
+          "feature": "local_discovery_score",
+          "loading": -0.01214
+        }
+      ],
+      "usable_restaurants": 1430,
+      "mathematical_independence": "orthogonal to the other PCA axes in the standardized feature space",
+      "confidence": "plausible"
+    },
+    {
+      "axis_id": "axis_4",
+      "explained_variance_pct": 11.424,
+      "cumulative_variance_pct": 93.494,
+      "loadings": [
+        {
+          "feature": "budget_ordinal",
+          "loading": -0.59211
+        },
+        {
+          "feature": "local_signal",
+          "loading": 0.58473
+        },
+        {
+          "feature": "hiddenness_signal",
+          "loading": -0.3257
+        },
+        {
+          "feature": "independence_signal",
+          "loading": 0.30405
+        },
+        {
+          "feature": "quality_signal",
+          "loading": 0.27155
+        },
+        {
+          "feature": "local_discovery_score",
+          "loading": -0.18769
+        }
+      ],
+      "usable_restaurants": 1430,
+      "mathematical_independence": "orthogonal to the other PCA axes in the standardized feature space",
+      "confidence": "plausible"
+    }
+  ]
+}

@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="792" height="240" viewBox="0 0 792 240">
+<rect width="100%" height="100%" fill="white"/>
+<text x="20" y="28" font-family="Arial" font-size="18" font-weight="bold">Exploratory profile feature deltas (z-scores)</text>
+<text x="256.0" y="58" text-anchor="middle" font-family="Arial" font-size="10">quality_signal</text>
+<text x="348.0" y="58" text-anchor="middle" font-family="Arial" font-size="10">hiddenness_signal</text>
+<text x="440.0" y="58" text-anchor="middle" font-family="Arial" font-size="10">independence_signal</text>
+<text x="532.0" y="58" text-anchor="middle" font-family="Arial" font-size="10">local_signal</text>
+<text x="624.0" y="58" text-anchor="middle" font-family="Arial" font-size="10">local_discovery_score</text>
+<text x="716.0" y="58" text-anchor="middle" font-family="Arial" font-size="10">budget_ordinal</text>
+<text x="202" y="90" text-anchor="end" font-family="Arial" font-size="11">Profile 1</text>
+<rect x="210" y="70" width="92" height="30" fill="#f1aaaa" stroke="#ffffff"/>
+<text x="256.0" y="90" text-anchor="middle" font-family="Arial" font-size="11" fill="#111827">-0.74</text>
+<rect x="302" y="70" width="92" height="30" fill="#adc8fa" stroke="#ffffff"/>
+<text x="348.0" y="90" text-anchor="middle" font-family="Arial" font-size="11" fill="#111827">0.72</text>
+<rect x="394" y="70" width="92" height="30" fill="#cadbfc" stroke="#ffffff"/>
+<text x="440.0" y="90" text-anchor="middle" font-family="Arial" font-size="11" fill="#111827">0.47</text>
+<rect x="486" y="70" width="92" height="30" fill="#d1e0fc" stroke="#ffffff"/>
+<text x="532.0" y="90" text-anchor="middle" font-family="Arial" font-size="11" fill="#111827">0.41</text>
+<rect x="578" y="70" width="92" height="30" fill="#a2c0f9" stroke="#ffffff"/>
+<text x="624.0" y="90" text-anchor="middle" font-family="Arial" font-size="11" fill="#111827">0.82</text>
+<rect x="670" y="70" width="92" height="30" fill="#f7cbcb" stroke="#ffffff"/>
+<text x="716.0" y="90" text-anchor="middle" font-family="Arial" font-size="11" fill="#111827">-0.46</text>
+<text x="202" y="120" text-anchor="end" font-family="Arial" font-size="11">Profile 2</text>
+<rect x="210" y="100" width="92" height="30" fill="#ebf2fe" stroke="#ffffff"/>
+<text x="256.0" y="120" text-anchor="middle" font-family="Arial" font-size="11" fill="#111827">0.17</text>
+<rect x="302" y="100" width="92" height="30" fill="#d1e0fc" stroke="#ffffff"/>
+<text x="348.0" y="120" text-anchor="middle" font-family="Arial" font-size="11" fill="#111827">0.41</text>
+<rect x="394" y="100" width="92" height="30" fill="#dc2626" stroke="#ffffff"/>
+<text x="440.0" y="120" text-anchor="middle" font-family="Arial" font-size="11" fill="white">-1.90</text>
+<rect x="486" y="100" width="92" height="30" fill="#fefafa" stroke="#ffffff"/>
+<text x="532.0" y="120" text-anchor="middle" font-family="Arial" font-size="11" fill="#111827">-0.05</text>
+<rect x="578" y="100" width="92" height="30" fill="#fbe7e7" stroke="#ffffff"/>
+<text x="624.0" y="120" text-anchor="middle" font-family="Arial" font-size="11" fill="#111827">-0.21</text>
+<rect x="670" y="100" width="92" height="30" fill="#f9dcdc" stroke="#ffffff"/>
+<text x="716.0" y="120" text-anchor="middle" font-family="Arial" font-size="11" fill="#111827">-0.31</text>
+<text x="202" y="150" text-anchor="end" font-family="Arial" font-size="11">Profile 3</text>
+<rect x="210" y="130" width="92" height="30" fill="#dbe7fd" stroke="#ffffff"/>
+<text x="256.0" y="150" text-anchor="middle" font-family="Arial" font-size="11" fill="#111827">0.32</text>
+<rect x="302" y="130" width="92" height="30" fill="#f6caca" stroke="#ffffff"/>
+<text x="348.0" y="150" text-anchor="middle" font-family="Arial" font-size="11" fill="#111827">-0.47</text>
+<rect x="394" y="130" width="92" height="30" fill="#c2d6fb" stroke="#ffffff"/>
+<text x="440.0" y="150" text-anchor="middle" font-family="Arial" font-size="11" fill="#111827">0.54</text>
+<rect x="486" y="130" width="92" height="30" fill="#f8faff" stroke="#ffffff"/>
+<text x="532.0" y="150" text-anchor="middle" font-family="Arial" font-size="11" fill="#111827">0.06</text>
+<rect x="578" y="130" width="92" height="30" fill="#fbe3e3" stroke="#ffffff"/>
+<text x="624.0" y="150" text-anchor="middle" font-family="Arial" font-size="11" fill="#111827">-0.24</text>
+<rect x="670" y="130" width="92" height="30" fill="#bfd4fb" stroke="#ffffff"/>
+<text x="716.0" y="150" text-anchor="middle" font-family="Arial" font-size="11" fill="#111827">0.56</text>
+<text x="202" y="180" text-anchor="end" font-family="Arial" font-size="11">Profile 4</text>
+<rect x="210" y="160" width="92" height="30" fill="#6698f5" stroke="#ffffff"/>
+<text x="256.0" y="180" text-anchor="middle" font-family="Arial" font-size="11" fill="white">1.35</text>
+<rect x="302" y="160" width="92" height="30" fill="#e14545" stroke="#ffffff"/>
+<text x="348.0" y="180" text-anchor="middle" font-family="Arial" font-size="11" fill="white">-1.63</text>
+<rect x="394" y="160" width="92" height="30" fill="#f9d8d8" stroke="#ffffff"/>
+<text x="440.0" y="180" text-anchor="middle" font-family="Arial" font-size="11" fill="#111827">-0.34</text>
+<rect x="486" y="160" width="92" height="30" fill="#e87070" stroke="#ffffff"/>
+<text x="532.0" y="180" text-anchor="middle" font-family="Arial" font-size="11" fill="white">-1.25</text>
+<rect x="578" y="160" width="92" height="30" fill="#e03e3e" stroke="#ffffff"/>
+<text x="624.0" y="180" text-anchor="middle" font-family="Arial" font-size="11" fill="white">-1.69</text>
+<rect x="670" y="160" width="92" height="30" fill="#bdd3fb" stroke="#ffffff"/>
+<text x="716.0" y="180" text-anchor="middle" font-family="Arial" font-size="11" fill="#111827">0.58</text>
+</svg>
