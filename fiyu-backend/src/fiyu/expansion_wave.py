@@ -11,11 +11,14 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from .catalog_pipeline import backfill_legacy_published_locations
+from .catalog_pipeline import backfill_legacy_published_locations, is_map_ready
 from .operator_status import catalog_status
 from .pipeline_runs import get_pipeline_run_status, list_pipeline_runs
 from .public_catalog import seed_unseeded_public_queue
-from .publication_reconciliation import run_publication_reconciliation
+from .publication_reconciliation import (
+    inspect_publication_reconciliation,
+    run_publication_reconciliation,
+)
 from .quality_v4_backfill import inspect_quality_v4_backfill, run_quality_v4_backfill
 from .quality_v4_promotion import run_quality_v4_promotion
 from .research_worker import run_research_batch
@@ -304,16 +307,49 @@ def _cohort_seeded_count(db_path: Path, place_ids: list[str]) -> int:
 def _newly_published_map_ready(db_path: Path, place_ids: list[str]) -> tuple[int, int]:
     placeholders = ",".join("?" for _ in place_ids)
     with readonly_sqlite_snapshot(db_path) as connection:
-        row = connection.execute(
+        rows = connection.execute(
             f"""
-            SELECT SUM(is_published=1),
-                   SUM(is_published=1 AND map_display_eligible=1
-                       AND latitude IS NOT NULL AND longitude IS NOT NULL)
+            SELECT place_id, is_published, map_display_eligible, latitude, longitude
             FROM public_restaurants WHERE place_id IN ({placeholders})
             """,
             tuple(place_ids),
-        ).fetchone()
-    return int(row[0] or 0), int(row[1] or 0)
+        ).fetchall()
+    published = [dict(row) for row in rows if row["is_published"]]
+    return len(published), sum(is_map_ready(row) for row in published)
+
+
+def _publication_verification_failures(
+    db_path: Path, place_ids: list[str], expected_published_ids: set[str]
+) -> dict[str, Any]:
+    placeholders = ",".join("?" for _ in place_ids)
+    with readonly_sqlite_snapshot(db_path) as connection:
+        rows = [
+            dict(row)
+            for row in connection.execute(
+                f"""
+                SELECT place_id, is_published, map_display_eligible, latitude, longitude
+                FROM public_restaurants WHERE place_id IN ({placeholders})
+                """,
+                tuple(place_ids),
+            )
+        ]
+    published_ids = {str(row["place_id"]) for row in rows if row["is_published"]}
+    map_ready_ids = {
+        str(row["place_id"])
+        for row in rows
+        if row["is_published"] and is_map_ready(row)
+    }
+    failures: dict[str, Any] = {}
+    if published_ids != expected_published_ids:
+        failures["publication_membership"] = {
+            "unexpected": sorted(published_ids - expected_published_ids),
+            "missing": sorted(expected_published_ids - published_ids),
+        }
+    if published_ids != map_ready_ids:
+        failures["newly_published_not_map_ready"] = len(
+            published_ids - map_ready_ids
+        )
+    return failures
 
 
 def run_expansion_wave(
@@ -601,11 +637,18 @@ def run_expansion_wave(
     final_status = catalog_status(db)
     final_integrity = _integrity(db)
     baseline = state["baseline"]
-    reconciliation = state["reconciliation"]
-    additions = int(
-        state.get("reconciliation_expected_additions", reconciliation["result"]["additions"])
+    verification_reconciliation = inspect_publication_reconciliation(
+        db,
+        threshold=PUBLICATION_THRESHOLD,
+        cohort_manifest=artifacts["promotion_cohort"],
     )
-    wave_published, wave_map_ready = _newly_published_map_ready(db, promotable)
+    _assert_reconciliation_plan(verification_reconciliation)
+    expected_published_ids = set(
+        verification_reconciliation["cohort_assertion"][
+            "canonical_publishable_cohort_rows"
+        ]
+    )
+    additions = len(expected_published_ids)
     failures: dict[str, Any] = {}
     seeded_delta = int(final_status["catalog"]["seeded_public_rows"]) - int(baseline["seeded_public_rows"])
     published_delta = int(final_status["catalog"]["published"]) - int(baseline["published"])
@@ -613,12 +656,13 @@ def run_expansion_wave(
         failures["seeded_delta"] = (seeded_delta, len(place_ids))
     if published_delta != additions:
         failures["published_delta"] = (published_delta, additions)
-    if reconciliation["result"]["removals"]:
-        failures["removals"] = reconciliation["result"]["removals"]
+    if verification_reconciliation["result"]["removals"]:
+        failures["removals"] = verification_reconciliation["result"]["removals"]
     if int(final_status["lineage"]["stale_v4"]):
         failures["stale_v4"] = final_status["lineage"]["stale_v4"]
-    if wave_published != wave_map_ready:
-        failures["newly_published_not_map_ready"] = wave_published - wave_map_ready
+    failures.update(
+        _publication_verification_failures(db, promotable, expected_published_ids)
+    )
     if _published_digest(db, set(place_ids)) != baseline["published_rows_digest"]:
         failures["unrelated_existing_published_rows"] = "changed"
     if final_integrity != "ok":

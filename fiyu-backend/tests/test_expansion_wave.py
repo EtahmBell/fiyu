@@ -219,6 +219,23 @@ def test_reconciliation_refuses_missing_manifest_rows():
         )
 
 
+def test_final_verification_rejects_published_non_map_ready_row(tmp_path):
+    db = _db(tmp_path, 1)
+    with connect(db) as connection:
+        connection.execute(
+            """
+            INSERT INTO public_restaurants (
+                place_id, is_published, map_display_eligible, created_at, updated_at
+            ) VALUES ('place-000', 1, 0, 'now', 'now')
+            """
+        )
+        connection.commit()
+    failures = expansion_wave._publication_verification_failures(
+        db, ["place-000"], {"place-000"}
+    )
+    assert failures == {"newly_published_not_map_ready": 1}
+
+
 def test_historical_pending_backlog_is_untouched_by_dry_run(tmp_path):
     db = _db(tmp_path, 3)
     with connect(db) as connection:
@@ -495,11 +512,19 @@ def test_final_count_invariants_and_resume_do_not_duplicate_paid_work(
 
     def reconcile(db_path, *, backup_path, **kwargs):
         assert (backup_path is None) is kwargs["dry_run"]
+        with connect(db_path) as connection:
+            published = bool(
+                connection.execute(
+                    "SELECT is_published FROM public_restaurants WHERE place_id=?",
+                    (promoted_id[0],),
+                ).fetchone()[0]
+            )
         summary = {
-            "result": {"additions": 1, "removals": 0},
+            "result": {"additions": 0 if published else 1, "removals": 0},
             "cohort_assertion": {
                 "unexpected_additions": [],
                 "manifest_rows_missing": [],
+                "canonical_publishable_cohort_rows": [promoted_id[0]],
             },
             "invariants": {"unrelated_additions": 0},
         }
@@ -513,6 +538,13 @@ def test_final_count_invariants_and_resume_do_not_duplicate_paid_work(
         return summary
 
     monkeypatch.setattr(expansion_wave, "run_publication_reconciliation", reconcile)
+    monkeypatch.setattr(
+        expansion_wave,
+        "inspect_publication_reconciliation",
+        lambda db_path, **_kwargs: reconcile(
+            db_path, backup_path=None, dry_run=True
+        ),
+    )
     monkeypatch.setattr(
         expansion_wave,
         "_quality_usage_totals",
@@ -573,5 +605,25 @@ def test_final_count_invariants_and_resume_do_not_duplicate_paid_work(
         resume=True,
     )
     assert rerun["published_additions"] == 1
+    assert calls == {"research": 1, "quality": 1}
+
+    stale_state = json.loads((output / "wave-state.json").read_text(encoding="utf-8"))
+    stale_state["reconciliation_expected_additions"] = 2
+    stale_state["reconciliation"]["result"]["additions"] = 2
+    stale_state["completed_stages"].remove("verified")
+    (output / "wave-state.json").write_text(
+        json.dumps(stale_state, indent=2) + "\n", encoding="utf-8"
+    )
+    recovered = expansion_wave.run_expansion_wave(
+        db,
+        count=2,
+        min_score=60,
+        seed="complete-wave",
+        osm_index=poi,
+        osm_address_index=address,
+        output_dir=output,
+        resume=True,
+    )
+    assert recovered["published_additions"] == 1
     assert calls == {"research": 1, "quality": 1}
 

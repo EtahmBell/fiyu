@@ -163,6 +163,8 @@ def _reason_category(decision: dict[str, Any]) -> str:
             if diagnostics.get("matched_restaurant") is not True
             else "product_eligibility_failure"
         )
+    if "map_ready" in missing:
+        return "location_not_map_ready"
     content_missing = missing - {"deterministic_score_policy"}
     if content_missing:
         return "content_or_pipeline_incomplete"
@@ -610,6 +612,11 @@ def _inspect_expansion_publication_reconciliation(
         }
         if additions != first_additions:
             raise ValueError("expansion membership is unstable after duplicate reevaluation")
+        canonical_publishable = {
+            place_id
+            for place_id, decision in final.items()
+            if decision["published"]
+        }
         target_published_ids = current_published_ids | additions
         changes: list[dict[str, Any]] = []
         blocked: list[dict[str, Any]] = []
@@ -681,6 +688,7 @@ def _inspect_expansion_publication_reconciliation(
                 "manifest_rows_missing": [],
                 "blocked_cohort_rows": sorted(manifest - additions - already_published),
                 "already_published_cohort_rows": sorted(already_published),
+                "canonical_publishable_cohort_rows": sorted(canonical_publishable),
             },
             "non_score_blocked_at_or_above_threshold": {
                 "count": len(blocked),

@@ -79,6 +79,16 @@ def publication_score_threshold(db_path: str | Path) -> float:
         return _publication_score_threshold_from_connection(connection)
 
 
+def is_map_ready(row: dict[str, object]) -> bool:
+    """Return the canonical map-readiness state used by publication gates."""
+
+    return bool(
+        row.get("map_display_eligible")
+        and row.get("latitude") is not None
+        and row.get("longitude") is not None
+    )
+
+
 def _location_rank(location: dict[str, object]) -> tuple[int, int]:
     precision = str(
         location.get("map_location_precision")
@@ -98,13 +108,9 @@ def location_update_allowed(
 ) -> bool:
     """Allow only precision/provenance upgrades unless current state is invalid."""
 
-    existing_valid = bool(
-        existing.get("map_display_eligible")
-        and existing.get("latitude") is not None
-        and existing.get("longitude") is not None
-        and str(existing.get("location_status") or "").casefold()
-        not in {"invalidated", "location_invalidated", "location_removed"}
-    )
+    existing_valid = is_map_ready(existing) and str(
+        existing.get("location_status") or ""
+    ).casefold() not in {"invalidated", "location_invalidated", "location_removed"}
     if not existing_valid:
         return True
     return _location_rank(candidate) > _location_rank(existing)
@@ -370,7 +376,7 @@ def _publish_readiness_from_row(
     attempted = bool(row.get("location_attempted_at")) or row.get(
         "location_verification_status"
     ) not in (None, "", "unknown_provenance")
-    map_eligible = bool(row.get("map_display_eligible"))
+    map_eligible = is_map_ready(row)
     warnings: list[str] = []
     if not attempted:
         warnings.append("location_not_attempted")
@@ -939,6 +945,10 @@ def automatic_publication_decision(
             contradiction_reasons
         )
         status = "needs_review"
+    elif set(readiness.missing) == {"map_ready"}:
+        published = False
+        reason = "location_unresolved_or_map_unavailable"
+        status = "needs_review"
     else:
         published = False
         reason = (
@@ -964,6 +974,8 @@ def _auto_publish_readiness_from_decision(
     base: PublishReadiness, decision: dict[str, object]
 ) -> PublishReadiness:
     missing = list(base.missing)
+    if not base.map_eligible:
+        missing.append("map_ready")
     if decision.get("critical_publication_contradiction"):
         missing.append("critical_publication_contradiction")
     elif not decision.get("publishable"):

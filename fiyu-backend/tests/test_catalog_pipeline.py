@@ -818,13 +818,23 @@ def test_automatic_publication_uses_score_policy_and_defensible_location(tmp_pat
     assert tuple(row) == (1, "auto_published")
 
 
-def test_automatic_publication_ignores_location_and_web_identity_diagnostic(tmp_path):
+def test_automatic_publication_requires_map_ready_without_rejecting_candidate(tmp_path):
     no_location = _db(tmp_path / "location")
     _make_auto_publishable(no_location, map_eligible=False)
-    assert apply_automatic_publication(no_location, "place-1")["published"] is True
+    result = apply_automatic_publication(no_location, "place-1")
+    assert result["published"] is False
+    assert result["outcome"] == "needs_review"
+    assert result["reason"] == "location_unresolved_or_map_unavailable"
+    assert result["readiness"]["missing"] == ("map_ready",)
+    with connect(no_location) as connection:
+        row = connection.execute(
+            "SELECT is_published, review_status, product_eligible "
+            "FROM public_restaurants WHERE place_id='place-1'"
+        ).fetchone()
+    assert tuple(row) == (0, "needs_review", 1)
 
     score_rejected = _db(tmp_path / "score")
-    _make_auto_publishable(score_rejected, score_publishable=False)
+    _make_auto_publishable(score_rejected, map_eligible=True, score_publishable=False)
     with connect(score_rejected) as connection:
         row = connection.execute(
             "SELECT evidence_json FROM public_restaurants WHERE place_id='place-1'"
@@ -882,7 +892,7 @@ def _set_publication_conflict(
 
 def test_sparse_unknown_optional_fields_and_low_confidence_remain_publishable(tmp_path):
     path = _db(tmp_path)
-    _make_auto_publishable(path, map_eligible=False)
+    _make_auto_publishable(path, map_eligible=True)
     with connect(path) as connection:
         row = connection.execute(
             "SELECT evidence_json FROM public_restaurants WHERE place_id='place-1'"
@@ -909,9 +919,7 @@ def test_sparse_unknown_optional_fields_and_low_confidence_remain_publishable(tm
     result = apply_automatic_publication(path, "place-1")
     assert result["published"] is True
     assert result["critical_contradiction_reasons"] == ()
-    assert result["readiness"]["warnings"] == (
-        "location_unresolved_or_map_unavailable",
-    )
+    assert result["readiness"]["warnings"] == ()
 
 
 def test_ambiguous_branch_without_contradictory_evidence_remains_publishable(tmp_path):

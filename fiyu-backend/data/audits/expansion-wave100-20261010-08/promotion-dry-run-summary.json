@@ -1,0 +1,250 @@
+{
+  "dry_run": true,
+  "selection_scope": "cohort_manifest",
+  "cohort_manifest": "data\\audits\\expansion-wave100-20261010-08\\promotion-cohort.json",
+  "cohort_name": "expansion-wave100-20261010-08 promotable Quality-v4 subset",
+  "cohort_manifest_version": "deterministic-unseeded-cohort-1",
+  "cohort_ids": 98,
+  "unique_cohort_ids": 98,
+  "source_complete_v4_rows": 98,
+  "source_incomplete_rows": 0,
+  "source_failed_rows": 0,
+  "matched_canonical_identities": 98,
+  "missing_canonical_identities": 0,
+  "duplicate_or_conflicting_identities": 0,
+  "already_v4_rows": 0,
+  "already_promoted": 0,
+  "selected_for_promotion": 98,
+  "excluded_from_cohort": 0,
+  "missing_from_cohort": 0,
+  "unrelated_rows_selected": 0,
+  "sankei_sushi_selected": false,
+  "below_floor_rescue_overlap": 0,
+  "rows_to_import": 0,
+  "rows_to_score": 98,
+  "expected_score_history_additions": 196,
+  "expected_score_version_changes": 98,
+  "expected_publication_state_changes": 0,
+  "expected_is_published_changes": 0,
+  "expected_product_eligible_changes": 0,
+  "expected_review_status_changes": 0,
+  "expected_rejection_reason_changes": 0,
+  "expected_threshold_changes": 0,
+  "production_score_version": "public-v4-quality-research-specialist-tristate",
+  "source_shadow_score_version": "quality-v4-shadow-1",
+  "publication_score_threshold": 75.0,
+  "failed_or_incomplete_rows": [],
+  "stored_current_pointer_distribution_before": {
+    "count": 98,
+    "min": 50.91,
+    "p10": 63.38,
+    "median": 71.31,
+    "mean": 70.65,
+    "p90": 77.17,
+    "max": 80.52
+  },
+  "stored_v3_pointer_distribution_before": {
+    "count": 98,
+    "min": 50.91,
+    "p10": 63.38,
+    "median": 71.31,
+    "mean": 70.65,
+    "p90": 77.17,
+    "max": 80.52
+  },
+  "canonical_v3_distribution": {
+    "count": 98,
+    "min": 50.91,
+    "p10": 63.38,
+    "median": 71.31,
+    "mean": 70.65,
+    "p90": 77.17,
+    "max": 80.52
+  },
+  "v4_score_distribution_after": {
+    "count": 98,
+    "min": 52.26,
+    "p10": 64.97,
+    "median": 72.63,
+    "mean": 72.06,
+    "p90": 78.96,
+    "max": 82.34
+  },
+  "stored_pointer_to_v4_delta_distribution": {
+    "count": 98,
+    "min": 0.0,
+    "p10": 0.0,
+    "median": 1.32,
+    "mean": 1.41,
+    "p90": 2.44,
+    "max": 3.8800000000000097
+  },
+  "shadow_v4_delta_distribution": {
+    "count": 98,
+    "min": 0.0,
+    "p10": 0.0,
+    "median": 1.32,
+    "mean": 1.41,
+    "p90": 2.44,
+    "max": 3.8800000000000097
+  },
+  "documented_stored_v3_pointer_mismatches": 0,
+  "stored_pointer_decreases": 0,
+  "positive_adjustment_stored_pointer_decreases": 0,
+  "zero_adjustment_stored_pointer_differences": 0,
+  "quality_adjustment_distribution": {
+    "count": 98,
+    "min": 0.0,
+    "p10": 0.28,
+    "median": 3.12,
+    "mean": 3.32,
+    "p90": 5.52,
+    "max": 8.62
+  },
+  "quality_adjustment_bands": {
+    "<= -12": 0,
+    "-11.99 to -8": 0,
+    "-7.99 to -5": 0,
+    "-4.99 to -3": 0,
+    "-2.99 to -1": 0,
+    "-0.99 to -0.5": 0,
+    "-0.49 to +0.49": 11,
+    "+0.5 to +0.99": 0,
+    "+1 to +2.99": 34,
+    "+3 to +4.99": 38,
+    "+5 to +7.99": 14,
+    "+8 to +11.99": 1,
+    ">= +12": 0
+  },
+  "large_adjustments_ge_8": 1,
+  "large_adjustments_ge_12": 0,
+  "large_adjustment_rows": [
+    {
+      "place_id": "ChIJuSxmBR71GGARHxt5CUueJFM",
+      "restaurant": "Seadas Flower Caffe",
+      "adjustment": 8.62,
+      "production_v4_score": 79.45
+    }
+  ],
+  "guardrail_interventions": 0,
+  "shadow_production_exact_matches": 98,
+  "shadow_production_mismatches": 0,
+  "maximum_shadow_production_mismatch": 0.0,
+  "directional_violations": 0,
+  "total_canonical_restaurants": 2078,
+  "canonical_sha256_before": "268A6B0282D7ECED834EB912D118E647772CAC2F65797664032D768F29145518",
+  "source_shadow_sha256": "268A6B0282D7ECED834EB912D118E647772CAC2F65797664032D768F29145518",
+  "canonical_integrity_before": "ok",
+  "source_integrity_before": "ok",
+  "external_requests": 0,
+  "publication_threshold_before": 75.0,
+  "publication_threshold_after": 75.0,
+  "published_count_before": 1338,
+  "published_count_after": 1338,
+  "cohort_manifest_sha256": "7A055D1D989CCC401AA051F017D31FE454F82424B66F3D61691E6627E7ECD611",
+  "representative_rows": [
+    {
+      "sample": "zero",
+      "place_id": "ChIJ00gwW4uRGGAR0eQEDd6yKII",
+      "restaurant": "Itamae Shokudo Hashimoto",
+      "previous_v3_score": 70.49,
+      "base_quality": 52.84,
+      "quality_adjustment": 0.0,
+      "researched_quality": 52.84,
+      "production_v4_score": 70.49,
+      "score_version": "public-v4-quality-research-specialist-tristate",
+      "is_published_before_after": [
+        false,
+        false
+      ],
+      "product_eligible_before_after": [
+        true,
+        true
+      ]
+    },
+    {
+      "sample": "+1_to_+3",
+      "place_id": "ChIJ5-WKnpOLGGAREjAxVFC8P7c",
+      "restaurant": "the SUSHI",
+      "previous_v3_score": 71.94,
+      "base_quality": 70.35,
+      "quality_adjustment": 2.51,
+      "researched_quality": 72.86,
+      "production_v4_score": 73.07,
+      "score_version": "public-v4-quality-research-specialist-tristate",
+      "is_published_before_after": [
+        false,
+        false
+      ],
+      "product_eligible_before_after": [
+        true,
+        true
+      ]
+    },
+    {
+      "sample": "+3_to_+5",
+      "place_id": "ChIJ-acFDACLGGARu5kIIOihRBk",
+      "restaurant": "Kitesu",
+      "previous_v3_score": 77.22,
+      "base_quality": 66.96,
+      "quality_adjustment": 3.74,
+      "researched_quality": 70.7,
+      "production_v4_score": 78.91,
+      "score_version": "public-v4-quality-research-specialist-tristate",
+      "is_published_before_after": [
+        false,
+        false
+      ],
+      "product_eligible_before_after": [
+        true,
+        true
+      ]
+    },
+    {
+      "sample": "+5_to_+8",
+      "place_id": "ChIJ1aKIaXCLGGARkyTMVC2TFi8",
+      "restaurant": "Ise Sueyoshi",
+      "previous_v3_score": 79.09,
+      "base_quality": 100.0,
+      "quality_adjustment": 5.46,
+      "researched_quality": 100.0,
+      "production_v4_score": 79.09,
+      "score_version": "public-v4-quality-research-specialist-tristate",
+      "is_published_before_after": [
+        false,
+        false
+      ],
+      "product_eligible_before_after": [
+        true,
+        true
+      ]
+    },
+    {
+      "sample": ">=+8",
+      "place_id": "ChIJuSxmBR71GGARHxt5CUueJFM",
+      "restaurant": "Seadas Flower Caffe",
+      "previous_v3_score": 75.57,
+      "base_quality": 74.88,
+      "quality_adjustment": 8.62,
+      "researched_quality": 83.5,
+      "production_v4_score": 79.45,
+      "score_version": "public-v4-quality-research-specialist-tristate",
+      "is_published_before_after": [
+        false,
+        false
+      ],
+      "product_eligible_before_after": [
+        true,
+        true
+      ]
+    }
+  ],
+  "recommended_dry_run_command": ".\\.venv\\Scripts\\python.exe -m fiyu.pipeline_cli --db data\\fiyu.db quality-v4-promote --source-db data\\fiyu.db --cohort-manifest data\\audits\\expansion-wave100-20261010-08\\promotion-cohort.json --dry-run",
+  "recommended_real_command": ".\\.venv\\Scripts\\python.exe -m fiyu.pipeline_cli --db data\\fiyu.db quality-v4-promote --source-db data\\fiyu.db --cohort-manifest data\\audits\\expansion-wave100-20261010-08\\promotion-cohort.json --backup-out data\\audits\\pre-floor70-v4-promotion-20261006.db",
+  "canonical_sha256_after": "268A6B0282D7ECED834EB912D118E647772CAC2F65797664032D768F29145518",
+  "canonical_unchanged": true,
+  "source_shadow_unchanged": true,
+  "publication_state_changes": 0,
+  "threshold_changes": 0,
+  "unrelated_rows_changed": 0
+}

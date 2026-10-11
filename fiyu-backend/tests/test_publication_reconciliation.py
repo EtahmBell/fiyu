@@ -15,8 +15,10 @@ from fiyu.publication_reconciliation import (
     _manifest_ids,
     _reconciliation_decision,
     _row_change,
+    run_publication_reconciliation,
 )
-from tests.test_catalog_pipeline import _db
+from fiyu.quality_v4 import QUALITY_PRODUCTION_SCORE_VERSION
+from tests.test_catalog_pipeline import _db, _make_auto_publishable
 
 
 def _row(**updates):
@@ -109,6 +111,87 @@ def test_change_record_contains_no_score_or_research_mutation():
     assert change["score_version"].startswith("public-v4")
     assert "target_score" not in change
     assert "quality" not in change
+
+
+@pytest.mark.parametrize(("map_ready", "expected_additions"), ((True, 1), (False, 0)))
+def test_expansion_reconciliation_dry_run_and_real_share_map_ready_gate(
+    tmp_path, map_ready, expected_additions
+):
+    path = _db(tmp_path)
+    _make_auto_publishable(path, map_eligible=map_ready)
+    with connect(path) as connection:
+        connection.execute(
+            "INSERT INTO metadata(key, value) VALUES(?, '70') "
+            "ON CONFLICT(key) DO UPDATE SET value='70'",
+            (PUBLICATION_THRESHOLD_METADATA_KEY,),
+        )
+        connection.execute(
+            """
+            UPDATE public_restaurants
+            SET score_version=?, is_published=0, review_status='needs_review',
+                review_notes='location_unresolved_or_map_unavailable'
+            WHERE place_id='place-1'
+            """,
+            (QUALITY_PRODUCTION_SCORE_VERSION,),
+        )
+        connection.execute(
+            """
+            INSERT INTO public_restaurants (place_id, created_at, updated_at)
+            VALUES (?, 'now', 'now')
+            """,
+            (SANKEI_PLACE_ID,),
+        )
+        connection.commit()
+    manifest = tmp_path / "cohort.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "manifest_version": "deterministic-unseeded-cohort-1",
+                "ordered_place_ids": ["place-1"],
+                "selected_count": 1,
+            }
+        ),
+        encoding="utf-8",
+    )
+    paths = {
+        name: tmp_path / f"{name}.txt"
+        for name in ("summary", "report", "changes")
+    }
+    dry = run_publication_reconciliation(
+        path,
+        threshold=70,
+        cohort_manifest=manifest,
+        dry_run=True,
+        backup_path=None,
+        summary_path=paths["summary"],
+        report_path=paths["report"],
+        changes_path=paths["changes"],
+    )
+    real = run_publication_reconciliation(
+        path,
+        threshold=70,
+        cohort_manifest=manifest,
+        dry_run=False,
+        backup_path=tmp_path / "backup.db",
+        summary_path=paths["summary"],
+        report_path=paths["report"],
+        changes_path=paths["changes"],
+    )
+    assert dry["result"]["additions"] == expected_additions
+    assert real["result"]["additions"] == expected_additions
+    assert dry["cohort_assertion"]["canonical_publishable_cohort_rows"] == (
+        ["place-1"] if map_ready else []
+    )
+    with connect(path) as connection:
+        row = connection.execute(
+            "SELECT is_published, review_status, product_eligible "
+            "FROM public_restaurants WHERE place_id='place-1'"
+        ).fetchone()
+    assert tuple(row) == (
+        expected_additions,
+        "auto_published" if map_ready else "needs_review",
+        1,
+    )
 
 
 def test_manifest_rejects_duplicate_ids(tmp_path):
