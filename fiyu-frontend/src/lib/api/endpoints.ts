@@ -43,6 +43,12 @@ export const paths = {
   dailyPicksRecent: "/daily-picks/recent",
   dailyPicksReveal: (roundId: string) =>
     `/daily-picks/${encodeURIComponent(roundId)}/reveal`,
+  personalizedPicksState: "/personalized-picks/me",
+  personalizedPicksEvents: "/personalized-picks/events",
+  personalizedPicksDismiss: (eventId: string) =>
+    `/personalized-picks/${encodeURIComponent(eventId)}/dismiss`,
+  personalizedPicksSelect: (eventId: string) =>
+    `/personalized-picks/${encodeURIComponent(eventId)}/select`,
   togetherState: "/together/me",
   togetherInvites: "/together/invites",
   togetherInvite: (token: string) => `/together/invites/${encodeURIComponent(token)}`,
@@ -85,6 +91,22 @@ export function dailyPicksRecentUrl(cityId: string): string {
 
 export function dailyPicksRevealUrl(roundId: string): string {
   return `${getApiBaseUrl()}${paths.dailyPicksReveal(roundId)}`;
+}
+
+export function personalizedPicksStateUrl(): string {
+  return `${getApiBaseUrl()}${paths.personalizedPicksState}`;
+}
+
+export function personalizedPicksEventsUrl(): string {
+  return `${getApiBaseUrl()}${paths.personalizedPicksEvents}`;
+}
+
+export function personalizedPicksDismissUrl(eventId: string): string {
+  return `${getApiBaseUrl()}${paths.personalizedPicksDismiss(eventId)}`;
+}
+
+export function personalizedPicksSelectUrl(eventId: string): string {
+  return `${getApiBaseUrl()}${paths.personalizedPicksSelect(eventId)}`;
 }
 
 export function togetherStateUrl(): string { return `${getApiBaseUrl()}${paths.togetherState}`; }

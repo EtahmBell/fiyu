@@ -129,6 +129,11 @@ load_dotenv(BACKEND_ROOT / ".env")
 DB_PATH = Path(os.getenv("FIYU_DB_PATH", "data/fiyu.db"))
 logger = logging.getLogger(__name__)
 
+PERSONALIZED_PICK_UNLOCK_THRESHOLD = 10
+PERSONALIZED_PICK_EVENT_DURATION = timedelta(days=7)
+PERSONALIZED_PICK_ACTIVE_DURATION = RECENT_DISCOVERY_DURATION
+PERSONALIZED_PICK_DISMISS_DURATION = timedelta(hours=24)
+
 
 def _production_mode() -> bool:
     return os.getenv("FIYU_ENVIRONMENT", "development").strip().casefold() == "production"
@@ -599,6 +604,9 @@ class UserFiyuSummaryResponse(BaseModel):
     saved_count: int = Field(ge=0)
     area_count: int = Field(ge=0)
     rated_visit_count: int = Field(ge=0)
+    personalized_pick_rating_count: int = Field(ge=0)
+    personalized_pick_unlock_threshold: int = Field(ge=1)
+    personalized_picks_unlocked: bool
     together_unlock_threshold: int = Field(ge=1)
     together_unlocked: bool
     taste_unlock_threshold: int = Field(ge=1)
@@ -775,6 +783,27 @@ class DailyPickRevealResponse(BaseModel):
     pick_revealed_at: str
     revealed_place_ids: list[str]
     revealed_at: str | None = None
+
+
+class PersonalizedPickStateResponse(BaseModel):
+    status: Literal["locked", "unlocked_idle", "event_available", "selected", "expired"]
+    qualifying_rating_count: int = Field(ge=0)
+    unlock_threshold: int = Field(ge=1)
+    event_eligible: bool = False
+    event_id: str | None = None
+    card_count: Literal[3] | None = None
+    created_at: str | None = None
+    expires_at: str | None = None
+    dismissed_until: str | None = None
+    dismissal_count: int = Field(default=0, ge=0)
+    selected_position: int | None = Field(default=None, ge=0, le=2)
+    selected_at: str | None = None
+    active_until: str | None = None
+    selected_restaurant: PublicRestaurantSummary | None = None
+
+
+class PersonalizedPickSelectRequest(BaseModel):
+    position: int = Field(ge=0, le=2)
 
 
 class TogetherIdentityResponse(BaseModel):
@@ -1404,6 +1433,84 @@ def _parse_pick_datetime(value: object) -> datetime | None:
     return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
 
 
+def _qualifying_rating_place_ids(visits: Iterable[dict[str, object]]) -> set[str]:
+    """Count restaurant identities with at least one still-present explicit star rating."""
+    return {
+        str(visit["place_id"])
+        for visit in visits
+        if visit.get("place_id")
+        and isinstance(visit.get("rating"), int)
+        and not isinstance(visit.get("rating"), bool)
+        and 1 <= int(visit["rating"]) <= 5
+    }
+
+
+def _personalized_pick_state(
+    *, user_id: str, event: dict[str, object] | None = None
+) -> PersonalizedPickStateResponse:
+    qualifying_count = len(shared_user_data.latest_visit_ratings(user_id=user_id))
+    unlocked = qualifying_count >= PERSONALIZED_PICK_UNLOCK_THRESHOLD
+    if event is None:
+        event = shared_user_data.get_personalized_pick_event(user_id=user_id)
+    if not unlocked:
+        return PersonalizedPickStateResponse(
+            status="locked",
+            qualifying_rating_count=qualifying_count,
+            unlock_threshold=PERSONALIZED_PICK_UNLOCK_THRESHOLD,
+        )
+    if event is None:
+        return PersonalizedPickStateResponse(
+            status="unlocked_idle",
+            qualifying_rating_count=qualifying_count,
+            unlock_threshold=PERSONALIZED_PICK_UNLOCK_THRESHOLD,
+            event_eligible=True,
+        )
+
+    now = datetime.now(UTC)
+    selected_at = str(event["selected_at"]) if event.get("selected_at") else None
+    active_until = str(event["active_until"]) if event.get("active_until") else None
+    event_expires_at = str(event["expires_at"]) if event.get("expires_at") else None
+    selected_place_id = (
+        str(event["selected_place_id"]) if event.get("selected_place_id") else None
+    )
+    active_deadline = _parse_pick_datetime(active_until)
+    event_deadline = _parse_pick_datetime(event_expires_at)
+    if selected_at and active_deadline and active_deadline > now and selected_place_id:
+        restaurants = _public_restaurants_for_place_ids([selected_place_id])
+        selected_restaurant = restaurants[0] if restaurants else None
+        status = "selected" if selected_restaurant else "expired"
+    elif (selected_at and (active_deadline is None or active_deadline <= now)) or (
+        not selected_at and event_deadline is not None and event_deadline <= now
+    ):
+        selected_restaurant = None
+        status = "expired"
+    else:
+        selected_restaurant = None
+        status = "event_available"
+
+    return PersonalizedPickStateResponse(
+        status=status,
+        qualifying_rating_count=qualifying_count,
+        unlock_threshold=PERSONALIZED_PICK_UNLOCK_THRESHOLD,
+        event_id=str(event["id"]),
+        card_count=3 if status == "event_available" else None,
+        created_at=str(event["created_at"]) if event.get("created_at") else None,
+        expires_at=event_expires_at,
+        dismissed_until=(
+            str(event["dismissed_until"]) if event.get("dismissed_until") else None
+        ),
+        dismissal_count=int(event.get("dismissal_count") or 0),
+        selected_position=(
+            int(event["selected_position"])
+            if event.get("selected_position") is not None
+            else None
+        ),
+        selected_at=selected_at,
+        active_until=active_until,
+        selected_restaurant=selected_restaurant,
+    )
+
+
 def _shared_assignment(row: dict[str, object]) -> DailyPickAssignment:
     metadata = row.get("selection_metadata")
     normalized_metadata = metadata if isinstance(metadata, dict) else {}
@@ -1931,6 +2038,135 @@ def get_recent_daily_pick_discoveries(
         _recent_daily_pick_response(round, normalized_city, now) for round in rounds
     ]
     return [response for response in responses if response.place_ids]
+
+
+@app.get("/personalized-picks/me", response_model=PersonalizedPickStateResponse)
+def get_my_personalized_pick(
+    owner_id: Annotated[str, Depends(_owner_id_from_header)],
+) -> PersonalizedPickStateResponse:
+    """Return account-owned event state without exposing face-down identities."""
+    _ensure_database()
+    if not _shared_owner(owner_id):
+        raise HTTPException(status_code=401, detail="Authentication required")
+    user_id = str(owner_id)
+    return _personalized_pick_state(user_id=user_id)
+
+
+@app.post("/personalized-picks/events", response_model=PersonalizedPickStateResponse)
+def create_my_personalized_pick_event(
+    owner_id: Annotated[str, Depends(_owner_id_from_header)],
+) -> PersonalizedPickStateResponse:
+    """Create the one initial unlock event; future scheduling can use the same table."""
+    _ensure_database()
+    if not _shared_owner(owner_id):
+        raise HTTPException(status_code=401, detail="Authentication required")
+    user_id = str(owner_id)
+    existing = shared_user_data.get_personalized_pick_event(user_id=user_id)
+    if existing is not None:
+        return _personalized_pick_state(user_id=user_id, event=existing)
+    if len(shared_user_data.latest_visit_ratings(user_id=user_id)) < PERSONALIZED_PICK_UNLOCK_THRESHOLD:
+        return _personalized_pick_state(user_id=user_id, event=None)
+
+    location = shared_user_data.get_discovery_location(user_id=user_id)
+    if (
+        not location
+        or not location.get("configured")
+        or not isinstance(location.get("discovery_latitude"), (int, float))
+        or not isinstance(location.get("discovery_longitude"), (int, float))
+    ):
+        return PersonalizedPickStateResponse(
+            status="unlocked_idle",
+            qualifying_rating_count=len(
+                shared_user_data.latest_visit_ratings(user_id=user_id)
+            ),
+            unlock_threshold=PERSONALIZED_PICK_UNLOCK_THRESHOLD,
+            event_eligible=False,
+        )
+
+    now = datetime.now(UTC)
+    try:
+        place_ids, metadata = _plan_shared_daily_picks(
+            owner_id=user_id,
+            city_id="tokyo",
+            discovery_latitude=float(location["discovery_latitude"]),
+            discovery_longitude=float(location["discovery_longitude"]),
+            active_area=str(location.get("discovery_label") or "") or None,
+            discovery_mode=str(location.get("location_mode") or "manual"),
+            seed=int.from_bytes(
+                sha256(f"personalized-pick:{user_id}".encode()).digest()[:8], "big"
+            ),
+            now=now,
+            metadata_extra={"source": "personalized_pick_event"},
+        )
+    except InsufficientUnseenPoolError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "insufficient_personalized_pick_pool",
+                "available_count": exc.available_count,
+                "required_count": exc.required_count,
+            },
+        ) from None
+    event = shared_user_data.create_personalized_pick_event(
+        user_id=user_id,
+        city_id="tokyo",
+        place_ids=list(place_ids),
+        created_at=now.isoformat(),
+        expires_at=(now + PERSONALIZED_PICK_EVENT_DURATION).isoformat(),
+        selection_metadata=metadata,
+    )
+    return _personalized_pick_state(user_id=user_id, event=event)
+
+
+@app.post(
+    "/personalized-picks/{event_id}/dismiss",
+    response_model=PersonalizedPickStateResponse,
+)
+def dismiss_my_personalized_pick_event(
+    event_id: UUID,
+    owner_id: Annotated[str, Depends(_owner_id_from_header)],
+) -> PersonalizedPickStateResponse:
+    if not _shared_owner(owner_id):
+        raise HTTPException(status_code=401, detail="Authentication required")
+    user_id = str(owner_id)
+    now = datetime.now(UTC)
+    event = shared_user_data.dismiss_personalized_pick_event(
+        user_id=user_id,
+        event_id=str(event_id),
+        dismissed_at=now.isoformat(),
+        dismissed_until=(now + PERSONALIZED_PICK_DISMISS_DURATION).isoformat(),
+    )
+    if event is None:
+        raise HTTPException(status_code=404, detail="Available Personalized Pick event not found")
+    return _personalized_pick_state(user_id=user_id, event=event)
+
+
+@app.post(
+    "/personalized-picks/{event_id}/select",
+    response_model=PersonalizedPickStateResponse,
+)
+def select_my_personalized_pick_event(
+    event_id: UUID,
+    payload: PersonalizedPickSelectRequest,
+    owner_id: Annotated[str, Depends(_owner_id_from_header)],
+) -> PersonalizedPickStateResponse:
+    if not _shared_owner(owner_id):
+        raise HTTPException(status_code=401, detail="Authentication required")
+    user_id = str(owner_id)
+    now = datetime.now(UTC)
+    event = shared_user_data.select_personalized_pick_event(
+        user_id=user_id,
+        event_id=str(event_id),
+        position=payload.position,
+        selected_at=now.isoformat(),
+        active_until=(now + PERSONALIZED_PICK_ACTIVE_DURATION).isoformat(),
+    )
+    if event is None:
+        raise HTTPException(
+            status_code=409,
+            detail="Personalized Pick event is unavailable or already selected",
+        )
+    return _personalized_pick_state(user_id=user_id, event=event)
 
 
 def _together_token_hash(token: str) -> str:
@@ -3429,6 +3665,16 @@ def get_my_fiyu_summary(
         catalog=catalog,
         previous_taste_snapshot=previous_snapshot,
         exposed_place_ids=exposed,
+    )
+    personalized_rating_count = len(_qualifying_rating_place_ids(visits))
+    summary.update(
+        {
+            "personalized_pick_rating_count": personalized_rating_count,
+            "personalized_pick_unlock_threshold": PERSONALIZED_PICK_UNLOCK_THRESHOLD,
+            "personalized_picks_unlocked": (
+                personalized_rating_count >= PERSONALIZED_PICK_UNLOCK_THRESHOLD
+            ),
+        }
     )
     snapshot = summary.pop("_taste_snapshot", None)
     if isinstance(milestone, int) and isinstance(snapshot, dict):

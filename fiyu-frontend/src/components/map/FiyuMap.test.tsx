@@ -87,6 +87,19 @@ describe("map surface", () => {
     expect(screen.getByLabelText("渋谷の店")).toBeTruthy();
     expect(screen.getByLabelText("上野の店")).toBeTruthy();
   });
+
+  it("uses the Personalized Pick marker token without changing normal markers", () => {
+    const personalized = { ...SHIBUYA, is_personalized_pick: true };
+    render(<FiyuMap restaurants={[personalized, UENO]} selectedPlaceId={null} onSelect={() => {}} />);
+    const personalizedMarker = screen.getByLabelText("渋谷の店");
+    const normalMarker = screen.getByLabelText("上野の店");
+    expect(personalizedMarker.getAttribute("data-personalized-pick")).toBe("true");
+    expect(personalizedMarker.querySelector("circle:nth-of-type(3)")?.getAttribute("fill"))
+      .toBe("var(--map-marker-personalized)");
+    expect(normalMarker.getAttribute("data-personalized-pick")).toBe("false");
+    expect(normalMarker.querySelector("circle:nth-of-type(3)")?.getAttribute("fill"))
+      .toBe("var(--map-marker)");
+  });
 });
 
 describe("card and marker selection stay in sync", () => {

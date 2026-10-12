@@ -41,6 +41,9 @@ function summary(overrides: Partial<UserFiyuSummary> = {}): UserFiyuSummary {
     saved_count: 0,
     area_count: 0,
     rated_visit_count: 0,
+    personalized_pick_rating_count: 0,
+    personalized_pick_unlock_threshold: 10,
+    personalized_picks_unlocked: false,
     together_unlock_threshold: 5,
     together_unlocked: false,
     taste_unlock_threshold: 10,
@@ -390,6 +393,30 @@ describe("YourFiyuPage", () => {
 
     expect(await screen.findByText("Your Fiyu type")).toBeTruthy();
     expect(screen.getByText("The Neighbourhood Explorer")).toBeTruthy();
+  });
+
+  it("shows unique Personalized Picks progress before unlock", async () => {
+    api.fetchUserFiyuSummary.mockResolvedValue(summary({
+      rated_visit_count: 12,
+      personalized_pick_rating_count: 9,
+    }));
+    render(<YourFiyuPage />);
+    expect(await screen.findByText("9 of 10 places rated")).toBeTruthy();
+    expect(screen.getByText("Rate 10 places to unlock occasional picks chosen around your taste.")).toBeTruthy();
+    expect(
+      screen.getByRole("progressbar", { name: "Personalized Picks unlock progress" })
+        .getAttribute("aria-valuenow"),
+    ).toBe("9");
+  });
+
+  it("renders the server-owned Personalized Picks unlocked state", async () => {
+    api.fetchUserFiyuSummary.mockResolvedValue(summary({
+      personalized_pick_rating_count: 10,
+      personalized_picks_unlocked: true,
+    }));
+    render(<YourFiyuPage />);
+    expect(await screen.findByText("Unlocked")).toBeTruthy();
+    expect(screen.getByText("Every so often, Fiyu will surprise you with a place chosen around your taste.")).toBeTruthy();
   });
 
   it("replaces one account summary with another without exposing cached private data", async () => {

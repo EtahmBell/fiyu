@@ -112,13 +112,14 @@ function BookmarkIcon({ filled }: { filled: boolean }) {
  * exceptional (9+) current Pick swaps that accent and rule for brass and
  * changes nothing else.
  */
-export type CompactCardTone = "current" | "history" | "together";
+export type CompactCardTone = "current" | "history" | "together" | "personalized";
 
 /** The one coloured edge. Every other side of the card stays neutral. */
 const TONE_EDGE: Record<CompactCardTone, string> = {
   current: "before:bg-lavender-500",
   history: "before:bg-gold/70",
   together: "before:bg-plum-500",
+  personalized: "before:bg-personalized",
 };
 
 /*
@@ -131,6 +132,7 @@ const TONE_FOCUS: Record<CompactCardTone, string> = {
   current: "focus-visible:border-lavender-600 focus-visible:outline-lavender-600",
   history: "focus-visible:border-gold focus-visible:outline-gold",
   together: "focus-visible:border-plum-700 focus-visible:outline-plum-700",
+  personalized: "focus-visible:border-personalized focus-visible:outline-personalized",
 };
 
 export interface CompactRestaurantCardProps {
@@ -331,6 +333,11 @@ export function CompactRestaurantCard({
             >
               {title}
             </h3>
+            {tone === "personalized" ? (
+              <p className="mt-1 text-[0.625rem] font-semibold tracking-[0.14em] text-personalized uppercase">
+                Picked for you
+              </p>
+            ) : null}
             {secondaryLine && (
               <p className={cn(CARD_LAYOUT.secondary, "text-ink-muted")}>
                 {secondaryLine}

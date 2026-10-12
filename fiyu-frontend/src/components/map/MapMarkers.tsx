@@ -99,6 +99,9 @@ export function MapMarkers({
 
         if (cluster.members.length > 1) {
           const count = cluster.members.length;
+          const containsPersonalizedPick = cluster.members.some(
+            (member) => member.item.is_personalized_pick,
+          );
           return (
             <g
               key={cluster.id}
@@ -109,7 +112,7 @@ export function MapMarkers({
                 cx={x}
                 cy={y}
                 r={size(CLUSTER_RADIUS)}
-                fill="var(--map-marker)"
+                fill={containsPersonalizedPick ? "var(--map-marker-personalized)" : "var(--map-marker)"}
                 stroke="var(--map-marker-center)"
                 strokeWidth={size(2)}
               />
@@ -134,7 +137,12 @@ export function MapMarkers({
         const markerState = personalMapMarkerState(restaurant);
         const visited = markerState === "visited";
         const savedOnly = markerState === "saved";
-        const marker = visited ? "var(--map-marker-visited)" : "var(--map-marker)";
+        const personalized = restaurant.is_personalized_pick === true;
+        const marker = personalized
+          ? "var(--map-marker-personalized)"
+          : visited
+            ? "var(--map-marker-visited)"
+            : "var(--map-marker)";
         const label = resolveNames(restaurant).primary?.text ?? "Unnamed restaurant";
         const appearing = appearingPlaceIds.has(restaurant.place_id);
 
@@ -152,6 +160,7 @@ export function MapMarkers({
             data-discovered={restaurant.is_discovered ? "true" : "false"}
             data-saved={restaurant.is_saved ? "true" : "false"}
             data-marker-state={markerState}
+            data-personalized-pick={personalized ? "true" : "false"}
             data-newly-revealed={newlyRevealed ? "true" : undefined}
             data-cluster-appearing={appearing ? "true" : undefined}
             className={cn(
@@ -181,8 +190,8 @@ export function MapMarkers({
               cx={x}
               cy={y}
               r={size(selected ? MARKER_RADIUS + 1.5 : MARKER_RADIUS)}
-              fill={savedOnly ? "var(--map-bg)" : marker}
-              stroke={savedOnly ? "var(--map-marker)" : "var(--map-marker-center)"}
+              fill={savedOnly && !personalized ? "var(--map-bg)" : marker}
+              stroke={savedOnly && !personalized ? "var(--map-marker)" : "var(--map-marker-center)"}
               strokeWidth={size(selected ? 3 : savedOnly ? 3 : 2.5)}
               className="transition-[fill,stroke,stroke-width] duration-[180ms] ease-(--ease-fiyu)"
             />

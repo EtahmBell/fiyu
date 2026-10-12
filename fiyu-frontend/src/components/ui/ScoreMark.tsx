@@ -46,7 +46,7 @@ const SIZES: Record<ScoreMarkSize, SizeSpec> = {
   },
 };
 
-export type ScoreMarkTone = "current" | "history" | "together";
+export type ScoreMarkTone = "current" | "history" | "together" | "personalized";
 
 type Palette = { label: string; rule: string; zone: string };
 
@@ -60,6 +60,7 @@ const TONES: Record<ScoreMarkTone, Palette> = {
   current: { label: "text-lavender-800", rule: "bg-lavender-500", zone: "bg-lavender-50" },
   history: { label: "text-gold-700", rule: "bg-gold", zone: "bg-gold-soft/45" },
   together: { label: "text-plum-700", rule: "bg-plum-500", zone: "bg-plum-100/70" },
+  personalized: { label: "text-personalized", rule: "bg-personalized", zone: "bg-gold-soft/45" },
 };
 
 /**

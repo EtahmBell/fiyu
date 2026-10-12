@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { ProfileIdentityAvatar, profileIdentityPresentation } from "@/components/profile/ProfileIdentityAvatar";
 import { TogetherPanel } from "@/components/profile/TogetherPanel";
+import { usePersonalizedPick } from "@/components/personalized-picks/PersonalizedPickProvider";
 import { FiyuLoadingScreen } from "@/components/states/FiyuLoadingScreen";
 import { useAccountQuery } from "@/lib/accountQueryCache";
 import { acknowledgeTasteUpdate, fetchUserFiyuSummary } from "@/lib/api/client";
@@ -532,6 +533,67 @@ function RecentVisits({ summary }: { summary: UserFiyuSummary }) {
   );
 }
 
+function PersonalizedPicksSection({ summary }: { summary: UserFiyuSummary }) {
+  const personalizedPick = usePersonalizedPick();
+  const count = Math.min(
+    summary.personalized_pick_rating_count,
+    summary.personalized_pick_unlock_threshold,
+  );
+  const percentage = (count / summary.personalized_pick_unlock_threshold) * 100;
+  const active = personalizedPick.state?.status === "selected"
+    ? personalizedPick.state.selected_restaurant
+    : null;
+  return (
+    <section aria-labelledby="personalized-picks-title" className="border-b border-personalized-soft bg-gold-soft/20">
+      <div className={cn(MEASURE, "py-9 sm:py-12")}>
+        <p className={cn(MICRO_CAPS, "text-personalized")}>Occasional discovery</p>
+        <div className="mt-2 grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem] lg:gap-14">
+          <div>
+            <h2 id="personalized-picks-title" className="font-display text-3xl text-ink">
+              Personalized Picks
+            </h2>
+            <p className="mt-2 max-w-[52ch] text-sm leading-6 text-ink-body">
+              {summary.personalized_picks_unlocked
+                ? "Every so often, Fiyu will surprise you with a place chosen around your taste."
+                : "Rate 10 places to unlock occasional picks chosen around your taste."}
+            </p>
+            {active ? (
+              <Link
+                href={`/restaurants/${encodeURIComponent(active.place_id)}`}
+                className="mt-4 inline-flex min-h-11 items-center text-sm font-semibold text-personalized underline decoration-personalized-soft underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-personalized"
+              >
+                View your active Pick →
+              </Link>
+            ) : null}
+          </div>
+          <div className="border-t border-personalized-soft pt-4 lg:border-t-0 lg:border-l lg:pt-1 lg:pl-12">
+            <div className="flex items-baseline justify-between gap-4">
+              <p className={cn(MICRO_CAPS, "text-ink-faint")}>Personalized Picks</p>
+              <p className="font-display text-xl text-ink tabular-nums">
+                {summary.personalized_picks_unlocked
+                  ? "Unlocked"
+                  : `${count} of ${summary.personalized_pick_unlock_threshold} places rated`}
+              </p>
+            </div>
+            {!summary.personalized_picks_unlocked ? (
+              <div
+                role="progressbar"
+                aria-label="Personalized Picks unlock progress"
+                aria-valuemin={0}
+                aria-valuemax={summary.personalized_pick_unlock_threshold}
+                aria-valuenow={count}
+                className="mt-3 h-0.5 overflow-hidden rounded-full bg-personalized-soft"
+              >
+                <div className="h-full bg-personalized" style={{ width: `${percentage}%` }} />
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export function YourFiyuPage() {
   const identity = useProfileIdentity();
   const accountId = identity.status === "loading" ? undefined : identity.profile?.user_id ?? null;
@@ -648,6 +710,7 @@ export function YourFiyuPage() {
         summary={summary.data}
         onAcknowledge={acknowledgeTaste}
       />
+      <PersonalizedPicksSection summary={summary.data} />
       <RecentVisits summary={summary.data} />
       <TogetherPanel accountId={accountId} ratedVisitCount={summary.data.rated_visit_count} />
     </main>

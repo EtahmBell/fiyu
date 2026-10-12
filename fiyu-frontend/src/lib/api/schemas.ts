@@ -276,6 +276,8 @@ export const mapRestaurantSchema = publicRestaurantSchema.extend({
   // Default supports a safe rolling deploy against an older API response;
   // absence is legacy/no explicit rating, never an inferred star value.
   user_rating: z.number().int().min(1).max(5).nullable().default(null),
+  /** Client-composed from the server-owned active Personalized Pick event. */
+  is_personalized_pick: z.boolean().optional(),
 });
 export const mapRestaurantListSchema = z.array(mapRestaurantSchema);
 
@@ -463,6 +465,23 @@ export const dailyPickRevealResponseSchema = z.object({
   revealed_at: z.string().min(1).nullable(),
 });
 
+export const personalizedPickStateSchema = z.object({
+  status: z.enum(["locked", "unlocked_idle", "event_available", "selected", "expired"]),
+  qualifying_rating_count: z.number().int().nonnegative(),
+  unlock_threshold: z.number().int().positive(),
+  event_eligible: z.boolean().default(false),
+  event_id: nullableString,
+  card_count: z.literal(3).nullable(),
+  created_at: nullableString,
+  expires_at: nullableString,
+  dismissed_until: nullableString,
+  dismissal_count: z.number().int().nonnegative(),
+  selected_position: z.number().int().min(0).max(2).nullable(),
+  selected_at: nullableString,
+  active_until: nullableString,
+  selected_restaurant: publicRestaurantSchema.nullable(),
+});
+
 export const togetherIdentitySchema = z.object({
   display_name: z.string().min(1),
   username: nullableString,
@@ -558,6 +577,9 @@ export const userFiyuSummarySchema = z.object({
   saved_count: z.number().int().nonnegative(),
   area_count: z.number().int().nonnegative(),
   rated_visit_count: z.number().int().nonnegative(),
+  personalized_pick_rating_count: z.number().int().nonnegative(),
+  personalized_pick_unlock_threshold: z.number().int().positive(),
+  personalized_picks_unlocked: z.boolean(),
   together_unlock_threshold: z.number().int().positive(),
   together_unlocked: z.boolean(),
   taste_unlock_threshold: z.number().int().positive(),
@@ -713,6 +735,7 @@ export type DeveloperGeneratePicksResponse = z.infer<typeof developerGeneratePic
 export type DeveloperResetPicksResponse = z.infer<typeof developerResetPicksResponseSchema>;
 export type DeveloperResetVisitTasteResponse = z.infer<typeof developerResetVisitTasteResponseSchema>;
 export type DailyPickRevealResponse = z.infer<typeof dailyPickRevealResponseSchema>;
+export type PersonalizedPickState = z.infer<typeof personalizedPickStateSchema>;
 export type TogetherIdentity = z.infer<typeof togetherIdentitySchema>;
 export type TogetherSession = z.infer<typeof togetherSessionSchema>;
 export type TogetherState = z.infer<typeof togetherStateSchema>;

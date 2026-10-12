@@ -6,6 +6,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { FiyuMap } from "@/components/map/FiyuMap";
 import { PersonalMapFilterControl } from "@/components/map/PersonalMapFilterControl";
 import { FiyuLoadingScreen } from "@/components/states/FiyuLoadingScreen";
+import {
+  activePersonalizedMapRestaurant,
+  usePersonalizedPick,
+} from "@/components/personalized-picks/PersonalizedPickProvider";
 import { fetchAuthenticatedMapRestaurants } from "@/lib/api/client";
 import { useAccountQuery } from "@/lib/accountQueryCache";
 import type { MapRestaurant } from "@/lib/api/schemas";
@@ -31,6 +35,7 @@ export function DedicatedMap() {
   const router = useRouter();
   const isDesktop = useIsDesktop();
   const identity = useProfileIdentity();
+  const personalizedPick = usePersonalizedPick();
   const ownerKey = identity.profile?.user_id ?? null;
   const loadMap = useCallback(() => fetchAuthenticatedMapRestaurants(), []);
   const map = useAccountQuery<MapRestaurant[]>({
@@ -42,7 +47,17 @@ export function DedicatedMap() {
   const refreshMap = map.refresh;
   const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
   const [filter, setFilter] = useState<PersonalMapFilter>("all");
-  const mapRows = useMemo(() => map.status === "ready" ? map.data : [], [map]);
+  const mapRows = useMemo(() => {
+    const rows = map.status === "ready" ? map.data : [];
+    const personalized = activePersonalizedMapRestaurant(personalizedPick.state);
+    if (!personalized) return rows;
+    return [
+      personalized,
+      ...rows
+        .filter((restaurant) => restaurant.place_id !== personalized.place_id)
+        .map((restaurant) => ({ ...restaurant, is_personalized_pick: false })),
+    ];
+  }, [map, personalizedPick.state]);
   const expiryNow = useExpiryBoundaries(
     mapRows.flatMap((restaurant) => {
       const expiration = Date.parse(restaurant.discovery_expires_at ?? "");

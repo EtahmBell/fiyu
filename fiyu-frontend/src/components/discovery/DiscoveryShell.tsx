@@ -13,6 +13,10 @@ import { PageIntro, SiteFooter } from "@/components/layout/SiteHeader";
 import { FiyuMap } from "@/components/map/FiyuMap";
 import { PersonalMapFilterControl } from "@/components/map/PersonalMapFilterControl";
 import { FiyuLoadingScreen } from "@/components/states/FiyuLoadingScreen";
+import {
+  activePersonalizedMapRestaurant,
+  usePersonalizedPick,
+} from "@/components/personalized-picks/PersonalizedPickProvider";
 import { Button } from "@/components/ui/Button";
 import {
   checkCurrentDiscoveryLocation,
@@ -87,6 +91,7 @@ type NewRoundLocationGate =
 export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps) {
   const router = useRouter();
   const identity = useProfileIdentity();
+  const personalizedPick = usePersonalizedPick();
   const authenticatedUserId = identity.profile?.user_id ?? null;
   const loadDiscoveryLocation = useCallback(() => fetchDiscoveryLocation(), []);
   const locationQuery = useAccountQuery<DiscoveryLocation>({
@@ -328,8 +333,9 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
       is_saved: false,
       is_visited: false,
       user_rating: null,
+      is_personalized_pick: false,
     }));
-    const mapRestaurants = identity.profile
+    let mapRestaurants = identity.profile
       ? mapQuery.status === "ready"
         ? [...new Map([...immediateDiscoveries, ...accountMapRestaurants].map((restaurant) => [
             restaurant.place_id,
@@ -339,8 +345,17 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
           ? immediateDiscoveries
           : []
       : immediateDiscoveries;
+    const personalized = activePersonalizedMapRestaurant(personalizedPick.state);
+    if (personalized) {
+      mapRestaurants = [
+        personalized,
+        ...mapRestaurants
+          .filter((restaurant) => restaurant.place_id !== personalized.place_id)
+          .map((restaurant) => ({ ...restaurant, is_personalized_pick: false })),
+      ];
+    }
     return mapRestaurants;
-  }, [currentMapRows, identity.profile, mapQuery.status, visibleRestaurants]);
+  }, [currentMapRows, identity.profile, mapQuery.status, personalizedPick.state, visibleRestaurants]);
   const mappable = useMemo(
     () => mappableRestaurants(
       identity.profile

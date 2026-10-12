@@ -112,6 +112,11 @@
   --color-gold: #b18a36;
   --color-gold-700: #8a6a1f;
 
+  /* Personalized Picks: warm ochre, distinct from both current lavender and
+     the champagne used for general history. Small marks and rules only. */
+  --color-personalized-soft: #eadfca;
+  --color-personalized: #946f2d;
+
   --color-rose-dust: #c58f98;
 
   --color-status-open: #2c6a45;
@@ -255,6 +260,7 @@
   --map-marker-visited: var(--color-gold);
   --map-marker-visited-selected: #75591f;
   --map-marker-visited-center: #fffaf0;
+  --map-marker-personalized: var(--color-personalized);
   /*
    * Area anchors: the same lavender hue at lower chroma, so an exact pin stays
    * the stronger mark. The distinction is carried by shape (dashed ring, no

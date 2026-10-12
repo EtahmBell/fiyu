@@ -666,6 +666,7 @@ export function DailyPicksPanel({
                 is_saved: false,
                 is_visited: false,
                 user_rating: null,
+                is_personalized_pick: false,
               });
             }
           }

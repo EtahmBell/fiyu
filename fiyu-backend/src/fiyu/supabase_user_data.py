@@ -462,6 +462,108 @@ def latest_visit_ratings(*, user_id: str) -> dict[str, int]:
     return latest
 
 
+def get_personalized_pick_event(*, user_id: str) -> dict[str, Any] | None:
+    """Return the account's newest event and its stable, server-owned card order."""
+    rows = _request(
+        "fiyu_personalized_pick_events",
+        query={
+            "select": "*",
+            "user_id": f"eq.{user_id}",
+            "order": "created_at.desc,id.desc",
+            "limit": "1",
+        },
+    )
+    if not isinstance(rows, list) or not rows:
+        return None
+    event = rows[0]
+    items = _request(
+        "fiyu_personalized_pick_event_items",
+        query={
+            "select": "position,place_id",
+            "event_id": f"eq.{event['id']}",
+            "user_id": f"eq.{user_id}",
+            "order": "position.asc",
+        },
+    )
+    if not isinstance(items, list) or len(items) != 3:
+        return None
+    return {
+        **event,
+        "place_ids": [str(item["place_id"]) for item in items],
+    }
+
+
+def create_personalized_pick_event(
+    *,
+    user_id: str,
+    city_id: str,
+    place_ids: list[str],
+    created_at: str,
+    expires_at: str,
+    selection_metadata: dict[str, object],
+) -> dict[str, Any]:
+    result = _request(
+        "rpc/create_initial_fiyu_personalized_pick_event",
+        method="POST",
+        body={
+            "p_user_id": user_id,
+            "p_city_id": city_id,
+            "p_place_ids": place_ids,
+            "p_created_at": created_at,
+            "p_expires_at": expires_at,
+            "p_selection_metadata": selection_metadata,
+        },
+    )
+    if isinstance(result, list) and result:
+        result = result[0]
+    returned_ids = result.get("place_ids") if isinstance(result, dict) else None
+    if (
+        not isinstance(result, dict)
+        or not isinstance(returned_ids, list)
+        or len(returned_ids) != 3
+        or len(set(returned_ids)) != 3
+    ):
+        raise SharedUserDataError("Personalized Pick event could not be saved")
+    return result
+
+
+def dismiss_personalized_pick_event(
+    *, user_id: str, event_id: str, dismissed_at: str, dismissed_until: str
+) -> dict[str, Any] | None:
+    result = _request(
+        "rpc/dismiss_fiyu_personalized_pick_event",
+        method="POST",
+        body={
+            "p_user_id": user_id,
+            "p_event_id": event_id,
+            "p_dismissed_at": dismissed_at,
+            "p_dismissed_until": dismissed_until,
+        },
+    )
+    if isinstance(result, list) and result:
+        result = result[0]
+    return result if isinstance(result, dict) and result.get("id") else None
+
+
+def select_personalized_pick_event(
+    *, user_id: str, event_id: str, position: int, selected_at: str, active_until: str
+) -> dict[str, Any] | None:
+    result = _request(
+        "rpc/select_fiyu_personalized_pick_event",
+        method="POST",
+        body={
+            "p_user_id": user_id,
+            "p_event_id": event_id,
+            "p_position": position,
+            "p_selected_at": selected_at,
+            "p_active_until": active_until,
+        },
+    )
+    if isinstance(result, list) and result:
+        result = result[0]
+    return result if isinstance(result, dict) and result.get("id") else None
+
+
 def get_visit(*, user_id: str, visit_id: str) -> dict[str, Any] | None:
     rows = _rows("fiyu_restaurant_visits", user_id=user_id, id=visit_id)
     return rows[0] if rows else None

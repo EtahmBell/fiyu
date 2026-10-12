@@ -1,6 +1,7 @@
 "use client";
 
 import { CompactRestaurantCard } from "@/components/daily-picks/CompactRestaurantCard";
+import { usePersonalizedPick } from "@/components/personalized-picks/PersonalizedPickProvider";
 import { CityEmptyState } from "@/components/city-signature/CitySignature";
 import {
   DailyCardFrame,
@@ -39,8 +40,13 @@ export function RecentDiscoveries({
   selectedPlaceId = null,
   registerCardRef,
 }: RecentDiscoveriesProps) {
+  const personalizedPick = usePersonalizedPick();
+  const activePersonalized = personalizedPick.state?.status === "selected"
+    ? personalizedPick.state.selected_restaurant
+    : null;
   const byId = new Map(restaurants.map((restaurant) => [restaurant.place_id, restaurant]));
   const entries = discoveries
+    .filter((discovery) => discovery.restaurantId !== activePersonalized?.place_id)
     .map((discovery) => ({ discovery, restaurant: byId.get(discovery.restaurantId) }))
     .filter(
       (entry): entry is { discovery: RevealedDiscovery; restaurant: PublicRestaurant } =>
@@ -62,7 +68,7 @@ export function RecentDiscoveries({
         Recent Discoveries
       </h3>
 
-      {entries.length === 0 ? (
+      {!activePersonalized && entries.length === 0 ? (
         <CityEmptyState
           cityId={ACTIVE_FIYU_CITY.id}
           kind="discoveries"
@@ -72,6 +78,28 @@ export function RecentDiscoveries({
         />
       ) : (
         <div className="mt-3 space-y-3">
+          {activePersonalized ? (
+            <DailyCardFrame
+              placeId={activePersonalized.place_id}
+              selected={selectedPlaceId === activePersonalized.place_id}
+              tone="history"
+              registerRef={registerCardRef}
+            >
+              <CompactRestaurantCard
+                restaurant={activePersonalized}
+                tone="personalized"
+                saved={savedRestaurantIds.includes(activePersonalized.place_id)}
+                savePending={pendingPlaceIds.includes(activePersonalized.place_id)}
+                expirationLabel={formatExpirationLabel(
+                  Date.parse(personalizedPick.state?.active_until ?? ""),
+                  now,
+                )}
+                onOpen={onOpen}
+                onViewDetails={onViewDetails}
+                onToggleSaved={() => onToggleSaved(activePersonalized.place_id)}
+              />
+            </DailyCardFrame>
+          ) : null}
           {entries.map(({ discovery, restaurant }) => (
             <DailyCardFrame
               key={restaurant.place_id}

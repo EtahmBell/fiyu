@@ -14,6 +14,10 @@ import {
   dailyPicksActiveUrl,
   dailyPicksRecentUrl,
   dailyPicksRevealUrl,
+  personalizedPicksDismissUrl,
+  personalizedPicksEventsUrl,
+  personalizedPicksSelectUrl,
+  personalizedPicksStateUrl,
   developerDailyPicksGenerateUrl,
   developerDailyPicksResetUrl,
   developerVisitTasteResetUrl,
@@ -54,6 +58,7 @@ import {
 import {
   type DailyPickAssignmentResponse,
   type RecentDailyPickRound,
+  type PersonalizedPickState,
   type DiscoveryLocation,
   type DeveloperGeneratePicksResponse,
   type DeveloperResetPicksResponse,
@@ -88,6 +93,7 @@ import {
   developerStatusSchema,
   activeDailyPickAssignmentResponseSchema,
   recentDailyPickRoundListSchema,
+  personalizedPickStateSchema,
   discoveryLocationSchema,
   currentLocationCheckSchema,
   defaultListMutationResponseSchema,
@@ -439,6 +445,53 @@ export function revealDailyPicks(
       body: { place_id: placeId },
       headers: { ...listHeaders(identity), ...(options.headers ?? {}) },
     },
+  );
+}
+
+export function fetchPersonalizedPickState(
+  options: RequestOptions = {},
+): Promise<PersonalizedPickState> {
+  return requestJson(
+    personalizedPicksStateUrl(),
+    paths.personalizedPicksState,
+    personalizedPickStateSchema,
+    { ...options, cache: "no-store" },
+  );
+}
+
+export function createPersonalizedPickEvent(
+  options: RequestOptions = {},
+): Promise<PersonalizedPickState> {
+  return requestJson(
+    personalizedPicksEventsUrl(),
+    paths.personalizedPicksEvents,
+    personalizedPickStateSchema,
+    { ...options, method: "POST" },
+  );
+}
+
+export function dismissPersonalizedPickEvent(
+  eventId: string,
+  options: RequestOptions = {},
+): Promise<PersonalizedPickState> {
+  return requestJson(
+    personalizedPicksDismissUrl(eventId),
+    paths.personalizedPicksDismiss(eventId),
+    personalizedPickStateSchema,
+    { ...options, method: "POST" },
+  );
+}
+
+export function selectPersonalizedPick(
+  eventId: string,
+  position: number,
+  options: RequestOptions = {},
+): Promise<PersonalizedPickState> {
+  return requestJson(
+    personalizedPicksSelectUrl(eventId),
+    paths.personalizedPicksSelect(eventId),
+    personalizedPickStateSchema,
+    { ...options, method: "POST", body: { position } },
   );
 }
 
