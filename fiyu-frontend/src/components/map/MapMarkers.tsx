@@ -21,6 +21,7 @@ function markerForRestaurants(restaurants: readonly MappableRestaurant[]): strin
   }
   const states = restaurants.map(personalMapMarkerState);
   if (states.includes("discovered")) return "var(--map-marker-discovered)";
+  if (states.includes("saved")) return "var(--map-marker-saved)";
   if (states.includes("visited")) return "var(--map-marker-visited)";
   return "var(--map-marker)";
 }
@@ -44,7 +45,8 @@ export interface MapMarkersProps {
  * Restaurant pins and cluster bubbles.
  *
  * The map is an orientation surface, not a directions product. Pin colour
- * distinguishes only current Picks from account-owned visit history. This
+ * distinguishes the dominant personal relationship without changing filter
+ * membership: Personalized Pick, active discovery, Saved, then Visited. This
  * component never fabricates, shifts, or recentres a coordinate; approximate
  * area geometry remains a backend provenance concern.
  */
@@ -151,15 +153,17 @@ export function MapMarkers({
         const visited = restaurant.is_visited === true;
         const visitedMarker = markerState === "visited";
         const discovered = markerState === "discovered";
-        const savedOnly = markerState === "saved";
+        const saved = markerState === "saved";
         const personalized = restaurant.is_personalized_pick === true;
         const marker = personalized
           ? "var(--map-marker-personalized)"
           : discovered
             ? "var(--map-marker-discovered)"
-            : visitedMarker
-              ? "var(--map-marker-visited)"
-              : "var(--map-marker)";
+            : saved
+              ? "var(--map-marker-saved)"
+              : visitedMarker
+                ? "var(--map-marker-visited)"
+                : "var(--map-marker)";
         const label = resolveNames(restaurant).primary?.text ?? "Unnamed restaurant";
         const appearing = appearingPlaceIds.has(restaurant.place_id);
 
@@ -206,10 +210,18 @@ export function MapMarkers({
             <circle
               cx={x}
               cy={y}
-              r={size(selected ? MARKER_RADIUS + 1.5 : MARKER_RADIUS)}
-              fill={savedOnly && !personalized ? "var(--map-bg)" : marker}
-              stroke={savedOnly && !personalized ? "var(--map-marker)" : "var(--map-marker-center)"}
-              strokeWidth={size(selected ? 3 : savedOnly ? 3 : 2.5)}
+              r={size(
+                selected
+                  ? MARKER_RADIUS + 1.5
+                  : personalized
+                    ? MARKER_RADIUS + 1
+                    : visitedMarker
+                      ? MARKER_RADIUS - 1
+                      : MARKER_RADIUS
+              )}
+              fill={marker}
+              stroke="var(--map-marker-center)"
+              strokeWidth={size(selected ? 3 : personalized ? 3 : 2.5)}
               className="transition-[fill,stroke,stroke-width] duration-[180ms] ease-(--ease-fiyu)"
             />
             <title>{label}</title>

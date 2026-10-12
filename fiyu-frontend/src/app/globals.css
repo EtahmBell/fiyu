@@ -15,12 +15,11 @@
  *   Dusty blue is DISCOVERED. It identifies Recent Discoveries without
  *   competing with the ochre reserved for Personalized Picks.
  *
- *   Champagne is VISITED. Places already visited or logged, plus the editorial
- *   warmth that sits under that history. It never
- *   competes for the same job as lavender, and it is never the loudest mark on
- *   a surface: hairlines, small marks and micro-caps metadata only. No fill
- *   larger than a chip, no outline running all the way round a card, and always
- *   paired with a word or a shape so colour is never the only signal.
+ *   Slate is VISITED. It is deliberately quieter than an active save or
+ *   discovery and is always paired with a status label or marker shape.
+ *
+ *   Champagne remains an editorial accent for exceptional scores and other
+ *   warm details; it does not encode a personal relationship.
  *
  *   Plum is US. Fiyu Together, and nothing else. It is the third tense --
  *   neither what Fiyu is showing you now nor where you have already been, but
@@ -100,15 +99,14 @@
   --color-plum-mist: #d8c9dd;
 
   /*
-   * Champagne: the secondary accent, four steps deep so a history treatment
-   * never has to reach for a one-off hex.
+   * Champagne: an editorial accent, four steps deep so an exceptional-score
+   * treatment never has to reach for a one-off hex.
    *
-   *   gold-line  the warm peer of --color-line. Swapped in for a neutral
-   *              hairline where that line separates past from present.
+   *   gold-line  the warm peer of --color-line.
    *   gold-soft  the only permitted champagne fill: chip scale, plus the
    *              score zone of an exceptional (9+) Pick.
-   *   gold       marks and rules: map pins for visited places, accent rules.
-   *   gold-700   the text step. Datelines, expiry, visited status.
+   *   gold       editorial marks and rules.
+   *   gold-700   the readable text step.
    */
   --color-gold-line: #e7dcc2;
   --color-gold-soft: #f5ecd5;
@@ -116,16 +114,24 @@
   --color-gold-700: #8a6a1f;
 
   /* Recent Discoveries: a restrained blue-grey distinct from current
-     lavender, visited champagne, and Personalized Pick ochre. */
+     lavender, visited slate, and Personalized Pick gold. */
   --color-discovery-line: #d8deea;
   --color-discovery-soft: #eef1f7;
   --color-discovery: #7d90b8;
   --color-discovery-700: #5d6f95;
 
-  /* Personalized Picks: warm ochre, distinct from both current lavender and
-     the champagne used for general history. Small marks and rules only. */
-  --color-personalized-soft: #eadfca;
-  --color-personalized: #946f2d;
+  /* Visited: neutral graphite/slate, quieter than every active intent state. */
+  --color-visited-line: #d9dade;
+  --color-visited-soft: #f0f1f2;
+  --color-visited: #7d818a;
+  --color-visited-700: #5f636b;
+
+  /* Personalized Picks: bright warm gold for the rarest relationship. The
+     darker step is used for text so the accent itself remains graphics-only. */
+  --color-personalized-line: #e6d5aa;
+  --color-personalized-soft: #f5ecd6;
+  --color-personalized: #c79a32;
+  --color-personalized-700: #765813;
 
   --color-rose-dust: #c58f98;
 
@@ -266,11 +272,10 @@
 
   --map-marker: #8b6cf6;
   --map-marker-discovered: var(--color-discovery);
+  --map-marker-saved: var(--color-lavender-600);
   --map-marker-selected: #3e304f;
   --map-marker-center: #fff9ef;
-  --map-marker-visited: var(--color-gold);
-  --map-marker-visited-selected: #75591f;
-  --map-marker-visited-center: #fffaf0;
+  --map-marker-visited: var(--color-visited);
   --map-marker-personalized: var(--color-personalized);
   /*
    * Area anchors: the same lavender hue at lower chroma, so an exact pin stays

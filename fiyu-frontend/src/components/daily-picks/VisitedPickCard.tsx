@@ -37,11 +37,11 @@ export function VisitedPickCard({
         event.preventDefault();
         onOpen(restaurant);
       }}
-      className="min-w-0 rounded-card border border-line border-t-gold/60 bg-surface px-4 py-3 shadow-[0_6px_20px_-18px_rgba(49,40,61,0.28)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
+      className="min-w-0 rounded-card border border-line border-t-visited/60 bg-surface px-4 py-3 shadow-[0_6px_20px_-18px_rgba(49,40,61,0.28)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-visited"
     >
       <div className="flex min-w-0 items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-[0.6875rem] font-semibold tracking-[0.14em] text-gold-700 uppercase">
+          <p className="text-[0.6875rem] font-semibold tracking-[0.14em] text-visited-700 uppercase">
             Visited
           </p>
           <h3 lang={nameJa ? "ja" : "en"} className="mt-1 font-display text-xl leading-tight text-ink">
@@ -53,21 +53,21 @@ export function VisitedPickCard({
         {visit.user_rating !== null && visit.user_rating !== undefined && (
           <p
             aria-label={`${visit.user_rating} out of 5 stars`}
-            className="shrink-0 text-sm tracking-[0.06em] text-gold-700"
+            className="shrink-0 text-sm tracking-[0.06em] text-visited-700"
           >
             <span aria-hidden="true">{stars(visit.user_rating)}</span>
           </p>
         )}
       </div>
       {onViewDetails && (
-        <div className="mt-2 flex justify-end border-t border-gold-line/60 pt-1.5">
+        <div className="mt-2 flex justify-end border-t border-visited-line/60 pt-1.5">
           <button
             type="button"
             onClick={(event) => {
               event.stopPropagation();
               onViewDetails(restaurant);
             }}
-            className="inline-flex min-h-9 items-center gap-1 text-xs font-semibold text-plum underline decoration-transparent underline-offset-4 transition-colors hover:decoration-gold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
+            className="inline-flex min-h-9 items-center gap-1 text-xs font-semibold text-plum underline decoration-transparent underline-offset-4 transition-colors hover:decoration-visited focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-visited"
           >
             <span>View restaurant</span>
             <span aria-hidden="true">→</span>

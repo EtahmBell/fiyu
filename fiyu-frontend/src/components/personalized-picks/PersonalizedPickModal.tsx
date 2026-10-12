@@ -91,7 +91,7 @@ export function PersonalizedPickModal({
       >
         {selected ? (
           <div aria-live="polite" aria-atomic="true">
-            <p className="text-[0.625rem] font-semibold tracking-[0.16em] text-personalized uppercase">
+            <p className="text-[0.625rem] font-semibold tracking-[0.16em] text-personalized-700 uppercase">
               Your pick
             </p>
             <h2 id="personalized-pick-title" className="mt-2 font-display text-4xl leading-none text-ink">
@@ -108,7 +108,7 @@ export function PersonalizedPickModal({
             <div className="mt-5 flex items-start justify-between gap-5 border-t border-personalized-soft pt-5">
               <div>
                 {metadata ? <p className="text-sm leading-6 text-ink-body">{metadata}</p> : null}
-                <p className="mt-2 text-xs font-semibold tracking-[0.12em] text-personalized uppercase">
+                <p className="mt-2 text-xs font-semibold tracking-[0.12em] text-personalized-700 uppercase">
                   Picked for you
                 </p>
               </div>
@@ -140,7 +140,7 @@ export function PersonalizedPickModal({
             >
               <span aria-hidden="true">×</span>
             </button>
-            <p className="text-[0.625rem] font-semibold tracking-[0.16em] text-personalized uppercase">
+            <p className="text-[0.625rem] font-semibold tracking-[0.16em] text-personalized-700 uppercase">
               Personalized Pick
             </p>
             <h2 id="personalized-pick-title" className="mt-2 font-display text-4xl leading-none text-ink">
@@ -159,7 +159,7 @@ export function PersonalizedPickModal({
                   onClick={() => onSelect(position)}
                   className="group aspect-[3/4] min-w-0 rounded-xl border border-personalized-soft bg-surface shadow-paper transition-[transform,border-color] duration-200 ease-(--ease-fiyu) hover:-translate-y-1 hover:border-personalized focus-visible:-translate-y-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-personalized motion-reduce:transform-none motion-reduce:transition-none disabled:cursor-wait disabled:opacity-65"
                 >
-                  <span aria-hidden="true" className="mx-auto flex size-9 items-center justify-center rounded-full border border-personalized-soft font-display text-xl text-personalized sm:size-11">
+                  <span aria-hidden="true" className="mx-auto flex size-9 items-center justify-center rounded-full border border-personalized-soft font-display text-xl text-personalized-700 sm:size-11">
                     F
                   </span>
                   <span className="sr-only">

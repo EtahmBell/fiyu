@@ -500,7 +500,7 @@ export function LogWorkspace({
       ) : (
         <section aria-label="Restaurant visits">
           <div className="mb-7 flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
-            <p className="text-xs font-medium tracking-[0.1em] text-gold-700 uppercase">
+            <p className="text-xs font-medium tracking-[0.1em] text-visited-700 uppercase">
               {countLabel(visits.length)} logged
             </p>
             <Button variant="secondary" onClick={openCreate}>
@@ -857,14 +857,14 @@ function VisitHistorySections({
   return (
     /*
      * The month spine is the Log's own structure -- every rule here sits under a
-     * month that has already happened -- so it is drawn warm. The hairlines
+     * month that has already happened -- so it uses the quiet visited slate. The hairlines
      * between individual entries stay neutral: recolouring those as well would
-     * turn a journal into a gold-ruled ledger.
+     * between entries remain neutral so the page stays restrained.
      */
     <div className="space-y-9 sm:space-y-11">
       {months.map((month) => (
         <section key={month.key} aria-label={month.label}>
-          <div className="flex items-end justify-between gap-4 border-b border-gold-line pb-2">
+          <div className="flex items-end justify-between gap-4 border-b border-visited-line pb-2">
             <h2 className="font-display text-2xl leading-tight text-ink">{month.label}</h2>
             <p className="text-xs font-medium tracking-[0.08em] text-ink-faint uppercase">
               {countLabel(month.visits.length)}
@@ -1073,14 +1073,14 @@ function VisitEntry({
         )}
         <div className="flex min-w-0 flex-col">
           {/*
-           * The dateline is champagne rather than lavender: an entry in the Log
+           * The dateline is visited slate rather than lavender: an entry in the Log
            * is a meal that has already happened, which is exactly what the
            * secondary accent is for. The form that creates an entry keeps its
            * lavender eyebrow, because that is an action happening now.
            */}
           <time
             dateTime={visit.visited_at}
-            className="text-[0.6875rem] font-medium tracking-[0.14em] text-gold-700 uppercase"
+            className="text-[0.6875rem] font-medium tracking-[0.14em] text-visited-700 uppercase"
           >
             <span aria-hidden="true">{formatVisitDay(visit.visited_at)}</span>
             {/* The dateline is abbreviated by design; assistive tech gets it whole. */}
@@ -1111,8 +1111,8 @@ function VisitEntry({
           {visit.private_note && (
             // A margin annotation rather than a panel: hairline rule, smaller
             // type, so the note stays clearly secondary to the visit itself.
-            // The rule is warm, matching the dateline it hangs beneath.
-            <p className="mt-3 border-l border-gold-line pl-3 text-[0.8125rem] leading-6 whitespace-pre-wrap text-ink-muted">
+            // The rule matches the visited dateline it hangs beneath.
+            <p className="mt-3 border-l border-visited-line pl-3 text-[0.8125rem] leading-6 whitespace-pre-wrap text-ink-muted">
               {visit.private_note}
             </p>
           )}

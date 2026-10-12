@@ -144,14 +144,14 @@ function SavedSurface() {
       <div
         data-testid="workflow-saved-detail"
         className={cn(
-          "fiyu-lp-lift overflow-hidden rounded-card border border-line border-t-gold/60",
+          "fiyu-lp-lift overflow-hidden rounded-card border border-line border-t-lavender-600/60",
           "bg-surface shadow-[0_18px_44px_-30px_rgba(49,40,61,0.55)]",
         )}
       >
         <ExamplePickCardBrief example={kept} tone="saved" frame="flush" />
         <div className="border-t border-line bg-canvas/50 px-2 pt-2 pb-2 sm:px-3 sm:pt-2.5 sm:pb-3">
           <div className="flex items-baseline justify-between gap-3">
-            <p className="text-[0.5625rem] font-semibold tracking-[0.16em] text-gold-700 uppercase">
+            <p className="text-[0.5625rem] font-semibold tracking-[0.16em] text-lavender-700 uppercase">
               Saved to your list
             </p>
             {/* The saved footer trades the area for "Discovered", so it returns here. */}

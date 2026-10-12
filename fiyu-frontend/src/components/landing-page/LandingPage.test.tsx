@@ -426,6 +426,9 @@ describe("landing narrative sections", () => {
     expect(within(surface).getAllByTestId("example-pick-card-brief")).toHaveLength(4);
     const detail = within(surface).getByTestId("workflow-saved-detail");
     expect(within(detail).getAllByTestId("example-pick-card-brief")).toHaveLength(1);
+    expect(detail.className).toContain("border-t-lavender-600/60");
+    expect(within(detail).getByText("Saved to your list").className)
+      .toContain("text-lavender-700");
   });
 
   it("drives the phone workflow by tap, never by scroll position", () => {

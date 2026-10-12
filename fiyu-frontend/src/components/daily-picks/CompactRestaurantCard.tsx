@@ -334,7 +334,7 @@ export function CompactRestaurantCard({
               {title}
             </h3>
             {tone === "personalized" ? (
-              <p className="mt-1 text-[0.625rem] font-semibold tracking-[0.14em] text-personalized uppercase">
+              <p className="mt-1 text-[0.625rem] font-semibold tracking-[0.14em] text-personalized-700 uppercase">
                 Picked for you
               </p>
             ) : null}
@@ -445,7 +445,7 @@ export function CompactRestaurantCard({
                   history
                     ? "font-medium text-discovery-700"
                     : tone === "personalized"
-                      ? "font-medium text-personalized"
+                      ? "font-medium text-personalized-700"
                       : "text-ink-muted",
                 )}
               >
@@ -517,7 +517,7 @@ export function CompactRestaurantCard({
               "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600",
               "disabled:cursor-not-allowed disabled:opacity-60",
               saved
-                ? "text-gold-700 hover:bg-gold-soft/60 focus-visible:outline-gold"
+                ? "bg-lavender-100/70 text-lavender-700 hover:bg-lavender-100"
                 : "text-ink-muted hover:bg-lavender-50 hover:text-plum active:bg-lavender-100/70",
             )}
           >

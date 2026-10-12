@@ -28,6 +28,15 @@ interface LegendEntry {
 /** Swatches reuse the map's own CSS variables, so the key cannot drift. */
 const ENTRIES: LegendEntry[] = [
   {
+    id: "personalized",
+    label: "Personalized Pick",
+    swatch: (
+      <svg viewBox="0 0 16 16" className="size-4" aria-hidden="true">
+        <circle cx="8" cy="8" r="5.5" fill="var(--map-marker-personalized)" stroke="var(--map-marker-center)" strokeWidth="1.5" />
+      </svg>
+    ),
+  },
+  {
     id: "restaurant",
     label: "Discovered",
     swatch: (
@@ -37,11 +46,18 @@ const ENTRIES: LegendEntry[] = [
     ),
   },
   {
-    id: "personalized",
-    label: "Personalized Pick",
+    id: "saved",
+    label: "Saved",
     swatch: (
       <svg viewBox="0 0 16 16" className="size-4" aria-hidden="true">
-        <circle cx="8" cy="8" r="5.5" fill="var(--map-marker-personalized)" stroke="var(--map-marker-center)" strokeWidth="1.5" />
+        <circle
+          cx="8"
+          cy="8"
+          r="5.5"
+          fill="var(--map-marker-saved)"
+          stroke="var(--map-marker-center)"
+          strokeWidth="1.5"
+        />
       </svg>
     ),
   },
@@ -57,22 +73,6 @@ const ENTRIES: LegendEntry[] = [
           fill="var(--map-marker-visited)"
           stroke="var(--map-marker-center)"
           strokeWidth="1.5"
-        />
-      </svg>
-    ),
-  },
-  {
-    id: "saved",
-    label: "Saved",
-    swatch: (
-      <svg viewBox="0 0 16 16" className="size-4" aria-hidden="true">
-        <circle
-          cx="8"
-          cy="8"
-          r="5.5"
-          fill="var(--map-bg)"
-          stroke="var(--map-marker)"
-          strokeWidth="2"
         />
       </svg>
     ),

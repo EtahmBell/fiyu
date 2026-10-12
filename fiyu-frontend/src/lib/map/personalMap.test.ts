@@ -50,6 +50,8 @@ describe("personal Map membership", () => {
     expect(filterPersonalMapRestaurants(reconciled, "visited").map((row) => row.place_id)).toEqual([
       "visited-expired",
     ]);
+    expect(personalMapMarkerState(reconciled[0])).toBe("saved");
+    expect(personalMapMarkerState(reconciled[1])).toBe("visited");
   });
 
   it.each([
@@ -108,13 +110,14 @@ describe("personal Map membership", () => {
     ["discovered only", { is_discovered: true }, "discovered"],
     ["saved and discovered", { is_saved: true, is_discovered: true }, "discovered"],
     ["visited only", { is_visited: true }, "visited"],
-    ["saved and visited", { is_saved: true, is_visited: true }, "visited"],
+    ["saved and visited", { is_saved: true, is_visited: true }, "saved"],
     ["discovered and visited", { is_discovered: true, is_visited: true }, "discovered"],
     [
       "saved, discovered, and visited",
       { is_saved: true, is_discovered: true, is_visited: true },
       "discovered",
     ],
+    ["no personal relationship", {}, "default"],
   ] as const)("uses one dominant style for %s", (_label, state, expected) => {
     expect(personalMapMarkerState(restaurant("state", state))).toBe(expected);
   });

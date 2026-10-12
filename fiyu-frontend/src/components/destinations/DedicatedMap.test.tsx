@@ -184,7 +184,7 @@ describe("dedicated user map", () => {
     ).toBeTruthy();
   });
 
-  it("renders visited restaurants with the secondary brass treatment", async () => {
+  it("renders visited restaurants with the quieter slate treatment", async () => {
     const visited = mapRestaurantSchema.parse({
       ...verifiedLocationCatalog[0],
       is_discovered: false,
@@ -221,7 +221,7 @@ describe("dedicated user map", () => {
     fireEvent.click(visitedPin);
     const popup = container.querySelector('[data-layer="restaurant-popup"]');
     expect(popup?.getAttribute("data-visited")).toBe("true");
-    // The brass edge is reinforced by the word, so the state does not rest on
+    // The slate edge is reinforced by the word, so the state does not rest on
     // colour alone.
     expect(within(popup as HTMLElement).getByText("Visited")).toBeTruthy();
 
@@ -440,7 +440,9 @@ describe("dedicated user map", () => {
     expect(container.querySelector("svg")?.getAttribute("viewBox")).toBe(viewBox);
     const savedOnly = container.querySelector(`[data-place-id="${rows[1].place_id}"]`);
     expect(savedOnly?.getAttribute("data-marker-state")).toBe("saved");
-    expect(savedOnly?.querySelectorAll("circle")[2]?.getAttribute("fill")).toBe("var(--map-bg)");
+    expect(savedOnly?.querySelectorAll("circle")[2]?.getAttribute("fill")).toBe(
+      "var(--map-marker-saved)",
+    );
     const savedAndVisited = container.querySelector(`[data-place-id="${rows[3].place_id}"]`);
     expect(savedAndVisited?.getAttribute("data-marker-state")).toBe("discovered");
     expect(savedAndVisited?.querySelectorAll("circle")[2]?.getAttribute("fill")).toBe(

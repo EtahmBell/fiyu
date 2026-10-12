@@ -118,7 +118,7 @@ export function ExamplePickCard({
         SURFACE,
         "p-2.5 shadow-[0_10px_30px_-24px_rgba(49,40,61,0.5)] sm:p-3",
         "transition-colors duration-500 ease-(--ease-fiyu)",
-        saved ? "border-t-gold/60" : "border-t-lavender-500/45",
+        saved ? "border-t-lavender-600/60" : "border-t-lavender-500/45",
         className,
       )}
     >
@@ -170,7 +170,7 @@ export function ExamplePickCard({
 /**
  * The footer carries the card's tense.
  *
- * A saved place swaps its area for the word, because champagne is never the only
+ * A saved place swaps its area for the word, because purple is never the only
  * signal that something has moved into the past -- and because swapping one line
  * for another keeps the card exactly as tall either way.
  */
@@ -181,7 +181,7 @@ function CardFooter({ example, saved }: { example: FictionalRestaurant; saved: b
         className={cn(
           "min-w-0 truncate text-[0.625rem] tracking-[0.12em] uppercase",
           "transition-colors duration-500 ease-(--ease-fiyu)",
-          saved ? "font-medium text-gold-700" : "text-ink-faint",
+          saved ? "font-medium text-lavender-700" : "text-ink-faint",
         )}
       >
         {saved ? "Discovered" : example.area}
@@ -190,7 +190,7 @@ function CardFooter({ example, saved }: { example: FictionalRestaurant; saved: b
         aria-hidden="true"
         className={cn(
           "shrink-0 transition-colors duration-500 ease-(--ease-fiyu)",
-          saved ? "text-gold-700" : "text-ink-faint",
+          saved ? "text-lavender-700" : "text-ink-faint",
         )}
       >
         <BookmarkGlyph filled={saved} />
@@ -233,7 +233,7 @@ export function ExamplePickCardBrief({
           cn(
             "overflow-hidden rounded-card border border-line bg-surface",
             "shadow-[0_10px_30px_-24px_rgba(49,40,61,0.5)]",
-            saved ? "border-t-gold/60" : "border-t-lavender-500/45",
+            saved ? "border-t-lavender-600/60" : "border-t-lavender-500/45",
           ),
         className,
       )}

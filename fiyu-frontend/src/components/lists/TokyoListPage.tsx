@@ -129,7 +129,7 @@ function SavedRow({
                   aria-pressed={true}
                   disabled={pending}
                   onClick={onRemove}
-                  className="inline-flex size-9 shrink-0 items-center justify-center text-gold-700 transition-[background-color,color,transform] duration-[180ms] ease-(--ease-fiyu) hover:bg-gold-soft/55 hover:text-gold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 min-[480px]:size-11"
+                  className="inline-flex size-9 shrink-0 items-center justify-center rounded-lg bg-lavender-100/70 text-lavender-700 transition-[background-color,color,transform] duration-[180ms] ease-(--ease-fiyu) hover:bg-lavender-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 min-[480px]:size-11"
                 >
                   <BookmarkIcon filled={true} />
                 </button>

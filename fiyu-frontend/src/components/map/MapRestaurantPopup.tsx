@@ -73,7 +73,7 @@ export function MapRestaurantPopup({
     : null;
   const metadata = restaurantMetadataParts(restaurant.category, restaurant).join(" · ");
   /*
-   * A visited pin, a champagne popup edge and a champagne caret are all colour.
+   * A visited pin, a slate popup edge and a slate caret are all colour.
    * The status is spelled out here as well, so the state survives for anyone who
    * cannot separate the two accents -- and it is placed ahead of the metadata so
    * the truncation clips the category rather than the status.
@@ -83,7 +83,7 @@ export function MapRestaurantPopup({
     Number.isInteger(restaurant.user_rating)
     ? restaurant.user_rating
     : null;
-  const edge = visited ? "border-gold/45" : "border-line";
+  const edge = visited ? "border-visited/45" : "border-line";
 
   return (
     <div
@@ -121,16 +121,16 @@ export function MapRestaurantPopup({
       {(visited || metadata) && (
         <p className="mt-2 flex min-w-0 items-baseline gap-1.5 text-xs text-ink-muted">
           {visited && (
-            <span className="shrink-0 text-[0.625rem] font-medium tracking-[0.08em] text-gold-700 uppercase">
+            <span className="shrink-0 text-[0.625rem] font-medium tracking-[0.08em] text-visited-700 uppercase">
               Visited
             </span>
           )}
           {visited && userRating !== null && (
             <>
-              <span aria-hidden="true" className="shrink-0 text-gold/70">·</span>
+              <span aria-hidden="true" className="shrink-0 text-visited/70">·</span>
               <span
                 aria-label={`Your rating: ${userRating} out of 5 stars`}
-                className="shrink-0 tracking-[0.06em] text-gold-700"
+                className="shrink-0 tracking-[0.06em] text-visited-700"
               >
                 <span aria-hidden="true">
                   {"★".repeat(userRating)}{"☆".repeat(5 - userRating)}
@@ -139,7 +139,7 @@ export function MapRestaurantPopup({
             </>
           )}
           {visited && metadata && (
-            <span aria-hidden="true" className="shrink-0 text-gold/70">
+            <span aria-hidden="true" className="shrink-0 text-visited/70">
               ·
             </span>
           )}

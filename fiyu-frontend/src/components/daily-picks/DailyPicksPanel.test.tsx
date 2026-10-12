@@ -57,7 +57,7 @@ describe("Today’s Fiyu Picks panel", () => {
     expect(document.body.textContent).not.toContain("undefined");
   });
 
-  it("replaces only a visited active Pick with the compact brass state", () => {
+  it("replaces only a visited active Pick with the compact slate state", () => {
     const now = Date.UTC(2026, 6, 29, 12);
     vi.useFakeTimers();
     vi.setSystemTime(now);

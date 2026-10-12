@@ -684,7 +684,8 @@ describe("compact card interaction", () => {
       name: "Remove restaurant from saved",
     });
     expect(removeSaved.getAttribute("aria-pressed")).toBe("true");
-    expect(removeSaved.className).toContain("text-gold-700");
+    expect(removeSaved.className).toContain("bg-lavender-100/70");
+    expect(removeSaved.className).toContain("text-lavender-700");
     expect(removeSaved.querySelector("svg")?.getAttribute("fill")).toBe("currentColor");
   });
 });

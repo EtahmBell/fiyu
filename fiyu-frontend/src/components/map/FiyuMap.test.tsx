@@ -88,8 +88,14 @@ describe("map surface", () => {
     expect(screen.getByLabelText("上野の店")).toBeTruthy();
   });
 
-  it("distinguishes Personalized Picks, discoveries, and visited markers", () => {
-    const personalized = { ...SHIBUYA, is_personalized_pick: true };
+  it("uses Personalized Pick, discovery, Saved, and Visited marker precedence", () => {
+    const personalized = {
+      ...SHIBUYA,
+      is_personalized_pick: true,
+      is_discovered: true,
+      is_saved: true,
+      is_visited: true,
+    };
     const discovered = { ...UENO, is_discovered: true, is_visited: true };
     const visited = {
       ...mappable("visited", 35.69, 139.72, {
@@ -98,16 +104,30 @@ describe("map surface", () => {
       is_discovered: false,
       is_visited: true,
     };
+    const saved = {
+      ...mappable("saved", 35.68, 139.75, { name_en: "Saved fixture" }),
+      is_discovered: false,
+      is_saved: true,
+    };
+    const savedVisited = {
+      ...mappable("saved-visited", 35.66, 139.79, { name_en: "Saved visited fixture" }),
+      is_discovered: false,
+      is_saved: true,
+      is_visited: true,
+    };
     render(
       <FiyuMap
-        restaurants={[personalized, discovered, visited]}
+        restaurants={[personalized, discovered, saved, visited, savedVisited]}
         selectedPlaceId={null}
         onSelect={() => {}}
+        clusterNearbyRestaurants={false}
       />,
     );
     const personalizedMarker = screen.getByLabelText("渋谷の店");
     const discoveredMarker = screen.getByLabelText("上野の店");
     const visitedMarker = screen.getByLabelText("Visited fixture");
+    const savedMarker = screen.getByLabelText("Saved fixture");
+    const savedVisitedMarker = screen.getByLabelText("Saved visited fixture");
     expect(personalizedMarker.getAttribute("data-personalized-pick")).toBe("true");
     expect(personalizedMarker.querySelector("circle:nth-of-type(3)")?.getAttribute("fill"))
       .toBe("var(--map-marker-personalized)");
@@ -115,6 +135,11 @@ describe("map surface", () => {
       .toBe("var(--map-marker-discovered)");
     expect(visitedMarker.querySelector("circle:nth-of-type(3)")?.getAttribute("fill"))
       .toBe("var(--map-marker-visited)");
+    expect(savedMarker.querySelector("circle:nth-of-type(3)")?.getAttribute("fill"))
+      .toBe("var(--map-marker-saved)");
+    expect(savedVisitedMarker.getAttribute("data-marker-state")).toBe("saved");
+    expect(savedVisitedMarker.querySelector("circle:nth-of-type(3)")?.getAttribute("fill"))
+      .toBe("var(--map-marker-saved)");
   });
 });
 
@@ -529,6 +554,34 @@ describe("controls", () => {
 });
 
 describe("clustering on the map", () => {
+  it("uses the strongest relationship represented in a cluster", () => {
+    const saved = {
+      ...mappable("saved", 35.658, 139.7016),
+      is_discovered: false,
+      is_saved: true,
+    };
+    const visited = {
+      ...mappable("visited", 35.6582, 139.7018),
+      is_discovered: false,
+      is_visited: true,
+    };
+    const { container, rerender } = render(
+      <FiyuMap restaurants={[saved, visited]} selectedPlaceId={null} onSelect={() => {}} />,
+    );
+    expect(container.querySelector('[data-marker-kind="restaurant-cluster-visual"]')
+      ?.getAttribute("data-marker-fill")).toBe("var(--map-marker-saved)");
+
+    rerender(
+      <FiyuMap
+        restaurants={[saved, { ...visited, is_personalized_pick: true }]}
+        selectedPlaceId={null}
+        onSelect={() => {}}
+      />,
+    );
+    expect(container.querySelector('[data-marker-kind="restaurant-cluster-visual"]')
+      ?.getAttribute("data-marker-fill")).toBe("var(--map-marker-personalized)");
+  });
+
   it("collapses overlapping restaurants into a count marker", () => {
     // Two points a few metres apart share a grid cell at the default zoom.
     const a = mappable("a", 35.658, 139.7016);

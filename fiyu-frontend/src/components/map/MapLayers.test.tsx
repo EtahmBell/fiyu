@@ -301,6 +301,14 @@ describe("map key", () => {
       expect(screen.getByText(label), label).toBeTruthy();
     }
     expect(screen.queryByText("Approximate area")).toBeNull();
+    expect(screen.getByText("Personalized Pick").closest("li")
+      ?.querySelector("circle")?.getAttribute("fill")).toBe("var(--map-marker-personalized)");
+    expect(screen.getByText("Discovered").closest("li")
+      ?.querySelector("circle")?.getAttribute("fill")).toBe("var(--map-marker-discovered)");
+    expect(screen.getByText("Saved").closest("li")
+      ?.querySelector("circle")?.getAttribute("fill")).toBe("var(--map-marker-saved)");
+    expect(screen.getByText("Visited").closest("li")
+      ?.querySelector("circle")?.getAttribute("fill")).toBe("var(--map-marker-visited)");
   });
 
   it("credits OpenStreetMap whether the key is open or closed", () => {

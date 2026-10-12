@@ -509,8 +509,8 @@ function RecentVisits({ summary }: { summary: UserFiyuSummary }) {
                   {[visitDate(visit.visited_at), visit.area].filter(Boolean).join(" · ")}
                 </p>
                 {visit.private_note_excerpt ? (
-                  <p className="col-span-2 col-start-1 row-start-3 mt-3 border-l border-gold-line pl-3 text-xs leading-5 text-ink-muted lg:col-span-2 lg:col-start-2 lg:row-start-2">
-                    <span className={cn("mr-2", MICRO_CAPS, "text-gold-700")}>Private note</span>
+                  <p className="col-span-2 col-start-1 row-start-3 mt-3 border-l border-visited-line pl-3 text-xs leading-5 text-ink-muted lg:col-span-2 lg:col-start-2 lg:row-start-2">
+                    <span className={cn("mr-2", MICRO_CAPS, "text-visited-700")}>Private note</span>
                     {visit.private_note_excerpt}
                   </p>
                 ) : null}
@@ -553,9 +553,9 @@ function PersonalizedPicksSection({ summary }: { summary: UserFiyuSummary }) {
     ? personalizedPick.state.selected_restaurant
     : null;
   return (
-    <section aria-labelledby="personalized-picks-title" className="border-b border-personalized-soft bg-gold-soft/20">
+    <section aria-labelledby="personalized-picks-title" className="border-b border-personalized-soft bg-personalized-soft/30">
       <div className={cn(MEASURE, "py-9 sm:py-12")}>
-        <p className={cn(MICRO_CAPS, "text-personalized")}>Occasional discovery</p>
+        <p className={cn(MICRO_CAPS, "text-personalized-700")}>Occasional discovery</p>
         <div className="mt-2 grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem] lg:gap-14">
           <div>
             <h2 id="personalized-picks-title" className="font-display text-3xl text-ink">
@@ -569,7 +569,7 @@ function PersonalizedPicksSection({ summary }: { summary: UserFiyuSummary }) {
             {active ? (
               <Link
                 href={`/restaurants/${encodeURIComponent(active.place_id)}`}
-                className="mt-4 inline-flex min-h-11 items-center text-sm font-semibold text-personalized underline decoration-personalized-soft underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-personalized"
+                className="mt-4 inline-flex min-h-11 items-center text-sm font-semibold text-personalized-700 underline decoration-personalized-soft underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-personalized"
               >
                 View your active Pick →
               </Link>
