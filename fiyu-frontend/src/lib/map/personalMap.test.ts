@@ -4,13 +4,17 @@ import type { MapRestaurant } from "@/lib/api/schemas";
 import {
   belongsToPersonalMapFilter,
   filterPersonalMapRestaurants,
+  mergeActivePersonalizedPick,
   personalMapMarkerState,
   reconcileDiscoveryExpiry,
 } from "@/lib/map/personalMap";
 
 function restaurant(
   placeId: string,
-  state: Partial<Pick<MapRestaurant, "is_discovered" | "is_saved" | "is_visited">> = {},
+  state: Partial<Pick<
+    MapRestaurant,
+    "is_discovered" | "is_saved" | "is_visited" | "is_personalized_pick"
+  >> = {},
   eligible = true,
 ): MapRestaurant {
   return {
@@ -50,6 +54,11 @@ describe("personal Map membership", () => {
 
   it.each([
     ["discovered-only", restaurant("d", { is_discovered: true }), [true, false, false, true]],
+    [
+      "unsaved personalized discovery",
+      restaurant("p", { is_discovered: true, is_personalized_pick: true }),
+      [true, false, false, true],
+    ],
     ["saved-only", restaurant("s", { is_saved: true }), [false, true, false, false]],
     ["visited-only", restaurant("v", { is_visited: true }), [true, false, true, false]],
     ["saved + discovered", restaurant("sd", { is_saved: true, is_discovered: true }), [true, true, false, true]],
@@ -80,7 +89,7 @@ describe("personal Map membership", () => {
     )).toBe(true);
   });
 
-  it("defaults to ALL and preserves visited marker precedence", () => {
+  it("defaults to ALL and gives an active discovery marker precedence over visit history", () => {
     const rows = [
       restaurant("discovered", { is_discovered: true }),
       restaurant("saved", { is_saved: true }),
@@ -90,7 +99,7 @@ describe("personal Map membership", () => {
       "discovered",
       "visited",
     ]);
-    expect(personalMapMarkerState(rows[2])).toBe("visited");
+    expect(personalMapMarkerState(rows[2])).toBe("discovered");
     expect(personalMapMarkerState(rows[1])).toBe("saved");
   });
 
@@ -100,13 +109,44 @@ describe("personal Map membership", () => {
     ["saved and discovered", { is_saved: true, is_discovered: true }, "discovered"],
     ["visited only", { is_visited: true }, "visited"],
     ["saved and visited", { is_saved: true, is_visited: true }, "visited"],
-    ["discovered and visited", { is_discovered: true, is_visited: true }, "visited"],
+    ["discovered and visited", { is_discovered: true, is_visited: true }, "discovered"],
     [
       "saved, discovered, and visited",
       { is_saved: true, is_discovered: true, is_visited: true },
-      "visited",
+      "discovered",
     ],
   ] as const)("uses one dominant style for %s", (_label, state, expected) => {
     expect(personalMapMarkerState(restaurant("state", state))).toBe(expected);
+  });
+
+  it("keeps Personalized Pick treatment separate from canonical Saved and Visited membership", () => {
+    const unsavedPick = restaurant("pick", {
+      is_discovered: true,
+      is_personalized_pick: true,
+    });
+    const rows = [
+      restaurant("discovered", { is_discovered: true }),
+      restaurant("saved", { is_saved: true }),
+      restaurant("saved-visited", { is_saved: true, is_visited: true }),
+    ];
+
+    const unsavedMerged = mergeActivePersonalizedPick(rows, unsavedPick);
+    expect(filterPersonalMapRestaurants(unsavedMerged, "saved").map((row) => row.place_id))
+      .toEqual(["saved", "saved-visited"]);
+    expect(filterPersonalMapRestaurants(unsavedMerged, "visited").map((row) => row.place_id))
+      .toEqual(["saved-visited"]);
+
+    const savedPickMerged = mergeActivePersonalizedPick(
+      [restaurant("pick", { is_saved: true, is_visited: true })],
+      unsavedPick,
+    );
+    expect(savedPickMerged[0]).toMatchObject({
+      place_id: "pick",
+      is_personalized_pick: true,
+      is_saved: true,
+      is_visited: true,
+    });
+    expect(filterPersonalMapRestaurants(savedPickMerged, "saved")).toHaveLength(1);
+    expect(filterPersonalMapRestaurants(savedPickMerged, "visited")).toHaveLength(1);
   });
 });

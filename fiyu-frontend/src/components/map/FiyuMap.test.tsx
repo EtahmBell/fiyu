@@ -90,7 +90,7 @@ describe("map surface", () => {
 
   it("distinguishes Personalized Picks, discoveries, and visited markers", () => {
     const personalized = { ...SHIBUYA, is_personalized_pick: true };
-    const discovered = { ...UENO, is_discovered: true };
+    const discovered = { ...UENO, is_discovered: true, is_visited: true };
     const visited = {
       ...mappable("visited", 35.69, 139.72, {
         name_en: "Visited fixture",

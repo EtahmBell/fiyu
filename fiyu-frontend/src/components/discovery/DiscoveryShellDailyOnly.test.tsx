@@ -727,6 +727,7 @@ describe("daily-only discovery shell", () => {
     const visitedRestaurants = assignmentRestaurants.slice(1).map((restaurant, index) =>
       mapRestaurantSchema.parse({
         ...restaurant,
+        is_discovered: false,
         is_visited: true,
         user_rating: index === 0 ? 4 : 5,
       }),

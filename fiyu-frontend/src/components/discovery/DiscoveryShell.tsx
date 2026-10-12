@@ -44,6 +44,7 @@ import {
 import { PICKS_DETAIL_MAP_SESSION_KEY } from "@/lib/map/viewportSession";
 import {
   filterPersonalMapRestaurants,
+  mergeActivePersonalizedPick,
   reconcileDiscoveryExpiry,
   type PersonalMapFilter,
 } from "@/lib/map/personalMap";
@@ -335,7 +336,7 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
       user_rating: null,
       is_personalized_pick: false,
     }));
-    let mapRestaurants = identity.profile
+    const mapRestaurants = identity.profile
       ? mapQuery.status === "ready"
         ? [...new Map([...immediateDiscoveries, ...accountMapRestaurants].map((restaurant) => [
             restaurant.place_id,
@@ -346,15 +347,7 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
           : []
       : immediateDiscoveries;
     const personalized = activePersonalizedMapRestaurant(personalizedPick.state);
-    if (personalized) {
-      mapRestaurants = [
-        personalized,
-        ...mapRestaurants
-          .filter((restaurant) => restaurant.place_id !== personalized.place_id)
-          .map((restaurant) => ({ ...restaurant, is_personalized_pick: false })),
-      ];
-    }
-    return mapRestaurants;
+    return mergeActivePersonalizedPick(mapRestaurants, personalized);
   }, [currentMapRows, identity.profile, mapQuery.status, personalizedPick.state, visibleRestaurants]);
   const mappable = useMemo(
     () => mappableRestaurants(

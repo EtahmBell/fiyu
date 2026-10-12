@@ -15,6 +15,16 @@ const MARKER_RADIUS = 11;
 const HIT_RADIUS = 22;
 const CLUSTER_RADIUS = 17;
 
+function markerForRestaurants(restaurants: readonly MappableRestaurant[]): string {
+  if (restaurants.some((restaurant) => restaurant.is_personalized_pick)) {
+    return "var(--map-marker-personalized)";
+  }
+  const states = restaurants.map(personalMapMarkerState);
+  if (states.includes("discovered")) return "var(--map-marker-discovered)";
+  if (states.includes("visited")) return "var(--map-marker-visited)";
+  return "var(--map-marker)";
+}
+
 export interface MapMarkersProps {
   clusters: MarkerCluster<MappableRestaurant>[];
   activeCluster?: {
@@ -49,6 +59,9 @@ export function MapMarkers({
 }: MapMarkersProps) {
   const size = (value: number) => svgNumber(value / scale);
   const activeClusterGhostRef = useRef<SVGGElement>(null);
+  const activeClusterMarker = activeCluster
+    ? markerForRestaurants(activeCluster.cluster.members.map((member) => member.item))
+    : "var(--map-marker)";
 
   useEffect(() => {
     const ghost = activeClusterGhostRef.current;
@@ -73,13 +86,7 @@ export function MapMarkers({
             cx={activeCluster.cluster.point.x}
             cy={activeCluster.cluster.point.y}
             r={size(CLUSTER_RADIUS)}
-            fill={activeCluster.cluster.members.some((member) => member.item.is_personalized_pick)
-              ? "var(--map-marker-personalized)"
-              : activeCluster.cluster.members.some(
-                  (member) => personalMapMarkerState(member.item) === "discovered",
-                )
-                ? "var(--map-marker-discovered)"
-                : "var(--map-marker)"}
+            fill={activeClusterMarker}
             stroke="var(--map-marker-center)"
             strokeWidth={size(2)}
           />
@@ -105,27 +112,20 @@ export function MapMarkers({
 
         if (cluster.members.length > 1) {
           const count = cluster.members.length;
-          const containsPersonalizedPick = cluster.members.some(
-            (member) => member.item.is_personalized_pick,
-          );
-          const containsDiscovery = cluster.members.some(
-            (member) => personalMapMarkerState(member.item) === "discovered",
-          );
+          const marker = markerForRestaurants(cluster.members.map((member) => member.item));
           return (
             <g
               key={cluster.id}
               aria-hidden="true"
+              data-marker-kind="restaurant-cluster-visual"
+              data-marker-fill={marker}
               className={cn(newlyRevealed && "fiyu-map-pin-sprout")}
             >
               <circle
                 cx={x}
                 cy={y}
                 r={size(CLUSTER_RADIUS)}
-                fill={containsPersonalizedPick
-                  ? "var(--map-marker-personalized)"
-                  : containsDiscovery
-                    ? "var(--map-marker-discovered)"
-                    : "var(--map-marker)"}
+                fill={marker}
                 stroke="var(--map-marker-center)"
                 strokeWidth={size(2)}
               />
@@ -148,16 +148,17 @@ export function MapMarkers({
         const restaurant = cluster.members[0].item;
         const selected = restaurant.place_id === selectedPlaceId;
         const markerState = personalMapMarkerState(restaurant);
-        const visited = markerState === "visited";
+        const visited = restaurant.is_visited === true;
+        const visitedMarker = markerState === "visited";
         const discovered = markerState === "discovered";
         const savedOnly = markerState === "saved";
         const personalized = restaurant.is_personalized_pick === true;
         const marker = personalized
           ? "var(--map-marker-personalized)"
-          : visited
-            ? "var(--map-marker-visited)"
-            : discovered
-              ? "var(--map-marker-discovered)"
+          : discovered
+            ? "var(--map-marker-discovered)"
+            : visitedMarker
+              ? "var(--map-marker-visited)"
               : "var(--map-marker)";
         const label = resolveNames(restaurant).primary?.text ?? "Unnamed restaurant";
         const appearing = appearingPlaceIds.has(restaurant.place_id);

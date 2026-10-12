@@ -18,6 +18,7 @@ import { useIsDesktop } from "@/lib/hooks/useMediaQuery";
 import { useExpiryBoundaries } from "@/lib/hooks/useExpiryBoundaries";
 import {
   filterPersonalMapRestaurants,
+  mergeActivePersonalizedPick,
   reconcileDiscoveryExpiry,
   type PersonalMapFilter,
 } from "@/lib/map/personalMap";
@@ -50,13 +51,7 @@ export function DedicatedMap() {
   const mapRows = useMemo(() => {
     const rows = map.status === "ready" ? map.data : [];
     const personalized = activePersonalizedMapRestaurant(personalizedPick.state);
-    if (!personalized) return rows;
-    return [
-      personalized,
-      ...rows
-        .filter((restaurant) => restaurant.place_id !== personalized.place_id)
-        .map((restaurant) => ({ ...restaurant, is_personalized_pick: false })),
-    ];
+    return mergeActivePersonalizedPick(rows, personalized);
   }, [map, personalizedPick.state]);
   const expiryNow = useExpiryBoundaries(
     mapRows.flatMap((restaurant) => {

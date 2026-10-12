@@ -187,6 +187,7 @@ describe("dedicated user map", () => {
   it("renders visited restaurants with the secondary brass treatment", async () => {
     const visited = mapRestaurantSchema.parse({
       ...verifiedLocationCatalog[0],
+      is_discovered: false,
       is_visited: true,
     });
     api.fetchAuthenticatedMapRestaurants.mockResolvedValue([
@@ -260,6 +261,7 @@ describe("dedicated user map", () => {
         latitude: 35.68 + index * 0.00001,
         longitude: 139.71 + index * 0.00001,
         is_discovered: true,
+        is_visited: index === 0,
       }),
     );
     api.fetchAuthenticatedMapRestaurants.mockResolvedValue(nearbySeen);
@@ -275,6 +277,10 @@ describe("dedicated user map", () => {
       nearbySeen.map((restaurant) => restaurant.place_id).sort(),
     );
     expect(cluster?.textContent).toBe("3");
+    expect(container.querySelector('[data-marker-kind="restaurant-cluster-visual"] circle')
+      ?.getAttribute("fill")).toBe(
+      "var(--map-marker-discovered)",
+    );
     expect(api.fetchMapRestaurants).not.toHaveBeenCalled();
   });
 
@@ -436,9 +442,9 @@ describe("dedicated user map", () => {
     expect(savedOnly?.getAttribute("data-marker-state")).toBe("saved");
     expect(savedOnly?.querySelectorAll("circle")[2]?.getAttribute("fill")).toBe("var(--map-bg)");
     const savedAndVisited = container.querySelector(`[data-place-id="${rows[3].place_id}"]`);
-    expect(savedAndVisited?.getAttribute("data-marker-state")).toBe("visited");
+    expect(savedAndVisited?.getAttribute("data-marker-state")).toBe("discovered");
     expect(savedAndVisited?.querySelectorAll("circle")[2]?.getAttribute("fill")).toBe(
-      "var(--map-marker-visited)",
+      "var(--map-marker-discovered)",
     );
 
     fireEvent.click(container.querySelector(`[data-place-id="${rows[3].place_id}"]`) as Element);
@@ -447,7 +453,7 @@ describe("dedicated user map", () => {
       expect(container.querySelector('[data-layer="restaurant-popup"]')).toBeTruthy(),
     );
     expect(container.querySelector(`[data-place-id="${rows[3].place_id}"]`)
-      ?.getAttribute("data-marker-state")).toBe("visited");
+      ?.getAttribute("data-marker-state")).toBe("discovered");
     expect(api.fetchAuthenticatedMapRestaurants).toHaveBeenCalledTimes(1);
   });
 

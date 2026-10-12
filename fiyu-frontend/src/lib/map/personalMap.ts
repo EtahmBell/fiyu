@@ -25,6 +25,35 @@ export function filterPersonalMapRestaurants(
   return restaurants.filter((restaurant) => belongsToPersonalMapFilter(restaurant, filter));
 }
 
+/**
+ * Add the active Personalized Pick without inventing account relationships.
+ * The event owns the special treatment and active discovery window; the map
+ * payload remains authoritative for independently saved or visited state.
+ */
+export function mergeActivePersonalizedPick(
+  restaurants: readonly MapRestaurant[],
+  personalized: MapRestaurant | null,
+): MapRestaurant[] {
+  if (!personalized) return [...restaurants];
+  const existing = restaurants.find(
+    (restaurant) => restaurant.place_id === personalized.place_id,
+  );
+  const active = existing
+    ? {
+        ...personalized,
+        is_saved: existing.is_saved,
+        is_visited: existing.is_visited,
+        user_rating: existing.user_rating,
+      }
+    : personalized;
+  return [
+    active,
+    ...restaurants
+      .filter((restaurant) => restaurant.place_id !== personalized.place_id)
+      .map((restaurant) => ({ ...restaurant, is_personalized_pick: false })),
+  ];
+}
+
 export function reconcileDiscoveryExpiry(
   restaurants: readonly MapRestaurant[],
   now: number,
@@ -46,7 +75,7 @@ export function personalMapMarkerState(
     is_visited?: boolean;
   },
 ): "visited" | "discovered" | "saved" {
-  if (restaurant.is_visited) return "visited";
   if (restaurant.is_discovered !== false) return "discovered";
+  if (restaurant.is_visited) return "visited";
   return "saved";
 }
