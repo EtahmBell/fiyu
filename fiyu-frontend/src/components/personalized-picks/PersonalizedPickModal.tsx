@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 
 import { RestaurantPhoto } from "@/components/restaurant/RestaurantPhoto";
 import { ScoreMark } from "@/components/ui/ScoreMark";
@@ -31,6 +31,10 @@ export function PersonalizedPickModal({
   const dialogRef = useRef<HTMLDivElement>(null);
   const previousFocus = useRef<HTMLElement | null>(null);
   const selected = reveal ? state.selected_restaurant : null;
+  const close = useCallback(() => {
+    if (selected) onCloseReveal();
+    else onDismiss();
+  }, [onCloseReveal, onDismiss, selected]);
 
   useEffect(() => {
     previousFocus.current = document.activeElement instanceof HTMLElement
@@ -40,8 +44,7 @@ export function PersonalizedPickModal({
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         event.preventDefault();
-        if (selected) onCloseReveal();
-        else onDismiss();
+        close();
         return;
       }
       if (event.key !== "Tab") return;
@@ -63,7 +66,7 @@ export function PersonalizedPickModal({
       document.removeEventListener("keydown", onKeyDown);
       previousFocus.current?.focus();
     };
-  }, [onCloseReveal, onDismiss, selected]);
+  }, [close]);
 
   const names = selected ? resolveNames(selected) : null;
   const metadata = selected
@@ -71,7 +74,13 @@ export function PersonalizedPickModal({
     : "";
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-end justify-center bg-ink/45 px-3 py-3 backdrop-blur-[2px] sm:items-center sm:p-6">
+    <div
+      data-testid="personalized-pick-backdrop"
+      className="fixed inset-0 z-[100] flex items-end justify-center bg-ink/45 px-3 py-3 backdrop-blur-[2px] sm:items-center sm:p-6"
+      onClick={(event) => {
+        if (event.target === event.currentTarget) close();
+      }}
+    >
       <div
         ref={dialogRef}
         role="dialog"
@@ -103,7 +112,7 @@ export function PersonalizedPickModal({
                   Picked for you
                 </p>
               </div>
-              <ScoreMark score={selected.fiyu_score} size="md" />
+              <ScoreMark score={selected.fiyu_score} size="md" tone="personalized" />
             </div>
             <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:justify-end">
               <button

@@ -69,6 +69,42 @@ describe("Personalized Pick event modal", () => {
     expect(dismiss).toHaveBeenCalledTimes(1);
   });
 
+  it("dismisses from the backdrop without selecting a card", () => {
+    const dismiss = vi.fn();
+    const select = vi.fn();
+    render(
+      <PersonalizedPickModal
+        state={hiddenState}
+        reveal={false}
+        pendingPosition={null}
+        onDismiss={dismiss}
+        onSelect={select}
+        onCloseReveal={() => {}}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("personalized-pick-backdrop"));
+    expect(dismiss).toHaveBeenCalledTimes(1);
+    expect(select).not.toHaveBeenCalled();
+  });
+
+  it("does not dismiss when interacting inside the dialog", () => {
+    const dismiss = vi.fn();
+    render(
+      <PersonalizedPickModal
+        state={hiddenState}
+        reveal={false}
+        pendingPosition={null}
+        onDismiss={dismiss}
+        onSelect={() => {}}
+        onCloseReveal={() => {}}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("dialog", { name: "Something for you" }));
+    expect(dismiss).not.toHaveBeenCalled();
+  });
+
   it("traps keyboard focus inside the modal", () => {
     render(
       <PersonalizedPickModal

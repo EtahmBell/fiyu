@@ -13,7 +13,7 @@ export function DailyCardFrame({
 }: {
   placeId: string;
   selected: boolean;
-  tone?: "current" | "history";
+  tone?: "current" | "history" | "personalized";
   registerRef?: DailyCardRefRegistrar;
   children: ReactNode;
 }) {
@@ -34,8 +34,10 @@ export function DailyCardFrame({
          */
         selected &&
           (tone === "history"
-            ? "shadow-[0_0_0_1px_var(--color-gold)] [&_article]:border-gold!"
-            : "shadow-[0_0_0_1px_var(--color-lavender-500)] [&_article]:border-lavender-500!"),
+            ? "shadow-[0_0_0_1px_var(--color-discovery)] [&_article]:border-discovery!"
+            : tone === "personalized"
+              ? "shadow-[0_0_0_1px_var(--color-personalized)] [&_article]:border-personalized!"
+              : "shadow-[0_0_0_1px_var(--color-lavender-500)] [&_article]:border-lavender-500!"),
       )}
     >
       {children}

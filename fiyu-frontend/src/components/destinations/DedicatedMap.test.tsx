@@ -213,7 +213,7 @@ describe("dedicated user map", () => {
     );
     expect(activePin?.getAttribute("data-visited")).toBe("false");
     expect(activePin?.querySelectorAll("circle")[2]?.getAttribute("fill")).toBe(
-      "var(--map-marker)",
+      "var(--map-marker-discovered)",
     );
     expect(visitedPin.querySelectorAll("circle")).toHaveLength(3);
 

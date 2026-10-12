@@ -38,10 +38,14 @@ it("keeps the active Personalized Pick in Recent Discoveries with its semantic t
       restaurants={[]}
       savedRestaurantIds={[]}
       now={Date.now()}
+      selectedPlaceId="personalized-a"
       onToggleSaved={() => {}}
     />,
   );
   expect(screen.getByText("Picked for you")).toBeTruthy();
   expect(container.querySelector('[data-tone="personalized"]')).toBeTruthy();
+  expect(container.querySelector("section")?.className).toContain("border-discovery-line");
+  expect(container.querySelector('[data-tone="personalized"]')?.parentElement?.className)
+    .toContain("--color-personalized");
   expect(screen.queryByText("No recent discoveries")).toBeNull();
 });

@@ -52,15 +52,15 @@ type Palette = { label: string; rule: string; zone: string };
 
 /**
  * The wordmark, rule and zone take the tense of the surface they sit on:
- * lavender for today's Picks, champagne for a place already discovered, plum
+ * lavender for today's Picks, dusty blue for a place already discovered, plum
  * for a set that belongs to a pair. The numeral never changes colour -- the
  * score is the score.
  */
 const TONES: Record<ScoreMarkTone, Palette> = {
   current: { label: "text-lavender-800", rule: "bg-lavender-500", zone: "bg-lavender-50" },
-  history: { label: "text-gold-700", rule: "bg-gold", zone: "bg-gold-soft/45" },
+  history: { label: "text-discovery-700", rule: "bg-discovery", zone: "bg-discovery-soft/70" },
   together: { label: "text-plum-700", rule: "bg-plum-500", zone: "bg-plum-100/70" },
-  personalized: { label: "text-personalized", rule: "bg-personalized", zone: "bg-gold-soft/45" },
+  personalized: { label: "text-personalized", rule: "bg-personalized", zone: "bg-personalized-soft/55" },
 };
 
 /**

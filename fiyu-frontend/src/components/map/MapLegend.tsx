@@ -32,7 +32,16 @@ const ENTRIES: LegendEntry[] = [
     label: "Discovered",
     swatch: (
       <svg viewBox="0 0 16 16" className="size-4" aria-hidden="true">
-        <circle cx="8" cy="8" r="5.5" fill="var(--map-marker)" stroke="var(--map-marker-center)" strokeWidth="1.5" />
+        <circle cx="8" cy="8" r="5.5" fill="var(--map-marker-discovered)" stroke="var(--map-marker-center)" strokeWidth="1.5" />
+      </svg>
+    ),
+  },
+  {
+    id: "personalized",
+    label: "Personalized Pick",
+    swatch: (
+      <svg viewBox="0 0 16 16" className="size-4" aria-hidden="true">
+        <circle cx="8" cy="8" r="5.5" fill="var(--map-marker-personalized)" stroke="var(--map-marker-center)" strokeWidth="1.5" />
       </svg>
     ),
   },

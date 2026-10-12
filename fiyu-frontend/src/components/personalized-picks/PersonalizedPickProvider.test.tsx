@@ -137,6 +137,23 @@ describe("PersonalizedPickProvider", () => {
     rendered.unmount();
   });
 
+  it("uses the canonical non-selection dismissal path for a backdrop click", async () => {
+    api.fetch.mockResolvedValue(available);
+    api.dismiss.mockResolvedValue({
+      ...available,
+      dismissed_until: "2099-10-12T00:00:00Z",
+      dismissal_count: 1,
+    });
+    render(<PersonalizedPickProvider><StateProbe /></PersonalizedPickProvider>);
+    await screen.findByRole("dialog", { name: "Something for you" });
+
+    fireEvent.click(screen.getByTestId("personalized-pick-backdrop"));
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(api.dismiss).toHaveBeenCalledWith("event-a");
+    expect(api.select).not.toHaveBeenCalled();
+  });
+
   it("restores a selected event on refresh without re-presenting the choice modal", async () => {
     api.fetch.mockResolvedValue(selected);
     render(<PersonalizedPickProvider><StateProbe /></PersonalizedPickProvider>);

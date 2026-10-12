@@ -360,7 +360,7 @@ describe("compact restaurant card content", () => {
     expect(screen.queryByTestId("photo-attribution-overlay")).toBeNull();
   });
 
-  it("uses lavender for current cards and champagne for recent-history score accents", () => {
+  it("uses lavender for current cards and dusty blue for recent-discovery accents", () => {
     const { rerender } = render(
       <CompactRestaurantCard
         restaurant={restaurant()}
@@ -385,10 +385,10 @@ describe("compact restaurant card content", () => {
         onToggleSaved={() => {}}
       />,
     );
-    expect(card.className).toContain("before:bg-gold/70");
-    expect(card.className).toContain("focus-visible:outline-gold");
-    expect(screen.getByText("Fiyu Score").className).toContain("text-gold-700");
-    expect((score.lastElementChild as HTMLElement).className).toContain("bg-gold");
+    expect(card.className).toContain("before:bg-discovery");
+    expect(card.className).toContain("focus-visible:outline-discovery");
+    expect(screen.getByText("Fiyu Score").className).toContain("text-discovery-700");
+    expect((score.lastElementChild as HTMLElement).className).toContain("bg-discovery");
   });
 
   it("does not repeat a romanization that only restates the title", () => {

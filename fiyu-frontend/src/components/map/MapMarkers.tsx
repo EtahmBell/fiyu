@@ -73,7 +73,13 @@ export function MapMarkers({
             cx={activeCluster.cluster.point.x}
             cy={activeCluster.cluster.point.y}
             r={size(CLUSTER_RADIUS)}
-            fill="var(--map-marker)"
+            fill={activeCluster.cluster.members.some((member) => member.item.is_personalized_pick)
+              ? "var(--map-marker-personalized)"
+              : activeCluster.cluster.members.some(
+                  (member) => personalMapMarkerState(member.item) === "discovered",
+                )
+                ? "var(--map-marker-discovered)"
+                : "var(--map-marker)"}
             stroke="var(--map-marker-center)"
             strokeWidth={size(2)}
           />
@@ -102,6 +108,9 @@ export function MapMarkers({
           const containsPersonalizedPick = cluster.members.some(
             (member) => member.item.is_personalized_pick,
           );
+          const containsDiscovery = cluster.members.some(
+            (member) => personalMapMarkerState(member.item) === "discovered",
+          );
           return (
             <g
               key={cluster.id}
@@ -112,7 +121,11 @@ export function MapMarkers({
                 cx={x}
                 cy={y}
                 r={size(CLUSTER_RADIUS)}
-                fill={containsPersonalizedPick ? "var(--map-marker-personalized)" : "var(--map-marker)"}
+                fill={containsPersonalizedPick
+                  ? "var(--map-marker-personalized)"
+                  : containsDiscovery
+                    ? "var(--map-marker-discovered)"
+                    : "var(--map-marker)"}
                 stroke="var(--map-marker-center)"
                 strokeWidth={size(2)}
               />
@@ -136,13 +149,16 @@ export function MapMarkers({
         const selected = restaurant.place_id === selectedPlaceId;
         const markerState = personalMapMarkerState(restaurant);
         const visited = markerState === "visited";
+        const discovered = markerState === "discovered";
         const savedOnly = markerState === "saved";
         const personalized = restaurant.is_personalized_pick === true;
         const marker = personalized
           ? "var(--map-marker-personalized)"
           : visited
             ? "var(--map-marker-visited)"
-            : "var(--map-marker)";
+            : discovered
+              ? "var(--map-marker-discovered)"
+              : "var(--map-marker)";
         const label = resolveNames(restaurant).primary?.text ?? "Unnamed restaurant";
         const appearing = appearingPlaceIds.has(restaurant.place_id);
 

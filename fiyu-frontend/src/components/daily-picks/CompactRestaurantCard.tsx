@@ -99,8 +99,8 @@ function BookmarkIcon({ filled }: { filled: boolean }) {
  * Which tense the card is in.
  *
  * `current` is a pick from today's selection and stays entirely in the lavender
- * family. `history` is a place already discovered, and earns the two champagne
- * details defined below -- a warm top rule and a champagne expiry line -- so a
+ * family. `history` is a place already discovered, and earns the two dusty-blue
+ * details defined below -- a cool top rule and a matching expiry line -- so a
  * run of past discoveries reads as a different group from a run of Picks
  * without either one becoming a different kind of object. `together` is a pick
  * that belongs to a pair, and takes plum in the same two places.
@@ -117,7 +117,7 @@ export type CompactCardTone = "current" | "history" | "together" | "personalized
 /** The one coloured edge. Every other side of the card stays neutral. */
 const TONE_EDGE: Record<CompactCardTone, string> = {
   current: "before:bg-lavender-500",
-  history: "before:bg-gold/70",
+  history: "before:bg-discovery",
   together: "before:bg-plum-500",
   personalized: "before:bg-personalized",
 };
@@ -130,7 +130,7 @@ const TONE_EDGE: Record<CompactCardTone, string> = {
  */
 const TONE_FOCUS: Record<CompactCardTone, string> = {
   current: "focus-visible:border-lavender-600 focus-visible:outline-lavender-600",
-  history: "focus-visible:border-gold focus-visible:outline-gold",
+  history: "focus-visible:border-discovery focus-visible:outline-discovery",
   together: "focus-visible:border-plum-700 focus-visible:outline-plum-700",
   personalized: "focus-visible:border-personalized focus-visible:outline-personalized",
 };
@@ -435,14 +435,18 @@ export function CompactRestaurantCard({
           {/*
             The expiry line is the one piece of copy on this card that is about
             the past rather than the restaurant, so on a history card it carries
-            the champagne. The wording states the status on its own; the colour
+            the discovery blue. The wording states the status on its own; the colour
             only reinforces it.
           */}
             {expirationLabel && (
               <p
                 className={cn(
                   "clear-both mt-1 text-xs",
-                  history ? "font-medium text-gold-700" : "text-ink-muted",
+                  history
+                    ? "font-medium text-discovery-700"
+                    : tone === "personalized"
+                      ? "font-medium text-personalized"
+                      : "text-ink-muted",
                 )}
               >
                 {expirationLabel}

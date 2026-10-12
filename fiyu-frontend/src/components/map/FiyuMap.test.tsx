@@ -88,17 +88,33 @@ describe("map surface", () => {
     expect(screen.getByLabelText("上野の店")).toBeTruthy();
   });
 
-  it("uses the Personalized Pick marker token without changing normal markers", () => {
+  it("distinguishes Personalized Picks, discoveries, and visited markers", () => {
     const personalized = { ...SHIBUYA, is_personalized_pick: true };
-    render(<FiyuMap restaurants={[personalized, UENO]} selectedPlaceId={null} onSelect={() => {}} />);
+    const discovered = { ...UENO, is_discovered: true };
+    const visited = {
+      ...mappable("visited", 35.69, 139.72, {
+        name_en: "Visited fixture",
+      }),
+      is_discovered: false,
+      is_visited: true,
+    };
+    render(
+      <FiyuMap
+        restaurants={[personalized, discovered, visited]}
+        selectedPlaceId={null}
+        onSelect={() => {}}
+      />,
+    );
     const personalizedMarker = screen.getByLabelText("渋谷の店");
-    const normalMarker = screen.getByLabelText("上野の店");
+    const discoveredMarker = screen.getByLabelText("上野の店");
+    const visitedMarker = screen.getByLabelText("Visited fixture");
     expect(personalizedMarker.getAttribute("data-personalized-pick")).toBe("true");
     expect(personalizedMarker.querySelector("circle:nth-of-type(3)")?.getAttribute("fill"))
       .toBe("var(--map-marker-personalized)");
-    expect(normalMarker.getAttribute("data-personalized-pick")).toBe("false");
-    expect(normalMarker.querySelector("circle:nth-of-type(3)")?.getAttribute("fill"))
-      .toBe("var(--map-marker)");
+    expect(discoveredMarker.querySelector("circle:nth-of-type(3)")?.getAttribute("fill"))
+      .toBe("var(--map-marker-discovered)");
+    expect(visitedMarker.querySelector("circle:nth-of-type(3)")?.getAttribute("fill"))
+      .toBe("var(--map-marker-visited)");
   });
 });
 
