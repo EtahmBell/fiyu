@@ -21,6 +21,11 @@ import {
   developerDailyPicksGenerateUrl,
   developerDailyPicksResetUrl,
   developerVisitTasteResetUrl,
+  developerPersonalizedPicksUrl,
+  developerPersonalizedPicksForceUrl,
+  developerPersonalizedPicksResetUrl,
+  developerPersonalizedPicksClearDismissalUrl,
+  developerPersonalizedPicksExpireUrl,
   developerLocationOverrideUrl,
   developerStatusUrl,
   discoveryLocationCheckUrl,
@@ -63,6 +68,7 @@ import {
   type DeveloperGeneratePicksResponse,
   type DeveloperResetPicksResponse,
   type DeveloperResetVisitTasteResponse,
+  type DeveloperPersonalizedPickResponse,
   type DeveloperStatus,
   type CurrentLocationCheck,
   type DefaultListMembershipResponse,
@@ -90,6 +96,7 @@ import {
   developerGeneratePicksResponseSchema,
   developerResetPicksResponseSchema,
   developerResetVisitTasteResponseSchema,
+  developerPersonalizedPickResponseSchema,
   developerStatusSchema,
   activeDailyPickAssignmentResponseSchema,
   recentDailyPickRoundListSchema,
@@ -813,6 +820,68 @@ export function resetDeveloperVisitTaste(
     paths.developerVisitTasteReset,
     developerResetVisitTasteResponseSchema,
     { ...options, method: "POST" },
+  );
+}
+
+export function fetchDeveloperPersonalizedPick(
+  options: RequestOptions = {},
+): Promise<DeveloperPersonalizedPickResponse> {
+  return requestJson(
+    developerPersonalizedPicksUrl(),
+    paths.developerPersonalizedPicks,
+    developerPersonalizedPickResponseSchema,
+    { ...options, cache: "no-store" },
+  );
+}
+
+export function forceDeveloperPersonalizedPick(
+  request: {
+    current_latitude?: number | null;
+    current_longitude?: number | null;
+    preview_area?: string | null;
+  },
+  options: RequestOptions = {},
+): Promise<DeveloperPersonalizedPickResponse> {
+  return requestJson(
+    developerPersonalizedPicksForceUrl(),
+    paths.developerPersonalizedPicksForce,
+    developerPersonalizedPickResponseSchema,
+    { ...options, method: "POST", body: request },
+  );
+}
+
+function mutateDeveloperPersonalizedPick(
+  url: string,
+  endpoint: string,
+  options: RequestOptions = {},
+): Promise<DeveloperPersonalizedPickResponse> {
+  return requestJson(url, endpoint, developerPersonalizedPickResponseSchema, {
+    ...options,
+    method: "POST",
+  });
+}
+
+export function resetDeveloperPersonalizedPick(options: RequestOptions = {}) {
+  return mutateDeveloperPersonalizedPick(
+    developerPersonalizedPicksResetUrl(),
+    paths.developerPersonalizedPicksReset,
+    options,
+  );
+}
+
+export function clearDeveloperPersonalizedPickDismissal(options: RequestOptions = {}) {
+  return mutateDeveloperPersonalizedPick(
+    developerPersonalizedPicksClearDismissalUrl(),
+    paths.developerPersonalizedPicksClearDismissal,
+    options,
+  );
+}
+
+export function expireDeveloperPersonalizedPick(options: RequestOptions = {}) {
+  return mutateDeveloperPersonalizedPick(
+    developerPersonalizedPicksExpireUrl(),
+    paths.developerPersonalizedPicksExpire,
+    options,
   );
 }
 

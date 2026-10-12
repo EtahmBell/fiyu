@@ -6,16 +6,27 @@ import { createPortal } from "react-dom";
 
 import { Button } from "@/components/ui/Button";
 import {
+  type PersonalizedPickPreviewMode,
+  usePersonalizedPick,
+} from "@/components/personalized-picks/PersonalizedPickProvider";
+import {
+  clearDeveloperPersonalizedPickDismissal,
+  expireDeveloperPersonalizedPick,
   fetchDeveloperStatus,
+  fetchDeveloperPersonalizedPick,
   fetchAuthenticatedMapRestaurants,
+  fetchRestaurants,
   fetchUserFiyuSummary,
+  forceDeveloperPersonalizedPick,
   generateDeveloperDailyPicks,
+  resetDeveloperPersonalizedPick,
   resetDeveloperDailyPicks,
   resetDeveloperVisitTaste,
   updateDeveloperLocation,
 } from "@/lib/api/client";
 import type {
   DeveloperGeneratePicksResponse,
+  DeveloperPersonalizedPickResponse,
   DeveloperStatus,
   MapRestaurant,
   RestaurantVisit,
@@ -51,6 +62,155 @@ async function clearPicksBrowserState(): Promise<void> {
   clearAccountQueries();
   const session = await authService.getSession();
   if (session) window.localStorage.removeItem(dailyPicksStorageKey(session.userId));
+}
+
+const PERSONALIZED_PREVIEWS: Array<{
+  mode: PersonalizedPickPreviewMode;
+  label: string;
+}> = [
+  { mode: "locked_zero", label: "Locked 0/10" },
+  { mode: "locked_nine", label: "Locked 9/10" },
+  { mode: "unlocked", label: "Unlocked 10/10" },
+  { mode: "event_available", label: "Event available" },
+  { mode: "selected", label: "Selected / active" },
+  { mode: "expired", label: "Expired / no active" },
+];
+
+function PersonalizedPickDeveloperTools({
+  status,
+  previewArea,
+}: {
+  status: DeveloperStatus;
+  previewArea: string;
+}) {
+  const personalizedPick = usePersonalizedPick();
+  const [debug, setDebug] = useState<DeveloperPersonalizedPickResponse | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadDebug = async () => {
+    const value = await fetchDeveloperPersonalizedPick();
+    setDebug(value);
+    return value;
+  };
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void fetchDeveloperPersonalizedPick({ signal: controller.signal })
+      .then(setDebug)
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, []);
+
+  const preview = async (mode: PersonalizedPickPreviewMode | null) => {
+    setBusy(true);
+    setError(null);
+    try {
+      let restaurant = null;
+      if (mode === "event_available" || mode === "selected") {
+        const catalog = await fetchRestaurants(1);
+        restaurant = catalog.restaurants[0] ?? null;
+        if (!restaurant) throw new Error("No published restaurant is available for preview.");
+      }
+      personalizedPick.setDeveloperPreview(mode, restaurant);
+      setMessage(mode ? "Visual preview applied without changing user data." : "Visual preview cleared.");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to apply preview.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const mutate = async (
+    action: () => Promise<DeveloperPersonalizedPickResponse>,
+    success: (result: DeveloperPersonalizedPickResponse) => string,
+  ) => {
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    try {
+      personalizedPick.setDeveloperPreview(null);
+      const result = await action();
+      setDebug(result);
+      await personalizedPick.refresh({ ensureEvent: false });
+      setMessage(success(result));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to update the test event.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const force = async () => {
+    let coordinates: { latitude: number; longitude: number } | null = null;
+    if (status.location_mode === "real") coordinates = await currentCoordinates();
+    return forceDeveloperPersonalizedPick({
+      current_latitude: coordinates?.latitude,
+      current_longitude: coordinates?.longitude,
+      preview_area: status.location_mode === "outside_tokyo" ? previewArea || null : null,
+    });
+  };
+
+  return (
+    <div className="mt-8 border-t border-line pt-7" aria-labelledby="developer-pp-title">
+      <h4 id="developer-pp-title" className="text-sm font-semibold text-ink">Personalized Picks</h4>
+      <p className="mt-2 text-sm leading-6 text-ink-muted">
+        Preview UI locally, or exercise the real account-owned event lifecycle through the production planner.
+      </p>
+
+      <p className="mt-5 text-xs font-semibold tracking-wide text-ink">UI PREVIEW — NO DATA WRITES</p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {PERSONALIZED_PREVIEWS.map((item) => (
+          <Button
+            key={item.mode}
+            type="button"
+            variant="secondary"
+            disabled={busy}
+            onClick={() => void preview(item.mode)}
+          >
+            {item.label}
+          </Button>
+        ))}
+        <Button type="button" variant="secondary" disabled={busy} onClick={() => void preview(null)}>
+          Clear preview
+        </Button>
+      </div>
+
+      <p className="mt-6 text-xs font-semibold tracking-wide text-ink">REAL DEV EVENT</p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <Button type="button" variant="primary" disabled={busy} onClick={() => void mutate(force, () => "Real Personalized Pick event created with canonical candidates.")}>
+          Force event now
+        </Button>
+        <Button type="button" variant="secondary" disabled={busy} onClick={() => void mutate(clearDeveloperPersonalizedPickDismissal, () => "24-hour dismissal cleared.")}>
+          Clear dismissal
+        </Button>
+        <Button type="button" variant="secondary" disabled={busy} onClick={() => void mutate(expireDeveloperPersonalizedPick, () => "Current event expired.")}>
+          Expire event
+        </Button>
+        <Button type="button" variant="secondary" disabled={busy} onClick={() => void mutate(resetDeveloperPersonalizedPick, (result) => `Event reset (${result.deleted_events} deleted).`)}>
+          Reset event
+        </Button>
+        <Button type="button" variant="secondary" disabled={busy} onClick={() => void loadDebug()}>
+          Refresh metadata
+        </Button>
+      </div>
+
+      {error ? <p role="alert" className="mt-4 text-sm text-rose-dust">{error}</p> : null}
+      {message ? <p role="status" className="mt-4 text-sm text-ink-muted">{message}</p> : null}
+      {debug ? (
+        <dl className="mt-4 grid gap-x-4 gap-y-1 rounded-lg border border-line bg-subtle px-4 py-3 text-xs leading-5 text-ink-muted sm:grid-cols-[8rem_1fr]">
+          <dt>Status</dt><dd className="break-all text-ink">{debug.state.status}</dd>
+          <dt>Event ID</dt><dd className="break-all text-ink">{debug.state.event_id ?? "—"}</dd>
+          <dt>Ratings</dt><dd className="text-ink">{debug.state.qualifying_rating_count} / {debug.state.unlock_threshold}</dd>
+          <dt>Dismissed until</dt><dd className="break-all text-ink">{debug.state.dismissed_until ?? "—"}</dd>
+          <dt>Selected slot</dt><dd className="text-ink">{debug.state.selected_position ?? "—"}</dd>
+          <dt>Candidates</dt><dd className="break-all text-ink">{debug.candidate_place_ids.join(", ") || "—"}</dd>
+          <dt>Planner</dt><dd className="break-all text-ink">{String(debug.selection_metadata.algorithm ?? "—")}</dd>
+        </dl>
+      ) : null}
+    </div>
+  );
 }
 
 function ResetVisitTasteDialog({
@@ -314,6 +474,7 @@ export function DeveloperTools() {
           </Link>
         </div>
       )}
+      <PersonalizedPickDeveloperTools status={status} previewArea={previewArea} />
       <ResetVisitTasteDialog
         open={visitTasteResetOpen}
         busy={busy}

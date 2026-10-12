@@ -915,6 +915,14 @@ class DeveloperResetVisitTasteResponse(BaseModel):
     deleted_taste_snapshots: int
 
 
+class DeveloperPersonalizedPickResponse(BaseModel):
+    state: PersonalizedPickStateResponse
+    candidate_place_ids: list[str] = Field(default_factory=list, max_length=3)
+    selection_metadata: dict[str, object] = Field(default_factory=dict)
+    developer_forced: bool = False
+    deleted_events: int = Field(default=0, ge=0)
+
+
 class SeenRestaurantsResponse(BaseModel):
     place_ids: list[str]
 
@@ -1449,9 +1457,18 @@ def _personalized_pick_state(
     *, user_id: str, event: dict[str, object] | None = None
 ) -> PersonalizedPickStateResponse:
     qualifying_count = len(shared_user_data.latest_visit_ratings(user_id=user_id))
-    unlocked = qualifying_count >= PERSONALIZED_PICK_UNLOCK_THRESHOLD
     if event is None:
         event = shared_user_data.get_personalized_pick_event(user_id=user_id)
+    selection_metadata = event.get("selection_metadata") if event else None
+    developer_forced = bool(
+        _developer_tools_enabled()
+        and user_id in _developer_user_ids()
+        and isinstance(selection_metadata, dict)
+        and selection_metadata.get("developer_forced") is True
+    )
+    unlocked = (
+        qualifying_count >= PERSONALIZED_PICK_UNLOCK_THRESHOLD or developer_forced
+    )
     if not unlocked:
         return PersonalizedPickStateResponse(
             status="locked",
@@ -1509,6 +1526,66 @@ def _personalized_pick_state(
         active_until=active_until,
         selected_restaurant=selected_restaurant,
     )
+
+
+def _create_personalized_pick_event_for_location(
+    *,
+    user_id: str,
+    discovery_latitude: float,
+    discovery_longitude: float,
+    active_area: str | None,
+    discovery_mode: str,
+    seed: int | None = None,
+    metadata_extra: dict[str, object] | None = None,
+    replace_existing: bool = False,
+) -> tuple[dict[str, object], int]:
+    """Plan and persist one event through the canonical production selector."""
+    now = datetime.now(UTC)
+    try:
+        place_ids, metadata = _plan_shared_daily_picks(
+            owner_id=user_id,
+            city_id="tokyo",
+            discovery_latitude=discovery_latitude,
+            discovery_longitude=discovery_longitude,
+            active_area=active_area,
+            discovery_mode=discovery_mode,
+            seed=(
+                seed
+                if seed is not None
+                else int.from_bytes(
+                    sha256(f"personalized-pick:{user_id}".encode()).digest()[:8],
+                    "big",
+                )
+            ),
+            now=now,
+            metadata_extra={
+                "source": "personalized_pick_event",
+                **(metadata_extra or {}),
+            },
+        )
+    except InsufficientUnseenPoolError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "insufficient_personalized_pick_pool",
+                "available_count": exc.available_count,
+                "required_count": exc.required_count,
+            },
+        ) from None
+    deleted_events = (
+        shared_user_data.reset_personalized_pick_test_state(user_id=user_id)
+        if replace_existing
+        else 0
+    )
+    event = shared_user_data.create_personalized_pick_event(
+        user_id=user_id,
+        city_id="tokyo",
+        place_ids=list(place_ids),
+        created_at=now.isoformat(),
+        expires_at=(now + PERSONALIZED_PICK_EVENT_DURATION).isoformat(),
+        selection_metadata=metadata,
+    )
+    return event, deleted_events
 
 
 def _shared_assignment(row: dict[str, object]) -> DailyPickAssignment:
@@ -2083,37 +2160,12 @@ def create_my_personalized_pick_event(
             event_eligible=False,
         )
 
-    now = datetime.now(UTC)
-    try:
-        place_ids, metadata = _plan_shared_daily_picks(
-            owner_id=user_id,
-            city_id="tokyo",
-            discovery_latitude=float(location["discovery_latitude"]),
-            discovery_longitude=float(location["discovery_longitude"]),
-            active_area=str(location.get("discovery_label") or "") or None,
-            discovery_mode=str(location.get("location_mode") or "manual"),
-            seed=int.from_bytes(
-                sha256(f"personalized-pick:{user_id}".encode()).digest()[:8], "big"
-            ),
-            now=now,
-            metadata_extra={"source": "personalized_pick_event"},
-        )
-    except InsufficientUnseenPoolError as exc:
-        raise HTTPException(
-            status_code=409,
-            detail={
-                "code": "insufficient_personalized_pick_pool",
-                "available_count": exc.available_count,
-                "required_count": exc.required_count,
-            },
-        ) from None
-    event = shared_user_data.create_personalized_pick_event(
+    event, _ = _create_personalized_pick_event_for_location(
         user_id=user_id,
-        city_id="tokyo",
-        place_ids=list(place_ids),
-        created_at=now.isoformat(),
-        expires_at=(now + PERSONALIZED_PICK_EVENT_DURATION).isoformat(),
-        selection_metadata=metadata,
+        discovery_latitude=float(location["discovery_latitude"]),
+        discovery_longitude=float(location["discovery_longitude"]),
+        active_area=str(location.get("discovery_label") or "") or None,
+        discovery_mode=str(location.get("location_mode") or "manual"),
     )
     return _personalized_pick_state(user_id=user_id, event=event)
 
@@ -3068,6 +3120,132 @@ def _resolve_developer_generation_location(
         "current",
         "LIVE_GPS",
     )
+
+
+def _developer_personalized_pick_response(
+    *,
+    user_id: str,
+    event: dict[str, object] | None = None,
+    deleted_events: int = 0,
+) -> DeveloperPersonalizedPickResponse:
+    if event is None:
+        event = shared_user_data.get_personalized_pick_event(user_id=user_id)
+    metadata = event.get("selection_metadata") if event else None
+    normalized_metadata = metadata if isinstance(metadata, dict) else {}
+    place_ids = event.get("place_ids") if event else None
+    return DeveloperPersonalizedPickResponse(
+        state=_personalized_pick_state(user_id=user_id, event=event),
+        candidate_place_ids=(
+            [str(place_id) for place_id in place_ids]
+            if isinstance(place_ids, list)
+            else []
+        ),
+        selection_metadata=normalized_metadata,
+        developer_forced=normalized_metadata.get("developer_forced") is True,
+        deleted_events=deleted_events,
+    )
+
+
+@app.get(
+    "/developer/personalized-picks",
+    response_model=DeveloperPersonalizedPickResponse,
+)
+def get_developer_personalized_pick(
+    user_id: Annotated[str, Depends(_developer_user)],
+) -> DeveloperPersonalizedPickResponse:
+    return _developer_personalized_pick_response(user_id=user_id)
+
+
+@app.post(
+    "/developer/personalized-picks/force",
+    response_model=DeveloperPersonalizedPickResponse,
+)
+def force_developer_personalized_pick(
+    request: DeveloperGeneratePicksRequest,
+    user_id: Annotated[str, Depends(_developer_user)],
+) -> DeveloperPersonalizedPickResponse:
+    """Replace only this dev user's event using the canonical PP planner."""
+    _ensure_database()
+    ensure_public_schema(DB_PATH)
+    settings = shared_user_data.get_developer_settings(user_id=user_id)
+    latitude, longitude, area, discovery_mode, location_source = (
+        _resolve_developer_generation_location(settings, request)
+    )
+    event, deleted_events = _create_personalized_pick_event_for_location(
+        user_id=user_id,
+        discovery_latitude=latitude,
+        discovery_longitude=longitude,
+        active_area=area,
+        discovery_mode=discovery_mode,
+        seed=request.seed,
+        metadata_extra={
+            "developer_forced": True,
+            "effective_location_source": location_source,
+        },
+        replace_existing=True,
+    )
+    logger.info(
+        "Developer Personalized Pick forced: user_id=%s event_id=%s area=%s",
+        user_id,
+        event.get("id"),
+        area,
+    )
+    return _developer_personalized_pick_response(
+        user_id=user_id, event=event, deleted_events=deleted_events
+    )
+
+
+@app.post(
+    "/developer/personalized-picks/reset",
+    response_model=DeveloperPersonalizedPickResponse,
+)
+def reset_developer_personalized_pick(
+    user_id: Annotated[str, Depends(_developer_user)],
+) -> DeveloperPersonalizedPickResponse:
+    deleted_events = shared_user_data.reset_personalized_pick_test_state(
+        user_id=user_id
+    )
+    return _developer_personalized_pick_response(
+        user_id=user_id, deleted_events=deleted_events
+    )
+
+
+@app.post(
+    "/developer/personalized-picks/clear-dismissal",
+    response_model=DeveloperPersonalizedPickResponse,
+)
+def clear_developer_personalized_pick_dismissal(
+    user_id: Annotated[str, Depends(_developer_user)],
+) -> DeveloperPersonalizedPickResponse:
+    event = shared_user_data.get_personalized_pick_event(user_id=user_id)
+    if event is None:
+        raise HTTPException(status_code=404, detail="Personalized Pick event not found")
+    updated = shared_user_data.clear_personalized_pick_dismissal(
+        user_id=user_id, event_id=str(event["id"])
+    )
+    if updated is None:
+        raise HTTPException(status_code=404, detail="Personalized Pick event not found")
+    return _developer_personalized_pick_response(user_id=user_id, event=updated)
+
+
+@app.post(
+    "/developer/personalized-picks/expire",
+    response_model=DeveloperPersonalizedPickResponse,
+)
+def expire_developer_personalized_pick(
+    user_id: Annotated[str, Depends(_developer_user)],
+) -> DeveloperPersonalizedPickResponse:
+    event = shared_user_data.get_personalized_pick_event(user_id=user_id)
+    if event is None:
+        raise HTTPException(status_code=404, detail="Personalized Pick event not found")
+    updated = shared_user_data.expire_personalized_pick_event(
+        user_id=user_id,
+        event_id=str(event["id"]),
+        expired_at=datetime.now(UTC).isoformat(),
+    )
+    if updated is None:
+        raise HTTPException(status_code=404, detail="Personalized Pick event not found")
+    return _developer_personalized_pick_response(user_id=user_id, event=updated)
 
 
 @app.post(

@@ -564,6 +564,49 @@ def select_personalized_pick_event(
     return result if isinstance(result, dict) and result.get("id") else None
 
 
+def reset_personalized_pick_test_state(*, user_id: str) -> int:
+    """Delete only one authorized developer account's PP events."""
+    result = _request(
+        "fiyu_personalized_pick_events",
+        method="DELETE",
+        query={"user_id": f"eq.{user_id}"},
+        prefer="return=representation",
+    )
+    return len(result) if isinstance(result, list) else 0
+
+
+def clear_personalized_pick_dismissal(
+    *, user_id: str, event_id: str
+) -> dict[str, Any] | None:
+    result = _request(
+        "fiyu_personalized_pick_events",
+        method="PATCH",
+        query={"user_id": f"eq.{user_id}", "id": f"eq.{event_id}"},
+        body={"dismissed_until": None, "last_dismissed_at": None},
+        prefer="return=representation",
+    )
+    if not isinstance(result, list) or not result:
+        return None
+    current = get_personalized_pick_event(user_id=user_id)
+    return current if current and str(current.get("id")) == event_id else None
+
+
+def expire_personalized_pick_event(
+    *, user_id: str, event_id: str, expired_at: str
+) -> dict[str, Any] | None:
+    result = _request(
+        "fiyu_personalized_pick_events",
+        method="PATCH",
+        query={"user_id": f"eq.{user_id}", "id": f"eq.{event_id}"},
+        body={"expires_at": expired_at, "active_until": expired_at},
+        prefer="return=representation",
+    )
+    if not isinstance(result, list) or not result:
+        return None
+    current = get_personalized_pick_event(user_id=user_id)
+    return current if current and str(current.get("id")) == event_id else None
+
+
 def get_visit(*, user_id: str, visit_id: str) -> dict[str, Any] | None:
     rows = _rows("fiyu_restaurant_visits", user_id=user_id, id=visit_id)
     return rows[0] if rows else None

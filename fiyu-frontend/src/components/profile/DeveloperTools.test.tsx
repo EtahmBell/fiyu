@@ -4,14 +4,43 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const api = vi.hoisted(() => ({
+  clearDeveloperPersonalizedPickDismissal: vi.fn(),
+  expireDeveloperPersonalizedPick: vi.fn(),
   fetchAuthenticatedMapRestaurants: vi.fn(),
+  fetchDeveloperPersonalizedPick: vi.fn(),
   fetchDeveloperStatus: vi.fn(),
+  fetchRestaurants: vi.fn(),
   fetchUserFiyuSummary: vi.fn(),
+  forceDeveloperPersonalizedPick: vi.fn(),
   generateDeveloperDailyPicks: vi.fn(),
   resetDeveloperDailyPicks: vi.fn(),
+  resetDeveloperPersonalizedPick: vi.fn(),
   resetDeveloperVisitTaste: vi.fn(),
   updateDeveloperLocation: vi.fn(),
 }));
+
+const ppDebug = {
+  state: {
+    status: "unlocked_idle" as const,
+    qualifying_rating_count: 10,
+    unlock_threshold: 10,
+    event_eligible: true,
+    event_id: null,
+    card_count: null,
+    created_at: null,
+    expires_at: null,
+    dismissed_until: null,
+    dismissal_count: 0,
+    selected_position: null,
+    selected_at: null,
+    active_until: null,
+    selected_restaurant: null,
+  },
+  candidate_place_ids: [],
+  selection_metadata: {},
+  developer_forced: false,
+  deleted_events: 0,
+};
 
 const cache = vi.hoisted(() => ({
   accountQueryKey: vi.fn((resource: string, accountId: string) => `${resource}:${accountId}`),
@@ -43,6 +72,12 @@ const status = {
 beforeEach(() => {
   window.localStorage.clear();
   api.fetchDeveloperStatus.mockReset();
+  api.fetchDeveloperPersonalizedPick.mockReset().mockResolvedValue(ppDebug);
+  api.fetchRestaurants.mockReset();
+  api.forceDeveloperPersonalizedPick.mockReset();
+  api.resetDeveloperPersonalizedPick.mockReset();
+  api.clearDeveloperPersonalizedPickDismissal.mockReset();
+  api.expireDeveloperPersonalizedPick.mockReset();
   api.fetchAuthenticatedMapRestaurants.mockReset();
   api.fetchUserFiyuSummary.mockReset();
   api.generateDeveloperDailyPicks.mockReset();
@@ -252,5 +287,52 @@ describe("DeveloperTools", () => {
 
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(api.resetDeveloperVisitTaste).not.toHaveBeenCalled();
+  });
+
+  it("offers visual-only PP previews and account-scoped real event controls", async () => {
+    const forced = {
+      ...ppDebug,
+      state: {
+        ...ppDebug.state,
+        status: "event_available" as const,
+        event_id: "event-dev",
+        card_count: 3 as const,
+      },
+      candidate_place_ids: ["one", "two", "three"],
+      selection_metadata: { algorithm: "personalized-solo-v1" },
+      developer_forced: true,
+    };
+    api.fetchDeveloperStatus.mockResolvedValue(status);
+    api.forceDeveloperPersonalizedPick.mockResolvedValue(forced);
+    api.clearDeveloperPersonalizedPickDismissal.mockResolvedValue(forced);
+    api.expireDeveloperPersonalizedPick.mockResolvedValue({
+      ...forced,
+      state: { ...forced.state, status: "expired", card_count: null },
+    });
+    api.resetDeveloperPersonalizedPick.mockResolvedValue({
+      ...ppDebug,
+      deleted_events: 1,
+    });
+
+    render(<DeveloperTools />);
+    expect(await screen.findByRole("heading", { name: "Personalized Picks" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Locked 9/10" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Unlocked 10/10" })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Force event now" }));
+    await waitFor(() => expect(api.forceDeveloperPersonalizedPick).toHaveBeenCalledWith({
+      current_latitude: undefined,
+      current_longitude: undefined,
+      preview_area: null,
+    }));
+    expect(await screen.findByText("event-dev")).toBeTruthy();
+    expect(screen.getByText("personalized-solo-v1")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Clear dismissal" }));
+    await waitFor(() => expect(api.clearDeveloperPersonalizedPickDismissal).toHaveBeenCalledOnce());
+    fireEvent.click(screen.getByRole("button", { name: "Expire event" }));
+    await waitFor(() => expect(api.expireDeveloperPersonalizedPick).toHaveBeenCalledOnce());
+    fireEvent.click(screen.getByRole("button", { name: "Reset event" }));
+    await waitFor(() => expect(api.resetDeveloperPersonalizedPick).toHaveBeenCalledOnce());
   });
 });

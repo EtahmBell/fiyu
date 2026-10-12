@@ -62,6 +62,11 @@ export const paths = {
   developerDailyPicksGenerate: "/developer/daily-picks/generate",
   developerDailyPicksReset: "/developer/daily-picks/reset",
   developerVisitTasteReset: "/developer/visit-taste/reset",
+  developerPersonalizedPicks: "/developer/personalized-picks",
+  developerPersonalizedPicksForce: "/developer/personalized-picks/force",
+  developerPersonalizedPicksReset: "/developer/personalized-picks/reset",
+  developerPersonalizedPicksClearDismissal: "/developer/personalized-picks/clear-dismissal",
+  developerPersonalizedPicksExpire: "/developer/personalized-picks/expire",
   seenRestaurants: "/seen/restaurants",
   mapRestaurants: "/map/restaurants",
   authenticatedMapRestaurants: "/profiles/me/map-restaurants",
@@ -135,6 +140,26 @@ export function developerDailyPicksResetUrl(): string {
 
 export function developerVisitTasteResetUrl(): string {
   return `${getApiBaseUrl()}${paths.developerVisitTasteReset}`;
+}
+
+export function developerPersonalizedPicksUrl(): string {
+  return `${getApiBaseUrl()}${paths.developerPersonalizedPicks}`;
+}
+
+export function developerPersonalizedPicksForceUrl(): string {
+  return `${getApiBaseUrl()}${paths.developerPersonalizedPicksForce}`;
+}
+
+export function developerPersonalizedPicksResetUrl(): string {
+  return `${getApiBaseUrl()}${paths.developerPersonalizedPicksReset}`;
+}
+
+export function developerPersonalizedPicksClearDismissalUrl(): string {
+  return `${getApiBaseUrl()}${paths.developerPersonalizedPicksClearDismissal}`;
+}
+
+export function developerPersonalizedPicksExpireUrl(): string {
+  return `${getApiBaseUrl()}${paths.developerPersonalizedPicksExpire}`;
 }
 
 export function seenRestaurantsUrl(): string {

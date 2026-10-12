@@ -482,6 +482,14 @@ export const personalizedPickStateSchema = z.object({
   selected_restaurant: publicRestaurantSchema.nullable(),
 });
 
+export const developerPersonalizedPickResponseSchema = z.object({
+  state: personalizedPickStateSchema,
+  candidate_place_ids: z.array(z.string().min(1)).max(3),
+  selection_metadata: z.record(z.string(), z.unknown()),
+  developer_forced: z.boolean(),
+  deleted_events: z.number().int().nonnegative(),
+});
+
 export const togetherIdentitySchema = z.object({
   display_name: z.string().min(1),
   username: nullableString,
@@ -734,6 +742,7 @@ export type DeveloperStatus = z.infer<typeof developerStatusSchema>;
 export type DeveloperGeneratePicksResponse = z.infer<typeof developerGeneratePicksResponseSchema>;
 export type DeveloperResetPicksResponse = z.infer<typeof developerResetPicksResponseSchema>;
 export type DeveloperResetVisitTasteResponse = z.infer<typeof developerResetVisitTasteResponseSchema>;
+export type DeveloperPersonalizedPickResponse = z.infer<typeof developerPersonalizedPickResponseSchema>;
 export type DailyPickRevealResponse = z.infer<typeof dailyPickRevealResponseSchema>;
 export type PersonalizedPickState = z.infer<typeof personalizedPickStateSchema>;
 export type TogetherIdentity = z.infer<typeof togetherIdentitySchema>;

@@ -535,11 +535,20 @@ function RecentVisits({ summary }: { summary: UserFiyuSummary }) {
 
 function PersonalizedPicksSection({ summary }: { summary: UserFiyuSummary }) {
   const personalizedPick = usePersonalizedPick();
+  const previewing = personalizedPick.previewMode != null;
+  const unlockThreshold = previewing
+    ? personalizedPick.state?.unlock_threshold ?? 10
+    : summary.personalized_pick_unlock_threshold;
+  const unlocked = previewing
+    ? personalizedPick.state?.status !== "locked"
+    : summary.personalized_picks_unlocked;
   const count = Math.min(
-    summary.personalized_pick_rating_count,
-    summary.personalized_pick_unlock_threshold,
+    previewing
+      ? personalizedPick.state?.qualifying_rating_count ?? 0
+      : summary.personalized_pick_rating_count,
+    unlockThreshold,
   );
-  const percentage = (count / summary.personalized_pick_unlock_threshold) * 100;
+  const percentage = (count / unlockThreshold) * 100;
   const active = personalizedPick.state?.status === "selected"
     ? personalizedPick.state.selected_restaurant
     : null;
@@ -553,7 +562,7 @@ function PersonalizedPicksSection({ summary }: { summary: UserFiyuSummary }) {
               Personalized Picks
             </h2>
             <p className="mt-2 max-w-[52ch] text-sm leading-6 text-ink-body">
-              {summary.personalized_picks_unlocked
+              {unlocked
                 ? "Every so often, Fiyu will surprise you with a place chosen around your taste."
                 : "Rate 10 places to unlock occasional picks chosen around your taste."}
             </p>
@@ -570,17 +579,17 @@ function PersonalizedPicksSection({ summary }: { summary: UserFiyuSummary }) {
             <div className="flex items-baseline justify-between gap-4">
               <p className={cn(MICRO_CAPS, "text-ink-faint")}>Personalized Picks</p>
               <p className="font-display text-xl text-ink tabular-nums">
-                {summary.personalized_picks_unlocked
+                {unlocked
                   ? "Unlocked"
-                  : `${count} of ${summary.personalized_pick_unlock_threshold} places rated`}
+                  : `${count} of ${unlockThreshold} places rated`}
               </p>
             </div>
-            {!summary.personalized_picks_unlocked ? (
+            {!unlocked ? (
               <div
                 role="progressbar"
                 aria-label="Personalized Picks unlock progress"
                 aria-valuemin={0}
-                aria-valuemax={summary.personalized_pick_unlock_threshold}
+                aria-valuemax={unlockThreshold}
                 aria-valuenow={count}
                 className="mt-3 h-0.5 overflow-hidden rounded-full bg-personalized-soft"
               >

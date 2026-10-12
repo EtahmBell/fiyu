@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime
+from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
@@ -37,12 +38,13 @@ def developer_api(tmp_path, monkeypatch):
                         fiyu_score, local_discovery_score, is_published,
                         product_eligible, map_display_eligible, latitude, longitude,
                         map_location_precision, budget_json, created_at, updated_at
-                    ) VALUES (?, ?, 'restaurant', '[]', '[]', ?, '[]', 75, 75, 1, 1, 1,
+                    ) VALUES (?, ?, ?, '[]', '[]', ?, '[]', 75, 75, 1, 1, 1,
                               ?, ?, 'exact', ?, 'now', 'now')
                     """,
                     (
                         f"{area.lower()}-{index}",
                         f"{area} {index}",
+                        "sushi" if index < 6 else "ramen",
                         area,
                         float(anchor["latitude"]),
                         float(anchor["longitude"]) + index * 0.0001,
@@ -69,6 +71,17 @@ def developer_api(tmp_path, monkeypatch):
         "saved": {DEV_USER: {"saved-place"}, NORMAL_USER: {"other-saved"}},
         "profiles": {DEV_USER: {"username": "dev"}, NORMAL_USER: {"username": "normal"}},
         "visit_taste_reset": [],
+        "personalized_pick": {DEV_USER: None, NORMAL_USER: None},
+        "planner_visits": {
+            DEV_USER: [
+                {
+                    "place_id": f"ginza-{index}",
+                    "rating": 5 if index < 5 else 1,
+                }
+                for index in range(9)
+            ],
+            NORMAL_USER: [],
+        },
     }
 
     def authenticate(authorization):
@@ -105,6 +118,86 @@ def developer_api(tmp_path, monkeypatch):
         lambda *, user_id: dict(state["seen"].get(user_id, {})),
     )
     monkeypatch.setattr(api.shared_user_data, "saved_place_ids", lambda **_kwargs: set())
+    monkeypatch.setattr(
+        api.shared_user_data,
+        "list_visits",
+        lambda *, user_id: list(state["planner_visits"].get(user_id, [])),
+    )
+    monkeypatch.setattr(
+        api.shared_user_data,
+        "latest_visit_ratings",
+        lambda *, user_id: {
+            str(visit["place_id"]): int(visit["rating"])
+            for visit in state["planner_visits"].get(user_id, [])
+        },
+    )
+    monkeypatch.setattr(
+        api.shared_user_data,
+        "get_personalized_pick_event",
+        lambda *, user_id: state["personalized_pick"].get(user_id),
+    )
+
+    def create_personalized_pick(**kwargs):
+        existing = state["personalized_pick"].get(kwargs["user_id"])
+        if existing is not None:
+            return existing
+        event = {
+            "id": str(uuid4()),
+            "user_id": kwargs["user_id"],
+            "city_id": kwargs["city_id"],
+            "status": "available",
+            "created_at": kwargs["created_at"],
+            "expires_at": kwargs["expires_at"],
+            "dismissed_until": None,
+            "dismissal_count": 0,
+            "selected_position": None,
+            "selected_place_id": None,
+            "selected_at": None,
+            "active_until": None,
+            "selection_metadata": kwargs["selection_metadata"],
+            "place_ids": list(kwargs["place_ids"]),
+        }
+        state["personalized_pick"][kwargs["user_id"]] = event
+        return event
+
+    def reset_personalized_pick(*, user_id):
+        deleted = int(state["personalized_pick"].get(user_id) is not None)
+        state["personalized_pick"][user_id] = None
+        return deleted
+
+    def clear_personalized_pick(*, user_id, event_id):
+        event = state["personalized_pick"].get(user_id)
+        if event is None or event["id"] != event_id:
+            return None
+        event["dismissed_until"] = None
+        return event
+
+    def expire_personalized_pick(*, user_id, event_id, expired_at):
+        event = state["personalized_pick"].get(user_id)
+        if event is None or event["id"] != event_id:
+            return None
+        event["expires_at"] = expired_at
+        event["active_until"] = expired_at
+        return event
+
+    monkeypatch.setattr(
+        api.shared_user_data, "create_personalized_pick_event", create_personalized_pick
+    )
+    monkeypatch.setattr(
+        api.shared_user_data,
+        "reset_personalized_pick_test_state",
+        reset_personalized_pick,
+    )
+    monkeypatch.setattr(
+        api.shared_user_data,
+        "clear_personalized_pick_dismissal",
+        clear_personalized_pick,
+    )
+    monkeypatch.setattr(
+        api.shared_user_data,
+        "expire_personalized_pick_event",
+        expire_personalized_pick,
+    )
 
     def expire(*, user_id, city_id, expired_at):
         state["expired"].append((user_id, city_id, expired_at))
@@ -366,3 +459,102 @@ def test_visit_taste_reset_migration_is_service_role_only():
     assert "fiyu_restaurant_lists" not in migration
     assert "fiyu_daily_pick_rounds" not in migration
     assert "fiyu_restaurant_seen" not in migration
+
+
+def test_personalized_pick_force_uses_canonical_planner_and_reset_allows_repeat(
+    developer_api,
+):
+    client, state = developer_api
+    state["settings"][DEV_USER] = {"location_mode": "area", "area_name": "Ginza"}
+
+    first = client.post(
+        "/developer/personalized-picks/force",
+        headers={"Authorization": "Bearer dev"},
+        json={"seed": 23},
+    )
+    assert first.status_code == 200, first.text
+    first_body = first.json()
+    first_event_id = first_body["state"]["event_id"]
+    assert first_body["state"]["status"] == "event_available"
+    assert first_body["state"]["qualifying_rating_count"] == 9
+    assert first_body["candidate_place_ids"] == state["personalized_pick"][DEV_USER]["place_ids"]
+    assert first_body["selection_metadata"]["algorithm"] == "personalized-solo-v1"
+    assert first_body["developer_forced"] is True
+    assert client.get(
+        "/personalized-picks/me", headers={"Authorization": "Bearer dev"}
+    ).json()["status"] == "event_available"
+
+    state["personalized_pick"][NORMAL_USER] = {"id": "normal-event"}
+    reset = client.post(
+        "/developer/personalized-picks/reset",
+        headers={"Authorization": "Bearer dev"},
+    )
+    assert reset.status_code == 200
+    assert reset.json()["deleted_events"] == 1
+    assert reset.json()["state"]["status"] == "locked"
+    assert state["personalized_pick"][NORMAL_USER] == {"id": "normal-event"}
+
+    second = client.post(
+        "/developer/personalized-picks/force",
+        headers={"Authorization": "Bearer dev"},
+        json={"seed": 24},
+    )
+    assert second.status_code == 200
+    assert second.json()["state"]["event_id"] != first_event_id
+
+
+def test_personalized_pick_dismissal_and_expiration_controls(developer_api):
+    client, state = developer_api
+    state["settings"][DEV_USER] = {"location_mode": "area", "area_name": "Ginza"}
+    created = client.post(
+        "/developer/personalized-picks/force",
+        headers={"Authorization": "Bearer dev"},
+        json={},
+    ).json()
+    event = state["personalized_pick"][DEV_USER]
+    event["dismissed_until"] = "2099-01-01T00:00:00+00:00"
+
+    cleared = client.post(
+        "/developer/personalized-picks/clear-dismissal",
+        headers={"Authorization": "Bearer dev"},
+    )
+    assert cleared.status_code == 200
+    assert cleared.json()["state"]["dismissed_until"] is None
+
+    event["status"] = "selected"
+    event["selected_position"] = 0
+    event["selected_place_id"] = event["place_ids"][0]
+    event["selected_at"] = datetime.now(UTC).isoformat()
+    event["active_until"] = "2099-01-01T00:00:00+00:00"
+    expired = client.post(
+        "/developer/personalized-picks/expire",
+        headers={"Authorization": "Bearer dev"},
+    )
+    assert expired.status_code == 200
+    assert expired.json()["state"]["status"] == "expired"
+    assert expired.json()["state"]["event_id"] == created["state"]["event_id"]
+
+
+def test_personalized_pick_dev_routes_reuse_server_side_authorization(
+    developer_api, monkeypatch
+):
+    client, _state = developer_api
+    endpoint = "/developer/personalized-picks/reset"
+    assert client.post(endpoint).status_code == 401
+    assert client.post(
+        endpoint, headers={"Authorization": "Bearer normal"}
+    ).status_code == 404
+    monkeypatch.setenv("FIYU_ENABLE_DEV_TOOLS", "false")
+    assert client.post(
+        endpoint, headers={"Authorization": "Bearer dev"}
+    ).status_code == 404
+
+
+def test_production_personalized_pick_stays_locked_for_non_developer(developer_api):
+    client, _state = developer_api
+    response = client.post(
+        "/personalized-picks/events",
+        headers={"Authorization": "Bearer normal"},
+    )
+    assert response.status_code == 200
+    assert response.json()["status"] == "locked"

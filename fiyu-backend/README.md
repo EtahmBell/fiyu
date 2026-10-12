@@ -58,6 +58,12 @@ Apply the checked-in shared-data migration to the linked Supabase project:
 supabase db push
 ```
 
+That command applies `202610110001_personalized_pick_events.sql`, which is
+required for Personalized Picks and its account-scoped developer event controls.
+The developer controls additionally require `FIYU_ENABLE_DEV_TOOLS=true` and the
+authenticated test user's UUID in `FIYU_DEV_USER_IDS`; they remain unavailable
+to other users and when the flag is disabled.
+
 Then run the additive local SQLite schema setup used by the catalog and
 anonymous flow:
 

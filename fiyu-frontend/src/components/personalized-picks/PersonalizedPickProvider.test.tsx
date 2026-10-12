@@ -60,6 +60,23 @@ function StateProbe() {
   return <output>{state?.status ?? "none"}</output>;
 }
 
+function PreviewProbe() {
+  const { state, setDeveloperPreview } = usePersonalizedPick();
+  return (
+    <>
+      <output data-testid="preview-state">
+        {state ? `${state.status}:${state.qualifying_rating_count}` : "none"}
+      </output>
+      <button type="button" onClick={() => setDeveloperPreview("locked_zero")}>Preview zero</button>
+      <button type="button" onClick={() => setDeveloperPreview("locked_nine")}>Preview nine</button>
+      <button type="button" onClick={() => setDeveloperPreview("unlocked")}>Preview unlocked</button>
+      <button type="button" onClick={() => setDeveloperPreview("event_available", restaurant)}>Preview event</button>
+      <button type="button" onClick={() => setDeveloperPreview("selected", restaurant)}>Preview selected</button>
+      <button type="button" onClick={() => setDeveloperPreview("expired")}>Preview expired</button>
+    </>
+  );
+}
+
 beforeEach(() => {
   clearProfileIdentity();
   publishProfileIdentity({
@@ -126,5 +143,36 @@ describe("PersonalizedPickProvider", () => {
     expect(await screen.findByText("selected")).toBeTruthy();
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(api.create).not.toHaveBeenCalled();
+  });
+
+  it("previews locked, unlocked, available, selected, and expired states without writes", async () => {
+    api.fetch.mockResolvedValue({
+      ...available,
+      status: "locked",
+      qualifying_rating_count: 4,
+      event_id: null,
+      card_count: null,
+    });
+    render(<PersonalizedPickProvider><PreviewProbe /></PersonalizedPickProvider>);
+    await waitFor(() => expect(api.fetch).toHaveBeenCalledOnce());
+
+    fireEvent.click(screen.getByRole("button", { name: "Preview zero" }));
+    expect(screen.getByTestId("preview-state").textContent).toBe("locked:0");
+    fireEvent.click(screen.getByRole("button", { name: "Preview nine" }));
+    expect(screen.getByTestId("preview-state").textContent).toBe("locked:9");
+    fireEvent.click(screen.getByRole("button", { name: "Preview unlocked" }));
+    expect(screen.getByTestId("preview-state").textContent).toBe("unlocked_idle:10");
+
+    fireEvent.click(screen.getByRole("button", { name: "Preview event" }));
+    expect(screen.getAllByRole("button", { name: /Choose hidden card/ })).toHaveLength(3);
+    fireEvent.click(screen.getByRole("button", { name: "Choose hidden card 1" }));
+    expect(await screen.findByRole("heading", { name: "浜田山叙々苑" })).toBeTruthy();
+    expect(api.select).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Preview selected" }));
+    expect(screen.getByTestId("preview-state").textContent).toBe("selected:10");
+    fireEvent.click(screen.getByRole("button", { name: "Preview expired" }));
+    expect(screen.getByTestId("preview-state").textContent).toBe("expired:10");
+    expect(api.dismiss).not.toHaveBeenCalled();
   });
 });
