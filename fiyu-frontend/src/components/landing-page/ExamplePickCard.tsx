@@ -262,11 +262,8 @@ export function ExamplePickCardBrief({
 }
 
 /**
- * The concealed face, as the application draws it: a pale lavender field, the
- * card's own hairline, and two centred lines of type.
- *
- * The application's face reads "Tap to reveal", because there it can be tapped.
- * Here it cannot, so it says what is true instead.
+ * The concealed face echoes the application's pale-lavender Fiyu card. This
+ * marketing example adds a factual non-interactive caption beneath the mark.
  */
 export function ExampleConcealedCard({ className }: { className?: string }) {
   return (

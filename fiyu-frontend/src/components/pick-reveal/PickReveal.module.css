@@ -1,0 +1,143 @@
+.stage {
+  position: relative;
+  display: grid;
+  min-width: 0;
+}
+
+.sizer,
+.hiddenFace,
+.restaurantFace {
+  grid-area: 1 / 1;
+  min-width: 0;
+}
+
+.sizer {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.hiddenFace,
+.restaurantFace {
+  border-radius: inherit;
+  transition: opacity 360ms ease-out;
+}
+
+.hiddenFace {
+  position: relative;
+  z-index: 1;
+  opacity: 1;
+}
+
+.restaurantFace {
+  position: relative;
+  z-index: 2;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.stage[data-reveal-phase="revealing"] .hiddenFace,
+.stage[data-reveal-phase="revealed"] .hiddenFace {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.stage[data-reveal-phase="revealing"] .restaurantFace,
+.stage[data-reveal-phase="revealed"] .restaurantFace {
+  opacity: 1;
+}
+
+.stage[data-reveal-phase="revealed"] .hiddenFace {
+  visibility: hidden;
+}
+
+.stage[data-reveal-phase="revealed"] .restaurantFace {
+  pointer-events: auto;
+}
+
+.motionTarget {
+  position: relative;
+  overflow: hidden;
+  transition:
+    transform 110ms ease-out,
+    box-shadow 110ms ease-out,
+    border-color 180ms ease-out,
+    opacity 160ms ease-out;
+}
+
+.motionTarget[data-reveal-active="true"] {
+  animation: pick-press 110ms ease-out both;
+}
+
+.hiddenSurface {
+  border: 1px solid;
+  box-shadow: var(--shadow-paper);
+}
+
+.hiddenSurface[data-reveal-variant="regular"],
+.hiddenSurface[data-reveal-variant="together"] {
+  border-color: color-mix(in srgb, var(--color-lavender-500) 24%, var(--color-paper-line));
+  background: var(--color-lavender-50);
+  color: var(--color-plum);
+}
+
+.hiddenSurface[data-reveal-variant="personalized"] {
+  border-color: var(--color-personalized-line);
+  background: var(--color-personalized-soft);
+  color: var(--color-personalized-700);
+}
+
+.shineOverlay {
+  pointer-events: none;
+  position: absolute;
+  z-index: 3;
+  inset: -70%;
+  opacity: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    135deg,
+    transparent 35%,
+    rgb(255 255 255 / 10%) 43%,
+    rgb(255 255 255 / 58%) 50%,
+    color-mix(in srgb, var(--color-lavender-100) 58%, transparent) 56%,
+    transparent 65%
+  );
+}
+
+.shineOverlay[data-reveal-active="true"] {
+  animation: pick-shine 420ms 85ms ease-out both;
+}
+
+@keyframes pick-press {
+  55% {
+    transform: translateY(1px) scale(0.985);
+    box-shadow: 0 1px 3px rgb(44 32 64 / 10%);
+  }
+  100% {
+    transform: translateY(0) scale(1);
+    box-shadow: none;
+  }
+}
+
+@keyframes pick-shine {
+  from { transform: translate3d(-34%, -34%, 0); opacity: 0; }
+  18% { opacity: 1; }
+  to { transform: translate3d(34%, 34%, 0); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hiddenFace,
+  .restaurantFace {
+    transition-duration: 150ms;
+  }
+
+  .motionTarget,
+  .motionTarget[data-reveal-active="true"] {
+    animation: none;
+    transform: none;
+    transition: opacity 150ms ease-out;
+  }
+
+  .shineOverlay {
+    display: none;
+  }
+}

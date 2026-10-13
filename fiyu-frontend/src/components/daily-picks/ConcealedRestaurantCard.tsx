@@ -1,12 +1,17 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { CompactCardSizer } from "@/components/daily-picks/CompactCardSizer";
 import { CompactRestaurantCard } from "@/components/daily-picks/CompactRestaurantCard";
+import revealStyles from "@/components/pick-reveal/PickReveal.module.css";
+import {
+  PICK_REVEAL_CROSSFADE_MS,
+  usePickRevealTransition,
+} from "@/components/pick-reveal/usePickRevealTransition";
 import type { PublicRestaurant } from "@/lib/api/schemas";
 import { hasGoldFiyuTreatment } from "@/lib/format/score";
 import { useMediaQuery } from "@/lib/hooks/useMediaQuery";
-import styles from "./PickReveal.module.css";
+import { cn } from "@/lib/utils/cn";
 
 export interface ConcealedRestaurantCardProps {
   restaurant: PublicRestaurant;
@@ -21,7 +26,7 @@ export interface ConcealedRestaurantCardProps {
   onViewDetails?: (restaurant: PublicRestaurant) => void;
 }
 
-export const PICK_FLIP_MS = 500;
+export const PICK_REVEAL_MS = PICK_REVEAL_CROSSFADE_MS;
 
 /** Persistent reveal truth comes from the parent; motion exists only on this mount. */
 export function ConcealedRestaurantCard({
@@ -29,74 +34,91 @@ export function ConcealedRestaurantCard({
   onReveal, onToggleSaved, onOpen, onViewDetails,
 }: ConcealedRestaurantCardProps) {
   const reducedMotion = useMediaQuery("(prefers-reduced-motion: reduce)");
-  const [previousRevealed, setPreviousRevealed] = useState(revealed);
-  const [animating, setAnimating] = useState(false);
   const frontRef = useRef<HTMLDivElement>(null);
   const restoreFocus = useRef(false);
-  // Derive the transition before paint, avoiding a one-frame front flash.
-  if (revealed !== previousRevealed) {
-    setPreviousRevealed(revealed);
-    setAnimating(revealed && !reducedMotion);
-  }
-  const moving = animating && !reducedMotion;
+  const transition = usePickRevealTransition({
+    ready: revealed,
+    pending: revealPending,
+    reducedMotion,
+    debugLabel: `Daily ${position}`,
+  });
   const gold = revealed && hasGoldFiyuTreatment(restaurant.fiyu_score);
 
   useEffect(() => {
-    if (!animating) return;
-    const timer = window.setTimeout(() => setAnimating(false), reducedMotion ? 0 : PICK_FLIP_MS);
-    return () => window.clearTimeout(timer);
-  }, [animating, reducedMotion]);
-
-  useEffect(() => {
-    if (revealed && !moving && restoreFocus.current) {
+    if (transition.phase === "revealed" && restoreFocus.current) {
       restoreFocus.current = false;
       const front = frontRef.current;
       const target = front?.querySelector<HTMLElement>('button[aria-label="View restaurant"]')
         ?? front?.querySelector<HTMLElement>("button, a, [tabindex='0']");
       target?.focus({ preventScroll: true });
     }
-  }, [revealed, moving]);
+  }, [transition.phase]);
 
   return (
-    <div className={styles.scene}
+    <div
+      className={cn(revealStyles.stage, revealStyles.motionTarget, "rounded-card")}
       data-testid={revealed ? "revealed-restaurant-card" : "concealed-restaurant-card"}
       data-gold-treatment={gold ? "true" : "false"}
-      data-reveal-motion={moving ? "flipping" : "resting"}
-      onClickCapture={(event) => { if (moving) { event.preventDefault(); event.stopPropagation(); } }}
+      data-reveal-motion={transition.phase}
+      data-reveal-phase={transition.phase}
+      data-reveal-active={transition.active ? "true" : "false"}
+      data-reveal-variant="regular"
+      onClickCapture={(event) => {
+        if (transition.active) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+      }}
     >
-      <div className={styles.rotor} data-front={revealed} data-moving={moving}>
-        <div className={styles.sizer} aria-hidden="true" inert>
-          <CompactCardSizer restaurant={restaurant} hasDetails={Boolean(onViewDetails)} />
-        </div>
-        {(!revealed || moving) && <div className={styles.back} aria-hidden={revealed} inert={revealed}>
-          <button type="button" disabled={revealPending} aria-busy={revealPending}
-            aria-label={`Reveal Fiyu Pick ${position}`}
-            onClick={(event) => {
-              if (revealPending) return;
-              restoreFocus.current = event.detail === 0;
-              onReveal();
-            }}
-            className="group/back flex size-full select-none flex-col items-center justify-center rounded-card text-center transition-[background-color,transform] duration-150 ease-(--ease-fiyu) hover:bg-lavender-100/35 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600 active:scale-[0.99] active:bg-lavender-100/60 disabled:cursor-wait"
-          >
-            <span className="flex items-center gap-2.5 text-[0.6875rem] font-semibold tracking-[0.18em] text-lavender-800 uppercase">
-              <span aria-hidden="true" className="h-0.5 w-5 rounded-full bg-lavender-500" />
-              Fiyu Pick {String(position).padStart(2, "0")}
-              <span aria-hidden="true" className="h-0.5 w-5 rounded-full bg-lavender-500" />
-            </span>
-            <span className="mt-4 font-display text-[2.75rem] leading-none text-plum">Fiyu</span>
-            <span className="mt-5 inline-flex min-h-9 items-center gap-1.5 rounded-chip border border-lavender-500/35 bg-surface/70 px-4 text-[0.8125rem] font-semibold text-lavender-800 transition-colors duration-150 group-hover/back:border-lavender-500/60">
-              {revealPending ? "Revealing…" : "Tap to reveal"}
-            </span>
-          </button>
-        </div>}
-        <div ref={frontRef} className={styles.front} aria-hidden={!revealed || moving} inert={!revealed || moving}>
-          {revealed && <CompactRestaurantCard
-            restaurant={restaurant} saved={saved} savePending={savePending}
-            onOpen={onOpen} onViewDetails={onViewDetails} onToggleSaved={onToggleSaved}
-          />}
-        </div>
+      <div className={revealStyles.sizer} aria-hidden="true" inert>
+        <CompactCardSizer restaurant={restaurant} hasDetails={Boolean(onViewDetails)} />
       </div>
-      {moving && <span aria-hidden="true" className={styles.sheen} />}
+      <div
+        className={cn(revealStyles.hiddenFace, revealStyles.hiddenSurface)}
+        data-reveal-variant="regular"
+        data-testid="pick-hidden-face"
+        aria-hidden={transition.visuallyRevealed}
+        inert={transition.visuallyRevealed}
+      >
+        <button
+          type="button"
+          disabled={revealPending || transition.active}
+          aria-busy={revealPending}
+          aria-label={`Reveal Fiyu Pick ${position}`}
+          onClick={(event) => {
+            if (!transition.begin()) return;
+            restoreFocus.current = event.detail === 0;
+            onReveal();
+          }}
+          className="flex size-full select-none items-center justify-center rounded-card text-center hover:bg-lavender-100/35 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600 disabled:cursor-wait"
+        >
+          <span className="font-display text-[2.75rem] leading-none">Fiyu</span>
+        </button>
+      </div>
+      {revealed ? (
+        <div
+          ref={frontRef}
+          className={cn(revealStyles.restaurantFace, "flex flex-col")}
+          data-testid="pick-restaurant-face"
+          aria-hidden={transition.phase !== "revealed"}
+          inert={transition.phase !== "revealed"}
+        >
+          <CompactRestaurantCard
+            restaurant={restaurant}
+            saved={saved}
+            savePending={savePending}
+            onOpen={onOpen}
+            onViewDetails={onViewDetails}
+            onToggleSaved={onToggleSaved}
+          />
+        </div>
+      ) : null}
+      <span
+        aria-hidden="true"
+        className={revealStyles.shineOverlay}
+        data-reveal-active={transition.active ? "true" : "false"}
+        data-testid={transition.active ? "pick-shine" : undefined}
+      />
     </div>
   );
 }

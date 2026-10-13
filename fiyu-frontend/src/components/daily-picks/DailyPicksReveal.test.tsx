@@ -32,6 +32,10 @@ const flush = async () => { await act(async () => { await Promise.resolve(); });
 const clickAll = async () => {
   await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Reveal all Fiyu Picks" })); });
 };
+const settleVisualReveals = async () => {
+  await act(async () => { await vi.advanceTimersByTimeAsync(40); });
+  await act(async () => { await vi.advanceTimersByTimeAsync(400); });
+};
 beforeEach(() => {
   vi.useFakeTimers(); ids = []; window.localStorage.clear(); clearAccountQueries();
   vi.spyOn(api, "fetchActiveDailyPicks").mockImplementation(async () => assignment());
@@ -53,18 +57,19 @@ describe("canonical Pick reveals", () => {
     const button = screen.getByRole("button", { name: "Reveal Fiyu Pick 1" });
     fireEvent.click(button); fireEvent.click(button);
     expect(api.revealDailyPicks).toHaveBeenCalledTimes(1);
-    expect(button.textContent).toContain("Revealing…");
+    expect(button.textContent?.trim()).toBe("Fiyu");
+    expect(button.getAttribute("aria-busy")).toBe("true");
     for (const position of [2, 3]) {
       const other = screen.getByRole("button", { name: `Reveal Fiyu Pick ${position}` });
-      expect(other.textContent).toContain("Tap to reveal");
+      expect(other.textContent?.trim()).toBe("Fiyu");
       expect(other.getAttribute("aria-busy")).toBe("false");
     }
     expect(screen.queryByTestId("revealed-restaurant-card")).toBeNull();
     expect(browserDailyPicksStorage("reveal-test").getSnapshot()?.discoveries).toEqual([]);
     await act(async () => resolve(result("1")));
-    expect(screen.getByTestId("revealed-restaurant-card").dataset.revealMotion).toBe("flipping");
+    expect(screen.getByTestId("revealed-restaurant-card").dataset.revealMotion).not.toBe("revealed");
     expect(screen.getByRole("button", { name: "Reveal Fiyu Pick 2" }).textContent)
-      .toContain("Tap to reveal");
+      .toBe("Fiyu");
     expect(browserDailyPicksStorage("reveal-test").getSnapshot()?.selection?.revealedIds).toEqual(["1"]);
   });
 
@@ -77,12 +82,13 @@ describe("canonical Pick reveals", () => {
 
     for (const position of [1, 2, 3]) {
       const button = screen.getByRole("button", { name: `Reveal Fiyu Pick ${position}` });
-      expect(button.textContent).toContain("Revealing…");
+      expect(button.textContent?.trim()).toBe("Fiyu");
       expect(button.getAttribute("aria-busy")).toBe("true");
     }
 
     await act(async () => resolve(result("1")));
     await act(async () => { await vi.advanceTimersByTimeAsync(700); });
+    await settleVisualReveals();
     expect(screen.queryByRole("button", { name: /Reveal Fiyu Pick/ })).toBeNull();
   });
 
@@ -94,12 +100,12 @@ describe("canonical Pick reveals", () => {
     await mount();
 
     fireEvent.click(screen.getByRole("button", { name: "Reveal Fiyu Pick 2" }));
-    expect(screen.getByRole("button", { name: "Reveal Fiyu Pick 2" }).textContent)
-      .toContain("Revealing…");
+    expect(screen.getByRole("button", { name: "Reveal Fiyu Pick 2" }).getAttribute("aria-busy"))
+      .toBe("true");
 
     await act(async () => reject(new Error("offline")));
 
-    expect(screen.getAllByText("Tap to reveal")).toHaveLength(3);
+    expect(screen.getAllByRole("button", { name: /Reveal Fiyu Pick/ })).toHaveLength(3);
     expect(screen.getByText("We couldn’t save the reveal. Try again.")).toBeTruthy();
   });
 
@@ -124,12 +130,12 @@ describe("canonical Pick reveals", () => {
   it("reveals only remaining cards and restores persisted fronts without replay", async () => {
     ids = ["1"];
     const view = await mount();
-    expect(screen.getByTestId("revealed-restaurant-card").dataset.revealMotion).toBe("resting");
+    expect(screen.getByTestId("revealed-restaurant-card").dataset.revealMotion).toBe("revealed");
     await clickAll();
     await act(async () => { await vi.advanceTimersByTimeAsync(700); });
     expect(vi.mocked(api.revealDailyPicks).mock.calls.map((call) => call[1])).toEqual(["2", "3"]);
     view.unmount(); await mount();
-    expect(screen.getAllByTestId("revealed-restaurant-card").every((card) => card.dataset.revealMotion === "resting")).toBe(true);
+    expect(screen.getAllByTestId("revealed-restaurant-card").every((card) => card.dataset.revealMotion === "revealed")).toBe(true);
   });
 
   it("keeps partial successes, stops on failure and allows retry without duplicate success", async () => {
@@ -140,22 +146,26 @@ describe("canonical Pick reveals", () => {
     await mount(); await clickAll();
     fireEvent.click(screen.getByRole("button", { name: "Reveal all Fiyu Picks" }));
     await act(async () => { await vi.advanceTimersByTimeAsync(700); });
+    await settleVisualReveals();
     expect(api.revealDailyPicks).toHaveBeenCalledTimes(2);
     expect(screen.getAllByTestId("revealed-restaurant-card")).toHaveLength(1);
     expect(screen.getByText("We couldn’t save the reveal. Try again.")).toBeTruthy();
-    expect(screen.getAllByText("Tap to reveal")).toHaveLength(2);
+    expect(screen.getAllByRole("button", { name: /Reveal Fiyu Pick/ })).toHaveLength(2);
     vi.mocked(api.revealDailyPicks).mockImplementation(async (_round, id) => result(id));
     await clickAll(); await act(async () => { await vi.advanceTimersByTimeAsync(700); });
     expect(vi.mocked(api.revealDailyPicks).mock.calls.map((call) => call[1])).toEqual(["1", "2", "2", "3"]);
     expect(browserDailyPicksStorage("reveal-test").getSnapshot()?.discoveries).toHaveLength(3);
   });
 
-  it("has no stagger or flip for reduced motion, with identical persistence", async () => {
+  it("has no request stagger and uses the reduced reveal path with identical persistence", async () => {
     vi.stubGlobal("matchMedia", (query: string) => ({ matches: query.includes("prefers-reduced-motion"),
       addEventListener: vi.fn(), removeEventListener: vi.fn() }));
     await mount(); await clickAll();
     expect(api.revealDailyPicks).toHaveBeenCalledTimes(3);
-    expect(screen.getAllByTestId("revealed-restaurant-card").every((card) => card.dataset.revealMotion === "resting")).toBe(true);
+    await act(async () => { await vi.advanceTimersByTimeAsync(700); });
+    await settleVisualReveals();
+    await settleVisualReveals();
+    expect(screen.getAllByTestId("revealed-restaurant-card").every((card) => card.dataset.revealMotion === "revealed")).toBe(true);
     expect(ids).toEqual(["1", "2", "3"]);
   });
 

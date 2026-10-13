@@ -457,6 +457,13 @@ describe("Today’s Fiyu Picks panel", () => {
     expect(screen.getByRole("status").textContent).toBe(
       "1 new place added to your map",
     );
+    // The successful card keeps its hidden face mounted until the planar
+    // crossfade starts; it leaves the accessibility tree only once settled.
+    expect(screen.getAllByRole("button", { name: /Reveal Fiyu Pick/ })).toHaveLength(3);
+    act(() => vi.advanceTimersByTime(180));
+    act(() => vi.advanceTimersByTime(20));
+    act(() => vi.advanceTimersByTime(20));
+    act(() => vi.advanceTimersByTime(360));
     expect(screen.getAllByRole("button", { name: /Reveal Fiyu Pick/ })).toHaveLength(2);
 
     act(() => vi.advanceTimersByTime(3_200));

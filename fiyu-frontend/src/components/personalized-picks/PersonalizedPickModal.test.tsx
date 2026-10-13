@@ -63,6 +63,8 @@ describe("Personalized Pick event modal", () => {
     const cards = screen.getAllByRole("button", { name: /Choose hidden card/ });
     expect(cards).toHaveLength(3);
     expect(cards.map((card) => card.textContent?.trim())).toEqual(["Fiyu", "Fiyu", "Fiyu"]);
+    expect(cards.every((card) => card.getAttribute("data-reveal-variant") === "personalized"))
+      .toBe(true);
     expect(document.body.textContent).not.toContain("Tap to reveal");
     expect(document.body.textContent).not.toContain("Fiyu Pick 01");
     expect(document.body.textContent).not.toContain("Hamadayama Jojoen");
@@ -136,7 +138,7 @@ describe("Personalized Pick event modal", () => {
 
     act(() => vi.advanceTimersByTime(20));
     expect(stage.getAttribute("data-pp-phase")).toBe("shining");
-    expect(screen.getByTestId("personalized-pick-shine").getAttribute("data-active"))
+    expect(screen.getByTestId("personalized-pick-shine").getAttribute("data-reveal-active"))
       .toBe("true");
 
     rerender(

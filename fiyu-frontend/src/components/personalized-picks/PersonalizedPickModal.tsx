@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import revealStyles from "@/components/pick-reveal/PickReveal.module.css";
+import { usePickRevealTransition } from "@/components/pick-reveal/usePickRevealTransition";
 import { RestaurantPhoto } from "@/components/restaurant/RestaurantPhoto";
 import { ScoreMark } from "@/components/ui/ScoreMark";
 import type { PersonalizedPickState } from "@/lib/api/schemas";
@@ -21,12 +23,7 @@ interface PersonalizedPickModalProps {
   onCloseReveal(): void;
 }
 
-type RevealPhase = "idle" | "pressing" | "shining" | "ready" | "revealing" | "revealed";
-
 const FOCUSABLE = "button:not([disabled]), a[href], [tabindex]:not([tabindex='-1'])";
-const REVEAL_START_MS = 180;
-const REVEAL_CROSSFADE_MS = 360;
-const REDUCED_CROSSFADE_MS = 150;
 
 export function PersonalizedPickModal({
   state,
@@ -41,20 +38,18 @@ export function PersonalizedPickModal({
   const revealCloseRef = useRef<HTMLButtonElement>(null);
   const previousFocus = useRef<HTMLElement | null>(null);
   const selectionRef = useRef<number | null>(null);
-  const selectionStartedAt = useRef<number | null>(null);
   const requestObserved = useRef(false);
   const restoreRevealFocus = useRef(false);
   const closeRef = useRef<() => void>(() => undefined);
   const [selectionPosition, setSelectionPosition] = useState<number | null>(null);
   const selected = reveal ? state.selected_restaurant : null;
-  const [minimumRevealReady, setMinimumRevealReady] = useState(
-    reveal && state.selected_restaurant !== null,
-  );
-  const [phase, setPhase] = useState<RevealPhase>(
-    reveal && state.selected_restaurant !== null ? "revealed" : "idle",
-  );
-  const selectionLocked = pendingPosition !== null || !["idle", "revealed"].includes(phase);
-  const visuallyRevealing = phase === "revealing" || phase === "revealed";
+  const transition = usePickRevealTransition({
+    ready: selected !== null,
+    pending: pendingPosition !== null,
+    reducedMotion,
+    debugLabel: "Personalized",
+  });
+  const selectionLocked = pendingPosition !== null || transition.active;
 
   const close = useCallback(() => {
     if (selectionLocked) return;
@@ -68,78 +63,27 @@ export function PersonalizedPickModal({
 
   const beginSelection = useCallback((position: number, keyboard: boolean) => {
     if (selectionRef.current !== null || pendingPosition !== null) return;
+    if (!transition.begin()) return;
     selectionRef.current = position;
-    selectionStartedAt.current = performance.now();
     restoreRevealFocus.current = keyboard;
     setSelectionPosition(position);
-    setPhase("pressing");
-    setMinimumRevealReady(false);
     onSelect(position);
-  }, [onSelect, pendingPosition]);
-
-  useEffect(() => {
-    if (phase !== "pressing") return;
-    const frame = window.requestAnimationFrame(() => setPhase("shining"));
-    return () => window.cancelAnimationFrame(frame);
-  }, [phase]);
-
-  useEffect(() => {
-    if (selectionPosition === null) return;
-    const timer = window.setTimeout(() => setMinimumRevealReady(true), REVEAL_START_MS);
-    return () => window.clearTimeout(timer);
-  }, [selectionPosition]);
-
-  useEffect(() => {
-    if (phase !== "shining" || !minimumRevealReady || !selected) return;
-    const frame = window.requestAnimationFrame(() => setPhase("ready"));
-    return () => window.cancelAnimationFrame(frame);
-  }, [minimumRevealReady, phase, selected]);
-
-  useEffect(() => {
-    if (phase !== "ready") return;
-    const frame = window.requestAnimationFrame(() => setPhase("revealing"));
-    return () => window.cancelAnimationFrame(frame);
-  }, [phase]);
-
-  useEffect(() => {
-    if (phase !== "revealing") return;
-    const timer = window.setTimeout(
-      () => setPhase("revealed"),
-      reducedMotion ? REDUCED_CROSSFADE_MS : REVEAL_CROSSFADE_MS,
-    );
-    return () => window.clearTimeout(timer);
-  }, [phase, reducedMotion]);
+  }, [onSelect, pendingPosition, transition]);
 
   useEffect(() => {
     if (pendingPosition !== null) requestObserved.current = true;
-    else if (requestObserved.current && !selected && phase !== "idle") {
+    else if (requestObserved.current && !selected) {
       requestObserved.current = false;
       selectionRef.current = null;
-      selectionStartedAt.current = null;
       setSelectionPosition(null);
-      setMinimumRevealReady(false);
-      setPhase("idle");
     }
-  }, [pendingPosition, phase, selected]);
+  }, [pendingPosition, selected]);
 
   useEffect(() => {
-    if (phase !== "revealed" || !restoreRevealFocus.current) return;
+    if (transition.phase !== "revealed" || !restoreRevealFocus.current) return;
     restoreRevealFocus.current = false;
     revealCloseRef.current?.focus({ preventScroll: true });
-  }, [phase]);
-
-  useEffect(() => {
-    if (process.env.NODE_ENV !== "development") return;
-    const startedAt = selectionStartedAt.current;
-    console.debug("[PersonalizedPick reveal]", {
-      phase,
-      elapsedMs: startedAt === null ? null : Math.round(performance.now() - startedAt),
-      backendResultReady: selected !== null,
-      hiddenFaceMounted: true,
-      restaurantFaceMounted: selected !== null,
-      reducedMotion,
-    });
-  }, [phase, reducedMotion, selected]);
+  }, [transition.phase]);
 
   useEffect(() => {
     previousFocus.current = document.activeElement instanceof HTMLElement
@@ -190,24 +134,25 @@ export function PersonalizedPickModal({
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
-        aria-labelledby={visuallyRevealing
+        aria-labelledby={transition.visuallyRevealed
           ? "personalized-pick-reveal-title"
           : "personalized-pick-title"}
-        aria-describedby={visuallyRevealing
+        aria-describedby={transition.visuallyRevealed
           ? "personalized-pick-reveal-description"
           : "personalized-pick-description"}
         className="relative max-h-[calc(100dvh-1.5rem)] w-full max-w-[42rem] overflow-y-auto rounded-[1.25rem] border border-paper-line bg-canvas px-5 py-6 shadow-2xl sm:px-9 sm:py-8"
       >
         <div
-          className={styles.stage}
-          data-pp-phase={phase}
+          className={revealStyles.stage}
+          data-pp-phase={transition.phase}
+          data-reveal-phase={transition.phase}
           data-reduced-motion={reducedMotion ? "true" : "false"}
           data-testid="personalized-pick-reveal-stage"
         >
           <div
-            className={styles.choiceFace}
-            aria-hidden={visuallyRevealing}
-            inert={visuallyRevealing}
+            className={revealStyles.hiddenFace}
+            aria-hidden={transition.visuallyRevealed}
+            inert={transition.visuallyRevealed}
             data-testid="personalized-pick-hidden-face"
           >
             <button
@@ -244,19 +189,22 @@ export function PersonalizedPickModal({
                   data-selection-motion={reducedMotion ? "reduced" : "press-shine"}
                   onClick={(event) => beginSelection(position, event.detail === 0)}
                   className={cn(
+                    revealStyles.motionTarget,
+                    revealStyles.hiddenSurface,
                     styles.hiddenCard,
-                    selectionPosition === position && styles.chosenCard,
                     selectionPosition !== null && selectionPosition !== position && styles.withheldCard,
-                    "group aspect-[3/4] min-w-0 rounded-xl border border-personalized-soft bg-lavender-50 shadow-paper focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-personalized disabled:cursor-wait",
+                    "group aspect-[3/4] min-w-0 rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-personalized disabled:cursor-wait",
                   )}
+                  data-reveal-active={selectionPosition === position && transition.active ? "true" : "false"}
+                  data-reveal-variant="personalized"
                 >
                   <span aria-hidden="true" className="font-display text-3xl leading-none text-plum sm:text-4xl">
                     Fiyu
                   </span>
                   <span
                     aria-hidden="true"
-                    className={styles.cardShine}
-                    data-active={selectionPosition === position && phase !== "idle" && phase !== "revealed"}
+                    className={revealStyles.shineOverlay}
+                    data-reveal-active={selectionPosition === position && transition.active ? "true" : "false"}
                     data-testid={selectionPosition === position ? "personalized-pick-shine" : undefined}
                   />
                 </button>
@@ -274,13 +222,13 @@ export function PersonalizedPickModal({
 
           {selected ? (
             <div
-              className={styles.restaurantFace}
-              aria-hidden={phase !== "revealed"}
-              inert={phase !== "revealed"}
+              className={revealStyles.restaurantFace}
+              aria-hidden={transition.phase !== "revealed"}
+              inert={transition.phase !== "revealed"}
               data-testid="personalized-pick-restaurant-face"
             >
               <p className="sr-only" aria-live="polite" aria-atomic="true">
-                {phase === "revealed"
+                {transition.phase === "revealed"
                   ? `Your Personalized Pick is ${names?.primary?.text ?? "ready"}.`
                   : ""}
               </p>
