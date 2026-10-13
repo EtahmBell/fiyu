@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { PersonalizedPickModal } from "@/components/personalized-picks/PersonalizedPickModal";
@@ -15,6 +15,7 @@ vi.mock("@/components/restaurant/RestaurantPhoto", () => ({
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   vi.unstubAllGlobals();
 });
 
@@ -33,6 +34,16 @@ const hiddenState: PersonalizedPickState = {
   selected_at: null,
   active_until: null,
   selected_restaurant: null,
+};
+const selectedRestaurant = publicRestaurantSchema.parse(restaurantFixture[0]);
+const selectedState: PersonalizedPickState = {
+  ...hiddenState,
+  status: "selected",
+  card_count: null,
+  selected_position: 1,
+  selected_at: "2026-10-11T00:01:00Z",
+  active_until: "2026-10-14T00:01:00Z",
+  selected_restaurant: selectedRestaurant,
 };
 
 describe("Personalized Pick event modal", () => {
@@ -104,6 +115,59 @@ describe("Personalized Pick event modal", () => {
     expect(dismiss).not.toHaveBeenCalled();
   });
 
+  it("paints explicit phases and keeps both faces mounted through the crossfade", () => {
+    vi.useFakeTimers();
+    const select = vi.fn();
+    const { rerender } = render(
+      <PersonalizedPickModal
+        state={hiddenState}
+        reveal={false}
+        pendingPosition={null}
+        onDismiss={() => {}}
+        onSelect={select}
+        onCloseReveal={() => {}}
+      />,
+    );
+    const stage = screen.getByTestId("personalized-pick-reveal-stage");
+
+    fireEvent.click(screen.getByRole("button", { name: "Choose hidden card 2" }));
+    expect(stage.getAttribute("data-pp-phase")).toBe("pressing");
+    expect(select).toHaveBeenCalledOnce();
+
+    act(() => vi.advanceTimersByTime(20));
+    expect(stage.getAttribute("data-pp-phase")).toBe("shining");
+    expect(screen.getByTestId("personalized-pick-shine").getAttribute("data-active"))
+      .toBe("true");
+
+    rerender(
+      <PersonalizedPickModal
+        state={selectedState}
+        reveal
+        pendingPosition={null}
+        onDismiss={() => {}}
+        onSelect={select}
+        onCloseReveal={() => {}}
+      />,
+    );
+    expect(stage.getAttribute("data-pp-phase")).toBe("shining");
+    expect(screen.getByTestId("personalized-pick-hidden-face")).toBeTruthy();
+    expect(screen.getByTestId("personalized-pick-restaurant-face")).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "浜田山叙々苑" })).toBeNull();
+
+    act(() => vi.advanceTimersByTime(160));
+    expect(stage.getAttribute("data-pp-phase")).toBe("shining");
+    act(() => vi.advanceTimersByTime(20));
+    expect(stage.getAttribute("data-pp-phase")).toBe("ready");
+    act(() => vi.advanceTimersByTime(40));
+    expect(stage.getAttribute("data-pp-phase")).toBe("revealing");
+    expect(screen.getByTestId("personalized-pick-hidden-face")).toBeTruthy();
+    expect(screen.getByTestId("personalized-pick-restaurant-face")).toBeTruthy();
+
+    act(() => vi.advanceTimersByTime(360));
+    expect(stage.getAttribute("data-pp-phase")).toBe("revealed");
+    expect(screen.getByRole("heading", { name: "浜田山叙々苑" })).toBeTruthy();
+  });
+
   it("dismisses from the backdrop without selecting a card", () => {
     const dismiss = vi.fn();
     const select = vi.fn();
@@ -162,18 +226,9 @@ describe("Personalized Pick event modal", () => {
   });
 
   it("reveals and announces only the server-selected restaurant", () => {
-    const restaurant = publicRestaurantSchema.parse(restaurantFixture[0]);
     render(
       <PersonalizedPickModal
-        state={{
-          ...hiddenState,
-          status: "selected",
-          card_count: null,
-          selected_position: 2,
-          selected_at: "2026-10-11T00:01:00Z",
-          active_until: "2026-10-14T00:01:00Z",
-          selected_restaurant: restaurant,
-        }}
+        state={selectedState}
         reveal
         pendingPosition={null}
         onDismiss={() => {}}
@@ -186,25 +241,17 @@ describe("Personalized Pick event modal", () => {
     expect(screen.queryAllByRole("button", { name: /Choose hidden card/ })).toHaveLength(0);
   });
 
-  it("uses a static reduced-motion crossfade without shine motion", () => {
+  it("uses the separate 150ms reduced-motion crossfade without shine motion", () => {
+    vi.useFakeTimers();
     vi.stubGlobal("matchMedia", (query: string) => ({
       matches: query.includes("prefers-reduced-motion"),
       addEventListener: vi.fn(),
       removeEventListener: vi.fn(),
     }));
-    const restaurant = publicRestaurantSchema.parse(restaurantFixture[0]);
-    render(
+    const { rerender } = render(
       <PersonalizedPickModal
-        state={{
-          ...hiddenState,
-          status: "selected",
-          card_count: null,
-          selected_position: 0,
-          selected_at: "2026-10-11T00:01:00Z",
-          active_until: "2026-10-14T00:01:00Z",
-          selected_restaurant: restaurant,
-        }}
-        reveal
+        state={hiddenState}
+        reveal={false}
         pendingPosition={null}
         onDismiss={() => {}}
         onSelect={() => {}}
@@ -212,8 +259,35 @@ describe("Personalized Pick event modal", () => {
       />,
     );
 
-    expect(screen.getByRole("heading", { name: "浜田山叙々苑" })
-      .closest("[data-reveal-motion]")?.getAttribute("data-reveal-motion"))
-      .toBe("reduced-crossfade");
+    const stage = screen.getByTestId("personalized-pick-reveal-stage");
+    expect(stage.getAttribute("data-reduced-motion")).toBe("true");
+    const chosen = screen.getByRole("button", { name: "Choose hidden card 1" });
+    expect(chosen.getAttribute("data-selection-motion")).toBe("reduced");
+    fireEvent.click(chosen);
+    expect(stage.getAttribute("data-pp-phase")).toBe("pressing");
+
+    act(() => vi.advanceTimersByTime(20));
+    rerender(
+      <PersonalizedPickModal
+        state={selectedState}
+        reveal
+        pendingPosition={null}
+        onDismiss={() => {}}
+        onSelect={() => {}}
+        onCloseReveal={() => {}}
+      />,
+    );
+    act(() => vi.advanceTimersByTime(180));
+    expect(stage.getAttribute("data-pp-phase")).toBe("shining");
+    act(() => vi.advanceTimersByTime(20));
+    expect(stage.getAttribute("data-pp-phase")).toBe("ready");
+    act(() => vi.advanceTimersByTime(40));
+    expect(stage.getAttribute("data-pp-phase")).toBe("revealing");
+    expect(screen.getByTestId("personalized-pick-hidden-face")).toBeTruthy();
+    expect(screen.getByTestId("personalized-pick-restaurant-face")).toBeTruthy();
+    act(() => vi.advanceTimersByTime(149));
+    expect(stage.getAttribute("data-pp-phase")).toBe("revealing");
+    act(() => vi.advanceTimersByTime(1));
+    expect(stage.getAttribute("data-pp-phase")).toBe("revealed");
   });
 });

@@ -1,3 +1,48 @@
+.stage {
+  position: relative;
+  display: grid;
+  min-width: 0;
+}
+
+.choiceFace,
+.restaurantFace {
+  grid-area: 1 / 1;
+  min-width: 0;
+  transition: opacity 360ms ease-out;
+}
+
+.choiceFace {
+  position: relative;
+  z-index: 1;
+  opacity: 1;
+}
+
+.restaurantFace {
+  position: relative;
+  z-index: 2;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.stage[data-pp-phase="revealing"] .choiceFace,
+.stage[data-pp-phase="revealed"] .choiceFace {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.stage[data-pp-phase="revealing"] .restaurantFace,
+.stage[data-pp-phase="revealed"] .restaurantFace {
+  opacity: 1;
+}
+
+.stage[data-pp-phase="revealed"] .choiceFace {
+  visibility: hidden;
+}
+
+.stage[data-pp-phase="revealed"] .restaurantFace {
+  pointer-events: auto;
+}
+
 .hiddenCard {
   position: relative;
   overflow: hidden;
@@ -19,11 +64,12 @@
   box-shadow: 0 1px 3px rgb(44 32 64 / 10%);
 }
 
-.chosenCard::after {
-  content: "";
+.cardShine {
   pointer-events: none;
   position: absolute;
+  z-index: 2;
   inset: -70%;
+  opacity: 0;
   background: linear-gradient(
     135deg,
     transparent 35%,
@@ -32,6 +78,9 @@
     color-mix(in srgb, var(--color-lavender-100) 58%, transparent) 56%,
     transparent 65%
   );
+}
+
+.cardShine[data-active="true"] {
   animation: card-shine 420ms 85ms ease-out both;
 }
 
@@ -39,29 +88,6 @@
   pointer-events: none;
   opacity: 0;
   transform: scale(0.985);
-}
-
-.revealPanel {
-  position: relative;
-  overflow: hidden;
-  border-radius: 0.75rem;
-  animation: reveal-crossfade 360ms ease-out both;
-}
-
-.revealShine {
-  pointer-events: none;
-  position: absolute;
-  z-index: 10;
-  inset: -65%;
-  background: linear-gradient(
-    135deg,
-    transparent 37%,
-    rgb(255 255 255 / 8%) 44%,
-    rgb(255 255 255 / 46%) 51%,
-    color-mix(in srgb, var(--color-lavender-100) 45%, transparent) 57%,
-    transparent 65%
-  );
-  animation: reveal-shine 380ms ease-out both;
 }
 
 @keyframes card-press {
@@ -74,18 +100,12 @@
   to { transform: translate3d(34%, 34%, 0); opacity: 0; }
 }
 
-@keyframes reveal-crossfade {
-  from { opacity: 0; transform: translateY(1px) scale(0.995); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
-}
-
-@keyframes reveal-shine {
-  from { transform: translate3d(-32%, -32%, 0); opacity: 0; }
-  16% { opacity: 1; }
-  to { transform: translate3d(32%, 32%, 0); opacity: 0; }
-}
-
 @media (prefers-reduced-motion: reduce) {
+  .choiceFace,
+  .restaurantFace {
+    transition-duration: 150ms;
+  }
+
   .hiddenCard,
   .chosenCard,
   .withheldCard {
@@ -94,17 +114,7 @@
     transition: opacity 150ms ease-out;
   }
 
-  .chosenCard::after,
-  .revealShine {
+  .cardShine {
     display: none;
   }
-
-  .revealPanel {
-    animation: reduced-reveal 150ms ease-out both;
-  }
-}
-
-@keyframes reduced-reveal {
-  from { opacity: 0; }
-  to { opacity: 1; }
 }
