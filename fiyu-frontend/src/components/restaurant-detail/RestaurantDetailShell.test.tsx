@@ -372,7 +372,9 @@ describe("restaurant detail view", () => {
       });
       expect(savedButtons.length).toBeGreaterThan(0);
       expect(savedButtons.every((button) => button.textContent === "Saved")).toBe(true);
-      expect(savedButtons.every((button) => button.className.includes("bg-lavender-100/70")))
+      expect(savedButtons.every(
+        (button) => !button.className.split(/\s+/).includes("bg-lavender-100/70"),
+      ))
         .toBe(true);
       expect(savedButtons.every((button) => button.className.includes("text-lavender-700")))
         .toBe(true);

@@ -21,8 +21,8 @@ function markerForRestaurants(restaurants: readonly MappableRestaurant[]): strin
   }
   const states = restaurants.map(personalMapMarkerState);
   if (states.includes("discovered")) return "var(--map-marker-discovered)";
-  if (states.includes("saved")) return "var(--map-marker-saved)";
   if (states.includes("visited")) return "var(--map-marker-visited)";
+  if (states.includes("saved")) return "var(--map-marker-saved)";
   return "var(--map-marker)";
 }
 
@@ -46,7 +46,7 @@ export interface MapMarkersProps {
  *
  * The map is an orientation surface, not a directions product. Pin colour
  * distinguishes the dominant personal relationship without changing filter
- * membership: Personalized Pick, active discovery, Saved, then Visited. This
+ * membership: Personalized Pick, active discovery, Visited, then Saved. This
  * component never fabricates, shifts, or recentres a coordinate; approximate
  * area geometry remains a backend provenance concern.
  */
@@ -159,10 +159,10 @@ export function MapMarkers({
           ? "var(--map-marker-personalized)"
           : discovered
             ? "var(--map-marker-discovered)"
-            : saved
-              ? "var(--map-marker-saved)"
-              : visitedMarker
-                ? "var(--map-marker-visited)"
+            : visitedMarker
+              ? "var(--map-marker-visited)"
+              : saved
+                ? "var(--map-marker-saved)"
                 : "var(--map-marker)";
         const label = resolveNames(restaurant).primary?.text ?? "Unnamed restaurant";
         const appearing = appearingPlaceIds.has(restaurant.place_id);

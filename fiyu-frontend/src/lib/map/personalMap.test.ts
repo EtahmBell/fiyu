@@ -110,7 +110,7 @@ describe("personal Map membership", () => {
     ["discovered only", { is_discovered: true }, "discovered"],
     ["saved and discovered", { is_saved: true, is_discovered: true }, "discovered"],
     ["visited only", { is_visited: true }, "visited"],
-    ["saved and visited", { is_saved: true, is_visited: true }, "saved"],
+    ["saved and visited", { is_saved: true, is_visited: true }, "visited"],
     ["discovered and visited", { is_discovered: true, is_visited: true }, "discovered"],
     [
       "saved, discovered, and visited",

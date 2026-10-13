@@ -517,7 +517,7 @@ export function CompactRestaurantCard({
               "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600",
               "disabled:cursor-not-allowed disabled:opacity-60",
               saved
-                ? "bg-lavender-100/70 text-lavender-700 hover:bg-lavender-100"
+                ? "text-lavender-700 hover:bg-lavender-50 active:bg-lavender-100/70"
                 : "text-ink-muted hover:bg-lavender-50 hover:text-plum active:bg-lavender-100/70",
             )}
           >

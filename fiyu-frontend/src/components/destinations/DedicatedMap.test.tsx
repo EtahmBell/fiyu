@@ -522,7 +522,11 @@ describe("dedicated user map", () => {
       expect(container.querySelector(`[data-place-id="${row.place_id}"]`)).toBeNull(),
     );
     fireEvent.click(screen.getByRole("tab", { name: "Saved" }));
-    expect(container.querySelector(`[data-place-id="${row.place_id}"]`)).toBeTruthy();
+    const savedMarker = container.querySelector(`[data-place-id="${row.place_id}"]`);
+    expect(savedMarker?.getAttribute("data-marker-state")).toBe("saved");
+    expect(savedMarker?.querySelectorAll("circle")[2]?.getAttribute("fill")).toBe(
+      "var(--map-marker-saved)",
+    );
   });
 
   it("removes an expired discovery at its boundary without a user action", async () => {

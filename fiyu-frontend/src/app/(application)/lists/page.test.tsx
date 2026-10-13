@@ -277,7 +277,7 @@ describe("lists page", () => {
     expect(screen.getByTestId("mock-photo").className).toContain("min-[480px]:min-h-36");
     expect(screen.getAllByRole("img", { name: "Fiyu score 8.0 out of 10" })).toHaveLength(2);
     const removeSaved = screen.getByRole("button", { name: "Remove restaurant from saved" });
-    expect(removeSaved.className).toContain("bg-lavender-100/70");
+    expect(removeSaved.className.split(/\s+/)).not.toContain("bg-lavender-100/70");
     expect(removeSaved.className).toContain("text-lavender-700");
     expect(removeSaved.querySelector("svg")?.getAttribute("fill")).toBe("currentColor");
     expect(screen.getByRole("link", { name: "View restaurant" }).getAttribute("href")).toBe(

@@ -15,6 +15,9 @@
  *   Dusty blue is DISCOVERED. It identifies Recent Discoveries without
  *   competing with the ochre reserved for Personalized Picks.
  *
+ *   Rose-red is SAVED ON THE MAP. It marks an active intent to return, while
+ *   saved buttons stay in the product's purple action language.
+ *
  *   Slate is VISITED. It is deliberately quieter than an active save or
  *   discovery and is always paired with a status label or marker shape.
  *
@@ -119,6 +122,10 @@
   --color-discovery-soft: #eef1f7;
   --color-discovery: #7d90b8;
   --color-discovery-700: #5d6f95;
+
+  /* Saved on the map: a soft editorial rose-red. Saved actions remain purple;
+     this token exists only to distinguish saved-but-unvisited map locations. */
+  --color-saved-marker: #bf7378;
 
   /* Visited: neutral graphite/slate, quieter than every active intent state. */
   --color-visited-line: #d9dade;
@@ -247,7 +254,7 @@
    * classes, so generating utilities for them would be dead CSS.
    *
    * The map sits a half-step warmer than the app canvas so it reads as a
-   * distinct surface, with lavender reserved entirely for markers.
+   * distinct surface, with relationship markers carrying the semantic palette.
    */
   --map-bg: #f7f2e9;
   --map-land: #f4efe7;
@@ -272,7 +279,7 @@
 
   --map-marker: #8b6cf6;
   --map-marker-discovered: var(--color-discovery);
-  --map-marker-saved: var(--color-lavender-600);
+  --map-marker-saved: var(--color-saved-marker);
   --map-marker-selected: #3e304f;
   --map-marker-center: #fff9ef;
   --map-marker-visited: var(--color-visited);

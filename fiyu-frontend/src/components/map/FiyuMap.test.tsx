@@ -137,9 +137,9 @@ describe("map surface", () => {
       .toBe("var(--map-marker-visited)");
     expect(savedMarker.querySelector("circle:nth-of-type(3)")?.getAttribute("fill"))
       .toBe("var(--map-marker-saved)");
-    expect(savedVisitedMarker.getAttribute("data-marker-state")).toBe("saved");
+    expect(savedVisitedMarker.getAttribute("data-marker-state")).toBe("visited");
     expect(savedVisitedMarker.querySelector("circle:nth-of-type(3)")?.getAttribute("fill"))
-      .toBe("var(--map-marker-saved)");
+      .toBe("var(--map-marker-visited)");
   });
 });
 
@@ -569,7 +569,7 @@ describe("clustering on the map", () => {
       <FiyuMap restaurants={[saved, visited]} selectedPlaceId={null} onSelect={() => {}} />,
     );
     expect(container.querySelector('[data-marker-kind="restaurant-cluster-visual"]')
-      ?.getAttribute("data-marker-fill")).toBe("var(--map-marker-saved)");
+      ?.getAttribute("data-marker-fill")).toBe("var(--map-marker-visited)");
 
     rerender(
       <FiyuMap

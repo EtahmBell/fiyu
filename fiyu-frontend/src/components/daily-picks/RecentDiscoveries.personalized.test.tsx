@@ -4,6 +4,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 
 import { RecentDiscoveries } from "@/components/daily-picks/RecentDiscoveries";
+import { publicRestaurantSchema } from "@/lib/api/schemas";
 vi.mock("@/components/personalized-picks/PersonalizedPickProvider", () => ({
   usePersonalizedPick: () => ({
     state: {
@@ -48,4 +49,36 @@ it("keeps the active Personalized Pick in Recent Discoveries with its semantic t
   expect(container.querySelector('[data-tone="personalized"]')?.parentElement?.className)
     .toContain("--color-personalized");
   expect(screen.queryByText("No recent discoveries")).toBeNull();
+});
+
+it("renders a saved Recent Discovery as a clear purple glyph without a resting box", () => {
+  const now = Date.UTC(2026, 9, 12, 12);
+  const restaurant = publicRestaurantSchema.parse({
+    place_id: "history-a",
+    name_ja: "保存した店",
+    name_en: "Saved Discovery",
+    category: "Izakaya",
+    display_area: "Koenji",
+    description_en: "A neighborhood counter.",
+    card_description: "A neighborhood counter.",
+    fiyu_score: 82,
+    food_tags: [],
+    signature_dishes: [],
+    budget: null,
+  });
+  render(
+    <RecentDiscoveries
+      discoveries={[{ restaurantId: restaurant.place_id, revealedAt: new Date(now).toISOString() }]}
+      restaurants={[restaurant]}
+      savedRestaurantIds={[restaurant.place_id]}
+      now={now}
+      onToggleSaved={() => {}}
+    />,
+  );
+
+  const saved = screen.getByRole("button", { name: "Remove restaurant from saved" });
+  expect(saved.className).toContain("text-lavender-700");
+  expect(saved.className.split(/\s+/)).not.toContain("bg-lavender-100/70");
+  expect(saved.className.split(/\s+/).some((token) => token.startsWith("opacity-"))).toBe(false);
+  expect(saved.querySelector("svg")?.getAttribute("fill")).toBe("currentColor");
 });

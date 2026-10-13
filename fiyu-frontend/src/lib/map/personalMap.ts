@@ -76,7 +76,7 @@ export function personalMapMarkerState(
   },
 ): "discovered" | "saved" | "visited" | "default" {
   if (restaurant.is_discovered !== false) return "discovered";
-  if (restaurant.is_saved) return "saved";
   if (restaurant.is_visited) return "visited";
+  if (restaurant.is_saved) return "saved";
   return "default";
 }

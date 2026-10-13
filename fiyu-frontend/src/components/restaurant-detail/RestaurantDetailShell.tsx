@@ -132,7 +132,7 @@ function SaveButton({ saved, onToggle, compact = false }: { saved: boolean; onTo
         "inline-flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-md px-2 text-sm font-medium transition-[background-color,color,transform] active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600",
         compact && "gap-1.5 px-1.5 text-xs",
         saved
-          ? "bg-lavender-100/70 text-lavender-700 hover:bg-lavender-100"
+          ? "text-lavender-700 hover:bg-lavender-50 active:bg-lavender-100/70"
           : "text-ink-muted hover:bg-lavender-50/70 hover:text-plum",
       )}
     >
