@@ -4,16 +4,21 @@
   min-width: 0;
 }
 
-.sizer,
+/*
+ * One piece of stationery, regardless of which Pick owns it. Daily Picks use
+ * this on the reveal stage; Personalized Picks use it on each choice card.
+ */
+.cardFrame {
+  --pick-card-aspect-ratio: 11 / 8;
+
+  aspect-ratio: var(--pick-card-aspect-ratio);
+  min-width: 0;
+}
+
 .hiddenFace,
 .restaurantFace {
   grid-area: 1 / 1;
   min-width: 0;
-}
-
-.sizer {
-  visibility: hidden;
-  pointer-events: none;
 }
 
 .hiddenFace,
@@ -33,6 +38,19 @@
   z-index: 2;
   opacity: 0;
   pointer-events: none;
+}
+
+.stage.cardFrame {
+  overflow: hidden;
+}
+
+.stage.cardFrame .restaurantFace {
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.stage.cardFrame .restaurantFace > * {
+  min-height: 100%;
 }
 
 .stage[data-reveal-phase="revealing"] .hiddenFace,
@@ -69,20 +87,86 @@
 }
 
 .hiddenSurface {
+  container-type: inline-size;
+  isolation: isolate;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   border: 1px solid;
   box-shadow: var(--shadow-paper);
 }
 
+.hiddenSurface::before,
+.hiddenSurface::after {
+  pointer-events: none;
+  position: absolute;
+  z-index: 0;
+  content: "";
+}
+
+/* A cropped typographic watermark, using the same serif as the wordmark. */
+.hiddenSurface::before {
+  top: 50%;
+  left: -2cqw;
+  color: var(--pick-back-decoration);
+  content: "F";
+  font-family: var(--font-display);
+  font-size: min(86cqw, 22rem);
+  line-height: 0.72;
+  opacity: 0.055;
+  transform: translateY(-49%);
+}
+
+/* A single printed rule that quietly shares the reveal shine's direction. */
+.hiddenSurface::after {
+  top: 31%;
+  left: -12%;
+  width: 124%;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent 4%,
+    color-mix(in srgb, var(--pick-back-decoration) 5%, transparent) 24%,
+    color-mix(in srgb, var(--pick-back-decoration) 5%, transparent) 76%,
+    transparent 96%
+  );
+  transform: rotate(32deg);
+  transform-origin: center;
+}
+
+.wordmark {
+  position: relative;
+  z-index: 1;
+  font-family: var(--font-display);
+  font-size: clamp(1.75rem, 8cqw, 2.5rem);
+  line-height: 1;
+  letter-spacing: -0.015em;
+}
+
 .hiddenSurface[data-reveal-variant="regular"],
 .hiddenSurface[data-reveal-variant="together"] {
+  --pick-back-decoration: var(--color-plum);
+
   border-color: color-mix(in srgb, var(--color-lavender-500) 24%, var(--color-paper-line));
-  background: var(--color-lavender-50);
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--color-lavender-50) 90%, white) 0%,
+    var(--color-lavender-50) 55%,
+    color-mix(in srgb, var(--color-lavender-50) 78%, var(--color-lavender-100)) 100%
+  );
   color: var(--color-plum);
 }
 
 .hiddenSurface[data-reveal-variant="personalized"] {
+  --pick-back-decoration: var(--color-personalized);
+
   border-color: var(--color-personalized-line);
-  background: var(--color-personalized-soft);
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--color-personalized-soft) 88%, white) 0%,
+    var(--color-personalized-soft) 56%,
+    color-mix(in srgb, var(--color-personalized-soft) 92%, var(--color-personalized)) 100%
+  );
   color: var(--color-personalized-700);
 }
 

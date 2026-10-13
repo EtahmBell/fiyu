@@ -39,18 +39,25 @@ describe("Pick reveal", () => {
     expect(screen.queryByTestId("revealed-restaurant-card")).toBeNull();
   });
 
-  it("sizes each Pick with a text-free replica that stays mounted after reveal", () => {
+  it("uses the shared 11:8 frame before and after reveal without hidden identity", () => {
     const { rerender } = render(<ConcealedRestaurantCard {...props} revealed={false} />);
-    const sizer = screen.getByTestId("compact-card-sizer");
-    // Nothing identifying: no name, no score, no text at all beyond spacing.
-    expect(sizer.textContent?.replace(/\s|\u00a0/g, "")).toBe("");
-    expect(sizer.closest("[aria-hidden='true']")).not.toBeNull();
-    expect(sizer.querySelector("a, button")).toBeNull();
+    const frame = screen.getByTestId("concealed-restaurant-card");
+    expect(frame.dataset.pickCardRatio).toBe("11/8");
+    expect(frame.className).toContain("cardFrame");
     expect(screen.queryByLabelText(/Fiyu score/)).toBeNull();
     rerender(<ConcealedRestaurantCard {...props} revealed />);
     settle();
-    // Still present once revealed, so the cell cannot shrink when the back unmounts.
-    expect(screen.getByTestId("compact-card-sizer")).toBe(sizer);
+    const revealedFrame = screen.getByTestId("revealed-restaurant-card");
+    expect(revealedFrame).toBe(frame);
+    expect(revealedFrame.dataset.pickCardRatio).toBe("11/8");
+  });
+
+  it("keeps CSS-only back decoration out of the accessible content", () => {
+    render(<ConcealedRestaurantCard {...props} revealed={false} />);
+    const button = screen.getByRole("button", { name: "Reveal Fiyu Pick 1" });
+    expect(button.textContent?.trim()).toBe("Fiyu");
+    expect(screen.getByTestId("pick-hidden-face").querySelectorAll("[aria-hidden='true']"))
+      .toHaveLength(0);
   });
 
   it("keeps pending requests concealed and disabled", () => {

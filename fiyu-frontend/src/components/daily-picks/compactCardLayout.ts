@@ -1,11 +1,10 @@
 /**
- * The compact card's layout, shared by the card and by its reveal sizer.
+ * The compact card's internal layout.
  *
  * Only classes that decide a box's size live here -- padding, type size,
- * line-height, min-heights, gaps and clamps. The sizer is built from exactly
- * these strings, so the concealed face of a Pick is always as tall as that
- * Pick's revealed face would be, and the two cannot drift apart when one of
- * them is restyled.
+ * line-height, min-heights, gaps and clamps. The reveal primitive owns the
+ * stable outer 11:8 frame; these values keep the restaurant face compact and
+ * usable inside it.
  */
 export const CARD_LAYOUT = {
   frame:

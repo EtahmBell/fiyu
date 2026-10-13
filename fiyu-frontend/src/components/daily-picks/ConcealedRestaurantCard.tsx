@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { CompactCardSizer } from "@/components/daily-picks/CompactCardSizer";
 import { CompactRestaurantCard } from "@/components/daily-picks/CompactRestaurantCard";
 import revealStyles from "@/components/pick-reveal/PickReveal.module.css";
 import {
@@ -56,8 +55,14 @@ export function ConcealedRestaurantCard({
 
   return (
     <div
-      className={cn(revealStyles.stage, revealStyles.motionTarget, "rounded-card")}
+      className={cn(
+        revealStyles.stage,
+        revealStyles.cardFrame,
+        revealStyles.motionTarget,
+        "rounded-card",
+      )}
       data-testid={revealed ? "revealed-restaurant-card" : "concealed-restaurant-card"}
+      data-pick-card-ratio="11/8"
       data-gold-treatment={gold ? "true" : "false"}
       data-reveal-motion={transition.phase}
       data-reveal-phase={transition.phase}
@@ -70,9 +75,6 @@ export function ConcealedRestaurantCard({
         }
       }}
     >
-      <div className={revealStyles.sizer} aria-hidden="true" inert>
-        <CompactCardSizer restaurant={restaurant} hasDetails={Boolean(onViewDetails)} />
-      </div>
       <div
         className={cn(revealStyles.hiddenFace, revealStyles.hiddenSurface)}
         data-reveal-variant="regular"
@@ -92,7 +94,7 @@ export function ConcealedRestaurantCard({
           }}
           className="flex size-full select-none items-center justify-center rounded-card text-center hover:bg-lavender-100/35 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600 disabled:cursor-wait"
         >
-          <span className="font-display text-[2.75rem] leading-none">Fiyu</span>
+          <span className={revealStyles.wordmark}>Fiyu</span>
         </button>
       </div>
       {revealed ? (

@@ -191,14 +191,16 @@ export function PersonalizedPickModal({
                   className={cn(
                     revealStyles.motionTarget,
                     revealStyles.hiddenSurface,
+                    revealStyles.cardFrame,
                     styles.hiddenCard,
                     selectionPosition !== null && selectionPosition !== position && styles.withheldCard,
-                    "group aspect-[3/4] min-w-0 rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-personalized disabled:cursor-wait",
+                    "group min-w-0 rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-personalized disabled:cursor-wait",
                   )}
+                  data-pick-card-ratio="11/8"
                   data-reveal-active={selectionPosition === position && transition.active ? "true" : "false"}
                   data-reveal-variant="personalized"
                 >
-                  <span aria-hidden="true" className="font-display text-3xl leading-none text-plum sm:text-4xl">
+                  <span aria-hidden="true" className={revealStyles.wordmark}>
                     Fiyu
                   </span>
                   <span
