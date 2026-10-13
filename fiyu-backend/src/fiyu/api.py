@@ -20,8 +20,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from . import my_picks, taste_phrasing
 from . import supabase_user_data as shared_user_data
-from . import taste_phrasing
 from .account_deletion import delete_local_account_data
 from .daily_picks import (
     ACTIVE_SNAPSHOT_DURATION,
@@ -209,6 +209,13 @@ async def shared_user_data_conflict(
     _request: Request, _error: shared_user_data.SharedUserDataConflict
 ) -> JSONResponse:
     return JSONResponse(status_code=409, content={"detail": "Username is unavailable"})
+
+
+@app.exception_handler(shared_user_data.SharedUserDataRateLimited)
+async def shared_user_data_rate_limited(
+    _request: Request, _error: shared_user_data.SharedUserDataRateLimited
+) -> JSONResponse:
+    return JSONResponse(status_code=429, content={"detail": "My Pick submission limit reached"})
 
 
 class PublicRestaurantSummary(BaseModel):
@@ -804,6 +811,50 @@ class PersonalizedPickStateResponse(BaseModel):
 
 class PersonalizedPickSelectRequest(BaseModel):
     position: int = Field(ge=0, le=2)
+
+
+class MyPickSubmissionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    provider: str = Field(min_length=1, max_length=64)
+    external_place_id: str = Field(min_length=1, max_length=512)
+    display_name_hint: str | None = Field(default=None, max_length=200)
+
+    @field_validator("provider", "external_place_id")
+    @classmethod
+    def validate_identity_part(cls, value: str, info: Any) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError(f"{info.field_name} must not be blank")
+        return stripped
+
+
+class MyPickResponse(BaseModel):
+    my_pick_id: UUID
+    provider: str
+    external_place_id: str
+    display_name_hint: str | None = None
+    status: my_picks.MyPickStatus
+    status_message: str
+    failure_code: str | None = None
+    created_at: str
+    updated_at: str
+    resolved_at: str | None = None
+    place_id: str | None = None
+    name_ja: str | None = None
+    name_en: str | None = None
+    primary_category: str | None = None
+    display_area: str | None = None
+    fiyu_score: float | None = None
+    score_version: str | None = None
+    map_ready: bool = False
+    latitude: float | None = None
+    longitude: float | None = None
+    location_precision: str | None = None
+    is_public: bool = False
+    recommendation_review_status: Literal[
+        "not_eligible", "pending", "approved", "declined", "withdrawn"
+    ] = "not_eligible"
 
 
 class TogetherIdentityResponse(BaseModel):
@@ -2117,6 +2168,64 @@ def get_recent_daily_pick_discoveries(
     return [response for response in responses if response.place_ids]
 
 
+def _my_pick_response(account_row: dict[str, Any]) -> MyPickResponse:
+    work = my_picks.get_canonical_work(DB_PATH, str(account_row["canonical_work_id"]))
+    canonical = my_picks.canonical_result(DB_PATH, work) if work else {}
+    status = str(work["status"]) if work else str(account_row.get("status") or "pending")
+    status_messages = {
+        "pending": "Queued for Fiyu identity resolution.",
+        "resolving_identity": "Resolving this restaurant's canonical identity.",
+        "outside_coverage": "This restaurant is outside Fiyu's current map coverage.",
+        "researching": "Fiyu research and scoring are in progress.",
+        "needs_location": "Scored, but a trustworthy map location is not yet available.",
+        "ready": "Your canonical Fiyu result is ready.",
+        "needs_review": "This restaurant needs internal identity or evidence review.",
+        "failed_retryable": "A temporary processing problem will need a retry.",
+        "failed_terminal": "This submission cannot be processed as a current restaurant.",
+    }
+    return MyPickResponse(
+        my_pick_id=UUID(str(account_row["id"])),
+        provider=str(account_row["provider"]),
+        external_place_id=str(account_row["external_place_id"]),
+        display_name_hint=(
+            str(account_row["display_name_hint"])
+            if account_row.get("display_name_hint")
+            else None
+        ),
+        status=status,
+        status_message=status_messages[status],
+        failure_code=(
+            str(work["failure_code"])
+            if work and work.get("failure_code")
+            else None
+        ),
+        created_at=str(account_row["created_at"]),
+        updated_at=str(work["updated_at"] if work else account_row["updated_at"]),
+        resolved_at=(
+            str(work["resolved_at"])
+            if work and work.get("resolved_at")
+            else None
+        ),
+        **canonical,
+    )
+
+
+def _sync_my_pick_projection(work: dict[str, Any]) -> None:
+    canonical = my_picks.canonical_result(DB_PATH, work)
+    shared_user_data.sync_my_pick_result(
+        canonical_work_id=str(work["id"]),
+        canonical_place_id=(str(work["canonical_place_id"]) if work.get("canonical_place_id") else None),
+        status=str(work["status"]),
+        failure_code=(str(work["failure_code"]) if work.get("failure_code") else None),
+        score_version=(str(canonical["score_version"]) if canonical.get("score_version") else None),
+        is_public=bool(canonical.get("is_public")),
+        recommendation_review_status=str(
+            canonical.get("recommendation_review_status") or "not_eligible"
+        ),
+        resolved_at=(str(work["resolved_at"]) if work.get("resolved_at") else None),
+    )
+
+
 @app.get("/personalized-picks/me", response_model=PersonalizedPickStateResponse)
 def get_my_personalized_pick(
     owner_id: Annotated[str, Depends(_owner_id_from_header)],
@@ -2971,6 +3080,82 @@ def _authenticated_user_id(
     authorization: Annotated[str | None, Header()] = None,
 ) -> str:
     return str(_authenticated_user(authorization)["id"])
+
+
+@app.post("/my-picks", response_model=MyPickResponse, status_code=202)
+def submit_my_pick(
+    request: MyPickSubmissionRequest,
+    user_id: Annotated[str, Depends(_authenticated_user_id)],
+) -> MyPickResponse:
+    """Submit an external restaurant identity for the canonical Fiyu pipeline."""
+
+    _ensure_database()
+    if not shared_user_data.configured():
+        raise HTTPException(status_code=503, detail="Account data is unavailable")
+    try:
+        provider, external_place_id = my_picks.normalize_external_identity(
+            request.provider, request.external_place_id
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+    work_id = my_picks.canonical_work_id(provider, external_place_id)
+
+    # The account RPC checks idempotency before applying its rate limit. Creating
+    # shared work afterward avoids orphaned paid jobs for rejected submissions.
+    account_row = shared_user_data.create_or_get_my_pick(
+        user_id=user_id,
+        provider=provider,
+        external_place_id=external_place_id,
+        display_name_hint=request.display_name_hint,
+        canonical_work_id=work_id,
+    )
+    work = my_picks.get_canonical_work(DB_PATH, work_id)
+    if work is None:
+        work, _created = my_picks.create_or_get_canonical_work(
+            DB_PATH,
+            provider=provider,
+            external_place_id=external_place_id,
+            display_name_hint=request.display_name_hint,
+            work_id=work_id,
+        )
+    elif not bool(account_row.get("reused")):
+        # A distinct account submitted an already-shared identity. Record demand,
+        # but reuse the same canonical work and provider/research result.
+        work, _created = my_picks.create_or_get_canonical_work(
+            DB_PATH,
+            provider=provider,
+            external_place_id=external_place_id,
+            display_name_hint=request.display_name_hint,
+            work_id=work_id,
+        )
+    _sync_my_pick_projection(work)
+    return _my_pick_response(account_row)
+
+
+@app.get("/my-picks", response_model=list[MyPickResponse])
+def list_my_pick_submissions(
+    user_id: Annotated[str, Depends(_authenticated_user_id)],
+) -> list[MyPickResponse]:
+    _ensure_database()
+    if not shared_user_data.configured():
+        raise HTTPException(status_code=503, detail="Account data is unavailable")
+    return [
+        _my_pick_response(row) for row in shared_user_data.list_my_picks(user_id=user_id)
+    ]
+
+
+@app.get("/my-picks/{my_pick_id}", response_model=MyPickResponse)
+def get_my_pick_submission(
+    my_pick_id: UUID,
+    user_id: Annotated[str, Depends(_authenticated_user_id)],
+) -> MyPickResponse:
+    _ensure_database()
+    if not shared_user_data.configured():
+        raise HTTPException(status_code=503, detail="Account data is unavailable")
+    row = shared_user_data.get_my_pick(user_id=user_id, my_pick_id=str(my_pick_id))
+    if row is None:
+        raise HTTPException(status_code=404, detail="My Pick not found")
+    return _my_pick_response(row)
 
 
 def _developer_user(

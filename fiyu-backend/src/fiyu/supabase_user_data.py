@@ -18,6 +18,10 @@ class SharedUserDataConflict(SharedUserDataError):
     pass
 
 
+class SharedUserDataRateLimited(SharedUserDataError):
+    pass
+
+
 def configured() -> bool:
     return bool(
         os.getenv("SUPABASE_URL", "").strip() and os.getenv("SUPABASE_SERVICE_ROLE_KEY", "").strip()
@@ -98,6 +102,8 @@ def _request(
             raw = response.read()
     except HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")
+        if exc.code == 429 or "my_pick_rate_limit" in detail:
+            raise SharedUserDataRateLimited("My Pick submission limit reached") from None
         if exc.code == 409 or "23505" in detail:
             raise SharedUserDataConflict("Shared account value is already in use") from None
         raise SharedUserDataError(
@@ -112,6 +118,89 @@ def _rows(table: str, **filters: object) -> list[dict[str, Any]]:
     query = {"select": "*", **{key: f"eq.{value}" for key, value in filters.items()}}
     result = _request(table, query=query)
     return result if isinstance(result, list) else []
+
+
+def create_or_get_my_pick(
+    *,
+    user_id: str,
+    provider: str,
+    external_place_id: str,
+    display_name_hint: str | None,
+    canonical_work_id: str,
+) -> dict[str, Any]:
+    result = _request(
+        "rpc/create_or_get_fiyu_my_pick",
+        method="POST",
+        body={
+            "p_user_id": str(UUID(user_id)),
+            "p_provider": provider,
+            "p_external_place_id": external_place_id,
+            "p_display_name_hint": display_name_hint,
+            "p_canonical_work_id": str(UUID(canonical_work_id)),
+        },
+    )
+    if isinstance(result, list) and result:
+        result = result[0]
+    if not isinstance(result, dict) or not result.get("id"):
+        raise SharedUserDataError("My Pick could not be saved")
+    return result
+
+
+def list_my_picks(*, user_id: str) -> list[dict[str, Any]]:
+    result = _request(
+        "fiyu_my_picks",
+        query={
+            "select": "*",
+            "user_id": f"eq.{UUID(user_id)!s}",
+            "order": "created_at.desc,id.desc",
+        },
+    )
+    return result if isinstance(result, list) else []
+
+
+def get_my_pick(*, user_id: str, my_pick_id: str) -> dict[str, Any] | None:
+    result = _request(
+        "fiyu_my_picks",
+        query={
+            "select": "*",
+            "user_id": f"eq.{UUID(user_id)!s}",
+            "id": f"eq.{UUID(my_pick_id)!s}",
+            "limit": "1",
+        },
+    )
+    return result[0] if isinstance(result, list) and result else None
+
+
+def sync_my_pick_result(
+    *,
+    canonical_work_id: str,
+    canonical_place_id: str | None,
+    status: str,
+    failure_code: str | None,
+    score_version: str | None,
+    is_public: bool,
+    recommendation_review_status: str,
+    resolved_at: str | None,
+) -> int:
+    """Update account projections after canonical work changes state."""
+
+    result = _request(
+        "fiyu_my_picks",
+        method="PATCH",
+        query={"canonical_work_id": f"eq.{UUID(canonical_work_id)!s}"},
+        body={
+            "canonical_place_id": canonical_place_id,
+            "status": status,
+            "failure_code": failure_code,
+            "score_version": score_version,
+            "is_public": is_public,
+            "recommendation_review_status": recommendation_review_status,
+            "resolved_at": resolved_at,
+            "updated_at": datetime.now(UTC).isoformat(),
+        },
+        prefer="return=representation",
+    )
+    return len(result) if isinstance(result, list) else 0
 
 
 def get_profile(*, user_id: str) -> dict[str, Any] | None:
