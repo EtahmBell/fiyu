@@ -42,6 +42,7 @@ describe("personal Map membership", () => {
 
     expect(filterPersonalMapRestaurants(reconciled, "discovered")).toEqual([]);
     expect(filterPersonalMapRestaurants(reconciled, "all").map((row) => row.place_id)).toEqual([
+      "saved-expired",
       "visited-expired",
     ]);
     expect(filterPersonalMapRestaurants(reconciled, "saved").map((row) => row.place_id)).toEqual([
@@ -61,7 +62,7 @@ describe("personal Map membership", () => {
       restaurant("p", { is_discovered: true, is_personalized_pick: true }),
       [true, false, false, true],
     ],
-    ["saved-only", restaurant("s", { is_saved: true }), [false, true, false, false]],
+    ["saved-only", restaurant("s", { is_saved: true }), [true, true, false, false]],
     ["visited-only", restaurant("v", { is_visited: true }), [true, false, true, false]],
     ["saved + discovered", restaurant("sd", { is_saved: true, is_discovered: true }), [true, true, false, true]],
     ["saved + visited", restaurant("sv", { is_saved: true, is_visited: true }), [true, true, true, false]],
@@ -69,7 +70,7 @@ describe("personal Map membership", () => {
     ["saved + discovered + visited", restaurant("sdv", { is_discovered: true, is_saved: true, is_visited: true }), [true, true, true, true]],
     ["unrevealed", restaurant("u"), [false, false, false, false]],
     ["historical seen-only", restaurant("h"), [false, false, false, false]],
-    ["expired + saved", restaurant("es", { is_saved: true }), [false, true, false, false]],
+    ["expired + saved", restaurant("es", { is_saved: true }), [true, true, false, false]],
     ["expired + visited", restaurant("ev", { is_visited: true }), [true, false, true, false]],
   ])("applies %s semantics", (_name, item, expected) => {
     expect([
@@ -99,6 +100,7 @@ describe("personal Map membership", () => {
     ];
     expect(filterPersonalMapRestaurants(rows, "all").map((item) => item.place_id)).toEqual([
       "discovered",
+      "saved",
       "visited",
     ]);
     expect(personalMapMarkerState(rows[2])).toBe("discovered");
@@ -151,5 +153,33 @@ describe("personal Map membership", () => {
     });
     expect(filterPersonalMapRestaurants(savedPickMerged, "saved")).toHaveLength(1);
     expect(filterPersonalMapRestaurants(savedPickMerged, "visited")).toHaveLength(1);
+    expect(filterPersonalMapRestaurants(unsavedMerged, "all").map((row) => row.place_id))
+      .toContain("pick");
+  });
+
+  it("deduplicates personal places while preserving every relationship flag", () => {
+    const merged = mergeActivePersonalizedPick(
+      [
+        restaurant("multi", { is_saved: true }),
+        restaurant("multi", { is_visited: true }),
+        restaurant("multi", { is_discovered: true }),
+        restaurant("unrelated"),
+      ],
+      null,
+    );
+
+    expect(merged).toHaveLength(2);
+    expect(merged[0]).toMatchObject({
+      place_id: "multi",
+      is_discovered: true,
+      is_saved: true,
+      is_visited: true,
+    });
+    expect(filterPersonalMapRestaurants(merged, "all").map((row) => row.place_id))
+      .toEqual(["multi"]);
+    expect(filterPersonalMapRestaurants(merged, "saved")).toHaveLength(1);
+    expect(filterPersonalMapRestaurants(merged, "visited")).toHaveLength(1);
+    expect(filterPersonalMapRestaurants(merged, "discovered")).toHaveLength(1);
+    expect(personalMapMarkerState(merged[0])).toBe("discovered");
   });
 });

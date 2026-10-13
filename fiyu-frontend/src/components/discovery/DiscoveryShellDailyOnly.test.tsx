@@ -732,6 +732,12 @@ describe("daily-only discovery shell", () => {
         user_rating: index === 0 ? 4 : 5,
       }),
     );
+    const savedOnlyRestaurant = mapRestaurantSchema.parse({
+      ...catalog[3],
+      is_discovered: false,
+      is_saved: true,
+      is_visited: false,
+    });
     const placeIds = assignmentRestaurants.map((restaurant) => restaurant.place_id);
     const now = Date.now();
     window.localStorage.setItem(
@@ -758,19 +764,24 @@ describe("daily-only discovery shell", () => {
       revealed_at: new Date(now - 500).toISOString(),
     });
     locationApi.fetchDiscoveryLocation.mockResolvedValueOnce(configuredLocation("Shinjuku"));
-    mapApi.fetchAuthenticatedMapRestaurants.mockResolvedValue(visitedRestaurants);
+    mapApi.fetchAuthenticatedMapRestaurants.mockResolvedValue([
+      ...visitedRestaurants,
+      savedOnlyRestaurant,
+    ]);
     publishProfileIdentity(accountProfile(accountId, "assignmentmap"));
 
     render(<DiscoveryShell restaurants={[assignmentRestaurants[0]]} areaAnchors={[]} />);
 
     const mapRegion = await screen.findByTestId("desktop-map-region");
     await waitFor(() => {
-      expect(mapRegion.querySelectorAll('[data-marker-kind="restaurant"]')).toHaveLength(3);
+      expect(mapRegion.querySelectorAll('[data-marker-kind="restaurant"]')).toHaveLength(4);
     });
     expect(mapRegion.querySelector('[data-marker-kind="restaurant-cluster"]')).toBeNull();
     for (const placeId of placeIds) {
       expect(mapRegion.querySelector(`[data-place-id="${placeId}"]`)).toBeTruthy();
     }
+    expect(mapRegion.querySelector(`[data-place-id="${savedOnlyRestaurant.place_id}"]`)
+      ?.getAttribute("data-marker-state")).toBe("saved");
     const initialViewBox = mapRegion.querySelector("svg")?.getAttribute("viewBox");
     expect(screen.getByRole("tab", { name: "All" }).getAttribute("aria-selected")).toBe("true");
     fireEvent.click(screen.getByRole("tab", { name: "Visited" }));
@@ -779,18 +790,22 @@ describe("daily-only discovery shell", () => {
     );
     expect(mapRegion.querySelector("svg")?.getAttribute("viewBox")).toBe(initialViewBox);
     fireEvent.click(screen.getByRole("tab", { name: "Saved" }));
-    expect(await screen.findByText("No saved places yet")).toBeTruthy();
+    await waitFor(() =>
+      expect(mapRegion.querySelectorAll('[data-marker-kind="restaurant"]')).toHaveLength(1),
+    );
+    expect(mapRegion.querySelector(`[data-place-id="${savedOnlyRestaurant.place_id}"]`))
+      .toBeTruthy();
     expect(mapRegion.querySelector("svg")).toBeTruthy();
     fireEvent.click(screen.getByRole("tab", { name: "All" }));
     await waitFor(() =>
-      expect(mapRegion.querySelectorAll('[data-marker-kind="restaurant"]')).toHaveLength(3),
+      expect(mapRegion.querySelectorAll('[data-marker-kind="restaurant"]')).toHaveLength(4),
     );
     const visitedMarker = mapRegion.querySelector(
       '[data-place-id="ChIJe1D1MyeLGGARBHKRN0-hQUw"]',
     );
     expect(visitedMarker?.getAttribute("data-visited")).toBe("true");
     expect(visitedMarker?.querySelectorAll("circle")[2]?.getAttribute("fill")).toBe(
-      "var(--map-marker-visited)",
+      "var(--map-marker-discovered)",
     );
     expect(screen.getAllByTestId("visited-pick-card")).toHaveLength(2);
     expect(screen.getByLabelText("4 out of 5 stars")).toBeTruthy();
@@ -825,7 +840,7 @@ describe("daily-only discovery shell", () => {
         const circle = marker.querySelector("circle");
         return `${circle?.getAttribute("cx")}:${circle?.getAttribute("cy")}`;
       });
-    expect(new Set(markerPoints).size).toBe(3);
+    expect(new Set(markerPoints).size).toBe(4);
 
     const rollsFrame = document.querySelector(
       '[data-daily-card-place-id="ChIJe1D1MyeLGGARBHKRN0-hQUw"]',

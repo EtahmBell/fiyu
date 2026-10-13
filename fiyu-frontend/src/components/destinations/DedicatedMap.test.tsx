@@ -425,11 +425,17 @@ describe("dedicated user map", () => {
     const allTab = await screen.findByRole("tab", { name: "All" });
     expect(allTab.getAttribute("aria-selected")).toBe("true");
     await waitFor(() =>
-      expect(container.querySelectorAll('[data-marker-kind="restaurant"]')).toHaveLength(3),
+      expect(container.querySelector("svg")?.getAttribute("aria-label"))
+        .toBe("Map of Tokyo showing 4 restaurants."),
+    );
+    await waitFor(() =>
+      expect(container.querySelector("svg")?.getAttribute("viewBox")).not.toBe("0 0 1000 1026"),
     );
     const viewBox = container.querySelector("svg")?.getAttribute("viewBox");
 
-    fireEvent.click(container.querySelector(`[data-place-id="${rows[0].place_id}"]`) as Element);
+    fireEvent.click(container.querySelector(
+      '[data-marker-kind="restaurant"][data-saved="false"]',
+    ) as Element);
     expect(container.querySelector('[data-layer="restaurant-popup"]')).toBeTruthy();
     fireEvent.click(screen.getByRole("tab", { name: "Saved" }));
 
@@ -518,9 +524,10 @@ describe("dedicated user map", () => {
       ...row,
       is_discovered: false,
     }]));
-    await waitFor(() =>
-      expect(container.querySelector(`[data-place-id="${row.place_id}"]`)).toBeNull(),
-    );
+    await waitFor(() => {
+      const allMarker = container.querySelector(`[data-place-id="${row.place_id}"]`);
+      expect(allMarker?.getAttribute("data-marker-state")).toBe("saved");
+    });
     fireEvent.click(screen.getByRole("tab", { name: "Saved" }));
     const savedMarker = container.querySelector(`[data-place-id="${row.place_id}"]`);
     expect(savedMarker?.getAttribute("data-marker-state")).toBe("saved");

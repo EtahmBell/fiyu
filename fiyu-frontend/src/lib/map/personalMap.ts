@@ -15,7 +15,12 @@ export function belongsToPersonalMapFilter(
   // exclusively from the old discovered-or-visited endpoint.
   const discovered = restaurant.is_discovered !== false;
   if (filter === "discovered") return discovered;
-  return discovered || restaurant.is_visited;
+  return (
+    discovered ||
+    restaurant.is_saved ||
+    restaurant.is_visited ||
+    restaurant.is_personalized_pick === true
+  );
 }
 
 export function filterPersonalMapRestaurants(
@@ -26,29 +31,49 @@ export function filterPersonalMapRestaurants(
 }
 
 /**
- * Add the active Personalized Pick without inventing account relationships.
- * The event owns the special treatment and active discovery window; the map
- * payload remains authoritative for independently saved or visited state.
+ * Build one deduplicated personal-place collection while preserving every
+ * relationship, then add the active Personalized Pick without inventing any.
+ * The map payload remains authoritative for independently saved or visited state.
  */
 export function mergeActivePersonalizedPick(
   restaurants: readonly MapRestaurant[],
   personalized: MapRestaurant | null,
 ): MapRestaurant[] {
-  if (!personalized) return [...restaurants];
-  const existing = restaurants.find(
-    (restaurant) => restaurant.place_id === personalized.place_id,
-  );
+  const byPlaceId = new Map<string, MapRestaurant>();
+  for (const restaurant of restaurants) {
+    const existing = byPlaceId.get(restaurant.place_id);
+    byPlaceId.set(
+      restaurant.place_id,
+      existing
+        ? {
+            ...existing,
+            ...restaurant,
+            is_discovered: existing.is_discovered || restaurant.is_discovered,
+            is_saved: existing.is_saved || restaurant.is_saved,
+            is_visited: existing.is_visited || restaurant.is_visited,
+            is_personalized_pick:
+              existing.is_personalized_pick || restaurant.is_personalized_pick,
+            user_rating: restaurant.user_rating ?? existing.user_rating,
+          }
+        : restaurant,
+    );
+  }
+  const deduplicated = [...byPlaceId.values()];
+  if (!personalized) return deduplicated;
+  const existing = byPlaceId.get(personalized.place_id);
   const active = existing
     ? {
         ...personalized,
-        is_saved: existing.is_saved,
-        is_visited: existing.is_visited,
-        user_rating: existing.user_rating,
+        is_discovered: existing.is_discovered || personalized.is_discovered,
+        is_saved: existing.is_saved || personalized.is_saved,
+        is_visited: existing.is_visited || personalized.is_visited,
+        is_personalized_pick: true,
+        user_rating: personalized.user_rating ?? existing.user_rating,
       }
     : personalized;
   return [
     active,
-    ...restaurants
+    ...deduplicated
       .filter((restaurant) => restaurant.place_id !== personalized.place_id)
       .map((restaurant) => ({ ...restaurant, is_personalized_pick: false })),
   ];

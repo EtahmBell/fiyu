@@ -338,10 +338,7 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
     }));
     const mapRestaurants = identity.profile
       ? mapQuery.status === "ready"
-        ? [...new Map([...immediateDiscoveries, ...accountMapRestaurants].map((restaurant) => [
-            restaurant.place_id,
-            restaurant,
-          ])).values()]
+        ? [...immediateDiscoveries, ...accountMapRestaurants]
         : mapQuery.status === "error"
           ? immediateDiscoveries
           : []
