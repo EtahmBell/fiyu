@@ -13,7 +13,10 @@ vi.mock("@/components/restaurant/RestaurantPhoto", () => ({
   ),
 }));
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
 
 const hiddenState: PersonalizedPickState = {
   status: "event_available",
@@ -33,7 +36,7 @@ const hiddenState: PersonalizedPickState = {
 };
 
 describe("Personalized Pick event modal", () => {
-  it("renders exactly three keyboard-accessible hidden cards without identities", () => {
+  it("renders three simplified Fiyu-only hidden cards without identities or game labels", () => {
     render(
       <PersonalizedPickModal
         state={hiddenState}
@@ -46,11 +49,31 @@ describe("Personalized Pick event modal", () => {
     );
 
     expect(screen.getByRole("dialog", { name: "Something for you" })).toBeTruthy();
-    expect(screen.getAllByRole("button", { name: /Choose hidden card/ })).toHaveLength(3);
+    const cards = screen.getAllByRole("button", { name: /Choose hidden card/ });
+    expect(cards).toHaveLength(3);
+    expect(cards.map((card) => card.textContent?.trim())).toEqual(["Fiyu", "Fiyu", "Fiyu"]);
+    expect(document.body.textContent).not.toContain("Tap to reveal");
+    expect(document.body.textContent).not.toContain("Fiyu Pick 01");
     expect(document.body.textContent).not.toContain("Hamadayama Jojoen");
   });
 
-  it("dismisses with Escape and sends only the selected stable slot", () => {
+  it("dismisses with Escape before selection", () => {
+    const dismiss = vi.fn();
+    render(
+      <PersonalizedPickModal
+        state={hiddenState}
+        reveal={false}
+        pendingPosition={null}
+        onDismiss={dismiss}
+        onSelect={() => {}}
+        onCloseReveal={() => {}}
+      />,
+    );
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(dismiss).toHaveBeenCalledTimes(1);
+  });
+
+  it("locks selection immediately and sends only one keyboard-selected stable slot", () => {
     const dismiss = vi.fn();
     const select = vi.fn();
     render(
@@ -63,10 +86,22 @@ describe("Personalized Pick event modal", () => {
         onCloseReveal={() => {}}
       />,
     );
-    fireEvent.click(screen.getByRole("button", { name: "Choose hidden card 2" }));
+
+    const chosen = screen.getByRole("button", { name: "Choose hidden card 2" });
+    fireEvent.click(chosen, { detail: 0 });
+    fireEvent.click(chosen, { detail: 0 });
+
+    expect(select).toHaveBeenCalledTimes(1);
     expect(select).toHaveBeenCalledWith(1);
+    expect(chosen.getAttribute("data-choice-state")).toBe("selected");
+    expect(screen.getAllByRole("button", { name: /Choose hidden card/ })
+      .every((card) => (card as HTMLButtonElement).disabled)).toBe(true);
+    expect(screen.getByRole("button", { name: "Choose hidden card 1" })
+      .getAttribute("data-choice-state")).toBe("withheld");
+
+    fireEvent.click(screen.getByTestId("personalized-pick-backdrop"));
     fireEvent.keyDown(document, { key: "Escape" });
-    expect(dismiss).toHaveBeenCalledTimes(1);
+    expect(dismiss).not.toHaveBeenCalled();
   });
 
   it("dismisses from the backdrop without selecting a card", () => {
@@ -149,5 +184,36 @@ describe("Personalized Pick event modal", () => {
     expect(screen.getByRole("heading", { name: "浜田山叙々苑" })).toBeTruthy();
     expect(screen.getByText("Picked for you")).toBeTruthy();
     expect(screen.queryAllByRole("button", { name: /Choose hidden card/ })).toHaveLength(0);
+  });
+
+  it("uses a static reduced-motion crossfade without shine motion", () => {
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: query.includes("prefers-reduced-motion"),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }));
+    const restaurant = publicRestaurantSchema.parse(restaurantFixture[0]);
+    render(
+      <PersonalizedPickModal
+        state={{
+          ...hiddenState,
+          status: "selected",
+          card_count: null,
+          selected_position: 0,
+          selected_at: "2026-10-11T00:01:00Z",
+          active_until: "2026-10-14T00:01:00Z",
+          selected_restaurant: restaurant,
+        }}
+        reveal
+        pendingPosition={null}
+        onDismiss={() => {}}
+        onSelect={() => {}}
+        onCloseReveal={() => {}}
+      />,
+    );
+
+    expect(screen.getByRole("heading", { name: "浜田山叙々苑" })
+      .closest("[data-reveal-motion]")?.getAttribute("data-reveal-motion"))
+      .toBe("reduced-crossfade");
   });
 });

@@ -1,13 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { RestaurantPhoto } from "@/components/restaurant/RestaurantPhoto";
 import { ScoreMark } from "@/components/ui/ScoreMark";
 import type { PersonalizedPickState } from "@/lib/api/schemas";
 import { resolveNames } from "@/lib/format/language";
+import { useMediaQuery } from "@/lib/hooks/useMediaQuery";
 import { restaurantMetadataParts } from "@/lib/restaurant/displayArea";
+import { cn } from "@/lib/utils/cn";
+import styles from "./PersonalizedPickModal.module.css";
 
 interface PersonalizedPickModalProps {
   state: PersonalizedPickState;
@@ -19,6 +22,8 @@ interface PersonalizedPickModalProps {
 }
 
 const FOCUSABLE = "button:not([disabled]), a[href], [tabindex]:not([tabindex='-1'])";
+const REVEAL_START_MS = 180;
+const REVEAL_CROSSFADE_MS = 360;
 
 export function PersonalizedPickModal({
   state,
@@ -28,13 +33,71 @@ export function PersonalizedPickModal({
   onSelect,
   onCloseReveal,
 }: PersonalizedPickModalProps) {
+  const reducedMotion = useMediaQuery("(prefers-reduced-motion: reduce)");
   const dialogRef = useRef<HTMLDivElement>(null);
+  const revealCloseRef = useRef<HTMLButtonElement>(null);
   const previousFocus = useRef<HTMLElement | null>(null);
+  const selectionRef = useRef<number | null>(null);
+  const selectionStartedAt = useRef<number | null>(null);
+  const requestObserved = useRef(false);
+  const restoreRevealFocus = useRef(false);
+  const [selectionPosition, setSelectionPosition] = useState<number | null>(null);
+  const [revealReady, setRevealReady] = useState(reveal && state.selected_restaurant !== null);
+  const [revealSettled, setRevealSettled] = useState(revealReady);
   const selected = reveal ? state.selected_restaurant : null;
+  const presentingSelected = Boolean(selected && revealReady);
+  const selectionLocked = pendingPosition !== null || (
+    selectionPosition !== null && !revealSettled
+  );
   const close = useCallback(() => {
+    if (selectionLocked) return;
     if (selected) onCloseReveal();
     else onDismiss();
-  }, [onCloseReveal, onDismiss, selected]);
+  }, [onCloseReveal, onDismiss, selected, selectionLocked]);
+
+  const beginSelection = useCallback((position: number, keyboard: boolean) => {
+    if (selectionRef.current !== null || pendingPosition !== null) return;
+    selectionRef.current = position;
+    selectionStartedAt.current = Date.now();
+    restoreRevealFocus.current = keyboard;
+    setSelectionPosition(position);
+    onSelect(position);
+  }, [onSelect, pendingPosition]);
+
+  useEffect(() => {
+    if (pendingPosition !== null) requestObserved.current = true;
+    else if (requestObserved.current && !selected) {
+      requestObserved.current = false;
+      selectionRef.current = null;
+      selectionStartedAt.current = null;
+      setSelectionPosition(null);
+    }
+  }, [pendingPosition, selected]);
+
+  useEffect(() => {
+    if (!selected) return;
+    const elapsed = selectionStartedAt.current === null
+      ? REVEAL_START_MS
+      : Date.now() - selectionStartedAt.current;
+    const delay = reducedMotion ? 0 : Math.max(REVEAL_START_MS - elapsed, 0);
+    const timer = window.setTimeout(() => {
+      setRevealReady(true);
+      setRevealSettled(false);
+    }, delay);
+    return () => window.clearTimeout(timer);
+  }, [reducedMotion, selected]);
+
+  useEffect(() => {
+    if (!revealReady || !selected) return;
+    const timer = window.setTimeout(() => {
+      setRevealSettled(true);
+      if (restoreRevealFocus.current) {
+        restoreRevealFocus.current = false;
+        revealCloseRef.current?.focus({ preventScroll: true });
+      }
+    }, reducedMotion ? 150 : REVEAL_CROSSFADE_MS);
+    return () => window.clearTimeout(timer);
+  }, [reducedMotion, revealReady, selected]);
 
   useEffect(() => {
     previousFocus.current = document.activeElement instanceof HTMLElement
@@ -89,8 +152,16 @@ export function PersonalizedPickModal({
         aria-describedby="personalized-pick-description"
         className="relative max-h-[calc(100dvh-1.5rem)] w-full max-w-[42rem] overflow-y-auto rounded-[1.25rem] border border-paper-line bg-canvas px-5 py-6 shadow-2xl sm:px-9 sm:py-8"
       >
-        {selected ? (
-          <div aria-live="polite" aria-atomic="true">
+        {presentingSelected && selected ? (
+          <div
+            className={styles.revealPanel}
+            data-reveal-motion={reducedMotion ? "reduced-crossfade" : "shine-crossfade"}
+            data-reveal-settled={revealSettled ? "true" : "false"}
+          >
+            <span aria-hidden="true" className={styles.revealShine} />
+            <p className="sr-only" aria-live="polite" aria-atomic="true">
+              {revealSettled ? `Your Personalized Pick is ${names?.primary?.text ?? "ready"}.` : ""}
+            </p>
             <p className="text-[0.625rem] font-semibold tracking-[0.16em] text-personalized-700 uppercase">
               Your pick
             </p>
@@ -116,6 +187,7 @@ export function PersonalizedPickModal({
             </div>
             <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:justify-end">
               <button
+                ref={revealCloseRef}
                 type="button"
                 onClick={onCloseReveal}
                 className="min-h-11 rounded-lg px-4 text-sm font-medium text-ink-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-personalized"
@@ -135,7 +207,8 @@ export function PersonalizedPickModal({
             <button
               type="button"
               aria-label="Close for now"
-              onClick={onDismiss}
+              disabled={selectionLocked}
+              onClick={close}
               className="absolute top-3 right-3 flex size-11 items-center justify-center rounded-full text-xl text-ink-muted hover:bg-surface focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-personalized"
             >
               <span aria-hidden="true">×</span>
@@ -155,22 +228,32 @@ export function PersonalizedPickModal({
                   key={position}
                   type="button"
                   aria-label={`Choose hidden card ${position + 1}`}
-                  disabled={pendingPosition !== null}
-                  onClick={() => onSelect(position)}
-                  className="group aspect-[3/4] min-w-0 rounded-xl border border-personalized-soft bg-surface shadow-paper transition-[transform,border-color] duration-200 ease-(--ease-fiyu) hover:-translate-y-1 hover:border-personalized focus-visible:-translate-y-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-personalized motion-reduce:transform-none motion-reduce:transition-none disabled:cursor-wait disabled:opacity-65"
+                  disabled={selectionPosition !== null || pendingPosition !== null}
+                  aria-busy={selectionPosition === position && !selected}
+                  data-choice-state={selectionPosition === null
+                    ? "available"
+                    : selectionPosition === position
+                      ? "selected"
+                      : "withheld"}
+                  data-selection-motion={reducedMotion ? "reduced" : "press-shine"}
+                  onClick={(event) => beginSelection(position, event.detail === 0)}
+                  className={cn(
+                    styles.hiddenCard,
+                    selectionPosition === position && styles.chosenCard,
+                    selectionPosition !== null && selectionPosition !== position && styles.withheldCard,
+                    "group aspect-[3/4] min-w-0 rounded-xl border border-personalized-soft bg-lavender-50 shadow-paper focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-personalized disabled:cursor-wait",
+                  )}
                 >
-                  <span aria-hidden="true" className="mx-auto flex size-9 items-center justify-center rounded-full border border-personalized-soft font-display text-xl text-personalized-700 sm:size-11">
-                    F
-                  </span>
-                  <span className="sr-only">
-                    {pendingPosition === position ? "Choosing" : `Card ${position + 1}`}
+                  <span aria-hidden="true" className="font-display text-3xl leading-none text-plum sm:text-4xl">
+                    Fiyu
                   </span>
                 </button>
               ))}
             </div>
             <button
               type="button"
-              onClick={onDismiss}
+              disabled={selectionLocked}
+              onClick={close}
               className="mx-auto mt-6 flex min-h-11 items-center px-4 text-sm font-medium text-ink-muted hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-personalized"
             >
               Not now

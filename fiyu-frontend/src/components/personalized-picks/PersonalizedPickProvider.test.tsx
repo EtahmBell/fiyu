@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -152,6 +152,29 @@ describe("PersonalizedPickProvider", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(api.dismiss).toHaveBeenCalledWith("event-a");
     expect(api.select).not.toHaveBeenCalled();
+  });
+
+  it("keeps identity concealed and backdrop locked until canonical selection succeeds", async () => {
+    let resolveSelection: ((state: PersonalizedPickState) => void) | undefined;
+    api.fetch.mockResolvedValue(available);
+    api.select.mockImplementation(() => new Promise<PersonalizedPickState>((resolve) => {
+      resolveSelection = resolve;
+    }));
+    render(<PersonalizedPickProvider><StateProbe /></PersonalizedPickProvider>);
+    await screen.findByRole("dialog", { name: "Something for you" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Choose hidden card 3" }));
+    expect(api.select).toHaveBeenCalledWith("event-a", 2);
+    expect(screen.queryByRole("heading", { name: "浜田山叙々苑" })).toBeNull();
+    expect(screen.getAllByRole("button", { name: /Choose hidden card/ })
+      .every((card) => (card as HTMLButtonElement).disabled)).toBe(true);
+
+    fireEvent.click(screen.getByTestId("personalized-pick-backdrop"));
+    expect(api.dismiss).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog", { name: "Something for you" })).toBeTruthy();
+
+    await act(async () => resolveSelection?.(selected));
+    expect(await screen.findByRole("heading", { name: "浜田山叙々苑" })).toBeTruthy();
   });
 
   it("restores a selected event on refresh without re-presenting the choice modal", async () => {
