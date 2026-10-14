@@ -14,7 +14,10 @@ import {
 import { OutboundMapActions } from "@/components/restaurant/OutboundMapActions";
 import { RestaurantPhoto } from "@/components/restaurant/RestaurantPhoto";
 import { TagList } from "@/components/restaurant/TagList";
-import { CARD_LAYOUT } from "@/components/daily-picks/compactCardLayout";
+import {
+  CARD_LAYOUT,
+  REVEAL_CARD_LAYOUT,
+} from "@/components/daily-picks/compactCardLayout";
 import { ScoreMark } from "@/components/ui/ScoreMark";
 import type { PublicRestaurant } from "@/lib/api/schemas";
 import {
@@ -141,6 +144,8 @@ export interface CompactRestaurantCardProps {
   savePending?: boolean;
   expirationLabel?: string;
   tone?: CompactCardTone;
+  /** Dense, fixed-height front used only inside the shared Pick reveal frame. */
+  layout?: "standard" | "reveal";
   onOpen?: (restaurant: PublicRestaurant) => void;
   onViewDetails?: (
     restaurant: PublicRestaurant,
@@ -186,10 +191,13 @@ export function CompactRestaurantCard({
   savePending = false,
   expirationLabel,
   tone = "current",
+  layout = "standard",
   onOpen,
   onViewDetails,
   onToggleSaved,
 }: CompactRestaurantCardProps) {
+  const cardLayout = layout === "reveal" ? REVEAL_CARD_LAYOUT : CARD_LAYOUT;
+  const fixedReveal = layout === "reveal";
   const history = tone === "history";
   const { title, titleLang, secondaryLine, description, tags, budget } =
     compactCardContent(restaurant);
@@ -285,6 +293,7 @@ export function CompactRestaurantCard({
     <article
       data-testid="compact-restaurant-card"
       data-tone={tone}
+      data-card-layout={layout}
       data-score-treatment={exceptional ? "exceptional" : "standard"}
       role={onOpen ? "button" : undefined}
       tabIndex={onOpen ? 0 : undefined}
@@ -300,7 +309,7 @@ export function CompactRestaurantCard({
       className={cn(
         // A sheet of card paper: warm hairline edge, one barely-there fall of
         // shadow, and 16px of breathing room (20px on desktop).
-        CARD_LAYOUT.frame,
+        cardLayout.frame,
         "border-paper-line bg-surface shadow-paper",
         // The one coloured edge: a 3px accent across the top, clipped by the
         // card's own radius, so it reads as a printed rule rather than an
@@ -321,25 +330,25 @@ export function CompactRestaurantCard({
     >
       <div
         data-testid="compact-card-layout"
-        className="min-w-0"
+        className={cardLayout.main}
       >
-        <div className={CARD_LAYOUT.header}>
-          <div className={CARD_LAYOUT.titleBlock}>
+        <div className={cardLayout.header}>
+          <div className={cardLayout.titleBlock}>
             <h3
               lang={titleLang}
               // The strongest text on the card, at a size that holds Japanese
               // glyphs with confidence.
-              className={cn(CARD_LAYOUT.title, "text-ink")}
+              className={cn(cardLayout.title, "text-ink")}
             >
               {title}
             </h3>
-            {tone === "personalized" ? (
+            {tone === "personalized" && !fixedReveal ? (
               <p className="mt-1 text-[0.625rem] font-semibold tracking-[0.14em] text-personalized-700 uppercase">
                 Picked for you
               </p>
             ) : null}
-            {secondaryLine && (
-              <p className={cn(CARD_LAYOUT.secondary, "text-ink-muted")}>
+            {secondaryLine && !fixedReveal && (
+              <p className={cn(cardLayout.secondary, "text-ink-muted")}>
                 {secondaryLine}
               </p>
             )}
@@ -353,16 +362,18 @@ export function CompactRestaurantCard({
           */}
           <ScoreMark
             score={restaurant.fiyu_score}
-            size="card"
+            size={fixedReveal ? "reveal" : "card"}
             tone={tone}
-            className={CARD_LAYOUT.score}
+            className={cardLayout.score}
           />
         </div>
 
         <div
           className={cn(
-            CARD_LAYOUT.body,
-            descriptionExpanded ? "flow-root" : CARD_LAYOUT.bodyGrid,
+            cardLayout.body,
+            descriptionExpanded
+              ? cn("flow-root", fixedReveal && REVEAL_CARD_LAYOUT.bodyExpanded)
+              : cardLayout.bodyGrid,
           )}
         >
           <RestaurantPhoto
@@ -370,21 +381,33 @@ export function CompactRestaurantCard({
             restaurantName={title}
             fill
             className={cn(
-              CARD_LAYOUT.photo,
+              cardLayout.photo,
               descriptionExpanded
-                ? "float-left mr-3 mb-1 w-[6.75rem] lg:mr-4 lg:w-[34%]"
+                ? fixedReveal
+                  ? "float-left mr-2.5 mb-1 w-[4.75rem]"
+                  : "float-left mr-3 mb-1 w-[6.75rem] lg:mr-4 lg:w-[34%]"
                 : "w-full",
             )}
           />
-          <div className={cn(CARD_LAYOUT.textColumn, !descriptionExpanded && CARD_LAYOUT.textColumnResting)}>
+          <div className={cn(cardLayout.textColumn, !descriptionExpanded && cardLayout.textColumnResting)}>
+            {fixedReveal && (secondaryLine || tone === "personalized") && (
+              <p className={cn(cardLayout.secondary, "text-ink-muted")}>
+                {tone === "personalized" ? (
+                  <span className="font-semibold tracking-[0.08em] text-personalized-700 uppercase">
+                    Picked for you{secondaryLine ? " · " : ""}
+                  </span>
+                ) : null}
+                {secondaryLine}
+              </p>
+            )}
             {description && (
               <p
                 ref={descriptionRef}
                 id={descriptionId}
                 className={cn(
-                  CARD_LAYOUT.description,
+                  cardLayout.description,
                   "text-ink-body",
-                  !descriptionExpanded && "line-clamp-3",
+                  !descriptionExpanded && (fixedReveal ? "line-clamp-2" : "line-clamp-3"),
                 )}
               >
                 {description}
@@ -397,7 +420,7 @@ export function CompactRestaurantCard({
               visually so the price leads on the left.
             */}
             {(budget || showReadToggle) && (
-              <div className={CARD_LAYOUT.bodyRow}>
+              <div className={cardLayout.bodyRow}>
                 {showReadToggle && (
                   <button
                     type="button"
@@ -410,10 +433,11 @@ export function CompactRestaurantCard({
                       setDescriptionExpanded((expanded) => !expanded);
                     }}
                     className={cn(
-                      CARD_LAYOUT.readMore,
-                      // A 28px row, with the hit area extended past it by an
-                      // invisible pseudo-element rather than by more height.
-                      "relative rounded-md text-lavender-700 underline decoration-lavender-500/40 underline-offset-[3px] transition-colors duration-150 before:absolute before:-inset-x-1 before:-inset-y-2 before:content-[''] hover:text-plum hover:decoration-lavender-600 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-lavender-600",
+                      cardLayout.readMore,
+                      // The visual row stays compact; a pseudo-element extends
+                      // the fixed-frame hit target without consuming height.
+                      "relative rounded-md text-lavender-700 underline decoration-lavender-500/40 underline-offset-[3px] transition-colors duration-150 before:absolute before:-inset-x-1 before:content-[''] hover:text-plum hover:decoration-lavender-600 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-lavender-600",
+                      fixedReveal ? "before:-inset-y-3" : "before:-inset-y-2",
                     )}
                   >
                     {descriptionExpanded ? "Read less" : "Read more"}
@@ -424,7 +448,7 @@ export function CompactRestaurantCard({
                   // digit is a wrong price.
                   <p
                     data-testid="compact-card-budget"
-                    className={cn(CARD_LAYOUT.price, "text-ink-body")}
+                    className={cn(cardLayout.price, "text-ink-body")}
                   >
                     {budget}
                   </p>
@@ -459,21 +483,21 @@ export function CompactRestaurantCard({
       {tags.length > 0 && (
         // One row only: a wrapping second row of chips would make the card's
         // height depend on tag text the concealed face cannot know.
-        <TagList tags={tags} max={3} className={CARD_LAYOUT.tags} />
+        <TagList tags={tags} max={3} className={cardLayout.tags} />
       )}
 
       {/*
-        Three tiers. The primary action owns a full row with Save at its right
+        Two tiers. The primary action owns a full row with Save at its right
         edge; Why Fiyu found it and the two map hand-offs sit in a quieter
         utility row beneath. `mt-auto` keeps the actions on the card's bottom
         edge when an expanded neighbour-free layout leaves spare height.
       */}
       <div
         data-testid="compact-card-footer"
-        className={CARD_LAYOUT.footer}
+        className={cardLayout.footer}
         onClick={(event) => event.stopPropagation()}
       >
-        <div className={cn(CARD_LAYOUT.actionRow, "border-line")}>
+        <div className={cn(cardLayout.actionRow, "border-line")}>
           {onViewDetails && (
             <button
               type="button"
@@ -482,7 +506,10 @@ export function CompactRestaurantCard({
                 event.stopPropagation();
                 onViewDetails(restaurant);
               }}
-              className="group/view -ml-2 inline-flex min-h-12 min-w-0 items-center gap-1.5 rounded-lg px-2 text-left text-[0.9375rem] font-semibold whitespace-nowrap text-plum transition-[background-color,transform] duration-150 ease-(--ease-fiyu) hover:bg-lavender-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600 active:scale-[0.99] active:bg-lavender-100/70"
+              className={cn(
+                "group/view -ml-2 inline-flex min-w-0 items-center gap-1.5 rounded-lg px-2 text-left text-[0.9375rem] font-semibold whitespace-nowrap text-plum transition-[background-color,transform] duration-150 ease-(--ease-fiyu) hover:bg-lavender-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600 active:scale-[0.99] active:bg-lavender-100/70",
+                cardLayout.viewAction,
+              )}
             >
               <span>View restaurant</span>
               <span
@@ -511,7 +538,7 @@ export function CompactRestaurantCard({
             }}
             className={cn(
               "relative z-10 -mr-2 ml-auto inline-flex items-center justify-center rounded-lg",
-              CARD_LAYOUT.saveAction,
+              cardLayout.saveAction,
               "transition-[background-color,color,transform] duration-150",
               "ease-(--ease-fiyu) active:scale-[0.97]",
               "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600",
@@ -524,7 +551,7 @@ export function CompactRestaurantCard({
             <BookmarkIcon filled={saved} />
           </button>
         </div>
-        <div className={CARD_LAYOUT.utilityRow}>
+        <div className={cardLayout.utilityRow}>
           {onViewDetails && tone !== "together" && (
             <button
               type="button"
@@ -533,7 +560,7 @@ export function CompactRestaurantCard({
                 onViewDetails(restaurant, WHY_FIYU_FOUND_IT_SECTION);
               }}
               className={cn(
-                CARD_LAYOUT.why,
+                cardLayout.why,
                 "rounded-md text-ink-body transition-colors duration-150 ease-(--ease-fiyu) hover:bg-lavender-50 hover:text-plum focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600 active:bg-lavender-100/70",
               )}
             >

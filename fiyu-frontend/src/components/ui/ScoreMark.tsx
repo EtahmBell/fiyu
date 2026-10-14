@@ -1,10 +1,10 @@
 import { formatFiyuScore, hasGoldFiyuTreatment, scoreAccessibleLabel } from "@/lib/format/score";
 import { cn } from "@/lib/utils/cn";
 
-export type ScoreMarkSize = "sm" | "md" | "lg" | "card";
+export type ScoreMarkSize = "sm" | "md" | "lg" | "card" | "reveal";
 
 /*
- * One mark at four scales. The wordmark never drops below 10px: at the old
+ * One mark at five scales. The wordmark never drops below 10px: at the old
  * 8-9px it was the least legible text on the card while naming the most
  * important thing on it.
  */
@@ -43,6 +43,14 @@ const SIZES: Record<ScoreMarkSize, SizeSpec> = {
     zone: "px-3 pt-2.5 pb-2.5 lg:px-4 lg:pt-3.5 lg:pb-3",
     numeralGap: "mt-0.5 lg:mt-1",
     ruleGap: "mt-1 lg:mt-1.5",
+  },
+  reveal: {
+    numeral: "text-[1.375rem]",
+    label: "text-[0.625rem]",
+    rule: "w-5",
+    zone: "px-2.5 pt-2 pb-2.5",
+    numeralGap: "mt-0.5",
+    ruleGap: "mt-0.5",
   },
 };
 

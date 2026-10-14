@@ -63,7 +63,7 @@ export function ConcealedRestaurantCard({
         "rounded-card",
       )}
       data-testid={revealed ? "revealed-restaurant-card" : "concealed-restaurant-card"}
-      data-pick-card-ratio="16/9"
+      data-pick-card-ratio="3/2"
       data-gold-treatment={gold ? "true" : "false"}
       data-reveal-motion={transition.phase}
       data-reveal-phase={transition.phase}
@@ -111,6 +111,7 @@ export function ConcealedRestaurantCard({
         >
           <CompactRestaurantCard
             restaurant={restaurant}
+            layout="reveal"
             saved={saved}
             savePending={savePending}
             onOpen={onOpen}

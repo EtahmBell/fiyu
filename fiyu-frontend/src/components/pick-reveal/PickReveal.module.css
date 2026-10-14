@@ -9,11 +9,11 @@
  * this on the reveal stage; Personalized Picks use it on each choice card.
  */
 .cardFrame {
-  --pick-card-aspect-ratio: 16 / 9;
+  --pick-card-aspect-ratio: 3 / 2;
 
   width: 100%;
   aspect-ratio: var(--pick-card-aspect-ratio);
-  max-block-size: 15rem;
+  max-block-size: 14rem;
   min-width: 0;
 }
 
@@ -48,7 +48,7 @@
 
 .stage.cardFrame .restaurantFace {
   min-height: 0;
-  overflow-y: auto;
+  overflow: hidden;
 }
 
 .stage.cardFrame .restaurantFace > * {

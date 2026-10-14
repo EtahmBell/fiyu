@@ -64,7 +64,7 @@ describe("Personalized Pick event modal", () => {
     expect(cards).toHaveLength(3);
     expect(cards.every((card) => card.textContent?.includes("Fiyu"))).toBe(true);
     expect(cards.every((card) => card.textContent?.includes("Reveal"))).toBe(true);
-    expect(cards.every((card) => card.dataset.pickCardRatio === "16/9")).toBe(true);
+    expect(cards.every((card) => card.dataset.pickCardRatio === "3/2")).toBe(true);
     expect(cards.every((card) => card.className.includes("cardFrame"))).toBe(true);
     expect(cards.every((card) => card.getAttribute("data-reveal-variant") === "personalized"))
       .toBe(true);

@@ -3,10 +3,11 @@
  *
  * Only classes that decide a box's size live here -- padding, type size,
  * line-height, min-heights, gaps and clamps. The reveal primitive owns the
- * stable outer 11:8 frame; these values keep the restaurant face compact and
+ * stable outer frame; these values keep the restaurant face compact and
  * usable inside it.
  */
 export const CARD_LAYOUT = {
+  main: "min-w-0",
   frame:
     "relative flex min-w-0 w-full flex-col overflow-hidden rounded-card border px-4 pt-[1.1875rem] pb-1 lg:px-5 lg:pt-[1.4375rem] lg:pb-2",
   header: "flex min-w-0 items-start justify-between gap-3",
@@ -39,4 +40,41 @@ export const CARD_LAYOUT = {
   saveAction: "size-11 shrink-0",
   utilityRow: "flex min-w-0 flex-wrap items-center gap-x-3 min-[22.5rem]:flex-nowrap",
   why: "-ml-2 inline-flex min-h-10 shrink-0 items-center gap-1 px-2 text-[0.8125rem] font-medium whitespace-nowrap",
+} as const;
+
+/**
+ * Fixed reveal fronts reserve their footer before laying out variable copy.
+ * Only the middle region may scroll (after an explicit Read more); the outer
+ * card never clips or scrolls its primary actions.
+ */
+export const REVEAL_CARD_LAYOUT = {
+  frame:
+    "relative grid size-full min-w-0 grid-rows-[minmax(0,1fr)_auto] overflow-hidden rounded-card border px-3 pt-2 pb-0.5",
+  main: "grid min-h-0 min-w-0 grid-rows-[auto_minmax(0,1fr)]",
+  header: "flex min-w-0 items-start justify-between gap-2",
+  titleBlock: "min-w-0 flex-1",
+  title: "line-clamp-2 break-words font-display text-[1.1875rem] leading-[1.2rem]!",
+  secondary: "line-clamp-1 break-words text-xs leading-4",
+  score: "mt-0",
+  body: "min-h-0 min-w-0",
+  bodyGrid: "grid grid-cols-[4.75rem_minmax(0,1fr)] gap-2.5 overflow-hidden",
+  bodyExpanded: "overflow-y-auto pr-1",
+  photo: "h-[4.75rem] min-w-0",
+  textColumn: "flex min-h-0 min-w-0 flex-col",
+  textColumnResting: "h-[4.75rem]",
+  description: "text-sm leading-4",
+  descriptionClampHeight: "h-8",
+  bodyRow:
+    "mt-auto flex min-w-0 flex-row-reverse flex-nowrap items-center justify-between gap-x-2",
+  readMore:
+    "-mr-1 inline-flex min-h-5 shrink-0 items-center px-1 text-[0.8125rem] font-medium",
+  price:
+    "mr-auto shrink-0 text-[0.8125rem] leading-5 font-medium whitespace-nowrap tabular-nums",
+  tags: "hidden",
+  footer: "relative z-10 min-w-0 self-end",
+  actionRow: "flex min-h-10 min-w-0 items-center gap-2 border-t",
+  viewAction: "min-h-10",
+  saveAction: "size-10 shrink-0",
+  utilityRow: "flex min-h-10 min-w-0 flex-nowrap items-center gap-x-1",
+  why: "-ml-1.5 inline-flex min-h-10 shrink-0 items-center gap-0.5 px-1.5 text-xs font-medium whitespace-nowrap",
 } as const;

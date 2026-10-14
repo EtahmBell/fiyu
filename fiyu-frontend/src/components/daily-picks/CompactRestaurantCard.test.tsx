@@ -64,6 +64,81 @@ afterEach(() => {
 });
 
 describe("compact restaurant card content", () => {
+  it("reserves a dense fixed reveal front for long English and Japanese content", () => {
+    const value = restaurant({
+      name_ja: "カラオケスナック 唄い場 るみ カラオケスナック 唄い場 るみ",
+      name_en: "Melody Thai & Asia Unplugged Restaurant with a deliberately long alternate name",
+      description_en: "A long editorial description that should yield before any restaurant action is displaced. ".repeat(6),
+      budget: {
+        currency: "JPY",
+        minimum: 2000,
+        maximum: 3000,
+        band: "budget",
+        source_type: "researched_source",
+        confidence: 0.9,
+      },
+    });
+    render(
+      <CompactRestaurantCard
+        restaurant={value}
+        layout="reveal"
+        saved={false}
+        onToggleSaved={() => {}}
+        onViewDetails={() => {}}
+      />,
+    );
+
+    const card = screen.getByTestId("compact-restaurant-card");
+    expect(card.dataset.cardLayout).toBe("reveal");
+    expect(card.className).toContain("grid-rows-[minmax(0,1fr)_auto]");
+    expect(card.className).toContain("size-full");
+    const title = screen.getByRole("heading", { level: 3 });
+    expect(title.className).toContain("text-[1.1875rem]");
+    expect(title.className).toContain("line-clamp-2");
+    expect(screen.getByText(/Melody Thai/).className).toContain("line-clamp-1");
+    expect(screen.getByTestId("restaurant-photo-region").className).toContain("h-[4.75rem]");
+    expect(screen.getByText(/A long editorial description/).className).toContain("line-clamp-2");
+    expect(screen.getByText("8.7").className).toContain("text-[1.375rem]");
+    expect(screen.getByTestId("compact-card-footer").className).toContain("self-end");
+    expect(screen.getByRole("button", { name: "View restaurant" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Save restaurant" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Why Fiyu found it" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Open in Google Maps" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Open in Apple Maps" })).toBeTruthy();
+  });
+
+  it("uses the same fixed revealed layout for regular and Personalized card tones", () => {
+    const { rerender } = render(
+      <CompactRestaurantCard
+        restaurant={restaurant()}
+        layout="reveal"
+        tone="current"
+        saved={false}
+        onToggleSaved={() => {}}
+        onViewDetails={() => {}}
+      />,
+    );
+    const regular = screen.getByTestId("compact-restaurant-card");
+    const regularLayout = screen.getByTestId("compact-card-layout").className;
+    const regularFooter = screen.getByTestId("compact-card-footer").className;
+    expect(regular.className).toContain("grid-rows-[minmax(0,1fr)_auto]");
+    rerender(
+      <CompactRestaurantCard
+        restaurant={restaurant()}
+        layout="reveal"
+        tone="personalized"
+        saved={false}
+        onToggleSaved={() => {}}
+        onViewDetails={() => {}}
+      />,
+    );
+    const personalized = screen.getByTestId("compact-restaurant-card");
+    expect(personalized.dataset.cardLayout).toBe("reveal");
+    expect(personalized.className).toContain("grid-rows-[minmax(0,1fr)_auto]");
+    expect(screen.getByTestId("compact-card-layout").className).toBe(regularLayout);
+    expect(screen.getByTestId("compact-card-footer").className).toBe(regularFooter);
+  });
+
   it("offers Why Fiyu found it as its own disclosure-style action without intercepting card or save actions", () => {
     const details = vi.fn();
     const open = vi.fn();

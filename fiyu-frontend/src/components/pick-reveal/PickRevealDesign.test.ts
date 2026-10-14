@@ -10,9 +10,15 @@ const css = readFileSync(
 
 describe("shared concealed Pick design", () => {
   it("uses one compact bounded frame for every Pick variant", () => {
-    expect(css).toContain("--pick-card-aspect-ratio: 16 / 9");
+    expect(css).toContain("--pick-card-aspect-ratio: 3 / 2");
     expect(css).toContain("width: 100%");
-    expect(css).toContain("max-block-size: 15rem");
+    expect(css).toContain("max-block-size: 14rem");
+  });
+
+  it("keeps the front fixed while reserving overflow for intentional content only", () => {
+    expect(css).toContain(".stage.cardFrame .restaurantFace");
+    expect(css).toContain("overflow: hidden");
+    expect(css).not.toContain(".stage.cardFrame .restaurantFace {\n  min-height: 0;\n  overflow-y: auto");
   });
 
   it("uses semantic regular and Personalized stationery surfaces", () => {

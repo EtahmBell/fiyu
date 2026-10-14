@@ -197,7 +197,7 @@ export function PersonalizedPickModal({
                     selectionPosition !== null && selectionPosition !== position && styles.withheldCard,
                     "group min-w-0 rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-personalized disabled:cursor-wait",
                   )}
-                  data-pick-card-ratio="16/9"
+                  data-pick-card-ratio="3/2"
                   data-reveal-active={selectionPosition === position && transition.active ? "true" : "false"}
                   data-reveal-variant="personalized"
                 >
