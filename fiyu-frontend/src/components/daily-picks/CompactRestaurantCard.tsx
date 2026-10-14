@@ -448,7 +448,13 @@ export function CompactRestaurantCard({
               price leads on the left.
             */}
             {(budget || showReadToggle) && (
-              <div className={cardLayout.bodyRow} data-testid="compact-card-price-row">
+              <div
+                className={cn(
+                  cardLayout.bodyRow,
+                  fixedReveal && descriptionExpanded && REVEAL_CARD_LAYOUT.bodyRowExpanded,
+                )}
+                data-testid="compact-card-price-row"
+              >
                 {showReadToggle && (
                   <button
                     type="button"

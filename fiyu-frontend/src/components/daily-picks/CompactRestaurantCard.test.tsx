@@ -146,7 +146,16 @@ describe("compact restaurant card content", () => {
     render(
       <CompactRestaurantCard
         restaurant={restaurant({
+          name_ja: "カラオケスナック 唄い場 るみ",
           description_en: "A long editorial description with enough detail to require expansion. ".repeat(8),
+          budget: {
+            currency: "JPY",
+            minimum: 2000,
+            maximum: 3000,
+            band: "budget",
+            source_type: "researched_source",
+            confidence: 0.9,
+          },
         })}
         layout="reveal"
         saved={false}
@@ -158,7 +167,10 @@ describe("compact restaurant card content", () => {
 
     const card = screen.getByTestId("compact-restaurant-card");
     const description = screen.getByText(/A long editorial description/);
+    const priceRow = screen.getByTestId("compact-card-price-row");
     expect(card.dataset.descriptionExpanded).toBe("false");
+    expect(priceRow.className).toContain("mt-auto");
+    expect(priceRow.className).not.toContain("mt-2!");
     fireEvent.click(screen.getByRole("button", { name: "Read more" }));
 
     expect(card.dataset.descriptionExpanded).toBe("true");
@@ -170,11 +182,12 @@ describe("compact restaurant card content", () => {
     expect(description.parentElement?.parentElement?.className).not.toContain("overflow-y-auto");
     expect(screen.getByRole("button", { name: "Show less" }).getAttribute("aria-expanded")).toBe("true");
     expect(screen.getByTestId("compact-card-footer")).toBeTruthy();
-    expect(screen.getByTestId("compact-card-price-row")).toBeTruthy();
+    expect(priceRow.className).toContain("mt-2!");
 
     fireEvent.click(screen.getByRole("button", { name: "Show less" }));
     expect(card.dataset.descriptionExpanded).toBe("false");
     expect(card.className).not.toContain("h-auto!");
+    expect(priceRow.className).not.toContain("mt-2!");
   });
 
   it("uses the same fixed revealed layout for regular and Personalized card tones", () => {

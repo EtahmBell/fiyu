@@ -70,6 +70,7 @@ export const REVEAL_CARD_LAYOUT = {
   descriptionClampHeight: "h-9",
   bodyRow:
     "mt-auto mb-1 flex min-w-0 flex-row-reverse flex-nowrap items-center justify-between gap-x-2",
+  bodyRowExpanded: "mt-2!",
   readMore:
     "-mr-1 inline-flex min-h-5 shrink-0 items-center px-1 text-[0.8125rem] font-medium",
   price:
