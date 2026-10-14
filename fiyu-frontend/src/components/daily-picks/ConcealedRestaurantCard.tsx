@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { CompactRestaurantCard } from "@/components/daily-picks/CompactRestaurantCard";
+import { PickCardBack } from "@/components/pick-reveal/PickCardBack";
 import revealStyles from "@/components/pick-reveal/PickReveal.module.css";
 import {
   PICK_REVEAL_CROSSFADE_MS,
@@ -62,7 +63,7 @@ export function ConcealedRestaurantCard({
         "rounded-card",
       )}
       data-testid={revealed ? "revealed-restaurant-card" : "concealed-restaurant-card"}
-      data-pick-card-ratio="11/8"
+      data-pick-card-ratio="16/9"
       data-gold-treatment={gold ? "true" : "false"}
       data-reveal-motion={transition.phase}
       data-reveal-phase={transition.phase}
@@ -92,9 +93,12 @@ export function ConcealedRestaurantCard({
             restoreFocus.current = event.detail === 0;
             onReveal();
           }}
-          className="flex size-full select-none items-center justify-center rounded-card text-center hover:bg-lavender-100/35 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600 disabled:cursor-wait"
+          className={cn(
+            revealStyles.backButton,
+            "size-full select-none rounded-card text-center focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600 disabled:cursor-wait",
+          )}
         >
-          <span className={revealStyles.wordmark}>Fiyu</span>
+          <PickCardBack />
         </button>
       </div>
       {revealed ? (

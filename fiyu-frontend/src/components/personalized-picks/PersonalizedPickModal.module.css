@@ -2,12 +2,6 @@
   transition-property: transform, box-shadow, border-color, opacity;
 }
 
-.hiddenCard:not(:disabled):hover,
-.hiddenCard:not(:disabled):focus-visible {
-  transform: translateY(-2px);
-  border-color: var(--color-personalized);
-}
-
 .withheldCard {
   pointer-events: none;
   opacity: 0;

@@ -140,6 +140,15 @@
   --color-personalized: #c79a32;
   --color-personalized-700: #765813;
 
+  /* Concealed Picks: quiet stationery surfaces shared by every reveal flow. */
+  --color-pick-card-surface: #f1ebf1;
+  --color-pick-card-border: #dcd2dc;
+  --color-pick-card-ink: #403544;
+  --color-pick-card-muted: #695d6d;
+  --color-pick-card-personalized-surface: #f7f0df;
+  --shadow-pick-card: 0 1px 2px rgb(49 40 61 / 0.045),
+    0 9px 20px -18px rgb(49 40 61 / 0.32);
+
   --color-rose-dust: #c58f98;
 
   --color-status-open: #2c6a45;

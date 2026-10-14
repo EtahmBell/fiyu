@@ -28,7 +28,8 @@ describe("Pick reveal", () => {
       expect(screen.getByTestId("concealed-restaurant-card").dataset.goldTreatment).toBe("false");
     }
     const button = screen.getByRole("button", { name: "Reveal Fiyu Pick 1" });
-    expect(button.textContent?.trim()).toBe("Fiyu");
+    expect(button.textContent).toContain("Fiyu");
+    expect(button.textContent).toContain("Reveal");
     expect(button.textContent).not.toContain("Tap to reveal");
     expect(button.textContent).not.toContain("Pick 01");
     expect(screen.getByTestId("concealed-restaurant-card").dataset.revealVariant).toBe("regular");
@@ -39,25 +40,28 @@ describe("Pick reveal", () => {
     expect(screen.queryByTestId("revealed-restaurant-card")).toBeNull();
   });
 
-  it("uses the shared 11:8 frame before and after reveal without hidden identity", () => {
+  it("uses the shared compact 16:9 frame before and after reveal without hidden identity", () => {
     const { rerender } = render(<ConcealedRestaurantCard {...props} revealed={false} />);
     const frame = screen.getByTestId("concealed-restaurant-card");
-    expect(frame.dataset.pickCardRatio).toBe("11/8");
+    expect(frame.dataset.pickCardRatio).toBe("16/9");
     expect(frame.className).toContain("cardFrame");
     expect(screen.queryByLabelText(/Fiyu score/)).toBeNull();
     rerender(<ConcealedRestaurantCard {...props} revealed />);
     settle();
     const revealedFrame = screen.getByTestId("revealed-restaurant-card");
     expect(revealedFrame).toBe(frame);
-    expect(revealedFrame.dataset.pickCardRatio).toBe("11/8");
+    expect(revealedFrame.dataset.pickCardRatio).toBe("16/9");
   });
 
-  it("keeps CSS-only back decoration out of the accessible content", () => {
+  it("keeps the maker mark decorative while Fiyu and Reveal remain readable", () => {
     render(<ConcealedRestaurantCard {...props} revealed={false} />);
     const button = screen.getByRole("button", { name: "Reveal Fiyu Pick 1" });
-    expect(button.textContent?.trim()).toBe("Fiyu");
-    expect(screen.getByTestId("pick-hidden-face").querySelectorAll("[aria-hidden='true']"))
-      .toHaveLength(0);
+    expect(button.textContent).toContain("Fiyu");
+    expect(button.textContent).toContain("Reveal");
+    const decorative = screen.getByTestId("pick-hidden-face")
+      .querySelectorAll("[aria-hidden='true']");
+    expect(decorative).toHaveLength(2);
+    expect(decorative[0].querySelectorAll("span")).toHaveLength(3);
   });
 
   it("keeps pending requests concealed and disabled", () => {

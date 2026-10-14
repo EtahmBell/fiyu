@@ -9,9 +9,11 @@
  * this on the reveal stage; Personalized Picks use it on each choice card.
  */
 .cardFrame {
-  --pick-card-aspect-ratio: 11 / 8;
+  --pick-card-aspect-ratio: 16 / 9;
 
+  width: 100%;
   aspect-ratio: var(--pick-card-aspect-ratio);
+  max-block-size: 15rem;
   min-width: 0;
 }
 
@@ -76,8 +78,8 @@
   position: relative;
   overflow: hidden;
   transition:
-    transform 110ms ease-out,
-    box-shadow 110ms ease-out,
+    transform 170ms var(--ease-fiyu),
+    box-shadow 170ms var(--ease-fiyu),
     border-color 180ms ease-out,
     opacity 160ms ease-out;
 }
@@ -87,87 +89,99 @@
 }
 
 .hiddenSurface {
-  container-type: inline-size;
   isolation: isolate;
   display: flex;
   align-items: center;
   justify-content: center;
   border: 1px solid;
-  box-shadow: var(--shadow-paper);
+  border-color: var(--pick-card-border);
+  background: var(--pick-card-surface);
+  box-shadow: var(--shadow-pick-card);
+  color: var(--pick-card-ink);
 }
 
-.hiddenSurface::before,
-.hiddenSurface::after {
+.backButton,
+.backContent {
+  position: relative;
+  display: block;
+}
+
+.backContent {
+  width: 100%;
+  height: 100%;
   pointer-events: none;
-  position: absolute;
-  z-index: 0;
-  content: "";
-}
-
-/* A cropped typographic watermark, using the same serif as the wordmark. */
-.hiddenSurface::before {
-  top: 50%;
-  left: -2cqw;
-  color: var(--pick-back-decoration);
-  content: "F";
-  font-family: var(--font-display);
-  font-size: min(86cqw, 22rem);
-  line-height: 0.72;
-  opacity: 0.055;
-  transform: translateY(-49%);
-}
-
-/* A single printed rule that quietly shares the reveal shine's direction. */
-.hiddenSurface::after {
-  top: 31%;
-  left: -12%;
-  width: 124%;
-  height: 1px;
-  background: linear-gradient(
-    90deg,
-    transparent 4%,
-    color-mix(in srgb, var(--pick-back-decoration) 5%, transparent) 24%,
-    color-mix(in srgb, var(--pick-back-decoration) 5%, transparent) 76%,
-    transparent 96%
-  );
-  transform: rotate(32deg);
-  transform-origin: center;
 }
 
 .wordmark {
-  position: relative;
+  position: absolute;
   z-index: 1;
+  top: 50%;
+  left: 50%;
   font-family: var(--font-display);
-  font-size: clamp(1.75rem, 8cqw, 2.5rem);
+  font-size: clamp(1.75rem, 7vw, 2.25rem);
   line-height: 1;
   letter-spacing: -0.015em;
+  transform: translate(-50%, -50%);
+}
+
+.makerMark {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  display: flex;
+  gap: 0.25rem;
+  color: var(--pick-card-muted);
+  opacity: 0.48;
+}
+
+.makerMark > span {
+  width: 0.2rem;
+  height: 0.2rem;
+  border-radius: 999px;
+  background: currentcolor;
+}
+
+.revealAffordance {
+  position: absolute;
+  right: 1rem;
+  bottom: 0.85rem;
+  color: var(--pick-card-muted);
+  font-family: var(--font-sans);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  transition: color 170ms ease-out;
 }
 
 .hiddenSurface[data-reveal-variant="regular"],
 .hiddenSurface[data-reveal-variant="together"] {
-  --pick-back-decoration: var(--color-plum);
-
-  border-color: color-mix(in srgb, var(--color-lavender-500) 24%, var(--color-paper-line));
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--color-lavender-50) 90%, white) 0%,
-    var(--color-lavender-50) 55%,
-    color-mix(in srgb, var(--color-lavender-50) 78%, var(--color-lavender-100)) 100%
-  );
-  color: var(--color-plum);
+  --pick-card-surface: var(--color-pick-card-surface);
+  --pick-card-border: var(--color-pick-card-border);
+  --pick-card-ink: var(--color-pick-card-ink);
+  --pick-card-muted: var(--color-pick-card-muted);
 }
 
 .hiddenSurface[data-reveal-variant="personalized"] {
-  --pick-back-decoration: var(--color-personalized);
+  --pick-card-surface: var(--color-pick-card-personalized-surface);
+  --pick-card-border: var(--color-personalized-line);
+  --pick-card-ink: var(--color-personalized-700);
+  --pick-card-muted: #715a27;
+}
 
-  border-color: var(--color-personalized-line);
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--color-personalized-soft) 88%, white) 0%,
-    var(--color-personalized-soft) 56%,
-    color-mix(in srgb, var(--color-personalized-soft) 92%, var(--color-personalized)) 100%
-  );
-  color: var(--color-personalized-700);
+@media (hover: hover) and (pointer: fine) {
+  .motionTarget:not([data-reveal-active="true"]):hover {
+    transform: translateY(-1px);
+    box-shadow: 0 10px 22px -19px rgb(49 40 61 / 0.45);
+  }
+
+  .motionTarget:not([data-reveal-active="true"]):hover .hiddenSurface,
+  .motionTarget.hiddenSurface:not([data-reveal-active="true"]):hover {
+    border-color: color-mix(in srgb, var(--pick-card-border) 72%, var(--pick-card-ink));
+  }
+
+  .motionTarget:not([data-reveal-active="true"]):hover .revealAffordance {
+    color: var(--pick-card-ink);
+  }
 }
 
 .shineOverlay {
@@ -219,6 +233,10 @@
     animation: none;
     transform: none;
     transition: opacity 150ms ease-out;
+  }
+
+  .motionTarget:not([data-reveal-active="true"]):hover {
+    transform: none;
   }
 
   .shineOverlay {

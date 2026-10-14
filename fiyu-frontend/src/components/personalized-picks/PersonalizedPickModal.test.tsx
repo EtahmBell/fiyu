@@ -62,8 +62,9 @@ describe("Personalized Pick event modal", () => {
     expect(screen.getByRole("dialog", { name: "Something for you" })).toBeTruthy();
     const cards = screen.getAllByRole("button", { name: /Choose hidden card/ });
     expect(cards).toHaveLength(3);
-    expect(cards.map((card) => card.textContent?.trim())).toEqual(["Fiyu", "Fiyu", "Fiyu"]);
-    expect(cards.every((card) => card.dataset.pickCardRatio === "11/8")).toBe(true);
+    expect(cards.every((card) => card.textContent?.includes("Fiyu"))).toBe(true);
+    expect(cards.every((card) => card.textContent?.includes("Reveal"))).toBe(true);
+    expect(cards.every((card) => card.dataset.pickCardRatio === "16/9")).toBe(true);
     expect(cards.every((card) => card.className.includes("cardFrame"))).toBe(true);
     expect(cards.every((card) => card.getAttribute("data-reveal-variant") === "personalized"))
       .toBe(true);

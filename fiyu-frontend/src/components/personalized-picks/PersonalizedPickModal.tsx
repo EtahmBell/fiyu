@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { PickCardBack } from "@/components/pick-reveal/PickCardBack";
 import revealStyles from "@/components/pick-reveal/PickReveal.module.css";
 import { usePickRevealTransition } from "@/components/pick-reveal/usePickRevealTransition";
 import { RestaurantPhoto } from "@/components/restaurant/RestaurantPhoto";
@@ -173,7 +174,7 @@ export function PersonalizedPickModal({
             <p id="personalized-pick-description" className="mt-3 text-sm leading-6 text-ink-body">
               Fiyu has three places in mind. Pick one.
             </p>
-            <div className="mt-7 grid grid-cols-3 gap-3 sm:gap-5" aria-label="Three hidden restaurant cards">
+            <div className="mt-7 grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-5" aria-label="Three hidden restaurant cards">
               {[0, 1, 2].map((position) => (
                 <button
                   key={position}
@@ -196,13 +197,11 @@ export function PersonalizedPickModal({
                     selectionPosition !== null && selectionPosition !== position && styles.withheldCard,
                     "group min-w-0 rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-personalized disabled:cursor-wait",
                   )}
-                  data-pick-card-ratio="11/8"
+                  data-pick-card-ratio="16/9"
                   data-reveal-active={selectionPosition === position && transition.active ? "true" : "false"}
                   data-reveal-variant="personalized"
                 >
-                  <span aria-hidden="true" className={revealStyles.wordmark}>
-                    Fiyu
-                  </span>
+                  <PickCardBack />
                   <span
                     aria-hidden="true"
                     className={revealStyles.shineOverlay}

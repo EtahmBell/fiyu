@@ -36,6 +36,10 @@ const settleVisualReveals = async () => {
   await act(async () => { await vi.advanceTimersByTimeAsync(40); });
   await act(async () => { await vi.advanceTimersByTimeAsync(400); });
 };
+const expectConcealedBack = (button: HTMLElement) => {
+  expect(button.textContent).toContain("Fiyu");
+  expect(button.textContent).toContain("Reveal");
+};
 beforeEach(() => {
   vi.useFakeTimers(); ids = []; window.localStorage.clear(); clearAccountQueries();
   vi.spyOn(api, "fetchActiveDailyPicks").mockImplementation(async () => assignment());
@@ -57,19 +61,18 @@ describe("canonical Pick reveals", () => {
     const button = screen.getByRole("button", { name: "Reveal Fiyu Pick 1" });
     fireEvent.click(button); fireEvent.click(button);
     expect(api.revealDailyPicks).toHaveBeenCalledTimes(1);
-    expect(button.textContent?.trim()).toBe("Fiyu");
+    expectConcealedBack(button);
     expect(button.getAttribute("aria-busy")).toBe("true");
     for (const position of [2, 3]) {
       const other = screen.getByRole("button", { name: `Reveal Fiyu Pick ${position}` });
-      expect(other.textContent?.trim()).toBe("Fiyu");
+      expectConcealedBack(other);
       expect(other.getAttribute("aria-busy")).toBe("false");
     }
     expect(screen.queryByTestId("revealed-restaurant-card")).toBeNull();
     expect(browserDailyPicksStorage("reveal-test").getSnapshot()?.discoveries).toEqual([]);
     await act(async () => resolve(result("1")));
     expect(screen.getByTestId("revealed-restaurant-card").dataset.revealMotion).not.toBe("revealed");
-    expect(screen.getByRole("button", { name: "Reveal Fiyu Pick 2" }).textContent)
-      .toBe("Fiyu");
+    expectConcealedBack(screen.getByRole("button", { name: "Reveal Fiyu Pick 2" }));
     expect(browserDailyPicksStorage("reveal-test").getSnapshot()?.selection?.revealedIds).toEqual(["1"]);
   });
 
@@ -82,7 +85,7 @@ describe("canonical Pick reveals", () => {
 
     for (const position of [1, 2, 3]) {
       const button = screen.getByRole("button", { name: `Reveal Fiyu Pick ${position}` });
-      expect(button.textContent?.trim()).toBe("Fiyu");
+      expectConcealedBack(button);
       expect(button.getAttribute("aria-busy")).toBe("true");
     }
 
