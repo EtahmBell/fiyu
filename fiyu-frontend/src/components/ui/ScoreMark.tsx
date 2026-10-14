@@ -45,12 +45,12 @@ const SIZES: Record<ScoreMarkSize, SizeSpec> = {
     ruleGap: "mt-1 lg:mt-1.5",
   },
   reveal: {
-    numeral: "text-[1.375rem]",
+    numeral: "text-[1.75rem]",
     label: "text-[0.625rem]",
-    rule: "w-5",
+    rule: "w-6",
     zone: "px-2.5 pt-2 pb-2.5",
     numeralGap: "mt-0.5",
-    ruleGap: "mt-0.5",
+    ruleGap: "mt-1",
   },
 };
 

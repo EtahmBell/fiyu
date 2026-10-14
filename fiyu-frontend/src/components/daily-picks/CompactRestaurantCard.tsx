@@ -294,6 +294,7 @@ export function CompactRestaurantCard({
       data-testid="compact-restaurant-card"
       data-tone={tone}
       data-card-layout={layout}
+      data-description-expanded={descriptionExpanded ? "true" : "false"}
       data-score-treatment={exceptional ? "exceptional" : "standard"}
       role={onOpen ? "button" : undefined}
       tabIndex={onOpen ? 0 : undefined}
@@ -310,6 +311,7 @@ export function CompactRestaurantCard({
         // A sheet of card paper: warm hairline edge, one barely-there fall of
         // shadow, and 16px of breathing room (20px on desktop).
         cardLayout.frame,
+        fixedReveal && descriptionExpanded && REVEAL_CARD_LAYOUT.frameExpanded,
         "border-paper-line bg-surface shadow-paper",
         // The one coloured edge: a 3px accent across the top, clipped by the
         // card's own radius, so it reads as a printed rule rather than an
@@ -330,7 +332,10 @@ export function CompactRestaurantCard({
     >
       <div
         data-testid="compact-card-layout"
-        className={cardLayout.main}
+        className={cn(
+          cardLayout.main,
+          fixedReveal && descriptionExpanded && REVEAL_CARD_LAYOUT.mainExpanded,
+        )}
       >
         <div className={cardLayout.header}>
           <div className={cardLayout.titleBlock}>
@@ -384,7 +389,7 @@ export function CompactRestaurantCard({
               cardLayout.photo,
               descriptionExpanded
                 ? fixedReveal
-                  ? "float-left mr-2.5 mb-1 w-[4.75rem]"
+                  ? "float-left mr-3 mb-1 w-[5.625rem]"
                   : "float-left mr-3 mb-1 w-[6.75rem] lg:mr-4 lg:w-[34%]"
                 : "w-full",
             )}
@@ -440,7 +445,7 @@ export function CompactRestaurantCard({
                       fixedReveal ? "before:-inset-y-3" : "before:-inset-y-2",
                     )}
                   >
-                    {descriptionExpanded ? "Read less" : "Read more"}
+                    {descriptionExpanded ? (fixedReveal ? "Show less" : "Read less") : "Read more"}
                   </button>
                 )}
                 {budget && (

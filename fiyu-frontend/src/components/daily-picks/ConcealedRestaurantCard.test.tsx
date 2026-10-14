@@ -40,17 +40,17 @@ describe("Pick reveal", () => {
     expect(screen.queryByTestId("revealed-restaurant-card")).toBeNull();
   });
 
-  it("uses the shared compact 3:2 frame before and after reveal without hidden identity", () => {
+  it("uses the shared stable daily frame before and after reveal without hidden identity", () => {
     const { rerender } = render(<ConcealedRestaurantCard {...props} revealed={false} />);
     const frame = screen.getByTestId("concealed-restaurant-card");
-    expect(frame.dataset.pickCardRatio).toBe("3/2");
+    expect(frame.dataset.pickCardSize).toBe("daily-reveal");
     expect(frame.className).toContain("cardFrame");
     expect(screen.queryByLabelText(/Fiyu score/)).toBeNull();
     rerender(<ConcealedRestaurantCard {...props} revealed />);
     settle();
     const revealedFrame = screen.getByTestId("revealed-restaurant-card");
     expect(revealedFrame).toBe(frame);
-    expect(revealedFrame.dataset.pickCardRatio).toBe("3/2");
+    expect(revealedFrame.dataset.pickCardSize).toBe("daily-reveal");
     expect(screen.getByTestId("compact-restaurant-card").dataset.cardLayout).toBe("reveal");
   });
 

@@ -43,7 +43,20 @@
 }
 
 .stage.cardFrame {
+  aspect-ratio: auto;
+  block-size: 15rem;
+  max-block-size: none;
   overflow: hidden;
+}
+
+/*
+ * Daily Pick backs and collapsed fronts share one stable frame. Once the
+ * reader explicitly expands the editorial copy, only that card is released
+ * to its natural height; the footer then follows the content instead of an
+ * inner scroll pane.
+ */
+.stage.cardFrame:has([data-description-expanded="true"]) {
+  block-size: auto;
 }
 
 .stage.cardFrame .restaurantFace {
@@ -53,6 +66,12 @@
 
 .stage.cardFrame .restaurantFace > * {
   min-height: 100%;
+}
+
+@media (min-width: 48rem) {
+  .stage.cardFrame {
+    block-size: 15.625rem;
+  }
 }
 
 .stage[data-reveal-phase="revealing"] .hiddenFace,

@@ -63,7 +63,7 @@ export function ConcealedRestaurantCard({
         "rounded-card",
       )}
       data-testid={revealed ? "revealed-restaurant-card" : "concealed-restaurant-card"}
-      data-pick-card-ratio="3/2"
+      data-pick-card-size="daily-reveal"
       data-gold-treatment={gold ? "true" : "false"}
       data-reveal-motion={transition.phase}
       data-reveal-phase={transition.phase}

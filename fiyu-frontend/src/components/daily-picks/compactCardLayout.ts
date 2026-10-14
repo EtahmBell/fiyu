@@ -43,27 +43,29 @@ export const CARD_LAYOUT = {
 } as const;
 
 /**
- * Fixed reveal fronts reserve their footer before laying out variable copy.
- * Only the middle region may scroll (after an explicit Read more); the outer
- * card never clips or scrolls its primary actions.
+ * Collapsed reveal fronts reserve their footer before laying out variable
+ * copy. An explicit Read more releases the front to natural height; no inner
+ * region scrolls independently of the card.
  */
 export const REVEAL_CARD_LAYOUT = {
   frame:
-    "relative grid size-full min-w-0 grid-rows-[minmax(0,1fr)_auto] overflow-hidden rounded-card border px-3 pt-2 pb-0.5",
+    "relative grid size-full min-w-0 grid-rows-[minmax(0,1fr)_auto] overflow-hidden rounded-card border px-4 pt-3.5 pb-1",
+  frameExpanded: "h-auto! min-h-full grid-rows-[auto_auto] overflow-visible",
   main: "grid min-h-0 min-w-0 grid-rows-[auto_minmax(0,1fr)]",
-  header: "flex min-w-0 items-start justify-between gap-2",
+  mainExpanded: "grid-rows-[auto_auto]",
+  header: "flex min-w-0 items-start justify-between gap-2.5",
   titleBlock: "min-w-0 flex-1",
-  title: "line-clamp-2 break-words font-display text-[1.1875rem] leading-[1.2rem]!",
-  secondary: "line-clamp-1 break-words text-xs leading-4",
+  title: "line-clamp-2 break-words font-display text-xl leading-[1.4rem]!",
+  secondary: "line-clamp-1 break-words text-[0.8125rem] leading-[1.125rem]",
   score: "mt-0",
-  body: "min-h-0 min-w-0",
-  bodyGrid: "grid grid-cols-[4.75rem_minmax(0,1fr)] gap-2.5 overflow-hidden",
-  bodyExpanded: "overflow-y-auto pr-1",
-  photo: "h-[4.75rem] min-w-0",
+  body: "mt-1 min-h-0 min-w-0",
+  bodyGrid: "grid grid-cols-[5.625rem_minmax(0,1fr)] gap-3 overflow-hidden",
+  bodyExpanded: "overflow-visible py-1",
+  photo: "h-[5.625rem] min-w-0",
   textColumn: "flex min-h-0 min-w-0 flex-col",
-  textColumnResting: "h-[4.75rem]",
-  description: "text-sm leading-4",
-  descriptionClampHeight: "h-8",
+  textColumnResting: "h-[5.625rem]",
+  description: "text-sm leading-[1.125rem]",
+  descriptionClampHeight: "h-9",
   bodyRow:
     "mt-auto flex min-w-0 flex-row-reverse flex-nowrap items-center justify-between gap-x-2",
   readMore:
@@ -71,7 +73,7 @@ export const REVEAL_CARD_LAYOUT = {
   price:
     "mr-auto shrink-0 text-[0.8125rem] leading-5 font-medium whitespace-nowrap tabular-nums",
   tags: "hidden",
-  footer: "relative z-10 min-w-0 self-end",
+  footer: "relative z-10 min-w-0 self-end pt-1",
   actionRow: "flex min-h-10 min-w-0 items-center gap-2 border-t",
   viewAction: "min-h-10",
   saveAction: "size-10 shrink-0",

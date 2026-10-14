@@ -9,15 +9,19 @@ const css = readFileSync(
 );
 
 describe("shared concealed Pick design", () => {
-  it("uses one compact bounded frame for every Pick variant", () => {
+  it("keeps choice cards bounded while giving daily Picks a stable readable frame", () => {
     expect(css).toContain("--pick-card-aspect-ratio: 3 / 2");
     expect(css).toContain("width: 100%");
     expect(css).toContain("max-block-size: 14rem");
+    expect(css).toContain("block-size: 15rem");
+    expect(css).toContain("block-size: 15.625rem");
   });
 
-  it("keeps the front fixed while reserving overflow for intentional content only", () => {
+  it("keeps collapsed fronts fixed and lets explicitly expanded copy grow naturally", () => {
     expect(css).toContain(".stage.cardFrame .restaurantFace");
     expect(css).toContain("overflow: hidden");
+    expect(css).toContain(':has([data-description-expanded="true"])');
+    expect(css).toContain("block-size: auto");
     expect(css).not.toContain(".stage.cardFrame .restaurantFace {\n  min-height: 0;\n  overflow-y: auto");
   });
 

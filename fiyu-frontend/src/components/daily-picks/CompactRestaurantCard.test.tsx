@@ -64,7 +64,7 @@ afterEach(() => {
 });
 
 describe("compact restaurant card content", () => {
-  it("reserves a dense fixed reveal front for long English and Japanese content", () => {
+  it("reserves a readable fixed reveal front for long English and Japanese content", () => {
     const value = restaurant({
       name_ja: "カラオケスナック 唄い場 るみ カラオケスナック 唄い場 るみ",
       name_en: "Melody Thai & Asia Unplugged Restaurant with a deliberately long alternate name",
@@ -93,18 +93,52 @@ describe("compact restaurant card content", () => {
     expect(card.className).toContain("grid-rows-[minmax(0,1fr)_auto]");
     expect(card.className).toContain("size-full");
     const title = screen.getByRole("heading", { level: 3 });
-    expect(title.className).toContain("text-[1.1875rem]");
+    expect(title.className).toContain("text-xl");
     expect(title.className).toContain("line-clamp-2");
     expect(screen.getByText(/Melody Thai/).className).toContain("line-clamp-1");
-    expect(screen.getByTestId("restaurant-photo-region").className).toContain("h-[4.75rem]");
+    expect(screen.getByTestId("restaurant-photo-region").className).toContain("h-[5.625rem]");
     expect(screen.getByText(/A long editorial description/).className).toContain("line-clamp-2");
-    expect(screen.getByText("8.7").className).toContain("text-[1.375rem]");
+    expect(screen.getByText("8.7").className).toContain("text-[1.75rem]");
     expect(screen.getByTestId("compact-card-footer").className).toContain("self-end");
     expect(screen.getByRole("button", { name: "View restaurant" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Save restaurant" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Why Fiyu found it" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "Open in Google Maps" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "Open in Apple Maps" })).toBeTruthy();
+  });
+
+  it("grows a revealed card naturally for full copy without an internal scroll pane", () => {
+    render(
+      <CompactRestaurantCard
+        restaurant={restaurant({
+          description_en: "A long editorial description with enough detail to require expansion. ".repeat(8),
+        })}
+        layout="reveal"
+        saved={false}
+        onToggleSaved={() => {}}
+        onViewDetails={() => {}}
+      />,
+    );
+    setDescriptionLayout(144, 36);
+
+    const card = screen.getByTestId("compact-restaurant-card");
+    const description = screen.getByText(/A long editorial description/);
+    expect(card.dataset.descriptionExpanded).toBe("false");
+    fireEvent.click(screen.getByRole("button", { name: "Read more" }));
+
+    expect(card.dataset.descriptionExpanded).toBe("true");
+    expect(card.className).toContain("h-auto!");
+    expect(card.className).toContain("overflow-visible");
+    expect(screen.getByTestId("compact-card-layout").className).toContain("grid-rows-[auto_auto]");
+    expect(description.className).not.toContain("line-clamp-2");
+    expect(description.parentElement?.parentElement?.className).toContain("overflow-visible");
+    expect(description.parentElement?.parentElement?.className).not.toContain("overflow-y-auto");
+    expect(screen.getByRole("button", { name: "Show less" }).getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getByTestId("compact-card-footer")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Show less" }));
+    expect(card.dataset.descriptionExpanded).toBe("false");
+    expect(card.className).not.toContain("h-auto!");
   });
 
   it("uses the same fixed revealed layout for regular and Personalized card tones", () => {
