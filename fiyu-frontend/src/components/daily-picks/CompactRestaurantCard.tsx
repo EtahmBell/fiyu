@@ -62,9 +62,9 @@ export function compactCardContent(restaurant: PublicRestaurant) {
   const title = restaurant.name_ja?.trim() || englishName || "Unnamed restaurant";
   const titleLang: "ja" | "en" = restaurant.name_ja?.trim() ? "ja" : "en";
   const subtitle = englishName && !sameDisplayName(englishName, title) ? englishName : null;
-  // With no distinct romanization -- no English name, or one that only repeats
-  // the title (SILVER SPOON / Silver Spoon) -- the secondary line carries the
-  // cuisine and area the card already has instead.
+  // Identity and location remain separate even when one of them is absent.
+  // Standard cards may choose one compact secondary line; reveal fronts have
+  // room to place a genuine alternate name above their media row.
   const metadata = restaurantMetadataParts(englishStructuredValue(restaurant.category), {
     display_area: englishStructuredValue(restaurant.display_area),
     neighborhood: englishStructuredValue(restaurant.neighborhood),
@@ -73,6 +73,8 @@ export function compactCardContent(restaurant: PublicRestaurant) {
   return {
     title,
     titleLang,
+    alternateName: subtitle,
+    metadata: metadata || null,
     secondaryLine: subtitle ?? (metadata || null),
     description: compactDescription(restaurant),
     tags: englishCardTags(restaurant),
@@ -199,7 +201,16 @@ export function CompactRestaurantCard({
   const cardLayout = layout === "reveal" ? REVEAL_CARD_LAYOUT : CARD_LAYOUT;
   const fixedReveal = layout === "reveal";
   const history = tone === "history";
-  const { title, titleLang, secondaryLine, description, tags, budget } =
+  const {
+    title,
+    titleLang,
+    alternateName,
+    metadata,
+    secondaryLine,
+    description,
+    tags,
+    budget,
+  } =
     compactCardContent(restaurant);
   const exceptional = tone === "current" && hasGoldFiyuTreatment(restaurant.fiyu_score);
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
@@ -357,6 +368,14 @@ export function CompactRestaurantCard({
                 {secondaryLine}
               </p>
             )}
+            {alternateName && fixedReveal && (
+              <p
+                data-testid="compact-card-alternate-name"
+                className={cn(REVEAL_CARD_LAYOUT.alternateName, "text-ink-muted")}
+              >
+                {alternateName}
+              </p>
+            )}
           </div>
 
           {/*
@@ -376,6 +395,7 @@ export function CompactRestaurantCard({
         <div
           className={cn(
             cardLayout.body,
+            fixedReveal && !alternateName && REVEAL_CARD_LAYOUT.bodyWithoutAlternate,
             descriptionExpanded
               ? cn("flow-root", fixedReveal && REVEAL_CARD_LAYOUT.bodyExpanded)
               : cardLayout.bodyGrid,
@@ -395,14 +415,17 @@ export function CompactRestaurantCard({
             )}
           />
           <div className={cn(cardLayout.textColumn, !descriptionExpanded && cardLayout.textColumnResting)}>
-            {fixedReveal && (secondaryLine || tone === "personalized") && (
-              <p className={cn(cardLayout.secondary, "text-ink-muted")}>
+            {fixedReveal && (metadata || tone === "personalized") && (
+              <p
+                data-testid="compact-card-metadata"
+                className={cn(cardLayout.secondary, "text-ink-muted")}
+              >
                 {tone === "personalized" ? (
                   <span className="font-semibold tracking-[0.08em] text-personalized-700 uppercase">
-                    Picked for you{secondaryLine ? " · " : ""}
+                    Picked for you{metadata ? " · " : ""}
                   </span>
                 ) : null}
-                {secondaryLine}
+                {metadata}
               </p>
             )}
             {description && (
@@ -419,13 +442,13 @@ export function CompactRestaurantCard({
               </p>
             )}
             {/*
-              Read more and the price share one row under the description
-              instead of stacking two short lines. Read more stays first in the
-              DOM, straight after the copy it controls; the row is reversed
-              visually so the price leads on the left.
+              Read more and the price share one deliberate row under the
+              description. Read more stays first in the DOM, straight after
+              the copy it controls; the row is reversed visually so the
+              price leads on the left.
             */}
             {(budget || showReadToggle) && (
-              <div className={cardLayout.bodyRow}>
+              <div className={cardLayout.bodyRow} data-testid="compact-card-price-row">
                 {showReadToggle && (
                   <button
                     type="button"
@@ -461,12 +484,10 @@ export function CompactRestaurantCard({
               </div>
             )}
 
-          {/*
-            The expiry line is the one piece of copy on this card that is about
-            the past rather than the restaurant, so on a history card it carries
-            the discovery blue. The wording states the status on its own; the colour
-            only reinforces it.
-          */}
+            {/*
+              The expiry line is the one piece of copy on this card that is
+              about the past, so on a history card it carries discovery blue.
+            */}
             {expirationLabel && (
               <p
                 className={cn(

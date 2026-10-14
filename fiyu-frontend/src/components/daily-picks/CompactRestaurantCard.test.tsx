@@ -95,7 +95,17 @@ describe("compact restaurant card content", () => {
     const title = screen.getByRole("heading", { level: 3 });
     expect(title.className).toContain("text-xl");
     expect(title.className).toContain("line-clamp-2");
-    expect(screen.getByText(/Melody Thai/).className).toContain("line-clamp-1");
+    const alternateName = screen.getByTestId("compact-card-alternate-name");
+    const metadata = screen.getByTestId("compact-card-metadata");
+    const body = screen.getByTestId("restaurant-photo-region").parentElement;
+    expect(alternateName.textContent).toContain("Melody Thai");
+    expect(alternateName.className).toContain("line-clamp-1");
+    expect(title.compareDocumentPosition(alternateName) & Node.DOCUMENT_POSITION_FOLLOWING)
+      .toBeTruthy();
+    expect(alternateName.compareDocumentPosition(body!) & Node.DOCUMENT_POSITION_FOLLOWING)
+      .toBeTruthy();
+    expect(metadata.textContent).toBe("Izakaya / standing bar · Jingumae");
+    expect(body?.textContent).not.toContain("Melody Thai");
     expect(screen.getByTestId("restaurant-photo-region").className).toContain("h-[5.625rem]");
     expect(screen.getByText(/A long editorial description/).className).toContain("line-clamp-2");
     expect(screen.getByText("8.7").className).toContain("text-[1.75rem]");
@@ -105,6 +115,31 @@ describe("compact restaurant card content", () => {
     expect(screen.getByRole("button", { name: "Why Fiyu found it" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "Open in Google Maps" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "Open in Apple Maps" })).toBeTruthy();
+  });
+
+  it("collapses the reveal identity block when no distinct alternate name exists", () => {
+    const { rerender } = render(
+      <CompactRestaurantCard
+        restaurant={restaurant({ name_ja: null, name_en: "ANDY KEBAB" })}
+        layout="reveal"
+        saved={false}
+        onToggleSaved={() => {}}
+      />,
+    );
+    expect(screen.queryByTestId("compact-card-alternate-name")).toBeNull();
+    expect(screen.getByTestId("compact-card-metadata")).toBeTruthy();
+
+    rerender(
+      <CompactRestaurantCard
+        restaurant={restaurant({ name_ja: "ＳＩＬＶＥＲ ＳＰＯＯＮ", name_en: "Silver Spoon" })}
+        layout="reveal"
+        saved={false}
+        onToggleSaved={() => {}}
+      />,
+    );
+    expect(screen.queryByTestId("compact-card-alternate-name")).toBeNull();
+    expect(screen.getByRole("heading", { name: "ＳＩＬＶＥＲ ＳＰＯＯＮ" })).toBeTruthy();
+    expect(screen.queryByText("Silver Spoon")).toBeNull();
   });
 
   it("grows a revealed card naturally for full copy without an internal scroll pane", () => {
@@ -135,6 +170,7 @@ describe("compact restaurant card content", () => {
     expect(description.parentElement?.parentElement?.className).not.toContain("overflow-y-auto");
     expect(screen.getByRole("button", { name: "Show less" }).getAttribute("aria-expanded")).toBe("true");
     expect(screen.getByTestId("compact-card-footer")).toBeTruthy();
+    expect(screen.getByTestId("compact-card-price-row")).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "Show less" }));
     expect(card.dataset.descriptionExpanded).toBe("false");

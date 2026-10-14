@@ -13,8 +13,8 @@ describe("shared concealed Pick design", () => {
     expect(css).toContain("--pick-card-aspect-ratio: 3 / 2");
     expect(css).toContain("width: 100%");
     expect(css).toContain("max-block-size: 14rem");
-    expect(css).toContain("block-size: 15rem");
-    expect(css).toContain("block-size: 15.625rem");
+    expect(css).toContain("block-size: 16.75rem");
+    expect(css).toContain("block-size: 16.625rem");
   });
 
   it("keeps collapsed fronts fixed and lets explicitly expanded copy grow naturally", () => {

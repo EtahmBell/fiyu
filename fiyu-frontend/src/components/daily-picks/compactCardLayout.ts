@@ -56,9 +56,11 @@ export const REVEAL_CARD_LAYOUT = {
   header: "flex min-w-0 items-start justify-between gap-2.5",
   titleBlock: "min-w-0 flex-1",
   title: "line-clamp-2 break-words font-display text-xl leading-[1.4rem]!",
-  secondary: "line-clamp-1 break-words text-[0.8125rem] leading-[1.125rem]",
+  alternateName: "mt-0.5 line-clamp-1 break-words text-[0.8125rem] leading-4",
+  secondary: "mb-1 line-clamp-1 break-words text-[0.8125rem] leading-4",
   score: "mt-0",
-  body: "mt-1 min-h-0 min-w-0",
+  body: "mt-2 min-h-0 min-w-0",
+  bodyWithoutAlternate: "mt-5!",
   bodyGrid: "grid grid-cols-[5.625rem_minmax(0,1fr)] gap-3 overflow-hidden",
   bodyExpanded: "overflow-visible py-1",
   photo: "h-[5.625rem] min-w-0",
@@ -67,7 +69,7 @@ export const REVEAL_CARD_LAYOUT = {
   description: "text-sm leading-[1.125rem]",
   descriptionClampHeight: "h-9",
   bodyRow:
-    "mt-auto flex min-w-0 flex-row-reverse flex-nowrap items-center justify-between gap-x-2",
+    "mt-auto mb-1 flex min-w-0 flex-row-reverse flex-nowrap items-center justify-between gap-x-2",
   readMore:
     "-mr-1 inline-flex min-h-5 shrink-0 items-center px-1 text-[0.8125rem] font-medium",
   price:

@@ -44,7 +44,7 @@
 
 .stage.cardFrame {
   aspect-ratio: auto;
-  block-size: 15rem;
+  block-size: 16.75rem;
   max-block-size: none;
   overflow: hidden;
 }
@@ -70,7 +70,7 @@
 
 @media (min-width: 48rem) {
   .stage.cardFrame {
-    block-size: 15.625rem;
+    block-size: 16.625rem;
   }
 }
 
