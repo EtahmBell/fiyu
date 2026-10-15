@@ -280,7 +280,9 @@ def create_or_get_canonical_work(
             return dict(row), False
 
         # Existing Google IDs are already the catalog's durable external identity.
-        canonical_hint = external_place_id if provider == "google_places" else None
+        canonical_hint = (
+            external_place_id if provider in {"google", "google_places"} else None
+        )
         canonical = _canonical_row(connection, canonical_hint) if canonical_hint else None
         status: MyPickStatus = _status_from_canonical(canonical) if canonical else "pending"
         canonical_id = str(canonical["place_id"]) if canonical else None
@@ -333,6 +335,40 @@ def get_canonical_work(db_path: str | Path, work_id: str) -> dict[str, Any] | No
     return dict(row) if row is not None else None
 
 
+def inspect_claimable_canonical_work(
+    db_path: str | Path,
+    *,
+    limit: int,
+    retry_failed: bool = False,
+    work_id: str | None = None,
+    now: datetime | None = None,
+) -> list[dict[str, Any]]:
+    """Read the bounded worker selection without claiming or executing it."""
+
+    if limit < 1:
+        raise ValueError("limit must be positive")
+    current = _now(now)
+    eligible = ["pending", *(["failed_retryable"] if retry_failed else [])]
+    placeholders = ",".join("?" for _ in eligible)
+    with connect_readonly(db_path) as connection:
+        table = connection.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='my_pick_canonical_work'"
+        ).fetchone()
+        if table is None:
+            return []
+        rows = connection.execute(
+            f"""
+            SELECT * FROM my_pick_canonical_work
+            WHERE (status IN ({placeholders})
+               OR (status IN ('resolving_identity', 'researching') AND lease_expires_at <= ?))
+              AND (? IS NULL OR id = ?)
+            ORDER BY first_submitted_at, id LIMIT ?
+            """,
+            (*eligible, current, work_id, work_id, limit),
+        ).fetchall()
+    return [dict(row) for row in rows]
+
+
 def canonical_result(db_path: str | Path, work: dict[str, Any]) -> dict[str, Any]:
     """Return only user-safe canonical result fields, including unpublished rows."""
 
@@ -367,12 +403,37 @@ def canonical_result(db_path: str | Path, work: dict[str, Any]) -> dict[str, Any
     }
 
 
+def sync_account_projection(db_path: str | Path, work: dict[str, Any]) -> int:
+    """Project shared canonical state to every waiting account-owned record."""
+
+    from . import supabase_user_data
+
+    canonical = canonical_result(db_path, work)
+    return supabase_user_data.sync_my_pick_result(
+        canonical_work_id=str(work["id"]),
+        canonical_place_id=(
+            str(work["canonical_place_id"]) if work.get("canonical_place_id") else None
+        ),
+        status=str(work["status"]),
+        failure_code=(str(work["failure_code"]) if work.get("failure_code") else None),
+        score_version=(
+            str(canonical["score_version"]) if canonical.get("score_version") else None
+        ),
+        is_public=bool(canonical.get("is_public")),
+        recommendation_review_status=str(
+            canonical.get("recommendation_review_status") or "not_eligible"
+        ),
+        resolved_at=(str(work["resolved_at"]) if work.get("resolved_at") else None),
+    )
+
+
 def claim_next_canonical_work(
     db_path: str | Path,
     *,
     worker_id: str,
-    lease_seconds: int = 900,
     retry_failed: bool = False,
+    work_id: str | None = None,
+    lease_seconds: int = 900,
     now: datetime | None = None,
 ) -> dict[str, Any] | None:
     ensure_my_pick_schema(db_path)
@@ -388,11 +449,12 @@ def claim_next_canonical_work(
         row = connection.execute(
             f"""
             SELECT * FROM my_pick_canonical_work
-            WHERE status IN ({placeholders})
-               OR (status IN ('resolving_identity', 'researching') AND lease_expires_at <= ?)
+            WHERE (status IN ({placeholders})
+               OR (status IN ('resolving_identity', 'researching') AND lease_expires_at <= ?))
+              AND (? IS NULL OR id = ?)
             ORDER BY first_submitted_at, id LIMIT 1
             """,
-            (*eligible, timestamp),
+            (*eligible, timestamp, work_id, work_id),
         ).fetchone()
         if row is None:
             connection.commit()
@@ -513,6 +575,47 @@ def fail_canonical_work(
     return dict(row)
 
 
+def finish_canonical_work_status(
+    db_path: str | Path,
+    work_id: str,
+    claim_token: str,
+    *,
+    status: Literal["outside_coverage", "needs_review"],
+    failure_code: str,
+    provider_requests: int = 0,
+) -> dict[str, Any]:
+    """Finish a claimed non-failure outcome without fabricating a score or location."""
+
+    timestamp = _now()
+    with connect(db_path) as connection:
+        cursor = connection.execute(
+            """
+            UPDATE my_pick_canonical_work
+            SET status=?, failure_code=?, retryable=0,
+                provider_request_count=provider_request_count+?,
+                claim_owner=NULL, claim_token=NULL, claimed_at=NULL, lease_expires_at=NULL,
+                resolved_at=?, updated_at=?
+            WHERE id=? AND claim_token=?
+            """,
+            (
+                status,
+                failure_code[:120],
+                provider_requests,
+                timestamp,
+                timestamp,
+                work_id,
+                claim_token,
+            ),
+        )
+        if cursor.rowcount != 1:
+            raise ValueError("My Pick work is not owned by this claim")
+        row = connection.execute(
+            "SELECT * FROM my_pick_canonical_work WHERE id=?", (work_id,)
+        ).fetchone()
+        connection.commit()
+    return dict(row)
+
+
 def run_my_pick_worker(
     db_path: str | Path,
     *,
@@ -520,6 +623,10 @@ def run_my_pick_worker(
     worker_id: str,
     limit: int = 1,
     retry_failed: bool = False,
+    work_id: str | None = None,
+    lease_seconds: int = 900,
+    on_update: Callable[[dict[str, Any]], None] | None = None,
+    detailed: bool = False,
 ) -> dict[str, int]:
     """Claim shared jobs and delegate identity/research to the canonical pipeline adapter.
 
@@ -528,32 +635,129 @@ def run_my_pick_worker(
     numeric score from the adapter and never publishes a restaurant.
     """
 
-    completed = failed = 0
+    summary = {
+        "jobs_claimed": 0,
+        "completed": 0,
+        "failed": 0,
+        "existing_identity_reused": 0,
+        "new_canonical_identities_created": 0,
+        "research_completed": 0,
+        "quality_v4_completed": 0,
+        "ready": 0,
+        "needs_location": 0,
+        "outside_coverage": 0,
+        "needs_review": 0,
+        "failed_retryable": 0,
+        "failed_terminal": 0,
+        "review_queue_additions": 0,
+        "provider_requests": 0,
+        "web_search_actions": 0,
+        "projection_sync_failures": 0,
+    }
+
+    def notify(row: dict[str, Any]) -> None:
+        if on_update is None:
+            return
+        try:
+            on_update(row)
+        except Exception:  # noqa: BLE001 - projection failure must not poison canonical work.
+            summary["projection_sync_failures"] += 1
+
     for _ in range(limit):
         job = claim_next_canonical_work(
-            db_path, worker_id=worker_id, retry_failed=retry_failed
+            db_path,
+            worker_id=worker_id,
+            retry_failed=retry_failed,
+            work_id=work_id,
+            lease_seconds=lease_seconds,
         )
         if job is None:
             break
+        summary["jobs_claimed"] += 1
+        notify(job)
+        before_reviews = 0
+        if job.get("canonical_place_id"):
+            before_reviews = recommendation_review_count(
+                db_path, str(job["canonical_place_id"])
+            )
         try:
-            place_id = processor(job)
-            complete_canonical_work_from_catalog(
+            processed = processor(job)
+            place_id = (
+                str(processed.place_id)
+                if hasattr(processed, "place_id")
+                else str(processed)
+            )
+            counts = getattr(processed, "counts", {})
+            for key in (
+                "existing_identity_reused",
+                "new_canonical_identities_created",
+                "research_completed",
+                "quality_v4_completed",
+                "provider_requests",
+                "web_search_actions",
+            ):
+                summary[key] += int(counts.get(key, 0) or 0)
+            completed_row = complete_canonical_work_from_catalog(
                 db_path,
                 str(job["id"]),
                 str(job["claim_token"]),
                 place_id=place_id,
+                provider_requests=int(counts.get("provider_requests", 0) or 0),
             )
-            completed += 1
+            summary["completed"] += 1
+            summary[str(completed_row["status"])] += 1
+            after_reviews = recommendation_review_count(db_path, place_id)
+            summary["review_queue_additions"] += max(0, after_reviews - before_reviews)
+            notify(completed_row)
         except Exception as exc:  # noqa: BLE001 - preserve each durable job independently.
-            fail_canonical_work(
-                db_path,
-                str(job["id"]),
-                str(job["claim_token"]),
-                failure_code=type(exc).__name__,
-                retryable=not isinstance(exc, (ValueError, TypeError)),
+            code = str(getattr(exc, "code", type(exc).__name__))
+            status = str(getattr(exc, "status", ""))
+            error_counts = getattr(exc, "counts", {})
+            for key in (
+                "existing_identity_reused",
+                "new_canonical_identities_created",
+                "research_completed",
+                "quality_v4_completed",
+            ):
+                summary[key] += int(error_counts.get(key, 0) or 0)
+            retryable = bool(
+                getattr(exc, "retryable", not isinstance(exc, (ValueError, TypeError)))
             )
-            failed += 1
-    return {"completed": completed, "failed": failed}
+            provider_requests = int(
+                getattr(exc, "provider_requests", 0) or 0
+            )
+            summary["provider_requests"] += provider_requests
+            summary["web_search_actions"] += int(
+                getattr(exc, "web_search_actions", 0) or 0
+            )
+            if status in {"outside_coverage", "needs_review"}:
+                failed_row = finish_canonical_work_status(
+                    db_path,
+                    str(job["id"]),
+                    str(job["claim_token"]),
+                    status=status,  # type: ignore[arg-type]
+                    failure_code=code,
+                    provider_requests=provider_requests,
+                )
+                summary[status] += 1
+            else:
+                failed_row = fail_canonical_work(
+                    db_path,
+                    str(job["id"]),
+                    str(job["claim_token"]),
+                    failure_code=code,
+                    retryable=retryable,
+                    provider_requests=provider_requests,
+                )
+                failure_status = str(failed_row["status"])
+                summary["failed"] += 1
+                summary[failure_status] += 1
+            notify(failed_row)
+        if work_id is not None:
+            break
+    if not detailed:
+        return {"completed": summary["completed"], "failed": summary["failed"]}
+    return summary
 
 
 def recommendation_review_count(db_path: str | Path, place_id: str) -> int:

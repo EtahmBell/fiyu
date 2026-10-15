@@ -7,7 +7,7 @@ from uuid import uuid4
 import pytest
 from fastapi.testclient import TestClient
 
-from fiyu import api
+from fiyu import api, my_picks
 from fiyu.database import SCHEMA, connect
 from fiyu.public_catalog import ensure_public_schema
 from fiyu.supabase_auth import SupabaseAuthError
@@ -558,3 +558,109 @@ def test_production_personalized_pick_stays_locked_for_non_developer(developer_a
     )
     assert response.status_code == 200
     assert response.json()["status"] == "locked"
+
+
+def test_my_pick_dev_process_is_owned_and_server_side_gated(developer_api, monkeypatch):
+    client, _state = developer_api
+    work, _ = my_picks.create_or_get_canonical_work(
+        api.DB_PATH, provider="google", external_place_id="dev-new"
+    )
+    my_pick_id = str(uuid4())
+    account_row = {
+        "id": my_pick_id,
+        "provider": "google",
+        "external_place_id": "dev-new",
+        "display_name_hint": "Dev New",
+        "canonical_work_id": work["id"],
+        "status": "pending",
+        "created_at": "2026-10-14T00:00:00+00:00",
+        "updated_at": "2026-10-14T00:00:00+00:00",
+    }
+    monkeypatch.setattr(
+        api.shared_user_data,
+        "get_my_pick",
+        lambda *, user_id, my_pick_id: (
+            dict(account_row) if user_id == DEV_USER and my_pick_id == account_row["id"] else None
+        ),
+    )
+    monkeypatch.setenv("FIYU_MY_PICK_OSM_INDEX", "dev-osm.sqlite")
+    captured = {}
+
+    def run_worker(_db_path, **kwargs):
+        captured.update(kwargs)
+        return {"jobs_claimed": 1, "ready": 0}
+
+    monkeypatch.setattr(api.my_picks, "run_my_pick_worker", run_worker)
+    endpoint = "/developer/my-picks/process"
+    payload = {"my_pick_id": my_pick_id}
+
+    assert client.post(endpoint, json=payload).status_code == 401
+    assert client.post(
+        endpoint, json=payload, headers={"Authorization": "Bearer normal"}
+    ).status_code == 404
+    response = client.post(
+        endpoint, json=payload, headers={"Authorization": "Bearer dev"}
+    )
+
+    assert response.status_code == 200
+    assert response.json()["my_pick"]["status"] == "pending"
+    assert captured["work_id"] == work["id"]
+    assert captured["limit"] == 1
+    assert captured["retry_failed"] is True
+
+
+def test_my_pick_dev_reset_deletes_only_calling_accounts_rows(developer_api, monkeypatch):
+    client, _state = developer_api
+    deleted_for = []
+    monkeypatch.setattr(
+        api.shared_user_data,
+        "reset_my_pick_test_state",
+        lambda *, user_id: deleted_for.append(user_id) or 2,
+    )
+    endpoint = "/developer/my-picks/reset"
+
+    assert client.post(
+        endpoint, headers={"Authorization": "Bearer normal"}
+    ).status_code == 404
+    response = client.post(endpoint, headers={"Authorization": "Bearer dev"})
+
+    assert response.status_code == 200
+    assert response.json() == {"reset": True, "deleted_my_picks": 2}
+    assert deleted_for == [DEV_USER]
+
+
+@pytest.mark.parametrize(
+    ("scenario", "status", "score", "review_status"),
+    [
+        ("below_70", "ready", 58.0, "not_eligible"),
+        ("review_eligible", "ready", 74.0, "pending"),
+        ("needs_location", "needs_location", 64.0, "not_eligible"),
+        ("outside_coverage", "outside_coverage", None, "not_eligible"),
+        ("failed_retryable", "failed_retryable", None, "not_eligible"),
+    ],
+)
+def test_my_pick_dev_previews_are_gated_and_non_persistent(
+    developer_api, scenario, status, score, review_status
+):
+    client, _state = developer_api
+    endpoint = "/developer/my-picks/preview"
+    payload = {"scenario": scenario}
+    assert client.post(
+        endpoint, json=payload, headers={"Authorization": "Bearer normal"}
+    ).status_code == 404
+
+    response = client.post(
+        endpoint, json=payload, headers={"Authorization": "Bearer dev"}
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["preview_only"] is True
+    assert body["my_pick"]["status"] == status
+    assert body["my_pick"]["fiyu_score"] == score
+    assert body["my_pick"]["recommendation_review_status"] == review_status
+    with connect(api.DB_PATH) as connection:
+        assert connection.execute(
+            "SELECT COUNT(*) FROM sqlite_master "
+            "WHERE type='table' AND name='my_pick_canonical_work'"
+        ).fetchone()[0] == 0

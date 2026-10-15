@@ -65,10 +65,12 @@ from .location_anchors import load_location_anchors
 from .osm_index import OSM_ATTRIBUTION
 from .public_catalog import (
     ensure_public_schema,
+    get_account_restaurant,
     get_public_restaurant,
     get_public_restaurant_detail,
     list_published_restaurants,
 )
+from .quality_v4 import QUALITY_PRODUCTION_SCORE_VERSION
 from .restaurant_lists import (
     CUSTOM_LIST_KIND,
     add_item,
@@ -280,6 +282,7 @@ class MapRestaurantSummary(PublicRestaurantSummary):
     discovery_expires_at: str | None = None
     is_saved: bool = False
     is_visited: bool = False
+    is_my_pick: bool = False
     user_rating: int | None = Field(default=None, ge=1, le=5)
 
 
@@ -964,6 +967,43 @@ class DeveloperResetVisitTasteResponse(BaseModel):
     reset: Literal[True]
     deleted_visits: int
     deleted_taste_snapshots: int
+
+
+class DeveloperMyPickProcessRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    my_pick_id: UUID
+    retry_failed: bool = True
+
+
+class DeveloperMyPickProcessResponse(BaseModel):
+    my_pick: MyPickResponse
+    worker_summary: dict[str, int]
+
+
+class DeveloperResetMyPicksResponse(BaseModel):
+    reset: Literal[True]
+    deleted_my_picks: int
+
+
+DeveloperMyPickPreviewScenario = Literal[
+    "below_70",
+    "review_eligible",
+    "needs_location",
+    "outside_coverage",
+    "failed_retryable",
+]
+
+
+class DeveloperMyPickPreviewRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    scenario: DeveloperMyPickPreviewScenario
+
+
+class DeveloperMyPickPreviewResponse(BaseModel):
+    preview_only: Literal[True]
+    my_pick: MyPickResponse
 
 
 class DeveloperPersonalizedPickResponse(BaseModel):
@@ -2211,19 +2251,7 @@ def _my_pick_response(account_row: dict[str, Any]) -> MyPickResponse:
 
 
 def _sync_my_pick_projection(work: dict[str, Any]) -> None:
-    canonical = my_picks.canonical_result(DB_PATH, work)
-    shared_user_data.sync_my_pick_result(
-        canonical_work_id=str(work["id"]),
-        canonical_place_id=(str(work["canonical_place_id"]) if work.get("canonical_place_id") else None),
-        status=str(work["status"]),
-        failure_code=(str(work["failure_code"]) if work.get("failure_code") else None),
-        score_version=(str(canonical["score_version"]) if canonical.get("score_version") else None),
-        is_public=bool(canonical.get("is_public")),
-        recommendation_review_status=str(
-            canonical.get("recommendation_review_status") or "not_eligible"
-        ),
-        resolved_at=(str(work["resolved_at"]) if work.get("resolved_at") else None),
-    )
+    my_picks.sync_account_projection(DB_PATH, work)
 
 
 @app.get("/personalized-picks/me", response_model=PersonalizedPickStateResponse)
@@ -2939,10 +2967,39 @@ def _map_eligible_public_restaurants_for_place_ids(
     return restaurants
 
 
+def _map_eligible_account_restaurants_for_place_ids(
+    place_ids: Iterable[str], *, private_place_ids: set[str]
+) -> list[dict[str, object]]:
+    """Return map-safe summaries, admitting unpublished rows only for owned My Picks."""
+
+    restaurants: list[dict[str, object]] = []
+    for place_id in place_ids:
+        restaurant = (
+            get_account_restaurant(DB_PATH, place_id)
+            if place_id in private_place_ids
+            else get_public_restaurant(DB_PATH, place_id)
+        )
+        if restaurant is None:
+            continue
+        latitude = restaurant.get("latitude")
+        longitude = restaurant.get("longitude")
+        if (
+            restaurant.get("map_display_eligible") is True
+            and isinstance(latitude, (int, float))
+            and isinstance(longitude, (int, float))
+            and isfinite(latitude)
+            and isfinite(longitude)
+        ):
+            restaurants.append(restaurant)
+    return restaurants
+
+
 def _authenticated_map_membership(
     user_id: str, *, city_id: str = "tokyo"
-) -> tuple[list[str], set[str], dict[str, str], set[str], set[str], dict[str, int]]:
-    """Derive one personal Map model from discoveries, saves, and visits."""
+) -> tuple[
+    list[str], set[str], dict[str, str], set[str], set[str], set[str], dict[str, int]
+]:
+    """Derive one personal Map model from independent account relationships."""
     now = datetime.now(UTC)
     active_row = shared_user_data.get_active_daily_picks(user_id=user_id, city_id=city_id)
     active_assignment = _shared_assignment(active_row) if active_row else None
@@ -2999,6 +3056,13 @@ def _authenticated_map_membership(
     )
     visited_place_ids = list(shared_user_data.visited_place_ids(user_id=user_id))
     visited_place_id_set = set(visited_place_ids)
+    my_pick_place_ids: set[str] = set()
+    for account_row in shared_user_data.list_my_picks(user_id=user_id):
+        work = my_picks.get_canonical_work(
+            DB_PATH, str(account_row["canonical_work_id"])
+        )
+        if work and work.get("status") == "ready" and work.get("canonical_place_id"):
+            my_pick_place_ids.add(str(work["canonical_place_id"]))
     discovered_place_id_set = {*active_place_ids, *recent_place_ids, *together_place_ids}
     visible_place_ids = list(
         dict.fromkeys(
@@ -3009,6 +3073,7 @@ def _authenticated_map_membership(
                 *together_place_ids,
                 *visited_place_ids,
                 *sorted(saved_place_ids),
+                *sorted(my_pick_place_ids),
             ]
         )
     )
@@ -3018,6 +3083,7 @@ def _authenticated_map_membership(
         discovery_expirations,
         saved_place_ids,
         visited_place_id_set,
+        my_pick_place_ids,
         latest_ratings,
     )
 
@@ -3038,6 +3104,7 @@ def _authenticated_map_restaurants(
         discovery_expirations,
         saved_place_ids,
         visited_place_ids,
+        my_pick_place_ids,
         latest_ratings,
     ) = _authenticated_map_membership(user_id, city_id=city_id)
     return [
@@ -3049,10 +3116,11 @@ def _authenticated_map_restaurants(
             ),
             "is_saved": str(restaurant["place_id"]) in saved_place_ids,
             "is_visited": str(restaurant["place_id"]) in visited_place_ids,
+            "is_my_pick": str(restaurant["place_id"]) in my_pick_place_ids,
             "user_rating": latest_ratings.get(str(restaurant["place_id"])),
         }
-        for restaurant in _map_eligible_public_restaurants_for_place_ids(
-            visible_place_ids
+        for restaurant in _map_eligible_account_restaurants_for_place_ids(
+            visible_place_ids, private_place_ids=my_pick_place_ids
         )
     ]
 
@@ -3170,6 +3238,139 @@ def _developer_user(
     if not shared_user_data.configured():
         raise HTTPException(status_code=503, detail="Account data is unavailable")
     return user_id
+
+
+@app.post(
+    "/developer/my-picks/process",
+    response_model=DeveloperMyPickProcessResponse,
+)
+def process_developer_my_pick(
+    request: DeveloperMyPickProcessRequest,
+    user_id: Annotated[str, Depends(_developer_user)],
+) -> DeveloperMyPickProcessResponse:
+    """Run the production adapter for one My Pick owned by this dev account."""
+
+    account_row = shared_user_data.get_my_pick(
+        user_id=user_id, my_pick_id=str(request.my_pick_id)
+    )
+    if account_row is None:
+        raise HTTPException(status_code=404, detail="My Pick not found")
+    osm_index = os.getenv("FIYU_MY_PICK_OSM_INDEX", "").strip()
+    if not osm_index:
+        raise HTTPException(
+            status_code=503,
+            detail="FIYU_MY_PICK_OSM_INDEX is required for My Pick processing",
+        )
+    from .my_pick_processor import ProductionMyPickProcessor
+
+    processor = ProductionMyPickProcessor(
+        DB_PATH,
+        osm_index=osm_index,
+        osm_address_index=(os.getenv("FIYU_MY_PICK_OSM_ADDRESS_INDEX") or None),
+        model=(os.getenv("FIYU_MY_PICK_MODEL") or None),
+    )
+    summary = my_picks.run_my_pick_worker(
+        DB_PATH,
+        processor=processor,
+        worker_id=f"developer:{user_id}",
+        limit=1,
+        retry_failed=request.retry_failed,
+        work_id=str(account_row["canonical_work_id"]),
+        on_update=_sync_my_pick_projection,
+        detailed=True,
+    )
+    refreshed = shared_user_data.get_my_pick(
+        user_id=user_id, my_pick_id=str(request.my_pick_id)
+    )
+    if refreshed is None:
+        raise HTTPException(status_code=404, detail="My Pick not found")
+    return DeveloperMyPickProcessResponse(
+        my_pick=_my_pick_response(refreshed), worker_summary=summary
+    )
+
+
+@app.post(
+    "/developer/my-picks/reset",
+    response_model=DeveloperResetMyPicksResponse,
+)
+def reset_developer_my_picks(
+    user_id: Annotated[str, Depends(_developer_user)],
+) -> DeveloperResetMyPicksResponse:
+    """Reset only this developer's account projection, never shared canonical work."""
+
+    return DeveloperResetMyPicksResponse(
+        reset=True,
+        deleted_my_picks=shared_user_data.reset_my_pick_test_state(user_id=user_id),
+    )
+
+
+@app.post(
+    "/developer/my-picks/preview",
+    response_model=DeveloperMyPickPreviewResponse,
+)
+def preview_developer_my_pick(
+    request: DeveloperMyPickPreviewRequest,
+    _user_id: Annotated[str, Depends(_developer_user)],
+) -> DeveloperMyPickPreviewResponse:
+    """Return non-persistent lifecycle fixtures for dev UI testing only."""
+
+    now = datetime.now(UTC).isoformat()
+    fixtures: dict[DeveloperMyPickPreviewScenario, dict[str, object]] = {
+        "below_70": {
+            "status": "ready",
+            "fiyu_score": 58.0,
+            "map_ready": True,
+            "latitude": 35.68,
+            "longitude": 139.75,
+            "location_precision": "area",
+        },
+        "review_eligible": {
+            "status": "ready",
+            "fiyu_score": 74.0,
+            "map_ready": True,
+            "latitude": 35.68,
+            "longitude": 139.75,
+            "location_precision": "area",
+            "recommendation_review_status": "pending",
+        },
+        "needs_location": {"status": "needs_location", "fiyu_score": 64.0},
+        "outside_coverage": {"status": "outside_coverage"},
+        "failed_retryable": {
+            "status": "failed_retryable",
+            "failure_code": "preview_transient_provider_failure",
+        },
+    }
+    status_messages = {
+        "ready": "Your canonical Fiyu result is ready.",
+        "needs_location": "Scored, but a trustworthy map location is not yet available.",
+        "outside_coverage": "This restaurant is outside Fiyu's current map coverage.",
+        "failed_retryable": "A temporary processing problem will need a retry.",
+    }
+    fixture = fixtures[request.scenario]
+    status = str(fixture["status"])
+    fixture_fields = {key: value for key, value in fixture.items() if key != "status"}
+    return DeveloperMyPickPreviewResponse(
+        preview_only=True,
+        my_pick=MyPickResponse(
+            my_pick_id=UUID("00000000-0000-4000-8000-000000000001"),
+            provider="developer_preview",
+            external_place_id=f"preview:{request.scenario}",
+            display_name_hint=f"My Pick preview: {request.scenario}",
+            status=status,  # type: ignore[arg-type]
+            status_message=status_messages[status],
+            created_at=now,
+            updated_at=now,
+            resolved_at=(now if status not in {"failed_retryable"} else None),
+            place_id=(f"preview:{request.scenario}" if status == "ready" else None),
+            name_en=("Developer preview restaurant" if status == "ready" else None),
+            score_version=(
+                QUALITY_PRODUCTION_SCORE_VERSION
+                if fixture.get("fiyu_score") is not None
+                else None
+            ),
+            **fixture_fields,
+        ),
+    )
 
 
 def _developer_anchor(area_name: str | None) -> dict[str, object]:

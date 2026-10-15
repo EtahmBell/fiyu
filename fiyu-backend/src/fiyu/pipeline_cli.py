@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import statistics
 import sys
 from datetime import UTC, datetime
@@ -168,6 +169,21 @@ def _parser() -> argparse.ArgumentParser:
     run.add_argument("--osm-address-index")
     run.add_argument("--model")
     run.add_argument("--dry-run", action="store_true")
+
+    my_picks_worker = commands.add_parser(
+        "my-picks-worker",
+        help="Process a bounded batch of durable My Pick canonical jobs",
+    )
+    my_picks_worker.add_argument("--limit", type=int, default=1)
+    my_picks_worker.add_argument("--work-id")
+    my_picks_worker.add_argument("--retry-failed", action="store_true")
+    my_picks_worker.add_argument("--worker-id")
+    my_picks_worker.add_argument("--lease-seconds", type=int, default=900)
+    my_picks_worker.add_argument("--osm-index", required=True)
+    my_picks_worker.add_argument("--osm-address-index")
+    my_picks_worker.add_argument("--model")
+    my_picks_worker.add_argument("--audit-dir", default="data/audits/my-picks")
+    my_picks_worker.add_argument("--dry-run", action="store_true")
 
     score = commands.add_parser("score")
     score.add_argument("--place-id", required=True)
@@ -726,6 +742,52 @@ def main(argv: list[str] | None = None, *, canonical: bool = False) -> int:
             model=args.model,
             dry_run=args.dry_run,
         )
+    elif args.command == "my-picks-worker":
+        from . import my_picks
+        from . import supabase_user_data as shared_user_data
+        from .my_pick_processor import ProductionMyPickProcessor
+
+        if args.limit < 1:
+            raise ValueError("--limit must be positive")
+        if args.dry_run:
+            selected = my_picks.inspect_claimable_canonical_work(
+                db,
+                limit=args.limit,
+                retry_failed=args.retry_failed,
+                work_id=args.work_id,
+            )
+            result = {
+                "mode": "dry_run",
+                "jobs_selected": len(selected),
+                "work_ids": [str(row["id"]) for row in selected],
+                "provider_requests": 0,
+                "web_search_actions": 0,
+                "catalog_mutations": 0,
+            }
+        else:
+            processor = ProductionMyPickProcessor(
+                db,
+                osm_index=args.osm_index,
+                osm_address_index=args.osm_address_index,
+                model=args.model,
+                audit_dir=args.audit_dir,
+            )
+
+            def sync_projection(work: dict[str, object]) -> None:
+                if shared_user_data.configured():
+                    my_picks.sync_account_projection(db, work)
+
+            result = my_picks.run_my_pick_worker(
+                db,
+                processor=processor,
+                worker_id=args.worker_id or f"my-picks-{os.getpid()}",
+                limit=args.limit,
+                retry_failed=args.retry_failed,
+                work_id=args.work_id,
+                lease_seconds=args.lease_seconds,
+                on_update=sync_projection,
+                detailed=True,
+            )
     elif args.command == "verify-location":
         result = verify_location(
             db,

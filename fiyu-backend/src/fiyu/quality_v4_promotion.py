@@ -420,9 +420,14 @@ def inspect_quality_v4_promotion(
     *,
     source_db: str | Path,
     cohort_manifest: str | Path | None = None,
+    place_ids: list[str] | None = None,
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    if cohort_manifest is not None and place_ids is not None:
+        raise ValueError("cohort_manifest and place_ids are mutually exclusive")
+    if place_ids is not None and (not place_ids or len(place_ids) != len(set(place_ids))):
+        raise ValueError("place_ids must be a non-empty, duplicate-free allowlist")
     cohort_payload: dict[str, Any] | None = None
-    cohort_ids: list[str] | None = None
+    cohort_ids: list[str] | None = list(place_ids) if place_ids is not None else None
     if cohort_manifest is not None:
         cohort_payload, cohort_ids = _load_cohort_manifest(cohort_manifest, source_db)
     complete, incomplete = _latest_source_rows(source_db, cohort_ids)
@@ -592,7 +597,13 @@ def inspect_quality_v4_promotion(
     ]
     summary = {
         "dry_run": True,
-        "selection_scope": "cohort_manifest" if cohort_ids is not None else "all_source_rows",
+        "selection_scope": (
+            "cohort_manifest"
+            if cohort_manifest is not None
+            else "explicit_allowlist"
+            if place_ids is not None
+            else "all_source_rows"
+        ),
         "cohort_manifest": str(cohort_manifest) if cohort_manifest is not None else None,
         "cohort_name": cohort_payload.get("cohort_name") if cohort_payload else None,
         "cohort_manifest_version": (
@@ -826,6 +837,67 @@ def _apply_promotion(db_path: Path, plans: list[dict[str, Any]]) -> None:
                 ),
             )
         connection.commit()
+
+
+def promote_quality_v4_allowlist(
+    db_path: str | Path,
+    *,
+    place_ids: list[str],
+) -> dict[str, Any]:
+    """Promote only completed V4 rows in an explicit worker-owned allowlist.
+
+    This is the narrow transactional promotion boundary used by My Pick. It
+    reuses the same validation, deterministic recomputation, score-history, and
+    write implementation as audited cohort promotion while deliberately leaving
+    publication, eligibility, review, and threshold state untouched.
+    """
+
+    db = Path(db_path)
+    before_rows, _ = _canonical_rows(db)
+    before = {
+        str(row["place_id"]): (
+            row.get("is_published"),
+            row.get("product_eligible"),
+            row.get("review_status"),
+        )
+        for row in before_rows
+        if str(row["place_id"]) in set(place_ids)
+    }
+    threshold = PUBLICATION_SCORE_THRESHOLD
+    summary, plans = inspect_quality_v4_promotion(
+        db,
+        source_db=db,
+        place_ids=place_ids,
+    )
+    summary.pop("visibility_snapshot", None)
+    _apply_promotion(db, plans)
+    after_rows, _ = _canonical_rows(db)
+    after = {
+        str(row["place_id"]): (
+            row.get("is_published"),
+            row.get("product_eligible"),
+            row.get("review_status"),
+        )
+        for row in after_rows
+        if str(row["place_id"]) in set(place_ids)
+    }
+    if after != before:
+        raise RuntimeError("Quality-v4 allowlist promotion changed visibility state")
+    if PUBLICATION_SCORE_THRESHOLD != threshold:
+        raise RuntimeError("Quality-v4 allowlist promotion changed the publication threshold")
+    rerun, _ = inspect_quality_v4_promotion(
+        db,
+        source_db=db,
+        place_ids=place_ids,
+    )
+    if rerun["rows_to_import"] or rerun["rows_to_score"]:
+        raise RuntimeError("Quality-v4 allowlist promotion did not become idempotent")
+    return {
+        "selected": len(place_ids),
+        "rows_scored": int(summary["rows_to_score"]),
+        "already_v4": int(summary["already_v4_rows"]),
+        "publication_state_changes": 0,
+    }
 
 
 def _representative_rows(plans: list[dict[str, Any]]) -> list[dict[str, Any]]:

@@ -417,6 +417,20 @@ def research_candidate(
     return parsed, set(list(urls)[:8])
 
 
+def _candidate_internal_signals(candidate: dict[str, object]) -> InternalSignals:
+    """Map absent source signals to a neutral prior, never negative evidence."""
+
+    def signal(name: str) -> float:
+        value = candidate.get(name)
+        return 50.0 if value is None else float(value)
+
+    return InternalSignals(
+        quality_score=signal("quality_score"),
+        underexposure_score=signal("underexposure_score"),
+        digital_footprint_score=signal("digital_footprint_score"),
+    )
+
+
 def run_research_batch(
     db_path: str | Path,
     *,
@@ -593,11 +607,7 @@ def run_research_batch(
                 if url.startswith(("http://", "https://"))
             }
             evidence = research.to_evidence()
-            internal = InternalSignals(
-                quality_score=float(candidate.get("quality_score") or 0),
-                underexposure_score=float(candidate.get("underexposure_score") or 0),
-                digital_footprint_score=float(candidate.get("digital_footprint_score") or 0),
-            )
+            internal = _candidate_internal_signals(candidate)
             structured_research = research.model_dump(mode="json")
             scoring_structured = scoring_research_view(structured_research)
             chain = assess_chain_classification(evidence, scoring_structured)

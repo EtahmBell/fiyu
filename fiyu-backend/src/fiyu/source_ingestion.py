@@ -12,6 +12,7 @@ import json
 import re
 import sqlite3
 import statistics
+import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -75,6 +76,7 @@ CREATE INDEX IF NOT EXISTS idx_candidate_source_observations_latest
 """
 
 _SOURCE_KEY = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$")
+_MY_PICK_NAMESPACE = uuid.UUID("4dcb1d97-5d76-44fd-940b-67366ee6ec9b")
 
 _OBSERVATION_FIELDS = (
     "place_id",
@@ -170,6 +172,78 @@ def ensure_source_ingestion_schema(db_path: str | Path) -> None:
                 "ADD COLUMN impact_json TEXT NOT NULL DEFAULT '{}'"
             )
         connection.commit()
+
+
+def my_pick_candidate_place_id(provider: str, external_place_id: str) -> str:
+    """Return a stable candidate ID without importing provider place data.
+
+    Google Place IDs are already the catalog's supported durable external key.
+    Other providers receive a namespaced Fiyu identifier so their opaque IDs do
+    not collide with Google-backed catalog identities.
+    """
+
+    normalized_provider = provider.strip().casefold()
+    normalized_external_id = external_place_id.strip()
+    if normalized_provider in {"google", "google_places"}:
+        return normalized_external_id
+    identity_key = f"{normalized_provider}\0{normalized_external_id}"
+    return f"my-pick:{uuid.uuid5(_MY_PICK_NAMESPACE, identity_key)}"
+
+
+def ensure_my_pick_candidate(
+    db_path: str | Path,
+    *,
+    provider: str,
+    external_place_id: str,
+    display_name_hint: str | None,
+) -> tuple[str, bool]:
+    """Create the minimal canonical queue identity for user-requested research.
+
+    Only the permitted external identity, optional query hint, and My Pick
+    provenance are retained. No provider coordinates, address, rating, reviews,
+    categories, hours, price, photos, or editorial content enter the catalog.
+    The candidate deliberately has no seed score and bypasses ordinary expansion
+    selection by being inserted directly into the shared public research queue.
+    """
+
+    ensure_source_ingestion_schema(db_path)
+    from .public_catalog import ensure_public_schema
+
+    ensure_public_schema(db_path)
+    place_id = my_pick_candidate_place_id(provider, external_place_id)
+    title = (display_name_hint or "").strip()[:200] or f"My Pick {place_id[-12:]}"
+    provenance = json.dumps([f"my_pick:{provider.strip().casefold()}"], ensure_ascii=False)
+    now = _utc_now()
+    with connect(db_path) as connection:
+        connection.execute("BEGIN IMMEDIATE")
+        existing = connection.execute(
+            "SELECT id FROM restaurants WHERE place_id=?", (place_id,)
+        ).fetchone()
+        created = existing is None
+        if created:
+            cursor = connection.execute(
+                """
+                INSERT INTO restaurants(
+                    place_id, title, rating, review_count, candidate_eligible,
+                    source_files_json
+                ) VALUES (?, ?, 0, 0, 0, ?)
+                """,
+                (place_id, title, provenance),
+            )
+            source_restaurant_id = int(cursor.lastrowid)
+        else:
+            source_restaurant_id = int(existing["id"])
+        connection.execute(
+            """
+            INSERT INTO public_restaurants(
+                place_id, source_restaurant_id, created_at, updated_at
+            ) VALUES (?, ?, ?, ?)
+            ON CONFLICT(place_id) DO NOTHING
+            """,
+            (place_id, source_restaurant_id, now, now),
+        )
+        connection.commit()
+    return place_id, created
 
 
 def _candidate_selection_snapshot(connection: sqlite3.Connection) -> dict[str, tuple[float, bool]]:

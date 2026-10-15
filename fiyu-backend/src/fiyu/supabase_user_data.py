@@ -171,6 +171,18 @@ def get_my_pick(*, user_id: str, my_pick_id: str) -> dict[str, Any] | None:
     return result[0] if isinstance(result, list) and result else None
 
 
+def reset_my_pick_test_state(*, user_id: str) -> int:
+    """Delete only one authorized developer's account-owned My Pick rows."""
+
+    result = _request(
+        "fiyu_my_picks",
+        method="DELETE",
+        query={"user_id": f"eq.{UUID(user_id)!s}"},
+        prefer="return=representation",
+    )
+    return len(result) if isinstance(result, list) else 0
+
+
 def sync_my_pick_result(
     *,
     canonical_work_id: str,

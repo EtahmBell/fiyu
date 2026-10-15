@@ -1983,6 +1983,23 @@ def get_public_restaurant(db_path: str | Path, place_id: str) -> dict[str, objec
     return rows[0] if rows else None
 
 
+def get_account_restaurant(db_path: str | Path, place_id: str) -> dict[str, object] | None:
+    """Return one safe summary for an account-owned relationship.
+
+    Unlike ``get_public_restaurant``, this may return an unpublished canonical
+    row. It still uses the exact public-safe projection and never exposes raw
+    research evidence, prompts, or operator fields.
+    """
+
+    rows = _safe_public_rows(
+        db_path,
+        where="p.product_eligible = 1 AND p.place_id = ?",
+        parameters=(place_id,),
+        limit=1,
+    )
+    return rows[0] if rows else None
+
+
 def get_public_restaurant_detail(db_path: str | Path, place_id: str) -> dict[str, object] | None:
     """Return the public summary plus the latest accepted grounded detail fields."""
     restaurant = get_public_restaurant(db_path, place_id)
