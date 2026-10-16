@@ -37,7 +37,7 @@ function stripComments(source: string): string {
   return source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
 }
 
-describe("Google Maps JavaScript rendering is gone", () => {
+describe("Google Maps JavaScript remains confined to My Pick Places UI Kit", () => {
   it("declares no Google Maps dependency", () => {
     const pkg = JSON.parse(readFileSync(join(process.cwd(), "package.json"), "utf8")) as {
       dependencies?: Record<string, string>;
@@ -47,18 +47,22 @@ describe("Google Maps JavaScript rendering is gone", () => {
     expect(names.filter((n) => /google-maps|googlemaps|@vis\.gl/i.test(n))).toEqual([]);
   });
 
-  it("imports no Google Maps module anywhere", () => {
+  it("loads Google Maps JavaScript only in the isolated My Pick adapter", () => {
     const offenders = productionFiles.filter((path) =>
       /@vis\.gl|google\.maps|maps\.googleapis\.com/.test(stripComments(read(path))),
     );
-    expect(offenders).toEqual([]);
+    expect(offenders.map((path) => path.split(sep).slice(-3).join("/"))).toEqual([
+      "components/my-pick/GooglePlaceSelector.tsx",
+    ]);
   });
 
-  it("reads no Google Maps browser key from the environment", () => {
+  it("reads the public browser key only at the central environment boundary", () => {
     const offenders = productionFiles.filter((path) =>
       /NEXT_PUBLIC_GOOGLE_MAPS/.test(stripComments(read(path))),
     );
-    expect(offenders).toEqual([]);
+    expect(offenders.map((path) => path.split(sep).slice(-3).join("/"))).toEqual([
+      "lib/config/env.ts",
+    ]);
   });
 });
 

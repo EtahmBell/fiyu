@@ -4,9 +4,10 @@
  * Every value here is a NEXT_PUBLIC_ variable, inlined into the browser bundle
  * at build time. No secret may ever be read through this module.
  *
- * There are no Google Maps variables: the discovery map is Fiyu's own SVG map,
- * and all Google data (photos) is proxied by the backend. The browser never
- * calls a Google API and never holds a Google key.
+ * The only browser-side Google integration is the restricted Places UI Kit
+ * selector on /my-pick. Its public, HTTP-referrer-restricted key is not a
+ * secret. The Fiyu map remains our own SVG map and canonical place data still
+ * comes exclusively from the backend.
  */
 
 /** Documented local backend URL (CLAUDE.md), used when the env var is absent. */
@@ -26,4 +27,9 @@ export function getApiBaseUrl(): string {
 /** True when NEXT_PUBLIC_FIYU_API_URL was set explicitly rather than defaulted. */
 export function isApiBaseUrlConfigured(): boolean {
   return readPublic(process.env.NEXT_PUBLIC_FIYU_API_URL) !== null;
+}
+
+/** Public browser key for the lazy-loaded Google Places UI Kit selector. */
+export function getGooglePlacesUiKitKey(): string | null {
+  return readPublic(process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY);
 }

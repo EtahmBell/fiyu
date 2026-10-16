@@ -19,6 +19,7 @@ export function belongsToPersonalMapFilter(
     discovered ||
     restaurant.is_saved ||
     restaurant.is_visited ||
+    restaurant.is_my_pick === true ||
     restaurant.is_personalized_pick === true
   );
 }
@@ -53,6 +54,7 @@ export function mergeActivePersonalizedPick(
             is_visited: existing.is_visited || restaurant.is_visited,
             is_personalized_pick:
               existing.is_personalized_pick || restaurant.is_personalized_pick,
+            is_my_pick: existing.is_my_pick || restaurant.is_my_pick,
             user_rating: restaurant.user_rating ?? existing.user_rating,
           }
         : restaurant,
@@ -68,6 +70,7 @@ export function mergeActivePersonalizedPick(
         is_saved: existing.is_saved || personalized.is_saved,
         is_visited: existing.is_visited || personalized.is_visited,
         is_personalized_pick: true,
+        is_my_pick: existing.is_my_pick || personalized.is_my_pick,
         user_rating: personalized.user_rating ?? existing.user_rating,
       }
     : personalized;
@@ -98,10 +101,12 @@ export function personalMapMarkerState(
     is_discovered?: boolean;
     is_saved?: boolean;
     is_visited?: boolean;
+    is_my_pick?: boolean;
   },
-): "discovered" | "saved" | "visited" | "default" {
+): "discovered" | "saved" | "visited" | "my_pick" | "default" {
   if (restaurant.is_discovered !== false) return "discovered";
   if (restaurant.is_visited) return "visited";
+  if (restaurant.is_my_pick) return "my_pick";
   if (restaurant.is_saved) return "saved";
   return "default";
 }

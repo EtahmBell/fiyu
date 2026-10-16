@@ -23,6 +23,9 @@ import {
   resetDeveloperDailyPicks,
   resetDeveloperVisitTaste,
   updateDeveloperLocation,
+  processDeveloperMyPick,
+  resetDeveloperMyPicks,
+  previewDeveloperMyPick,
 } from "@/lib/api/client";
 import type {
   DeveloperGeneratePicksResponse,
@@ -31,6 +34,7 @@ import type {
   MapRestaurant,
   RestaurantVisit,
   UserFiyuSummary,
+  MyPick,
 } from "@/lib/api/schemas";
 import {
   accountQueryKey,
@@ -41,6 +45,27 @@ import {
 import { authService } from "@/lib/auth/authService";
 import { dailyPicksStorageKey } from "@/lib/daily-picks/storage";
 
+function MyPickDeveloperTools() {
+  const [myPickId, setMyPickId] = useState("");
+  const [preview, setPreview] = useState<MyPick | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const run = async (action: () => Promise<void>) => {
+    setBusy(true); setMessage(null);
+    try { await action(); } catch (cause) { setMessage(cause instanceof Error ? cause.message : "My Pick dev action failed."); }
+    finally { setBusy(false); }
+  };
+  return <div className="mt-8 border-t border-line pt-7" aria-labelledby="developer-my-pick-title">
+    <h4 id="developer-my-pick-title" className="text-sm font-semibold text-ink">My Pick</h4>
+    <p className="mt-2 text-sm leading-6 text-ink-muted">Preview lifecycle states without writes, or process/reset this developer account through the canonical backend path.</p>
+    <div className="mt-4 flex flex-wrap gap-2">{(["below_70", "review_eligible", "needs_location", "outside_coverage", "failed_retryable"] as const).map((scenario) => <Button key={scenario} size="sm" variant="secondary" disabled={busy} onClick={() => void run(async () => setPreview((await previewDeveloperMyPick(scenario)).my_pick))}>{scenario.replaceAll("_", " ")}</Button>)}</div>
+    <label className="mt-5 block text-xs font-semibold tracking-wide text-ink" htmlFor="developer-my-pick-id">REAL MY PICK ID</label>
+    <input id="developer-my-pick-id" value={myPickId} onChange={(event) => setMyPickId(event.target.value)} className="mt-2 min-h-11 w-full rounded-lg border border-line bg-canvas px-3 text-sm text-ink" placeholder="UUID from /my-pick" />
+    <div className="mt-3 flex flex-wrap gap-2"><Button size="sm" variant="primary" disabled={busy || !myPickId} onClick={() => void run(async () => { setPreview((await processDeveloperMyPick(myPickId)).my_pick); setMessage("Canonical My Pick worker processed this request."); })}>Process request</Button><Button size="sm" variant="secondary" disabled={busy} onClick={() => void run(async () => { const count = await resetDeveloperMyPicks(); setPreview(null); setMyPickId(""); setMessage(`My Pick state reset (${count} rows).`); })}>Reset My Picks</Button><Link href="/my-pick" className="inline-flex min-h-11 items-center px-2 text-sm font-semibold text-plum underline underline-offset-4">Open My Pick →</Link></div>
+    {message ? <p role="status" className="mt-3 text-sm text-ink-muted">{message}</p> : null}
+    {preview ? <dl className="mt-4 grid gap-x-4 gap-y-1 rounded-lg border border-line bg-subtle px-4 py-3 text-xs leading-5 text-ink-muted sm:grid-cols-[8rem_1fr]"><dt>Status</dt><dd className="text-ink">{preview.status}</dd><dt>Score</dt><dd className="text-ink">{preview.fiyu_score ?? "—"}</dd><dt>Public</dt><dd className="text-ink">{preview.is_public ? "yes" : "no"}</dd><dt>Review</dt><dd className="text-ink">{preview.recommendation_review_status}</dd></dl> : null}
+  </div>;
+}
 function currentCoordinates(): Promise<{ latitude: number; longitude: number }> {
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) {
@@ -475,6 +500,7 @@ export function DeveloperTools() {
         </div>
       )}
       <PersonalizedPickDeveloperTools status={status} previewArea={previewArea} />
+      <MyPickDeveloperTools />
       <ResetVisitTasteDialog
         open={visitTasteResetOpen}
         busy={busy}

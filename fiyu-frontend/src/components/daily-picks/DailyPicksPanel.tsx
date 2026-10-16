@@ -11,6 +11,7 @@ import {
 } from "@/components/daily-picks/DailyCardFrame";
 import { RecentDiscoveries } from "@/components/daily-picks/RecentDiscoveries";
 import { TogetherPicksEntry } from "@/components/daily-picks/TogetherPicksEntry";
+import { MyPickEntry } from "@/components/my-pick/MyPickEntry";
 import { VisitedPickCard } from "@/components/daily-picks/VisitedPickCard";
 import { FreeOriginOnboarding } from "@/components/location/FreeOriginOnboarding";
 import { FiyuLoadingScreen } from "@/components/states/FiyuLoadingScreen";
@@ -1025,6 +1026,8 @@ export function DailyPicksPanel({
       {phase === "idle" && together.status === "ready" ? (
         <TogetherPicksEntry state={together.data} />
       ) : null}
+
+      {phase === "idle" ? <MyPickEntry /> : null}
 
       {/*
        * Recent Discoveries is its own section on the page background, not a

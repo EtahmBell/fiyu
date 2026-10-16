@@ -278,8 +278,48 @@ export const mapRestaurantSchema = publicRestaurantSchema.extend({
   user_rating: z.number().int().min(1).max(5).nullable().default(null),
   /** Client-composed from the server-owned active Personalized Pick event. */
   is_personalized_pick: z.boolean().optional(),
+  /** Account-owned ready My Pick relationship, including unpublished results. */
+  is_my_pick: z.boolean().optional(),
 });
 export const mapRestaurantListSchema = z.array(mapRestaurantSchema);
+
+export const myPickStatusSchema = z.enum([
+  "pending", "resolving_identity", "outside_coverage", "researching",
+  "needs_location", "ready", "needs_review", "failed_retryable", "failed_terminal",
+]);
+
+export const myPickSchema = z.object({
+  my_pick_id: z.string().uuid(),
+  provider: z.string(),
+  external_place_id: z.string(),
+  display_name_hint: nullableString,
+  status: myPickStatusSchema,
+  status_message: z.string(),
+  failure_code: nullableString,
+  created_at: z.string(),
+  updated_at: z.string(),
+  resolved_at: nullableString,
+  place_id: nullableString,
+  name_ja: nullableString,
+  name_en: nullableString,
+  primary_category: nullableString,
+  display_area: nullableString,
+  fiyu_score: nullableNumber,
+  score_version: nullableString,
+  map_ready: z.boolean().default(false),
+  latitude: nullableNumber,
+  longitude: nullableNumber,
+  location_precision: nullableString,
+  is_public: z.boolean().default(false),
+  recommendation_review_status: z.enum(["not_eligible", "pending", "approved", "declined", "withdrawn"]),
+});
+export const myPickListSchema = z.array(myPickSchema);
+export const developerMyPickProcessSchema = z.object({
+  my_pick: myPickSchema,
+  worker_summary: z.record(z.string(), z.number().int()),
+});
+export const developerMyPickResetSchema = z.object({ reset: z.literal(true), deleted_my_picks: z.number().int().nonnegative() });
+export const developerMyPickPreviewSchema = z.object({ preview_only: z.literal(true), my_pick: myPickSchema });
 
 /**
  * GET /public/restaurants/{place_id}.
@@ -725,6 +765,10 @@ export const smartViewResponseSchema = z.object({
 
 export type PublicRestaurant = z.infer<typeof publicRestaurantSchema>;
 export type MapRestaurant = z.infer<typeof mapRestaurantSchema>;
+export type MyPick = z.infer<typeof myPickSchema>;
+export type MyPickStatus = z.infer<typeof myPickStatusSchema>;
+export type DeveloperMyPickProcess = z.infer<typeof developerMyPickProcessSchema>;
+export type DeveloperMyPickPreview = z.infer<typeof developerMyPickPreviewSchema>;
 export type PublicRestaurantDetail = z.infer<typeof publicRestaurantDetailSchema>;
 export type PublicRestaurantList = z.infer<typeof publicRestaurantListSchema>;
 export type GooglePhoto = z.infer<typeof googlePhotoSchema>;

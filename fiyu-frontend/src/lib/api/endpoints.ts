@@ -49,6 +49,8 @@ export const paths = {
     `/personalized-picks/${encodeURIComponent(eventId)}/dismiss`,
   personalizedPicksSelect: (eventId: string) =>
     `/personalized-picks/${encodeURIComponent(eventId)}/select`,
+  myPicks: "/my-picks",
+  myPick: (myPickId: string) => `/my-picks/${encodeURIComponent(myPickId)}`,
   togetherState: "/together/me",
   togetherInvites: "/together/invites",
   togetherInvite: (token: string) => `/together/invites/${encodeURIComponent(token)}`,
@@ -67,6 +69,9 @@ export const paths = {
   developerPersonalizedPicksReset: "/developer/personalized-picks/reset",
   developerPersonalizedPicksClearDismissal: "/developer/personalized-picks/clear-dismissal",
   developerPersonalizedPicksExpire: "/developer/personalized-picks/expire",
+  developerMyPicksProcess: "/developer/my-picks/process",
+  developerMyPicksReset: "/developer/my-picks/reset",
+  developerMyPicksPreview: "/developer/my-picks/preview",
   seenRestaurants: "/seen/restaurants",
   mapRestaurants: "/map/restaurants",
   authenticatedMapRestaurants: "/profiles/me/map-restaurants",
@@ -112,6 +117,11 @@ export function personalizedPicksDismissUrl(eventId: string): string {
 
 export function personalizedPicksSelectUrl(eventId: string): string {
   return `${getApiBaseUrl()}${paths.personalizedPicksSelect(eventId)}`;
+}
+
+export function myPicksUrl(): string { return `${getApiBaseUrl()}${paths.myPicks}`; }
+export function myPickUrl(myPickId: string): string {
+  return `${getApiBaseUrl()}${paths.myPick(myPickId)}`;
 }
 
 export function togetherStateUrl(): string { return `${getApiBaseUrl()}${paths.togetherState}`; }
@@ -161,6 +171,10 @@ export function developerPersonalizedPicksClearDismissalUrl(): string {
 export function developerPersonalizedPicksExpireUrl(): string {
   return `${getApiBaseUrl()}${paths.developerPersonalizedPicksExpire}`;
 }
+
+export function developerMyPicksProcessUrl(): string { return `${getApiBaseUrl()}${paths.developerMyPicksProcess}`; }
+export function developerMyPicksResetUrl(): string { return `${getApiBaseUrl()}${paths.developerMyPicksReset}`; }
+export function developerMyPicksPreviewUrl(): string { return `${getApiBaseUrl()}${paths.developerMyPicksPreview}`; }
 
 export function seenRestaurantsUrl(): string {
   return `${getApiBaseUrl()}${paths.seenRestaurants}`;

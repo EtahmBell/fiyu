@@ -17,6 +17,9 @@ const api = vi.hoisted(() => ({
   resetDeveloperPersonalizedPick: vi.fn(),
   resetDeveloperVisitTaste: vi.fn(),
   updateDeveloperLocation: vi.fn(),
+  processDeveloperMyPick: vi.fn(),
+  resetDeveloperMyPicks: vi.fn(),
+  previewDeveloperMyPick: vi.fn(),
 }));
 
 const ppDebug = {
@@ -84,6 +87,9 @@ beforeEach(() => {
   api.resetDeveloperDailyPicks.mockReset();
   api.resetDeveloperVisitTaste.mockReset();
   api.updateDeveloperLocation.mockReset();
+  api.processDeveloperMyPick.mockReset();
+  api.resetDeveloperMyPicks.mockReset();
+  api.previewDeveloperMyPick.mockReset();
   cache.accountQueryKey.mockClear();
   cache.clearAccountQuery.mockClear();
   cache.clearAccountQueries.mockClear();

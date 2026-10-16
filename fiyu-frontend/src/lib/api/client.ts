@@ -18,6 +18,8 @@ import {
   personalizedPicksEventsUrl,
   personalizedPicksSelectUrl,
   personalizedPicksStateUrl,
+  myPicksUrl,
+  myPickUrl,
   developerDailyPicksGenerateUrl,
   developerDailyPicksResetUrl,
   developerVisitTasteResetUrl,
@@ -26,6 +28,9 @@ import {
   developerPersonalizedPicksResetUrl,
   developerPersonalizedPicksClearDismissalUrl,
   developerPersonalizedPicksExpireUrl,
+  developerMyPicksProcessUrl,
+  developerMyPicksResetUrl,
+  developerMyPicksPreviewUrl,
   developerLocationOverrideUrl,
   developerStatusUrl,
   discoveryLocationCheckUrl,
@@ -77,6 +82,9 @@ import {
   type GooglePhoto,
   type LocationAnchor,
   type MapRestaurant,
+  type MyPick,
+  type DeveloperMyPickProcess,
+  type DeveloperMyPickPreview,
   type ParsedRestaurantList,
   type PublicRestaurantDetail,
   type DeleteRestaurantVisitResponse,
@@ -111,6 +119,11 @@ import {
   googlePhotoSchema,
   locationAnchorListSchema,
   mapRestaurantListSchema,
+  myPickSchema,
+  myPickListSchema,
+  developerMyPickProcessSchema,
+  developerMyPickResetSchema,
+  developerMyPickPreviewSchema,
   parseRestaurantList,
   publicRestaurantDetailSchema,
   markAllNotificationsReadResponseSchema,
@@ -502,6 +515,26 @@ export function selectPersonalizedPick(
   );
 }
 
+export function submitMyPick(
+  externalPlaceId: string,
+  displayNameHint?: string | null,
+  options: RequestOptions = {},
+): Promise<MyPick> {
+  return requestJson(myPicksUrl(), paths.myPicks, myPickSchema, {
+    ...options,
+    method: "POST",
+    body: { provider: "google", external_place_id: externalPlaceId, display_name_hint: displayNameHint ?? null },
+  });
+}
+
+export function fetchMyPicks(options: RequestOptions = {}): Promise<MyPick[]> {
+  return requestJson(myPicksUrl(), paths.myPicks, myPickListSchema, { ...options, cache: "no-store" });
+}
+
+export function fetchMyPick(myPickId: string, options: RequestOptions = {}): Promise<MyPick> {
+  return requestJson(myPickUrl(myPickId), paths.myPick(myPickId), myPickSchema, { ...options, cache: "no-store" });
+}
+
 export function fetchTogetherState(options: RequestOptions = {}): Promise<TogetherState> {
   return requestJson(togetherStateUrl(), paths.togetherState, togetherStateSchema, {
     ...options, cache: options.cache ?? "no-store",
@@ -883,6 +916,25 @@ export function expireDeveloperPersonalizedPick(options: RequestOptions = {}) {
     paths.developerPersonalizedPicksExpire,
     options,
   );
+}
+
+export function processDeveloperMyPick(myPickId: string, options: RequestOptions = {}): Promise<DeveloperMyPickProcess> {
+  return requestJson(developerMyPicksProcessUrl(), paths.developerMyPicksProcess, developerMyPickProcessSchema, {
+    ...options, method: "POST", body: { my_pick_id: myPickId, retry_failed: true },
+  });
+}
+
+export function resetDeveloperMyPicks(options: RequestOptions = {}): Promise<number> {
+  return requestJson(developerMyPicksResetUrl(), paths.developerMyPicksReset, developerMyPickResetSchema, {
+    ...options, method: "POST",
+  }).then((result) => result.deleted_my_picks);
+}
+
+export type DeveloperMyPickScenario = "below_70" | "review_eligible" | "needs_location" | "outside_coverage" | "failed_retryable";
+export function previewDeveloperMyPick(scenario: DeveloperMyPickScenario, options: RequestOptions = {}): Promise<DeveloperMyPickPreview> {
+  return requestJson(developerMyPicksPreviewUrl(), paths.developerMyPicksPreview, developerMyPickPreviewSchema, {
+    ...options, method: "POST", body: { scenario },
+  });
 }
 
 export function fetchDefaultList(

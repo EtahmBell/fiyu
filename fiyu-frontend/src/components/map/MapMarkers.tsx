@@ -22,6 +22,7 @@ function markerForRestaurants(restaurants: readonly MappableRestaurant[]): strin
   const states = restaurants.map(personalMapMarkerState);
   if (states.includes("discovered")) return "var(--map-marker-discovered)";
   if (states.includes("visited")) return "var(--map-marker-visited)";
+  if (states.includes("my_pick")) return "var(--map-marker)";
   if (states.includes("saved")) return "var(--map-marker-saved)";
   return "var(--map-marker)";
 }
@@ -182,6 +183,7 @@ export function MapMarkers({
             data-saved={restaurant.is_saved ? "true" : "false"}
             data-marker-state={markerState}
             data-personalized-pick={personalized ? "true" : "false"}
+            data-my-pick={restaurant.is_my_pick ? "true" : "false"}
             data-newly-revealed={newlyRevealed ? "true" : undefined}
             data-cluster-appearing={appearing ? "true" : undefined}
             className={cn(

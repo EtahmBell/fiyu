@@ -47,6 +47,8 @@ export type MappableRestaurant = PublicRestaurant & {
   user_rating?: number | null;
   /** The account's one active, selected Personalized Pick. */
   is_personalized_pick?: boolean;
+  /** A ready restaurant requested through the account's My Pick flow. */
+  is_my_pick?: boolean;
 };
 
 function isValidLatitude(value: number | null): value is number {

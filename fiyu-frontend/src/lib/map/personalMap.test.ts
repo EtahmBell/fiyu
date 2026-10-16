@@ -13,7 +13,7 @@ function restaurant(
   placeId: string,
   state: Partial<Pick<
     MapRestaurant,
-    "is_discovered" | "is_saved" | "is_visited" | "is_personalized_pick"
+    "is_discovered" | "is_saved" | "is_visited" | "is_personalized_pick" | "is_my_pick"
   >> = {},
   eligible = true,
 ): MapRestaurant {
@@ -64,6 +64,7 @@ describe("personal Map membership", () => {
     ],
     ["saved-only", restaurant("s", { is_saved: true }), [true, true, false, false]],
     ["visited-only", restaurant("v", { is_visited: true }), [true, false, true, false]],
+    ["my-pick-only", restaurant("m", { is_my_pick: true }), [true, false, false, false]],
     ["saved + discovered", restaurant("sd", { is_saved: true, is_discovered: true }), [true, true, false, true]],
     ["saved + visited", restaurant("sv", { is_saved: true, is_visited: true }), [true, true, true, false]],
     ["discovered + visited", restaurant("dv", { is_discovered: true, is_visited: true }), [true, false, true, true]],
@@ -113,6 +114,9 @@ describe("personal Map membership", () => {
     ["saved and discovered", { is_saved: true, is_discovered: true }, "discovered"],
     ["visited only", { is_visited: true }, "visited"],
     ["saved and visited", { is_saved: true, is_visited: true }, "visited"],
+    ["My Pick only", { is_my_pick: true }, "my_pick"],
+    ["saved My Pick", { is_saved: true, is_my_pick: true }, "my_pick"],
+    ["visited My Pick", { is_visited: true, is_my_pick: true }, "visited"],
     ["discovered and visited", { is_discovered: true, is_visited: true }, "discovered"],
     [
       "saved, discovered, and visited",
@@ -162,7 +166,7 @@ describe("personal Map membership", () => {
       [
         restaurant("multi", { is_saved: true }),
         restaurant("multi", { is_visited: true }),
-        restaurant("multi", { is_discovered: true }),
+        restaurant("multi", { is_discovered: true, is_my_pick: true }),
         restaurant("unrelated"),
       ],
       null,
@@ -174,6 +178,7 @@ describe("personal Map membership", () => {
       is_discovered: true,
       is_saved: true,
       is_visited: true,
+      is_my_pick: true,
     });
     expect(filterPersonalMapRestaurants(merged, "all").map((row) => row.place_id))
       .toEqual(["multi"]);
