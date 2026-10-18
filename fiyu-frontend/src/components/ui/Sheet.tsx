@@ -15,6 +15,8 @@ export interface SheetProps {
   className?: string;
   /** Render the shared contents in normal page flow below the desktop breakpoint. */
   inlineOnMobile?: boolean;
+  placement?: "side" | "dialog";
+  closeOnBackdrop?: boolean;
 }
 
 /**
@@ -32,6 +34,8 @@ export function Sheet({
   children,
   className,
   inlineOnMobile = false,
+  placement = "side",
+  closeOnBackdrop = true,
 }: SheetProps) {
   const isDesktop = useIsDesktop();
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -66,20 +70,21 @@ export function Sheet({
       }}
       // Backdrop clicks land on the dialog element itself, not on its content.
       onClick={(event) => {
-        if (event.target === dialogRef.current) onClose();
+        if (closeOnBackdrop && event.target === dialogRef.current) onClose();
       }}
       className={cn(
         "m-0 max-h-none max-w-none bg-transparent p-0 text-ink backdrop:bg-plum/30",
-        // Bottom sheet on mobile.
-        "mt-auto w-full",
-        // Side panel from md up.
-        "md:mt-0 md:ml-auto md:h-full md:w-[min(30rem,100%)]",
+        placement === "dialog"
+          ? "mt-auto w-full md:m-auto md:w-[min(32rem,calc(100%-2rem))]"
+          : "mt-auto w-full md:mt-0 md:ml-auto md:h-full md:w-[min(30rem,100%)]",
       )}
     >
       <div
         className={cn(
           "flex max-h-[85dvh] flex-col overflow-y-auto rounded-t-2xl bg-surface shadow-xl",
-          "md:max-h-none md:h-full md:rounded-none md:border-l md:border-line",
+          placement === "dialog"
+            ? "md:max-h-[min(42rem,calc(100dvh-2rem))] md:rounded-2xl md:border md:border-line"
+            : "md:max-h-none md:h-full md:rounded-none md:border-l md:border-line",
           className,
         )}
         style={{ animation: "fiyu-sheet-in 200ms ease-out" }}

@@ -523,7 +523,9 @@ export function submitMyPick(
   return requestJson(myPicksUrl(), paths.myPicks, myPickSchema, {
     ...options,
     method: "POST",
-    body: { provider: "google", external_place_id: externalPlaceId, display_name_hint: displayNameHint ?? null },
+    body: displayNameHint
+      ? { provider: "google", external_place_id: externalPlaceId, display_name_hint: displayNameHint }
+      : { provider: "google", external_place_id: externalPlaceId },
   });
 }
 

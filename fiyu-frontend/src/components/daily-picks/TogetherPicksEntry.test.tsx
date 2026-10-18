@@ -119,7 +119,7 @@ describe("TogetherPicksEntry", () => {
     expect(screen.queryByRole("link")).toBeNull();
   });
 
-  it("names Premium plainly once the trial is spent", () => {
+  it("does not surface premature Premium copy once the trial is spent", () => {
     render(
       <TogetherPicksEntry
         state={{
@@ -131,7 +131,8 @@ describe("TogetherPicksEntry", () => {
         }}
       />,
     );
-    expect(screen.getByText("Available with Fiyu Premium.")).toBeTruthy();
+    expect(screen.queryByText("Available with Fiyu Premium.")).toBeNull();
+    expect(screen.getByText("Find three Picks with someone.")).toBeTruthy();
     expect(screen.queryByRole("link")).toBeNull();
   });
 });

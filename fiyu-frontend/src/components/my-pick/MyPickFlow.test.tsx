@@ -3,14 +3,14 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const api = vi.hoisted(() => ({ fetchMyPick: vi.fn(), fetchMyPicks: vi.fn(), submitMyPick: vi.fn() }));
+const api = vi.hoisted(() => ({ fetchMyPick: vi.fn(), fetchMyPicks: vi.fn() }));
 const router = vi.hoisted(() => ({ replace: vi.fn() }));
 const identity = vi.hoisted(() => ({ current: { status: "ready" as const, profile: { user_id: "user-a" } as { user_id: string } | null } }));
 vi.mock("@/lib/api/client", () => api);
 vi.mock("next/navigation", () => ({ useRouter: () => router }));
 vi.mock("@/lib/profile/profileIdentity", () => ({ useProfileIdentity: () => identity.current }));
 vi.mock("@/lib/lists/useDefaultList", () => ({ useDefaultList: () => ({ isSaved: () => false, pendingPlaceIds: [], toggle: vi.fn() }) }));
-vi.mock("@/components/my-pick/GooglePlaceSelector", () => ({ GooglePlaceSelector: ({ onSelect }: { onSelect(id: string): void }) => <button onClick={() => onSelect("google-place-1")}>Mock restaurant</button> }));
+vi.mock("@/components/my-pick/MyPickComposer", () => ({ MyPickComposer: ({ open }: { open: boolean }) => open ? <div role="dialog">Shared My Pick composer</div> : null }));
 
 import { MyPickFlow } from "@/components/my-pick/MyPickFlow";
 
@@ -23,20 +23,37 @@ const ready = {
   location_precision: "area", is_public: false, recommendation_review_status: "not_eligible",
 } as const;
 
-beforeEach(() => { api.fetchMyPicks.mockReset().mockResolvedValue([]); api.fetchMyPick.mockReset(); api.submitMyPick.mockReset(); router.replace.mockReset(); identity.current = { status: "ready", profile: { user_id: "user-a" } }; });
+beforeEach(() => { api.fetchMyPicks.mockReset().mockResolvedValue([ready]); api.fetchMyPick.mockReset().mockResolvedValue(ready); router.replace.mockReset(); identity.current = { status: "ready", profile: { user_id: "user-a" } }; });
 afterEach(cleanup);
 
 describe("MyPickFlow", () => {
-  it("submits only the selected Place ID and immediately renders a low private result", async () => {
-    api.submitMyPick.mockResolvedValue(ready);
+  it("is a history/results route without a duplicate search experience", async () => {
     render(<MyPickFlow />);
-    fireEvent.click(screen.getByRole("button", { name: "Mock restaurant" }));
-    fireEvent.click(screen.getByRole("button", { name: "Ask Fiyu about this place" }));
-    await screen.findByText("Your Pick is ready");
-    expect(api.submitMyPick).toHaveBeenCalledWith("google-place-1");
+    expect(screen.getByRole("heading", { name: "My Picks" })).toBeTruthy();
+    expect(screen.queryByLabelText("Restaurant search")).toBeNull();
+    expect(await screen.findByText("Small Tokyo Restaurant")).toBeTruthy();
+  });
+
+  it("recovers a completed result from a durable id deep link", async () => {
+    render(<MyPickFlow initialMyPickId={ready.my_pick_id} />);
+    expect(await screen.findByRole("heading", { name: "Your Pick is ready" })).toBeTruthy();
+    expect(api.fetchMyPick).toHaveBeenCalledWith(ready.my_pick_id, expect.objectContaining({ signal: expect.any(AbortSignal) }));
     expect(screen.getByLabelText("Fiyu score 4.2 out of 10")).toBeTruthy();
     expect(screen.getByText(/private result/)).toBeTruthy();
-    expect(screen.queryByRole("link", { name: "View restaurant" })).toBeNull();
+  });
+
+  it("recovers a pending request from a durable id deep link", async () => {
+    const pending = { ...ready, status: "pending" as const, place_id: null, name_en: null, fiyu_score: null };
+    api.fetchMyPick.mockResolvedValue(pending);
+    render(<MyPickFlow initialMyPickId={pending.my_pick_id} />);
+    expect(await screen.findByRole("heading", { name: "Your Pick is queued" })).toBeTruthy();
+    expect(screen.getByText("In progress")).toBeTruthy();
+  });
+
+  it("opens the one shared composer from its small new-request control", () => {
+    render(<MyPickFlow />);
+    fireEvent.click(screen.getByRole("button", { name: "New My Pick" }));
+    expect(screen.getByRole("dialog").textContent).toBe("Shared My Pick composer");
   });
 
   it("redirects unauthenticated users through the existing next-path sign-in flow", async () => {

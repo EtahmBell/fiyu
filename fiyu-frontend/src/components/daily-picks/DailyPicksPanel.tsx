@@ -1023,11 +1023,7 @@ export function DailyPicksPanel({
         )}
       </section>
 
-      {phase === "idle" && together.status === "ready" ? (
-        <TogetherPicksEntry state={together.data} />
-      ) : null}
-
-      {phase === "idle" ? <MyPickEntry /> : null}
+      {phase === "idle" ? <MyPickEntry signedIn={Boolean(accountId)} /> : null}
 
       {/*
        * Recent Discoveries is its own section on the page background, not a
@@ -1051,6 +1047,10 @@ export function DailyPicksPanel({
           />
         </div>
       )}
+
+      {phase === "idle" && together.status === "ready" ? (
+        <TogetherPicksEntry state={together.data} />
+      ) : null}
     </>
   );
 }

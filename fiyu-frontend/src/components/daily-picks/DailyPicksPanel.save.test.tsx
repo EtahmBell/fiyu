@@ -445,9 +445,11 @@ describe("/picks revealed-card save bookmark", () => {
     expect(screen.queryByLabelText("Together restaurants")).toBeNull();
     expect(screen.queryByText("Restaurant four")).toBeNull();
     const today = screen.getByRole("heading", { name: "Today’s Fiyu Picks" });
+    const myPick = screen.getByRole("heading", { name: "Try My Pick" });
     const together = screen.getByText("3 Picks together");
     const recent = screen.getByRole("heading", { name: "Recent Discoveries" });
-    expect(today.compareDocumentPosition(together) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(together.compareDocumentPosition(recent) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(today.compareDocumentPosition(myPick) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(myPick.compareDocumentPosition(recent) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(recent.compareDocumentPosition(together) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });

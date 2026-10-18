@@ -33,4 +33,16 @@ describe("GooglePlaceSelector", () => {
     autocomplete.dispatchEvent(event);
     expect(onSelect).toHaveBeenCalledWith("google-place-id");
   });
+
+  it("shares one lazy Google loader across simultaneous selectors", async () => {
+    class MockAutocomplete extends HTMLElement {}
+    customElements.define("mock-place-autocomplete-shared", MockAutocomplete);
+    const importLibrary = vi.fn(async () => ({ BasicPlaceAutocompleteElement: MockAutocomplete }));
+    render(<><GooglePlaceSelector onSelect={vi.fn()} /><GooglePlaceSelector onSelect={vi.fn()} /></>);
+    const scripts = document.querySelectorAll('script[data-fiyu-google-places="true"]');
+    expect(scripts).toHaveLength(1);
+    (window as Window & { google?: unknown }).google = { maps: { importLibrary } };
+    scripts[0].dispatchEvent(new Event("load"));
+    await waitFor(() => expect(document.querySelectorAll("mock-place-autocomplete-shared")).toHaveLength(2));
+  });
 });

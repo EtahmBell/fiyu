@@ -135,7 +135,7 @@ function entryContent(state: TogetherState): EntryContent | null {
     return {
       mark: null,
       headline: "Find three Picks with someone.",
-      detail: "Available with Fiyu Premium.",
+      detail: null,
       action: null,
       href: "/together",
     };

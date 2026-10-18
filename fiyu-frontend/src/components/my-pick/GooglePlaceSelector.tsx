@@ -53,11 +53,14 @@ export function GooglePlaceSelector({ disabled, onSelect }: { disabled?: boolean
       element.placeholder = "Search for a restaurant";
       element.style.display = "block";
       element.style.width = "100%";
+      element.style.maxWidth = "100%";
+      element.style.boxSizing = "border-box";
+      element.style.colorScheme = "light";
       element.toggleAttribute("disabled", disabled);
       element.addEventListener("gmp-select", selected);
       host.current.replaceChildren(element);
     }).catch((cause) => active && setError(cause instanceof Error ? cause.message : "Restaurant search could not load."));
     return () => { active = false; element?.removeEventListener("gmp-select", selected); element?.remove(); };
   }, [disabled, key, onSelect]);
-  return <div><div ref={host} className="min-h-12 w-full" aria-label="Restaurant search" />{error ? <p role="alert" className="mt-2 text-sm text-dusty-rose">{error}</p> : null}</div>;
+  return <div className="min-w-0 max-w-full"><div ref={host} className="min-h-12 min-w-0 max-w-full" aria-label="Restaurant search" />{error ? <p role="alert" className="mt-2 text-sm text-dusty-rose">{error}</p> : null}</div>;
 }
