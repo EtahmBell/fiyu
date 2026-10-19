@@ -265,8 +265,7 @@ export function TogetherHub({ initialSessionId }: { initialSessionId?: string })
 function TogetherInitiation({ state, busy, onStart }: { state: TogetherState | undefined; busy: boolean; onStart: () => void }) {
   if (!state) return null;
   if (state.block_reason === "ratings_required") return <p className="text-sm text-ink-body">Rate {Math.max(state.ratings_required - state.rated_visit_count, 0)} more visits to unlock Fiyu Together.</p>;
-  if (state.block_reason === "premium_required") return <p className="text-sm text-ink-body">Fiyu Together is available with Fiyu Premium.</p>;
   if (state.block_reason === "cycle_limit_reached") return <p className="text-sm text-ink-body">That’s every Together for this cycle. New Picks bring new ones.</p>;
-  if (!state.can_initiate) return null;
-  return <><Button variant="primary" disabled={busy} onClick={onStart}>Start Together</Button>{!state.premium ? <p className="mt-3 text-xs text-ink-muted">Your first Together is included.</p> : null}</>;
+  if (!state.can_initiate && state.block_reason !== "premium_required") return null;
+  return <Button variant="primary" disabled={busy} onClick={onStart}>Start Together</Button>;
 }

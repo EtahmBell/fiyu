@@ -22,6 +22,12 @@ class SharedUserDataRateLimited(SharedUserDataError):
     pass
 
 
+class MyPickQuotaExceeded(SharedUserDataRateLimited):
+    def __init__(self, quota: dict[str, Any]):
+        super().__init__("My Pick quota exhausted")
+        self.quota = quota
+
+
 def configured() -> bool:
     return bool(
         os.getenv("SUPABASE_URL", "").strip() and os.getenv("SUPABASE_SERVICE_ROLE_KEY", "").strip()
@@ -102,7 +108,9 @@ def _request(
             raw = response.read()
     except HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")
-        if exc.code == 429 or "my_pick_rate_limit" in detail:
+        if exc.code == 429 or any(
+            code in detail for code in ("my_pick_rate_limit", "my_pick_quota_exhausted")
+        ):
             raise SharedUserDataRateLimited("My Pick submission limit reached") from None
         if exc.code == 409 or "23505" in detail:
             raise SharedUserDataConflict("Shared account value is already in use") from None
@@ -128,21 +136,37 @@ def create_or_get_my_pick(
     display_name_hint: str | None,
     canonical_work_id: str,
 ) -> dict[str, Any]:
-    result = _request(
-        "rpc/create_or_get_fiyu_my_pick",
-        method="POST",
-        body={
-            "p_user_id": str(UUID(user_id)),
-            "p_provider": provider,
-            "p_external_place_id": external_place_id,
-            "p_display_name_hint": display_name_hint,
-            "p_canonical_work_id": str(UUID(canonical_work_id)),
-        },
-    )
+    try:
+        result = _request(
+            "rpc/create_or_get_fiyu_my_pick",
+            method="POST",
+            body={
+                "p_user_id": str(UUID(user_id)),
+                "p_provider": provider,
+                "p_external_place_id": external_place_id,
+                "p_display_name_hint": display_name_hint,
+                "p_canonical_work_id": str(UUID(canonical_work_id)),
+            },
+        )
+    except SharedUserDataRateLimited:
+        raise MyPickQuotaExceeded(get_my_pick_quota(user_id=user_id)) from None
     if isinstance(result, list) and result:
         result = result[0]
     if not isinstance(result, dict) or not result.get("id"):
         raise SharedUserDataError("My Pick could not be saved")
+    return result
+
+
+def get_my_pick_quota(*, user_id: str) -> dict[str, Any]:
+    result = _request(
+        "rpc/get_fiyu_my_pick_quota",
+        method="POST",
+        body={"p_user_id": str(UUID(user_id))},
+    )
+    if isinstance(result, list) and result:
+        result = result[0]
+    if not isinstance(result, dict):
+        raise SharedUserDataError("My Pick quota is unavailable")
     return result
 
 

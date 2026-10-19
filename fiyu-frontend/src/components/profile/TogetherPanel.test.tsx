@@ -35,7 +35,7 @@ describe("TogetherPanel", () => {
     expect(await screen.findByText("Rate 2 more visits to unlock Fiyu Together.")).toBeTruthy();
   });
 
-  it("shows the honest Premium lock after the lifetime trial is used", async () => {
+  it("keeps a rolling legacy premium_required response actionable without paywall copy", async () => {
     vi.mocked(fetchTogetherState).mockResolvedValue({
       ...base,
       trial_consumed: true,
@@ -43,14 +43,14 @@ describe("TogetherPanel", () => {
       block_reason: "premium_required",
     });
     render(<TogetherPanel accountId="account-a" />);
-    expect(await screen.findByText("Available with Fiyu Premium")).toBeTruthy();
-    expect(screen.queryByRole("button", { name: /Start/ })).toBeNull();
+    expect(await screen.findByRole("button", { name: "Start Together" })).toBeTruthy();
+    expect(screen.queryByText(/Premium/)).toBeNull();
   });
 
-  it("allows a Premium member to initiate without trial copy", async () => {
+  it("allows an eligible member to initiate without trial or Premium copy", async () => {
     vi.mocked(fetchTogetherState).mockResolvedValue({ ...base, premium: true });
     render(<TogetherPanel accountId="account-a" />);
-    expect(await screen.findByRole("button", { name: "Start a Together" })).toBeTruthy();
+    expect(await screen.findByRole("button", { name: "Start Together" })).toBeTruthy();
     expect(screen.queryByText("Your first Together is included.")).toBeNull();
   });
 
@@ -82,7 +82,7 @@ describe("TogetherPanel", () => {
       .toBe("/together/session/session-1");
   });
 
-  it("lets an eligible Premium member start another after a generated session", async () => {
+  it("lets an eligible member start another after a generated session", async () => {
     const session: TogetherSession = {
       session_id: "session-1", status: "generated", role: "initiator",
       expires_at: "2026-09-11T00:00:00Z", cycle_expires_at: "2026-09-11T00:00:00Z",
@@ -204,7 +204,7 @@ describe("TogetherPanel", () => {
       },
     });
     render(<TogetherPanel accountId="account-a" />);
-    fireEvent.click(await screen.findByRole("button", { name: "Start your first Together" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Start Together" }));
     expect(await screen.findByText("Waiting for someone to join")).toBeTruthy();
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith("https://fiyu.app/together/secure-token");
   });

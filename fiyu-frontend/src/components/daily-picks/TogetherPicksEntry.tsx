@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
 import {
   TOGETHER_CAPS,
@@ -9,6 +9,7 @@ import {
   TogetherAwaitingMark,
   type TogetherPerson,
 } from "@/components/profile/TogetherIdentity";
+import { createTogetherInvite } from "@/lib/api/client";
 import type { TogetherState } from "@/lib/api/schemas";
 import { activeTogetherSessions, togetherExpiryMs, togetherPartnerKey } from "@/lib/profile/togetherLifecycle";
 import { useTogetherLifecycleClock } from "@/lib/profile/useTogetherLifecycleClock";
@@ -109,8 +110,8 @@ function entryContent(state: TogetherState): EntryContent | null {
     return {
       mark: null,
       headline: "Find three Picks with someone.",
-      detail: state.premium ? null : "Your first Together is included.",
-      action: "Start Together",
+      detail: null,
+      action: "Invite someone",
       href: "/together",
     };
   }
@@ -125,7 +126,7 @@ function entryContent(state: TogetherState): EntryContent | null {
     return {
       mark: null,
       headline: "Find three Picks with someone.",
-      detail: `Rate ${remaining} more visit${remaining === 1 ? "" : "s"} to unlock.`,
+      detail: `Review ${remaining} more restaurant${remaining === 1 ? "" : "s"} to unlock.`,
       action: null,
       href: "/together",
     };
@@ -136,7 +137,7 @@ function entryContent(state: TogetherState): EntryContent | null {
       mark: null,
       headline: "Find three Picks with someone.",
       detail: null,
-      action: null,
+      action: "Invite someone",
       href: "/together",
     };
   }
@@ -145,6 +146,8 @@ function entryContent(state: TogetherState): EntryContent | null {
 }
 
 export function TogetherPicksEntry({ state }: { state: TogetherState }) {
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
   const expiryNow = useTogetherLifecycleClock(state.current_sessions.map(togetherExpiryMs).filter(Number.isFinite));
   const activeState = {
     ...state,
@@ -152,6 +155,33 @@ export function TogetherPicksEntry({ state }: { state: TogetherState }) {
   };
   const content = entryContent(activeState);
   if (!content) return null;
+
+  const invite = async () => {
+    if (busy) return;
+    setBusy(true);
+    setMessage(null);
+    try {
+      const created = await createTogetherInvite();
+      const nativeShare = (navigator as unknown as { share?: (data: ShareData) => Promise<void> }).share;
+      if (nativeShare) {
+        await nativeShare.call(navigator, {
+          title: "Fiyu Together",
+          text: "Find three Fiyu Picks with me.",
+          url: created.invite_url,
+        });
+        setMessage("Invite ready to share.");
+      } else {
+        await navigator.clipboard.writeText(created.invite_url);
+        setMessage("Invite link copied.");
+      }
+    } catch (error) {
+      if (!(error instanceof DOMException && error.name === "AbortError")) {
+        setMessage("Together is unavailable right now.");
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const body = (
     <div className="flex min-w-0 items-center justify-between gap-4">
@@ -181,15 +211,25 @@ export function TogetherPicksEntry({ state }: { state: TogetherState }) {
       data-testid="together-picks-entry"
       className="my-6 sm:my-7"
     >
-      {content.action ? (
+      {content.action === "Invite someone" ? (
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => void invite()}
+          className="group block min-h-11 w-full rounded-card border border-plum-line bg-plum-50 px-5 py-5 text-left transition-colors duration-[180ms] ease-(--ease-fiyu) hover:border-plum-500/40 hover:bg-plum-100/70 disabled:opacity-60 sm:px-6 sm:py-6"
+        >
+          {body}
+          {message ? <span role="status" className="mt-2 block text-xs text-ink-muted">{message}</span> : null}
+        </button>
+      ) : content.action ? (
         <Link
           href={content.href}
-          className="group block min-h-11 rounded-card border border-plum-line bg-plum-50 px-4 py-3.5 transition-colors duration-[180ms] ease-(--ease-fiyu) hover:border-plum-500/40 hover:bg-plum-100/70 sm:px-5 sm:py-4"
+          className="group block min-h-11 rounded-card border border-plum-line bg-plum-50 px-5 py-5 transition-colors duration-[180ms] ease-(--ease-fiyu) hover:border-plum-500/40 hover:bg-plum-100/70 sm:px-6 sm:py-6"
         >
           {body}
         </Link>
       ) : (
-        <div className="rounded-card border border-plum-line bg-plum-50 px-4 py-3.5 sm:px-5 sm:py-4">
+        <div className="rounded-card border border-plum-line bg-plum-50 px-5 py-5 sm:px-6 sm:py-6">
           {body}
         </div>
       )}

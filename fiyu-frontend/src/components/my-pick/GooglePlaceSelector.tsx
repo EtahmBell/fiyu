@@ -56,7 +56,9 @@ export function GooglePlaceSelector({ disabled, onSelect }: { disabled?: boolean
       element.style.maxWidth = "100%";
       element.style.boxSizing = "border-box";
       element.style.colorScheme = "light";
-      element.toggleAttribute("disabled", disabled);
+      // `toggleAttribute(name, undefined)` toggles instead of forcing false,
+      // which made the freshly-created Google field disabled by default.
+      element.toggleAttribute("disabled", Boolean(disabled));
       element.addEventListener("gmp-select", selected);
       host.current.replaceChildren(element);
     }).catch((cause) => active && setError(cause instanceof Error ? cause.message : "Restaurant search could not load."));

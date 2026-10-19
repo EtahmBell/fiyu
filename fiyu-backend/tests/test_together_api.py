@@ -111,21 +111,16 @@ def together_api(tmp_path, monkeypatch):
             )
             if count >= 3:
                 raise api.shared_user_data.SharedUserDataError("together_cycle_limit_reached")
-        use_trial = not values["initiator_is_premium"]
-        if use_trial and row["initiator_user_id"] in consumed:
-            raise api.shared_user_data.SharedUserDataError("together_trial_consumed")
         row.update({
             "invitee_user_id": values["invitee_user_id"], "status": "generated",
             "generated_at": values["generated_at"], "accepted_at": values["generated_at"],
-            "selection_metadata": values["selection_metadata"], "consumed_trial": use_trial,
+            "selection_metadata": values["selection_metadata"], "consumed_trial": False,
         })
         items[row["id"]] = [
             {"place_id": place_id, "position": position}
             for position, place_id in enumerate(values["place_ids"])
         ]
-        if use_trial:
-            consumed.add(row["initiator_user_id"])
-        return {"session_id": row["id"], "place_ids": values["place_ids"], "consumed_trial": use_trial}
+        return {"session_id": row["id"], "place_ids": values["place_ids"], "consumed_trial": False}
 
     def reveal_session(*, session_id, user_id, revealed_at):
         row = sessions[session_id]
@@ -200,7 +195,7 @@ def test_invitee_without_ratings_accepts_and_private_taste_is_not_exposed(togeth
     assert accepted.status_code == 200
     assert accepted.json()["restaurants"] == []
     assert accepted.json()["partner"]["display_name"] == "Ethan"
-    assert users["initiator"] in consumed
+    assert users["initiator"] not in consumed
 
 
 def test_self_accept_is_rejected(together_api):
@@ -244,11 +239,9 @@ def test_cancelled_free_invite_does_not_consume_trial(together_api):
     assert client.post("/together/invites", headers=auth("initiator")).status_code == 200
 
 
-def test_consumed_trial_blocks_free_initiation_but_not_premium(together_api, monkeypatch):
+def test_legacy_consumed_trial_does_not_gate_together(together_api):
     client, users, _, consumed, _ = together_api
     consumed.add(users["initiator"])
-    assert client.post("/together/invites", headers=auth("initiator")).status_code == 403
-    monkeypatch.setattr(api, "has_premium_access", lambda user_id: user_id == users["initiator"])
     response = client.post("/together/invites", headers=auth("initiator"))
     assert response.status_code == 200
 
@@ -275,7 +268,7 @@ def test_free_invitee_with_unused_trial_can_initiate_while_together_is_active(to
     assert state["can_initiate"] is True
 
 
-def test_free_initiator_with_consumed_trial_cannot_start_again_while_active(together_api):
+def test_eligible_initiator_can_start_again_without_premium_gate(together_api):
     client, users, _, consumed, _ = together_api
     created = client.post("/together/invites", headers=auth("initiator")).json()
     token = created["invite_url"].rsplit("/", 1)[-1]
@@ -287,10 +280,10 @@ def test_free_initiator_with_consumed_trial_cannot_start_again_while_active(toge
 
     state = client.get("/together/me", headers=auth("initiator")).json()
 
-    assert users["initiator"] in consumed
+    assert users["initiator"] not in consumed
     assert state["generated_session_count"] == 1
-    assert state["block_reason"] == "premium_required"
-    assert state["can_initiate"] is False
+    assert state["block_reason"] is None
+    assert state["can_initiate"] is True
 
 
 def test_second_accept_cannot_replace_first_invitee(together_api):
@@ -665,3 +658,21 @@ def test_together_migration_keeps_generation_atomic_and_account_scoped():
     assert "interval '72 hours'" in lifecycle_migration
     assert "together_reveal_expired" in lifecycle_migration
     assert "prior_revealed_at is null" in lifecycle_migration
+    no_paywall_migration = (
+        Path(__file__).parents[1]
+        / "supabase"
+        / "migrations"
+        / "202610180002_together_no_premium_gate.sql"
+    ).read_text(encoding="utf-8").lower()
+    assert "together_ratings_required" in no_paywall_migration
+    assert "together:pair:" in no_paywall_migration
+    assert "together_pair_already_used" in no_paywall_migration
+    assert "together_cycle_limit_reached" in no_paywall_migration
+    assert ">= 3" in no_paywall_migration
+    assert "together_selection_became_ineligible" in no_paywall_migration
+    assert "fiyu_together_pick_items ti" in no_paywall_migration
+    assert "pair_user_low = pair_low" in no_paywall_migration
+    assert "pg_advisory_xact_lock" in no_paywall_migration
+    assert "consumed_trial = false" in no_paywall_migration
+    assert "fiyu_together_trials" not in no_paywall_migration
+    assert "together_premium_required" not in no_paywall_migration

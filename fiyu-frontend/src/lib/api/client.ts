@@ -19,6 +19,7 @@ import {
   personalizedPicksSelectUrl,
   personalizedPicksStateUrl,
   myPicksUrl,
+  myPicksQuotaUrl,
   myPickUrl,
   developerDailyPicksGenerateUrl,
   developerDailyPicksResetUrl,
@@ -83,6 +84,7 @@ import {
   type LocationAnchor,
   type MapRestaurant,
   type MyPick,
+  type MyPickQuota,
   type DeveloperMyPickProcess,
   type DeveloperMyPickPreview,
   type ParsedRestaurantList,
@@ -121,6 +123,7 @@ import {
   mapRestaurantListSchema,
   myPickSchema,
   myPickListSchema,
+  myPickQuotaSchema,
   developerMyPickProcessSchema,
   developerMyPickResetSchema,
   developerMyPickPreviewSchema,
@@ -260,8 +263,10 @@ async function requestRaw(
 
   if (!response.ok) {
     let detail: string | undefined;
+    let responseBody: unknown;
     try {
-      detail = extractDetail(await response.json());
+      responseBody = await response.json();
+      detail = extractDetail(responseBody);
     } catch {
       detail = undefined;
     }
@@ -270,6 +275,7 @@ async function requestRaw(
       endpoint,
       status: response.status,
       detail,
+      responseBody,
     });
   }
 
@@ -531,6 +537,13 @@ export function submitMyPick(
 
 export function fetchMyPicks(options: RequestOptions = {}): Promise<MyPick[]> {
   return requestJson(myPicksUrl(), paths.myPicks, myPickListSchema, { ...options, cache: "no-store" });
+}
+
+export function fetchMyPickQuota(options: RequestOptions = {}): Promise<MyPickQuota> {
+  return requestJson(myPicksQuotaUrl(), paths.myPicksQuota, myPickQuotaSchema, {
+    ...options,
+    cache: "no-store",
+  });
 }
 
 export function fetchMyPick(myPickId: string, options: RequestOptions = {}): Promise<MyPick> {

@@ -50,6 +50,7 @@ export const paths = {
   personalizedPicksSelect: (eventId: string) =>
     `/personalized-picks/${encodeURIComponent(eventId)}/select`,
   myPicks: "/my-picks",
+  myPicksQuota: "/my-picks/quota",
   myPick: (myPickId: string) => `/my-picks/${encodeURIComponent(myPickId)}`,
   togetherState: "/together/me",
   togetherInvites: "/together/invites",
@@ -120,6 +121,7 @@ export function personalizedPicksSelectUrl(eventId: string): string {
 }
 
 export function myPicksUrl(): string { return `${getApiBaseUrl()}${paths.myPicks}`; }
+export function myPicksQuotaUrl(): string { return `${getApiBaseUrl()}${paths.myPicksQuota}`; }
 export function myPickUrl(myPickId: string): string {
   return `${getApiBaseUrl()}${paths.myPick(myPickId)}`;
 }

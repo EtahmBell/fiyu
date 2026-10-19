@@ -1,10 +1,13 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TogetherPicksEntry } from "@/components/daily-picks/TogetherPicksEntry";
 import type { TogetherSession, TogetherState } from "@/lib/api/schemas";
+
+const api = vi.hoisted(() => ({ createTogetherInvite: vi.fn() }));
+vi.mock("@/lib/api/client", () => api);
 
 const base: TogetherState = {
   rated_visit_count: 8,
@@ -35,13 +38,36 @@ const session = (id: string, partner: string, revealPending = false): TogetherSe
 });
 
 describe("TogetherPicksEntry", () => {
+  beforeEach(() => {
+    api.createTogetherInvite.mockReset().mockResolvedValue({
+      session: { ...session("pending", "Nobody"), status: "pending", partner: null, pick_count: 0 },
+      invite_url: "https://fiyu.example/together/invite-token",
+    });
+    Object.assign(navigator, { clipboard: { writeText: vi.fn().mockResolvedValue(undefined) } });
+    Object.defineProperty(navigator, "share", { configurable: true, value: undefined });
+  });
   afterEach(() => cleanup());
 
-  it("invites a first Together when none exists this cycle", () => {
+  it("creates the canonical invitation and copies its share link", async () => {
     render(<TogetherPicksEntry state={{ ...base, premium: false, trial_consumed: false }} />);
     expect(screen.getByText("Find three Picks with someone.")).toBeTruthy();
-    expect(screen.getByText("Your first Together is included.")).toBeTruthy();
-    expect(screen.getByRole("link", { name: /Start Together/ }).getAttribute("href")).toBe("/together");
+    fireEvent.click(screen.getByRole("button", { name: /Invite someone/ }));
+    await waitFor(() => expect(api.createTogetherInvite).toHaveBeenCalledTimes(1));
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith("https://fiyu.example/together/invite-token");
+    expect(await screen.findByText("Invite link copied.")).toBeTruthy();
+  });
+
+  it("uses Web Share when the browser supports it", async () => {
+    const share = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "share", { configurable: true, value: share });
+    render(<TogetherPicksEntry state={base} />);
+    fireEvent.click(screen.getByRole("button", { name: /Invite someone/ }));
+    await waitFor(() => expect(share).toHaveBeenCalledWith({
+      title: "Fiyu Together",
+      text: "Find three Fiyu Picks with me.",
+      url: "https://fiyu.example/together/invite-token",
+    }));
+    expect(screen.getByText("Invite ready to share.")).toBeTruthy();
   });
 
   it("summarises one partner without listing the shared Picks", () => {
@@ -115,7 +141,7 @@ describe("TogetherPicksEntry", () => {
         }}
       />,
     );
-    expect(screen.getByText("Rate 2 more visits to unlock.")).toBeTruthy();
+    expect(screen.getByText("Review 2 more restaurants to unlock.")).toBeTruthy();
     expect(screen.queryByRole("link")).toBeNull();
   });
 
@@ -133,6 +159,6 @@ describe("TogetherPicksEntry", () => {
     );
     expect(screen.queryByText("Available with Fiyu Premium.")).toBeNull();
     expect(screen.getByText("Find three Picks with someone.")).toBeTruthy();
-    expect(screen.queryByRole("link")).toBeNull();
+    expect(screen.getByRole("button", { name: /Invite someone/ })).toBeTruthy();
   });
 });

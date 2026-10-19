@@ -220,6 +220,22 @@ async def shared_user_data_rate_limited(
     return JSONResponse(status_code=429, content={"detail": "My Pick submission limit reached"})
 
 
+@app.exception_handler(shared_user_data.MyPickQuotaExceeded)
+async def my_pick_quota_exhausted(
+    _request: Request, error: shared_user_data.MyPickQuotaExceeded
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=429,
+        content={
+            "detail": {
+                "code": "my_pick_quota_exhausted",
+                "message": "You've used your 3 My Picks for now.",
+                "quota": error.quota,
+            }
+        },
+    )
+
+
 class PublicRestaurantSummary(BaseModel):
     place_id: str
     name_ja: str | None = None
@@ -858,6 +874,14 @@ class MyPickResponse(BaseModel):
     recommendation_review_status: Literal[
         "not_eligible", "pending", "approved", "declined", "withdrawn"
     ] = "not_eligible"
+
+
+class MyPickQuotaResponse(BaseModel):
+    limit: Literal[3]
+    used: int = Field(ge=0)
+    remaining: int = Field(ge=0, le=3)
+    window_hours: Literal[24]
+    next_available_at: str | None = None
 
 
 class TogetherIdentityResponse(BaseModel):
@@ -2531,9 +2555,10 @@ def _together_session_response(
 
 
 def _together_rated_count(user_id: str) -> int:
-    return sum(
-        isinstance(visit.get("rating"), int) and 1 <= int(visit["rating"]) <= 5
-        for visit in shared_user_data.list_visits(user_id=user_id)
+    return len(
+        _qualifying_rating_place_ids(
+            shared_user_data.list_visits(user_id=user_id)
+        )
     )
 
 
@@ -2556,8 +2581,7 @@ def _together_state(user_id: str) -> TogetherStateResponse:
     )
     block_reason = (
         "ratings_required" if rated_count < 5 else
-        "cycle_limit_reached" if len(generated_rows) >= TOGETHER_CYCLE_SESSION_LIMIT else
-        "premium_required" if trial_consumed and not premium else None
+        "cycle_limit_reached" if len(generated_rows) >= TOGETHER_CYCLE_SESSION_LIMIT else None
     )
     return TogetherStateResponse(
         rated_visit_count=rated_count,
@@ -2696,8 +2720,6 @@ def create_together_invitation(
             "together_cycle_limit_reached",
             "You reached the Together limit for this cycle.",
         )
-    if state.trial_consumed and not state.premium:
-        raise HTTPException(status_code=403, detail="Fiyu Premium is required to start another Together.")
     location = shared_user_data.get_discovery_location(user_id=user_id)
     if (
         not location
@@ -3210,6 +3232,17 @@ def list_my_pick_submissions(
     return [
         _my_pick_response(row) for row in shared_user_data.list_my_picks(user_id=user_id)
     ]
+
+
+@app.get("/my-picks/quota", response_model=MyPickQuotaResponse)
+def get_my_pick_quota(
+    user_id: Annotated[str, Depends(_authenticated_user_id)],
+) -> MyPickQuotaResponse:
+    if not shared_user_data.configured():
+        raise HTTPException(status_code=503, detail="Account data is unavailable")
+    return MyPickQuotaResponse.model_validate(
+        shared_user_data.get_my_pick_quota(user_id=user_id)
+    )
 
 
 @app.get("/my-picks/{my_pick_id}", response_model=MyPickResponse)

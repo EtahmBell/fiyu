@@ -48,6 +48,7 @@ export interface FiyuApiErrorOptions {
   endpoint: string;
   status?: number;
   detail?: string;
+  responseBody?: unknown;
   cause?: unknown;
 }
 
@@ -57,14 +58,16 @@ export class FiyuApiError extends Error {
   readonly status?: number;
   /** Backend-provided `detail`, flattened to a string. Never rendered raw as HTML. */
   readonly detail?: string;
+  readonly responseBody?: unknown;
 
-  constructor({ kind, endpoint, status, detail, cause }: FiyuApiErrorOptions) {
+  constructor({ kind, endpoint, status, detail, responseBody, cause }: FiyuApiErrorOptions) {
     super(detail ? `${kind} (${endpoint}): ${detail}` : `${kind} (${endpoint})`);
     this.name = "FiyuApiError";
     this.kind = kind;
     this.endpoint = endpoint;
     this.status = status;
     this.detail = detail;
+    this.responseBody = responseBody;
     if (cause !== undefined) this.cause = cause;
   }
 

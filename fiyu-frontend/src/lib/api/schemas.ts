@@ -314,6 +314,20 @@ export const myPickSchema = z.object({
   recommendation_review_status: z.enum(["not_eligible", "pending", "approved", "declined", "withdrawn"]),
 });
 export const myPickListSchema = z.array(myPickSchema);
+export const myPickQuotaSchema = z.object({
+  limit: z.literal(3),
+  used: z.number().int().nonnegative(),
+  remaining: z.number().int().min(0).max(3),
+  window_hours: z.literal(24),
+  next_available_at: nullableString,
+});
+export const myPickQuotaErrorSchema = z.object({
+  detail: z.object({
+    code: z.literal("my_pick_quota_exhausted"),
+    message: z.string(),
+    quota: myPickQuotaSchema,
+  }),
+});
 export const developerMyPickProcessSchema = z.object({
   my_pick: myPickSchema,
   worker_summary: z.record(z.string(), z.number().int()),
@@ -792,6 +806,7 @@ export type PersonalizedPickState = z.infer<typeof personalizedPickStateSchema>;
 export type TogetherIdentity = z.infer<typeof togetherIdentitySchema>;
 export type TogetherSession = z.infer<typeof togetherSessionSchema>;
 export type TogetherState = z.infer<typeof togetherStateSchema>;
+export type MyPickQuota = z.infer<typeof myPickQuotaSchema>;
 export type TogetherInvitePreview = z.infer<typeof togetherInvitePreviewSchema>;
 export type TogetherInviteCreated = z.infer<typeof togetherInviteCreatedSchema>;
 export type RecentDailyPickRound = z.infer<typeof recentDailyPickRoundSchema>;

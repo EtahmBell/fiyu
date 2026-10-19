@@ -48,7 +48,7 @@ import { cn } from "@/lib/utils/cn";
  * the ready state keeps `ink-muted`, which is 5.18:1 on paper.
  *
  * Every state here is the server's, restated: ratings progress, the trial, the
- * Premium lock, the cycle cap, whether an invitation is out and whether a set
+ * readiness, the cycle cap, whether an invitation is out and whether a set
  * is waiting to be revealed. Nothing is inferred and nothing is dramatised.
  */
 
@@ -243,7 +243,7 @@ export function TogetherPanel({ accountId, ratedVisitCount = 0 }: { accountId: s
               >
                 View Together →
               </Link>
-              {state.can_initiate ? (
+              {state.can_initiate || state.block_reason === "premium_required" ? (
                 <button
                   type="button"
                   disabled={busy}
@@ -257,14 +257,11 @@ export function TogetherPanel({ accountId, ratedVisitCount = 0 }: { accountId: s
           </div>
         ) : state.block_reason === "ratings_required" ? (
           <p className="mt-6 text-sm leading-6 text-ink-body">Rate {Math.max(state.ratings_required - state.rated_visit_count, 0)} more visit{state.ratings_required - state.rated_visit_count === 1 ? "" : "s"} to unlock Fiyu Together.</p>
-        ) : state.block_reason === "premium_required" ? (
-          <p className="mt-6 font-display text-xl text-ink">Available with Fiyu Premium</p>
         ) : state.block_reason === "cycle_limit_reached" ? (
           <p className="mt-6 text-sm text-ink-body">You have reached this cycle&apos;s Together limit.</p>
-        ) : state.can_initiate && query.status !== "error" ? (
+        ) : (state.can_initiate || state.block_reason === "premium_required") && query.status !== "error" ? (
           <div className="mt-6">
-            <Button variant="secondary" disabled={busy} onClick={() => void start()}>{state.premium ? "Start a Together" : "Start your first Together"}</Button>
-            {!state.premium ? <p className="mt-3 text-xs text-ink-body">Your first Together is included.</p> : null}
+            <Button variant="secondary" disabled={busy} onClick={() => void start()}>Start Together</Button>
           </div>
         ) : null}
 

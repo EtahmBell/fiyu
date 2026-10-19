@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/config/env", () => ({ getGooglePlacesUiKitKey: () => "public-test-key" }));
@@ -10,7 +10,15 @@ describe("GooglePlaceSelector", () => {
   afterEach(() => { cleanup(); delete (window as Window & { google?: unknown }).google; });
 
   it("isolates Google UI Kit, restricts suggestions, and emits only the selected Place ID", async () => {
-    class MockAutocomplete extends HTMLElement {}
+    class MockAutocomplete extends HTMLElement {
+      readonly input: HTMLInputElement;
+      constructor() {
+        super();
+        this.input = document.createElement("input");
+        this.attachShadow({ mode: "open" }).append(this.input);
+        this.addEventListener("click", () => this.input.focus());
+      }
+    }
     customElements.define("mock-place-autocomplete", MockAutocomplete);
     (window as Window & { google?: unknown }).google = {
       maps: { importLibrary: vi.fn(async () => ({ BasicPlaceAutocompleteElement: MockAutocomplete })) },
@@ -28,6 +36,14 @@ describe("GooglePlaceSelector", () => {
     };
     expect(autocomplete.includedRegionCodes).toEqual(["jp"]);
     expect(autocomplete.locationRestriction).toEqual({ west: 139.56, east: 139.92, south: 35.52, north: 35.82 });
+    fireEvent.click(autocomplete);
+    const input = autocomplete.shadowRoot?.querySelector("input") as HTMLInputElement;
+    expect(autocomplete.matches(":disabled")).toBe(false);
+    expect(autocomplete.hasAttribute("disabled")).toBe(false);
+    expect(autocomplete).toBe(document.activeElement);
+    expect(autocomplete.shadowRoot?.activeElement).toBe(input);
+    fireEvent.input(input, { target: { value: "Kichijoji" } });
+    expect(input.value).toBe("Kichijoji");
     const event = new Event("gmp-select") as Event & { placePrediction?: unknown };
     event.placePrediction = { toPlace: () => ({ id: "google-place-id", location: { lat: 1, lng: 2 } }) };
     autocomplete.dispatchEvent(event);
