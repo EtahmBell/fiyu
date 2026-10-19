@@ -37,7 +37,7 @@ function stripComments(source: string): string {
   return source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
 }
 
-describe("Google Maps JavaScript remains confined to My Pick Places UI Kit", () => {
+describe("Google Maps JavaScript remains confined to My Pick autocomplete", () => {
   it("declares no Google Maps dependency", () => {
     const pkg = JSON.parse(readFileSync(join(process.cwd(), "package.json"), "utf8")) as {
       dependencies?: Record<string, string>;
@@ -52,7 +52,7 @@ describe("Google Maps JavaScript remains confined to My Pick Places UI Kit", () 
       /@vis\.gl|google\.maps|maps\.googleapis\.com/.test(stripComments(read(path))),
     );
     expect(offenders.map((path) => path.split(sep).slice(-3).join("/"))).toEqual([
-      "components/my-pick/GooglePlaceSelector.tsx",
+      "lib/google/mapsLoader.ts",
     ]);
   });
 

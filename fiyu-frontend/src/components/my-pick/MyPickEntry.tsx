@@ -4,8 +4,9 @@ import Link from "next/link";
 import { useRef, useState } from "react";
 
 import { MyPickComposer } from "@/components/my-pick/MyPickComposer";
+import type { MyPick } from "@/lib/api/schemas";
 
-export function MyPickEntry({ signedIn }: { signedIn: boolean }) {
+export function MyPickEntry({ signedIn, onSubmitted }: { signedIn: boolean; onSubmitted?: (myPick: MyPick) => void }) {
   const [open, setOpen] = useState(false);
   const trigger = useRef<HTMLButtonElement>(null);
   const close = () => {
@@ -16,7 +17,6 @@ export function MyPickEntry({ signedIn }: { signedIn: boolean }) {
 
   return <aside className="mt-6" aria-labelledby="my-pick-entry-title">
     {signedIn ? <button ref={trigger} type="button" onClick={() => setOpen(true)} className="block w-full rounded-card border border-lavender-100 bg-lavender-50/35 p-5 text-left hover:border-lavender-200 hover:bg-lavender-50/60">{content}</button> : <Link href="/signin?next=%2Fpicks" className="block rounded-card border border-lavender-100 bg-lavender-50/35 p-5 hover:border-lavender-200 hover:bg-lavender-50/60">{content}</Link>}
-    {signedIn ? <div className="mt-2 text-right"><Link href="/my-pick" className="inline-flex min-h-11 items-center text-sm font-medium text-ink-muted hover:text-ink">View My Picks</Link></div> : null}
-    {open ? <MyPickComposer open onClose={close} /> : null}
+    {open ? <MyPickComposer open onClose={close} onSubmitted={onSubmitted} /> : null}
   </aside>;
 }

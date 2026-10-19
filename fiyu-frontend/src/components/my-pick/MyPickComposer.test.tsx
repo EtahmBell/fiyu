@@ -44,20 +44,22 @@ describe("MyPickComposer", () => {
       .mockResolvedValueOnce(fullQuota)
       .mockResolvedValueOnce({ ...fullQuota, used: 1, remaining: 2 });
     const onClose = vi.fn();
-    render(<MyPickComposer open onClose={onClose} />);
+    const onSubmitted = vi.fn();
+    render(<MyPickComposer open onClose={onClose} onSubmitted={onSubmitted} />);
     await screen.findByText("3 My Picks available now");
     fireEvent.click(screen.getByRole("button", { name: "Mock Google suggestion" }));
     fireEvent.click(screen.getByRole("button", { name: "Ask Fiyu about this place" }));
     expect(api.submitMyPick).toHaveBeenCalledWith("google-place-1");
     expect(await screen.findByText("Submitted to Fiyu")).toBeTruthy();
+    expect(onSubmitted).toHaveBeenCalledWith(response);
     expect(await screen.findByText("2 of 3 My Picks remaining")).toBeTruthy();
     expect(screen.queryByText(/researching|progress/i)).toBeNull();
-    expect(screen.getByRole("link", { name: "View My Picks" }).getAttribute("href")).toBe("/my-pick?id=pick-1");
+    expect(screen.queryByRole("link", { name: "View My Picks" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Done" }));
     await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
   });
 
-  it("prevents a new request when exhausted while keeping history available", async () => {
+  it("prevents a new request when exhausted without linking to a separate history screen", async () => {
     api.fetchMyPickQuota.mockResolvedValue({
       ...fullQuota,
       used: 3,
@@ -68,7 +70,7 @@ describe("MyPickComposer", () => {
     expect(await screen.findByText("You've used your 3 My Picks for now.")).toBeTruthy();
     expect(screen.getByText(/Another My Pick becomes available/)).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Mock Google suggestion" })).toBeNull();
-    expect(screen.getByRole("link", { name: "View My Picks" }).getAttribute("href")).toBe("/my-pick");
+    expect(screen.queryByRole("link", { name: "View My Picks" })).toBeNull();
     expect(api.submitMyPick).not.toHaveBeenCalled();
   });
 

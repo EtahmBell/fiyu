@@ -55,6 +55,7 @@ export interface DiscoveryShellProps {
   restaurants: PublicRestaurant[];
   /** Operator-curated area centres. Empty until anchors are reviewed. */
   areaAnchors: LocationAnchor[];
+  initialMyPickId?: string | null;
 }
 
 const MAP_EMPTY_COPY: Record<PersonalMapFilter, string> = {
@@ -89,7 +90,7 @@ type NewRoundLocationGate =
  * Data arrives already fetched and validated from the server component, so this
  * never touches the network, and ordering is delegated to the ranking adapter.
  */
-export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps) {
+export function DiscoveryShell({ restaurants, areaAnchors, initialMyPickId = null }: DiscoveryShellProps) {
   const router = useRouter();
   const identity = useProfileIdentity();
   const personalizedPick = usePersonalizedPick();
@@ -559,6 +560,7 @@ export function DiscoveryShell({ restaurants, areaAnchors }: DiscoveryShellProps
                 selectedPlaceId={selection?.placeId ?? null}
                 scrollToPlaceId={selection?.source === "map" ? selection.placeId : null}
                 scrollRequestKey={selection?.navigationKey ?? 0}
+                initialMyPickId={initialMyPickId}
                 originSetup={
                   identity.profile
                     ? undefined

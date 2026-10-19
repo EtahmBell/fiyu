@@ -62,7 +62,13 @@ async function loadAreaAnchors(): Promise<LocationAnchor[]> {
   }
 }
 
-export default async function HomePage() {
+export default async function HomePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ myPick?: string | string[] }>;
+}) {
+  const query = await searchParams;
+  const initialMyPickId = typeof query.myPick === "string" ? query.myPick : null;
   const [result, areaAnchors] = await Promise.all([loadCatalog(), loadAreaAnchors()]);
 
   if (!result.ok) {
@@ -104,7 +110,7 @@ export default async function HomePage() {
           <MalformedDataNotice rejected={rejected} accepted={restaurants.length} />
         </div>
       )}
-      <DiscoveryShell restaurants={restaurants} areaAnchors={areaAnchors} />
+      <DiscoveryShell restaurants={restaurants} areaAnchors={areaAnchors} initialMyPickId={initialMyPickId} />
     </main>
   );
 }

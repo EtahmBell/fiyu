@@ -1,6 +1,6 @@
 # My Pick local setup
 
-My Pick uses Google Places UI Kit only on `/my-pick`. Configure a billing-enabled Google Cloud project, enable the Maps JavaScript API and Places UI Kit, then create a browser key restricted to the local and deployed Fiyu origins and to those APIs. Put that public key in:
+My Pick uses Google's Place Autocomplete widget only inside its modal on `/picks`. Configure a billing-enabled Google Cloud project, enable the **Maps JavaScript API** and **Places API (New)**, then create a browser key restricted to the local and deployed Fiyu origins and to those two APIs. Put that public key in:
 
 ```powershell
 NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=your_http_referrer_restricted_browser_key

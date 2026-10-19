@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -8,7 +7,7 @@ import { GooglePlaceSelector } from "@/components/my-pick/GooglePlaceSelector";
 import { Button } from "@/components/ui/Button";
 import { fetchMyPickQuota, submitMyPick } from "@/lib/api/client";
 import { FiyuApiError } from "@/lib/api/errors";
-import { type MyPickQuota, myPickQuotaErrorSchema } from "@/lib/api/schemas";
+import { type MyPick, type MyPickQuota, myPickQuotaErrorSchema } from "@/lib/api/schemas";
 
 type ComposerState = "search" | "confirm" | "submitting" | "submitted";
 
@@ -28,10 +27,17 @@ function quotaSummary(quota: MyPickQuota): string {
   return `${quota.remaining} of ${quota.limit} My Picks remaining`;
 }
 
-export function MyPickComposer({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function MyPickComposer({
+  open,
+  onClose,
+  onSubmitted,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onSubmitted?: (myPick: MyPick) => void;
+}) {
   const [state, setState] = useState<ComposerState>("search");
   const [placeId, setPlaceId] = useState<string | null>(null);
-  const [submittedId, setSubmittedId] = useState<string | null>(null);
   const [quota, setQuota] = useState<MyPickQuota | null>(null);
   const [quotaLoading, setQuotaLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -100,7 +106,7 @@ export function MyPickComposer({ open, onClose }: { open: boolean; onClose: () =
     setState("submitting");
     try {
       const result = await submitMyPick(placeId);
-      setSubmittedId(result.my_pick_id);
+      onSubmitted?.(result);
       setState("submitted");
       void refreshQuota();
     } catch (cause) {
@@ -122,7 +128,7 @@ export function MyPickComposer({ open, onClose }: { open: boolean; onClose: () =
   const trapFocus = (event: React.KeyboardEvent<HTMLDivElement>) => {
     if (event.key !== "Tab") return;
     const focusable = [...event.currentTarget.querySelectorAll<HTMLElement>(
-      'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"]), gmp-basic-place-autocomplete',
+      'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"]), gmp-place-autocomplete',
     )].filter((element) => !element.hasAttribute("hidden"));
     if (focusable.length === 0) {
       event.preventDefault();
@@ -180,7 +186,6 @@ export function MyPickComposer({ open, onClose }: { open: boolean; onClose: () =
                 <div className="relative isolate mt-5 min-w-0 max-w-full overflow-visible"><GooglePlaceSelector onSelect={choose} /></div>
               )}
               {error ? <p role="alert" className="mt-3 text-sm text-dusty-rose">{error}</p> : null}
-              <Link href="/my-pick" className="mt-4 inline-flex min-h-11 items-center text-sm font-medium text-plum">View My Picks</Link>
             </>
           ) : null}
 
@@ -199,7 +204,6 @@ export function MyPickComposer({ open, onClose }: { open: boolean; onClose: () =
               <h3 id={descriptionId} className="font-display text-2xl text-ink">Submitted to Fiyu</h3>
               <p className="mx-auto mt-3 max-w-sm text-sm leading-6 text-ink-muted">We&apos;ll look into it and let you know when your My Pick is ready.</p>
               <Button className="mt-6 w-full" variant="primary" onClick={close}>Done</Button>
-              {submittedId ? <Link href={`/my-pick?id=${encodeURIComponent(submittedId)}`} className="mt-3 inline-flex min-h-11 items-center text-sm font-medium text-plum">View My Picks</Link> : null}
             </div>
           ) : null}
         </div>

@@ -11,7 +11,7 @@ import {
 } from "@/components/daily-picks/DailyCardFrame";
 import { RecentDiscoveries } from "@/components/daily-picks/RecentDiscoveries";
 import { TogetherPicksEntry } from "@/components/daily-picks/TogetherPicksEntry";
-import { MyPickEntry } from "@/components/my-pick/MyPickEntry";
+import { MyPickPicksSection } from "@/components/my-pick/MyPickPicksSection";
 import { VisitedPickCard } from "@/components/daily-picks/VisitedPickCard";
 import { FreeOriginOnboarding } from "@/components/location/FreeOriginOnboarding";
 import { FiyuLoadingScreen } from "@/components/states/FiyuLoadingScreen";
@@ -80,6 +80,7 @@ export interface DailyPicksPanelProps {
   scrollToPlaceId?: string | null;
   scrollRequestKey?: number;
   originSetup?: FreeOriginSetup;
+  initialMyPickId?: string | null;
 }
 
 export interface ActivePicksDiscoveryLocation {
@@ -189,6 +190,7 @@ export function DailyPicksPanel({
   scrollToPlaceId = null,
   scrollRequestKey = 0,
   originSetup,
+  initialMyPickId = null,
 }: DailyPicksPanelProps) {
   const visitsByPlaceId = useMemo(
     () => new Map(
@@ -1023,7 +1025,7 @@ export function DailyPicksPanel({
         )}
       </section>
 
-      {phase === "idle" ? <MyPickEntry signedIn={Boolean(accountId)} /> : null}
+      {phase === "idle" ? <MyPickPicksSection accountId={accountId} initialMyPickId={initialMyPickId} /> : null}
 
       {/*
        * Recent Discoveries is its own section on the page background, not a
