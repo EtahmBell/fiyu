@@ -31,6 +31,7 @@ import {
   developerPersonalizedPicksExpireUrl,
   developerMyPicksProcessUrl,
   developerMyPicksResetUrl,
+  developerMyPickHardResetUrl,
   developerMyPicksPreviewUrl,
   developerLocationOverrideUrl,
   developerStatusUrl,
@@ -86,6 +87,7 @@ import {
   type MyPick,
   type MyPickQuota,
   type DeveloperMyPickProcess,
+  type DeveloperMyPickHardReset,
   type DeveloperMyPickPreview,
   type ParsedRestaurantList,
   type PublicRestaurantDetail,
@@ -126,6 +128,7 @@ import {
   myPickQuotaSchema,
   developerMyPickProcessSchema,
   developerMyPickResetSchema,
+  developerMyPickHardResetSchema,
   developerMyPickPreviewSchema,
   parseRestaurantList,
   publicRestaurantDetailSchema,
@@ -943,6 +946,18 @@ export function resetDeveloperMyPicks(options: RequestOptions = {}): Promise<num
   return requestJson(developerMyPicksResetUrl(), paths.developerMyPicksReset, developerMyPickResetSchema, {
     ...options, method: "POST",
   }).then((result) => result.deleted_my_picks);
+}
+
+export function hardResetDeveloperMyPick(
+  myPickId: string,
+  options: RequestOptions = {},
+): Promise<DeveloperMyPickHardReset> {
+  return requestJson(
+    developerMyPickHardResetUrl(),
+    paths.developerMyPickHardReset,
+    developerMyPickHardResetSchema,
+    { ...options, method: "POST", body: { my_pick_id: myPickId } },
+  );
 }
 
 export type DeveloperMyPickScenario = "below_70" | "review_eligible" | "needs_location" | "outside_coverage" | "failed_retryable";

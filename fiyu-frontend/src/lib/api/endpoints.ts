@@ -72,6 +72,7 @@ export const paths = {
   developerPersonalizedPicksExpire: "/developer/personalized-picks/expire",
   developerMyPicksProcess: "/developer/my-picks/process",
   developerMyPicksReset: "/developer/my-picks/reset",
+  developerMyPickHardReset: "/developer/my-picks/hard-reset",
   developerMyPicksPreview: "/developer/my-picks/preview",
   seenRestaurants: "/seen/restaurants",
   mapRestaurants: "/map/restaurants",
@@ -176,6 +177,7 @@ export function developerPersonalizedPicksExpireUrl(): string {
 
 export function developerMyPicksProcessUrl(): string { return `${getApiBaseUrl()}${paths.developerMyPicksProcess}`; }
 export function developerMyPicksResetUrl(): string { return `${getApiBaseUrl()}${paths.developerMyPicksReset}`; }
+export function developerMyPickHardResetUrl(): string { return `${getApiBaseUrl()}${paths.developerMyPickHardReset}`; }
 export function developerMyPicksPreviewUrl(): string { return `${getApiBaseUrl()}${paths.developerMyPicksPreview}`; }
 
 export function seenRestaurantsUrl(): string {

@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/auth/authService", () => ({ authService: { getAccessToken: vi.fn(async () => null) } }));
 
-import { fetchMyPickQuota, processDeveloperMyPick, submitMyPick } from "@/lib/api/client";
+import { fetchMyPickQuota, hardResetDeveloperMyPick, processDeveloperMyPick, submitMyPick } from "@/lib/api/client";
 import type { FiyuApiError } from "@/lib/api/errors";
 
 const ready = {
@@ -78,6 +78,30 @@ describe("processDeveloperMyPick", () => {
     expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toEqual({
       my_pick_id: ready.my_pick_id,
       retry_failed: true,
+    });
+  });
+});
+
+describe("hardResetDeveloperMyPick", () => {
+  it("targets exactly one existing developer Pick", async () => {
+    const response = {
+      reset: true,
+      deleted_my_picks: 1,
+      deleted_canonical_work: 1,
+      deleted_transient_placeholder: true,
+      preserved_canonical_restaurant: false,
+    };
+    const fetchMock = vi.fn<typeof fetch>(async () => new Response(JSON.stringify(response), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(hardResetDeveloperMyPick(ready.my_pick_id)).resolves.toEqual(response);
+    expect(fetchMock.mock.calls[0][0]).toContain("/developer/my-picks/hard-reset");
+    expect(fetchMock.mock.calls[0][1]?.method).toBe("POST");
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toEqual({
+      my_pick_id: ready.my_pick_id,
     });
   });
 });

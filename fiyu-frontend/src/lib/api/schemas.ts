@@ -333,6 +333,13 @@ export const developerMyPickProcessSchema = z.object({
   worker_summary: z.record(z.string(), z.number().int()),
 });
 export const developerMyPickResetSchema = z.object({ reset: z.literal(true), deleted_my_picks: z.number().int().nonnegative() });
+export const developerMyPickHardResetSchema = z.object({
+  reset: z.literal(true),
+  deleted_my_picks: z.number().int().nonnegative(),
+  deleted_canonical_work: z.number().int().nonnegative(),
+  deleted_transient_placeholder: z.boolean(),
+  preserved_canonical_restaurant: z.boolean(),
+});
 export const developerMyPickPreviewSchema = z.object({ preview_only: z.literal(true), my_pick: myPickSchema });
 
 /**
@@ -782,6 +789,7 @@ export type MapRestaurant = z.infer<typeof mapRestaurantSchema>;
 export type MyPick = z.infer<typeof myPickSchema>;
 export type MyPickStatus = z.infer<typeof myPickStatusSchema>;
 export type DeveloperMyPickProcess = z.infer<typeof developerMyPickProcessSchema>;
+export type DeveloperMyPickHardReset = z.infer<typeof developerMyPickHardResetSchema>;
 export type DeveloperMyPickPreview = z.infer<typeof developerMyPickPreviewSchema>;
 export type PublicRestaurantDetail = z.infer<typeof publicRestaurantDetailSchema>;
 export type PublicRestaurantList = z.infer<typeof publicRestaurantListSchema>;

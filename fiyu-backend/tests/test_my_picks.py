@@ -269,6 +269,77 @@ def test_retryable_worker_job_succeeds_without_duplicate_shared_work(catalog):
         ).fetchone()[0] == 1
 
 
+def test_hard_reset_removes_failed_work_and_exclusive_transient_candidate(catalog):
+    external_id = "hard-reset-placeholder"
+    work, _ = my_picks.create_or_get_canonical_work(
+        catalog, provider="google", external_place_id=external_id
+    )
+    place_id, _ = my_pick_processor.ensure_my_pick_candidate(
+        catalog,
+        provider="google",
+        external_place_id=external_id,
+        display_name_hint=None,
+    )
+    with connect(catalog) as connection:
+        connection.execute(
+            """
+            UPDATE my_pick_canonical_work
+            SET canonical_place_id=?, status='failed_retryable', failure_code='provider_unavailable'
+            WHERE id=?
+            """,
+            (place_id, work["id"]),
+        )
+        connection.commit()
+
+    plan = my_picks.inspect_my_pick_hard_reset(catalog, str(work["id"]))
+    result = my_picks.hard_reset_my_pick_canonical_work(catalog, str(work["id"]))
+
+    assert plan["will_delete_transient_placeholder"] is True
+    assert result == {
+        "deleted_canonical_work": 1,
+        "deleted_transient_placeholder": True,
+        "preserved_canonical_restaurant": False,
+    }
+    assert my_picks.get_canonical_work(catalog, str(work["id"])) is None
+    with connect(catalog) as connection:
+        assert connection.execute(
+            "SELECT COUNT(*) FROM public_restaurants WHERE place_id=?", (place_id,)
+        ).fetchone()[0] == 0
+        assert connection.execute(
+            "SELECT COUNT(*) FROM restaurants WHERE place_id=?", (place_id,)
+        ).fetchone()[0] == 0
+
+    fresh, created = my_picks.create_or_get_canonical_work(
+        catalog, provider="google", external_place_id=external_id
+    )
+    assert created is True
+    assert fresh["status"] == "pending"
+    assert fresh["attempt_count"] == 0
+
+
+def test_hard_reset_preserves_existing_public_restaurant(catalog):
+    add_canonical(catalog, "existing-public", score=80, published=True)
+    work, _ = my_picks.create_or_get_canonical_work(
+        catalog, provider="google", external_place_id="existing-public"
+    )
+    with connect(catalog) as connection:
+        connection.execute(
+            "UPDATE my_pick_canonical_work SET status='failed_retryable' WHERE id=?",
+            (work["id"],),
+        )
+        connection.commit()
+
+    result = my_picks.hard_reset_my_pick_canonical_work(catalog, str(work["id"]))
+
+    assert result["deleted_canonical_work"] == 1
+    assert result["deleted_transient_placeholder"] is False
+    assert result["preserved_canonical_restaurant"] is True
+    with connect(catalog) as connection:
+        assert connection.execute(
+            "SELECT is_published FROM public_restaurants WHERE place_id='existing-public'"
+        ).fetchone()[0] == 1
+
+
 def test_worker_cli_dry_run_is_read_only(catalog, capsys):
     work, _ = my_picks.create_or_get_canonical_work(
         catalog, provider="other", external_place_id="cli-dry-run"
@@ -917,3 +988,14 @@ def test_migration_has_rls_atomic_idempotency_and_server_side_rate_limit():
         "my_pick_quota_exhausted"
     )
     assert "pg_advisory_xact_lock" in quota_migration
+
+    hard_reset_migration = (
+        api.BACKEND_ROOT
+        / "supabase/migrations/202610200001_my_pick_dev_hard_reset.sql"
+    ).read_text(encoding="utf-8")
+    assert "hard_reset_fiyu_my_pick_projection" in hard_reset_migration
+    assert "user_id <> p_user_id" in hard_reset_migration
+    assert "pg_advisory_xact_lock" in hard_reset_migration
+    assert "delete from public.fiyu_my_picks" in hard_reset_migration
+    assert "to service_role" in hard_reset_migration
+    assert "authenticated;" in hard_reset_migration

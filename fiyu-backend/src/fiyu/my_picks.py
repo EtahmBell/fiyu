@@ -8,6 +8,7 @@ finalize a job from the resulting ``public_restaurants`` row.
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 import uuid
@@ -92,6 +93,35 @@ _EXTERNAL_ID_MAX = 512
 _WORK_NAMESPACE = uuid.UUID("e6a8de1f-2a5f-4be8-a95d-84eb3e1d4a02")
 _FAILURE_CODE = re.compile(r"^[a-z][a-z0-9_.-]{0,119}$")
 logger = logging.getLogger(__name__)
+
+_HARD_RESET_STATUSES = {
+    "pending",
+    "resolving_identity",
+    "researching",
+    "failed_retryable",
+}
+_MY_PICK_TRANSIENT_TABLES = {
+    "restaurant_research_runs",
+    "score_calculation_runs",
+    "quality_v4_research_runs",
+    "low_footprint_research_runs",
+    "description_research_runs",
+    "restaurant_card_enrichment_runs",
+    "location_match_candidates",
+    "address_research_runs",
+    "address_search_attempts",
+    "address_evidence",
+    "address_decision_audits",
+    "address_review_decisions",
+    "verified_restaurant_addresses",
+    "address_geocode_results",
+    "location_history",
+    "my_pick_recommendation_reviews",
+}
+
+
+class MyPickHardResetError(RuntimeError):
+    """A destructive developer reset could not be proven safe."""
 
 
 def _now(value: datetime | None = None) -> str:
@@ -342,6 +372,130 @@ def get_canonical_work(db_path: str | Path, work_id: str) -> dict[str, Any] | No
             "SELECT * FROM my_pick_canonical_work WHERE id=?", (work_id,)
         ).fetchone()
     return dict(row) if row is not None else None
+
+
+def _quoted_identifier(value: str) -> str:
+    return '"' + value.replace('"', '""') + '"'
+
+
+def _public_restaurant_references(connection: Any) -> list[tuple[str, str]]:
+    references: list[tuple[str, str]] = []
+    tables = connection.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+    ).fetchall()
+    for table_row in tables:
+        table = str(table_row["name"])
+        for foreign_key in connection.execute(
+            f"PRAGMA foreign_key_list({_quoted_identifier(table)})"
+        ).fetchall():
+            if (
+                str(foreign_key["table"]) == "public_restaurants"
+                and str(foreign_key["to"]) == "place_id"
+            ):
+                references.append((table, str(foreign_key["from"])))
+    return references
+
+
+def _hard_reset_plan(connection: Any, work_id: str) -> dict[str, Any]:
+    row = connection.execute(
+        "SELECT * FROM my_pick_canonical_work WHERE id=?", (work_id,)
+    ).fetchone()
+    if row is None:
+        raise MyPickHardResetError("My Pick canonical work no longer exists")
+    work = dict(row)
+    if str(work["status"]) not in _HARD_RESET_STATUSES:
+        raise MyPickHardResetError("This My Pick state cannot be hard-reset")
+    lease = str(work.get("lease_expires_at") or "")
+    if str(work["status"]) in {"resolving_identity", "researching"} and lease > _now():
+        raise MyPickHardResetError("This My Pick is actively processing and cannot be reset")
+
+    place_id = str(work.get("canonical_place_id") or "").strip() or None
+    delete_placeholder = False
+    references: list[tuple[str, str]] = []
+    if place_id:
+        canonical = connection.execute(
+            """
+            SELECT p.is_published, p.source_restaurant_id,
+                   r.id AS restaurant_id, r.source_files_json
+            FROM public_restaurants p
+            LEFT JOIN restaurants r ON r.id=p.source_restaurant_id
+            WHERE p.place_id=?
+            """,
+            (place_id,),
+        ).fetchone()
+        if canonical is not None and not bool(canonical["is_published"]):
+            try:
+                provenance = json.loads(str(canonical["source_files_json"] or "[]"))
+            except json.JSONDecodeError:
+                provenance = []
+            delete_placeholder = provenance == [f"my_pick:{work['provider']}"]
+            if delete_placeholder:
+                references = _public_restaurant_references(connection)
+                for table, column in references:
+                    if table in _MY_PICK_TRANSIENT_TABLES or table == "my_pick_canonical_work":
+                        continue
+                    count = connection.execute(
+                        f"SELECT COUNT(*) FROM {_quoted_identifier(table)} "
+                        f"WHERE {_quoted_identifier(column)}=?",
+                        (place_id,),
+                    ).fetchone()[0]
+                    if count:
+                        raise MyPickHardResetError(
+                            "This My Pick candidate has non-transient dependencies and cannot be reset"
+                        )
+    return {
+        "work": work,
+        "place_id": place_id,
+        "delete_placeholder": delete_placeholder,
+        "references": references,
+    }
+
+
+def inspect_my_pick_hard_reset(db_path: str | Path, work_id: str) -> dict[str, Any]:
+    """Validate a developer hard reset without mutating canonical state."""
+
+    ensure_my_pick_schema(db_path)
+    with connect_readonly(db_path) as connection:
+        plan = _hard_reset_plan(connection, work_id)
+    return {
+        "canonical_place_id": plan["place_id"],
+        "will_delete_transient_placeholder": bool(plan["delete_placeholder"]),
+    }
+
+
+def hard_reset_my_pick_canonical_work(
+    db_path: str | Path, work_id: str
+) -> dict[str, Any]:
+    """Delete one unshared developer work item and only its exclusive placeholder."""
+
+    ensure_my_pick_schema(db_path)
+    with connect(db_path) as connection:
+        connection.execute("BEGIN IMMEDIATE")
+        plan = _hard_reset_plan(connection, work_id)
+        place_id = plan["place_id"]
+        connection.execute("DELETE FROM my_pick_canonical_work WHERE id=?", (work_id,))
+        deleted_placeholder = False
+        if place_id and plan["delete_placeholder"]:
+            connection.execute("PRAGMA defer_foreign_keys=ON")
+            for table, column in plan["references"]:
+                if table == "my_pick_canonical_work":
+                    continue
+                connection.execute(
+                    f"DELETE FROM {_quoted_identifier(table)} "
+                    f"WHERE {_quoted_identifier(column)}=?",
+                    (place_id,),
+                )
+            connection.execute(
+                "DELETE FROM public_restaurants WHERE place_id=?", (place_id,)
+            )
+            connection.execute("DELETE FROM restaurants WHERE place_id=?", (place_id,))
+            deleted_placeholder = True
+        connection.commit()
+    return {
+        "deleted_canonical_work": 1,
+        "deleted_transient_placeholder": deleted_placeholder,
+        "preserved_canonical_restaurant": bool(place_id and not deleted_placeholder),
+    }
 
 
 def inspect_claimable_canonical_work(

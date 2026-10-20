@@ -629,6 +629,105 @@ def test_my_pick_dev_reset_deletes_only_calling_accounts_rows(developer_api, mon
     assert deleted_for == [DEV_USER]
 
 
+def test_my_pick_dev_hard_reset_refuses_shared_canonical_work(
+    developer_api, monkeypatch
+):
+    client, _state = developer_api
+    work, _ = my_picks.create_or_get_canonical_work(
+        api.DB_PATH, provider="google", external_place_id="shared-hard-reset"
+    )
+    my_pick_id = str(uuid4())
+    account_row = {
+        "id": my_pick_id,
+        "canonical_work_id": work["id"],
+        "status": "failed_retryable",
+    }
+    monkeypatch.setattr(
+        api.shared_user_data,
+        "get_my_pick",
+        lambda *, user_id, my_pick_id: (
+            account_row if user_id == DEV_USER and my_pick_id == account_row["id"] else None
+        ),
+    )
+    monkeypatch.setattr(
+        api.shared_user_data,
+        "hard_reset_my_pick_projection",
+        lambda **_kwargs: {"deleted": False, "shared": True, "other_reference_count": 1},
+    )
+    endpoint = "/developer/my-picks/hard-reset"
+
+    assert client.post(endpoint, json={"my_pick_id": my_pick_id}).status_code == 401
+    assert client.post(
+        endpoint,
+        json={"my_pick_id": my_pick_id},
+        headers={"Authorization": "Bearer normal"},
+    ).status_code == 404
+    response = client.post(
+        endpoint,
+        json={"my_pick_id": my_pick_id},
+        headers={"Authorization": "Bearer dev"},
+    )
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == (
+        "This canonical work is shared by another account and cannot be hard-reset."
+    )
+    assert my_picks.get_canonical_work(api.DB_PATH, str(work["id"])) is not None
+
+
+def test_my_pick_dev_hard_reset_removes_unshared_work_and_restores_projection_slot(
+    developer_api, monkeypatch
+):
+    client, _state = developer_api
+    work, _ = my_picks.create_or_get_canonical_work(
+        api.DB_PATH, provider="google", external_place_id="unshared-hard-reset"
+    )
+    my_pick_id = str(uuid4())
+    account_rows = {
+        my_pick_id: {
+            "id": my_pick_id,
+            "canonical_work_id": work["id"],
+            "status": "pending",
+        }
+    }
+    monkeypatch.setattr(
+        api.shared_user_data,
+        "get_my_pick",
+        lambda *, user_id, my_pick_id: (
+            account_rows.get(my_pick_id) if user_id == DEV_USER else None
+        ),
+    )
+
+    def delete_projection(*, user_id, my_pick_id, canonical_work_id):
+        assert user_id == DEV_USER
+        assert canonical_work_id == work["id"]
+        account_rows.pop(my_pick_id)
+        return {"deleted": True, "shared": False, "other_reference_count": 0}
+
+    monkeypatch.setattr(
+        api.shared_user_data,
+        "hard_reset_my_pick_projection",
+        delete_projection,
+    )
+
+    response = client.post(
+        "/developer/my-picks/hard-reset",
+        json={"my_pick_id": my_pick_id},
+        headers={"Authorization": "Bearer dev"},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "reset": True,
+        "deleted_my_picks": 1,
+        "deleted_canonical_work": 1,
+        "deleted_transient_placeholder": False,
+        "preserved_canonical_restaurant": False,
+    }
+    assert account_rows == {}
+    assert my_picks.get_canonical_work(api.DB_PATH, str(work["id"])) is None
+
+
 @pytest.mark.parametrize(
     ("scenario", "status", "score", "review_status"),
     [

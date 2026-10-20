@@ -207,6 +207,27 @@ def reset_my_pick_test_state(*, user_id: str) -> int:
     return len(result) if isinstance(result, list) else 0
 
 
+def hard_reset_my_pick_projection(
+    *, user_id: str, my_pick_id: str, canonical_work_id: str
+) -> dict[str, Any]:
+    """Atomically delete one dev projection only when no other account shares it."""
+
+    result = _request(
+        "rpc/hard_reset_fiyu_my_pick_projection",
+        method="POST",
+        body={
+            "p_user_id": str(UUID(user_id)),
+            "p_my_pick_id": str(UUID(my_pick_id)),
+            "p_canonical_work_id": str(UUID(canonical_work_id)),
+        },
+    )
+    if isinstance(result, list) and result:
+        result = result[0]
+    if not isinstance(result, dict):
+        raise SharedUserDataError("My Pick hard reset could not be completed")
+    return result
+
+
 def sync_my_pick_result(
     *,
     canonical_work_id: str,

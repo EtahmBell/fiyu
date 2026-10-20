@@ -1010,6 +1010,20 @@ class DeveloperResetMyPicksResponse(BaseModel):
     deleted_my_picks: int
 
 
+class DeveloperHardResetMyPickRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    my_pick_id: UUID
+
+
+class DeveloperHardResetMyPickResponse(BaseModel):
+    reset: Literal[True]
+    deleted_my_picks: int
+    deleted_canonical_work: int
+    deleted_transient_placeholder: bool
+    preserved_canonical_restaurant: bool
+
+
 DeveloperMyPickPreviewScenario = Literal[
     "below_70",
     "review_eligible",
@@ -3334,6 +3348,59 @@ def reset_developer_my_picks(
     return DeveloperResetMyPicksResponse(
         reset=True,
         deleted_my_picks=shared_user_data.reset_my_pick_test_state(user_id=user_id),
+    )
+
+
+@app.post(
+    "/developer/my-picks/hard-reset",
+    response_model=DeveloperHardResetMyPickResponse,
+)
+def hard_reset_developer_my_pick(
+    request: DeveloperHardResetMyPickRequest,
+    user_id: Annotated[str, Depends(_developer_user)],
+) -> DeveloperHardResetMyPickResponse:
+    """Reset one unshared developer Pick across account and canonical stores."""
+
+    my_pick_id = str(request.my_pick_id)
+    account_row = shared_user_data.get_my_pick(
+        user_id=user_id, my_pick_id=my_pick_id
+    )
+    if account_row is None:
+        raise HTTPException(status_code=404, detail="My Pick not found")
+    work_id = str(account_row["canonical_work_id"])
+    try:
+        my_picks.inspect_my_pick_hard_reset(DB_PATH, work_id)
+    except my_picks.MyPickHardResetError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from None
+
+    projection = shared_user_data.hard_reset_my_pick_projection(
+        user_id=user_id,
+        my_pick_id=my_pick_id,
+        canonical_work_id=work_id,
+    )
+    if projection.get("shared"):
+        raise HTTPException(
+            status_code=409,
+            detail="This canonical work is shared by another account and cannot be hard-reset.",
+        )
+    if not projection.get("deleted"):
+        raise HTTPException(status_code=404, detail="My Pick not found")
+    try:
+        result = my_picks.hard_reset_my_pick_canonical_work(DB_PATH, work_id)
+    except my_picks.MyPickHardResetError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from None
+    logger.warning(
+        "Developer hard-reset My Pick: user_id=%s work_id=%s placeholder_deleted=%s",
+        user_id,
+        work_id,
+        result["deleted_transient_placeholder"],
+    )
+    return DeveloperHardResetMyPickResponse(
+        reset=True,
+        deleted_my_picks=1,
+        deleted_canonical_work=int(result["deleted_canonical_work"]),
+        deleted_transient_placeholder=bool(result["deleted_transient_placeholder"]),
+        preserved_canonical_restaurant=bool(result["preserved_canonical_restaurant"]),
     )
 
 

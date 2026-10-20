@@ -13,6 +13,7 @@ import {
   fetchDeveloperStatus,
   fetchMyPickQuota,
   fetchMyPicks,
+  hardResetDeveloperMyPick,
   processDeveloperMyPick,
 } from "@/lib/api/client";
 import { isFiyuApiError } from "@/lib/api/errors";
@@ -27,10 +28,13 @@ const POLL_DELAYS_MS = [30_000, 60_000, 180_000] as const;
 
 type DeveloperAction = {
   busy: boolean;
+  hardResetBusy: boolean;
   label: "Process now" | "Retry now";
   diagnostic: string | null;
   error: string | null;
+  hardResetError: string | null;
   process(): void;
+  hardReset(): void;
 };
 
 function safeItemName(item: MyPick): string | null {
@@ -70,23 +74,46 @@ function revealStorageKey(accountId: string, itemId: string): string {
 }
 
 function DeveloperProcessAction({ action }: { action: DeveloperAction }) {
+  const [confirmingHardReset, setConfirmingHardReset] = useState(false);
   return (
     <div className="mt-2">
-      <button
-        type="button"
-        disabled={action.busy}
-        onClick={action.process}
-        className="min-h-9 text-xs font-semibold tracking-wide text-gold-700 disabled:cursor-wait disabled:opacity-60"
-      >
-        {action.busy ? "Processing…" : `DEV: ${action.label}`}
-      </button>
       {action.diagnostic ? (
         <p className="mt-1 text-xs leading-5 text-[#66788F]">
-          <span className="font-semibold">DEV: Last attempt</span>{" "}
+          <span className="font-semibold">DEV · Last attempt:</span>{" "}
           <code className="font-mono">{action.diagnostic}</code>
         </p>
       ) : null}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+        <button
+          type="button"
+          disabled={action.busy || action.hardResetBusy}
+          onClick={action.process}
+          className="min-h-9 text-xs font-semibold tracking-wide text-gold-700 disabled:cursor-wait disabled:opacity-60"
+        >
+          {action.busy ? "Processing…" : `DEV: ${action.label}`}
+        </button>
+        <button
+          type="button"
+          disabled={action.busy || action.hardResetBusy}
+          onClick={() => setConfirmingHardReset(true)}
+          className="min-h-9 text-xs font-medium tracking-wide text-[#66788F] underline decoration-[#AAB6C5] underline-offset-4 disabled:cursor-wait disabled:opacity-60"
+        >
+          DEV: Hard reset this Pick
+        </button>
+      </div>
+      {confirmingHardReset ? (
+        <div role="dialog" aria-label="Confirm My Pick hard reset" className="mt-2 rounded-lg border border-[#D2DAE5] bg-white/70 p-3">
+          <p className="text-xs leading-5 text-[#3F4A59]">Reset this My Pick test and its unshared canonical work?</p>
+          <div className="mt-2 flex gap-3">
+            <button type="button" className="min-h-9 text-xs font-medium text-[#66788F]" onClick={() => setConfirmingHardReset(false)}>Cancel</button>
+            <button type="button" disabled={action.hardResetBusy} className="min-h-9 text-xs font-semibold text-rose-dust disabled:cursor-wait disabled:opacity-60" onClick={action.hardReset}>
+              {action.hardResetBusy ? "Resetting…" : "Hard reset"}
+            </button>
+          </div>
+        </div>
+      ) : null}
       {action.error ? <p role="alert" className="mt-1 text-xs leading-5 text-rose-dust">{action.error}</p> : null}
+      {action.hardResetError ? <p role="alert" className="mt-1 text-xs leading-5 text-rose-dust">{action.hardResetError}</p> : null}
     </div>
   );
 }
@@ -285,12 +312,15 @@ export function MyPickPicksSection({
   const [items, setItems] = useState<MyPick[]>([]);
   const [quota, setQuota] = useState<MyPickQuota | null>(null);
   const [loaded, setLoaded] = useState(false);
-  const [developerAccountId, setDeveloperAccountId] = useState<string | null>(null);
+  const [developerAuthorized, setDeveloperAuthorized] = useState(false);
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [processError, setProcessError] = useState<{ id: string; message: string } | null>(null);
+  const [hardResetId, setHardResetId] = useState<string | null>(null);
+  const [hardResetError, setHardResetError] = useState<{ id: string; message: string } | null>(null);
   const pollAttempt = useRef(0);
   const focusRef = useRef<HTMLElement | null>(null);
   const processingRef = useRef<string | null>(null);
+  const hardResetRef = useRef<string | null>(null);
 
   const refresh = useCallback(async (signal?: AbortSignal) => {
     if (!accountId) return [];
@@ -323,8 +353,8 @@ export function MyPickPicksSection({
     if (!accountId) return;
     const controller = new AbortController();
     void fetchDeveloperStatus({ signal: controller.signal })
-      .then(() => setDeveloperAccountId(accountId))
-      .catch(() => undefined);
+      .then(() => setDeveloperAuthorized(true))
+      .catch(() => setDeveloperAuthorized(false));
     return () => controller.abort();
   }, [accountId]);
 
@@ -412,6 +442,28 @@ export function MyPickPicksSection({
     }
   };
 
+  const hardReset = async (item: MyPick) => {
+    if (hardResetRef.current !== null) return;
+    hardResetRef.current = item.my_pick_id;
+    setHardResetId(item.my_pick_id);
+    setHardResetError(null);
+    try {
+      await hardResetDeveloperMyPick(item.my_pick_id);
+      setItems((current) => current.filter((candidate) => candidate.my_pick_id !== item.my_pick_id));
+      await Promise.all([refresh(), refreshQuota()]);
+    } catch (cause) {
+      setHardResetError({
+        id: item.my_pick_id,
+        message: isFiyuApiError(cause) && cause.detail
+          ? cause.detail
+          : "This My Pick could not be hard-reset.",
+      });
+    } finally {
+      hardResetRef.current = null;
+      setHardResetId(null);
+    }
+  };
+
   if (!accountId) return <MyPickEntry signedIn={false} />;
   if (!loaded) return <div className="mt-6 min-h-20" aria-hidden="true" />;
   if (visibleItems.length === 0) return <MyPickEntry signedIn onSubmitted={submitted} />;
@@ -420,13 +472,16 @@ export function MyPickPicksSection({
         <section className="mt-6" aria-label="Your Picks">
           <div className="space-y-3">
             {visibleItems.map((item, index) => {
-              const developerAction = developerAccountId === accountId && (item.status === "pending" || item.status === "failed_retryable")
+              const developerAction = developerAuthorized && (PENDING_STATUSES.has(item.status) || item.status === "failed_retryable")
                 ? {
                     busy: processingId === item.my_pick_id,
+                    hardResetBusy: hardResetId === item.my_pick_id,
                     label: item.status === "failed_retryable" ? "Retry now" as const : "Process now" as const,
                     diagnostic: safeFailureDiagnostic(item.failure_code),
                     error: processError?.id === item.my_pick_id ? processError.message : null,
+                    hardResetError: hardResetError?.id === item.my_pick_id ? hardResetError.message : null,
                     process: () => void processNow(item),
+                    hardReset: () => void hardReset(item),
                   }
                 : undefined;
               const footer = index === 0

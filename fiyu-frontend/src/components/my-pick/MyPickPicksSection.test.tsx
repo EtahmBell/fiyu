@@ -10,6 +10,7 @@ const api = vi.hoisted(() => ({
   fetchDeveloperStatus: vi.fn(),
   fetchMyPicks: vi.fn(),
   fetchMyPickQuota: vi.fn(),
+  hardResetDeveloperMyPick: vi.fn(),
   processDeveloperMyPick: vi.fn(),
 }));
 const list = vi.hoisted(() => ({ isSaved: vi.fn(() => false), toggle: vi.fn() }));
@@ -96,6 +97,7 @@ beforeEach(() => {
   api.fetchMyPicks.mockReset().mockResolvedValue([]);
   api.fetchMyPickQuota.mockReset().mockResolvedValue({ limit: 3, used: 1, remaining: 2, window_hours: 24, next_available_at: null });
   api.fetchDeveloperStatus.mockReset().mockRejectedValue(new Error("Not found"));
+  api.hardResetDeveloperMyPick.mockReset();
   api.processDeveloperMyPick.mockReset();
   list.isSaved.mockReset().mockReturnValue(false);
   list.toggle.mockReset();
@@ -213,6 +215,7 @@ describe("MyPickPicksSection", () => {
     expect(screen.getByText("Fiyu couldn't finish checking this one yet. Your request is saved and can be retried.")).toBeTruthy();
     expect(screen.queryByText(/canonical_research_incomplete/)).toBeNull();
     expect(screen.queryByRole("button", { name: "DEV: Retry now" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "DEV: Hard reset this Pick" })).toBeNull();
     expect(screen.getByText("2 of 3 Picks left").closest("article")).toBe(title.closest("article"));
   });
 
@@ -256,6 +259,15 @@ describe("MyPickPicksSection", () => {
     expect(api.fetchMyPickQuota).toHaveBeenCalledTimes(quotaCalls);
   });
 
+  it("shows Process now for every processable in-flight developer state", async () => {
+    api.fetchDeveloperStatus.mockResolvedValue({ enabled: true, location_mode: "real", area_name: null, location_options: [] });
+    api.fetchMyPicks.mockResolvedValue([pending]);
+    render(<MyPickPicksSection accountId="account-1" />);
+
+    expect(await screen.findByRole("button", { name: "DEV: Process now" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "DEV: Hard reset this Pick" })).toBeTruthy();
+  });
+
   it("shows a safe developer error when the canonical worker index is not configured", async () => {
     api.fetchDeveloperStatus.mockResolvedValue({ enabled: true, location_mode: "real", area_name: null, location_options: [] });
     api.fetchMyPicks.mockResolvedValue([queued]);
@@ -291,6 +303,32 @@ describe("MyPickPicksSection", () => {
     await act(async () => retry.resolve({ my_pick: base, worker_summary: { jobs_claimed: 1, ready: 1 } }));
     expect(await screen.findByRole("button", { name: "Reveal your Pick" })).toBeTruthy();
     expect(api.fetchMyPickQuota).toHaveBeenCalledTimes(quotaCalls);
+  });
+
+  it("confirms a developer hard reset, removes the card, and refreshes restored quota", async () => {
+    api.fetchDeveloperStatus.mockResolvedValue({ enabled: true, location_mode: "real", area_name: null, location_options: [] });
+    api.fetchMyPicks.mockResolvedValueOnce([retryable]).mockResolvedValueOnce([]);
+    api.fetchMyPickQuota
+      .mockResolvedValueOnce({ limit: 3, used: 1, remaining: 2, window_hours: 24, next_available_at: null })
+      .mockResolvedValueOnce({ limit: 3, used: 0, remaining: 3, window_hours: 24, next_available_at: null });
+    api.hardResetDeveloperMyPick.mockResolvedValue({
+      reset: true,
+      deleted_my_picks: 1,
+      deleted_canonical_work: 1,
+      deleted_transient_placeholder: true,
+      preserved_canonical_restaurant: false,
+    });
+    render(<MyPickPicksSection accountId="account-1" />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "DEV: Hard reset this Pick" }));
+    expect(screen.getByRole("dialog", { name: "Confirm My Pick hard reset" })).toBeTruthy();
+    expect(screen.getByText("Reset this My Pick test and its unshared canonical work?")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Hard reset" }));
+
+    await waitFor(() => expect(api.hardResetDeveloperMyPick).toHaveBeenCalledWith(retryable.my_pick_id));
+    await waitFor(() => expect(document.querySelector(`[data-my-pick-id="${retryable.my_pick_id}"]`)).toBeNull());
+    expect(api.fetchMyPickQuota).toHaveBeenCalledTimes(2);
+    expect(await screen.findByRole("button", { name: "Submit a restaurant →" })).toBeTruthy();
   });
 
   it("normalizes an unstructured failure reason before showing it to a developer", async () => {
