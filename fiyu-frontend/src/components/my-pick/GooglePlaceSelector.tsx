@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 
 import { getGoogleMapsBrowserKey } from "@/lib/config/env";
+import { Button } from "@/components/ui/Button";
 import {
   loadGooglePlaces,
   type GoogleAutocompleteSuggestion,
@@ -12,12 +13,12 @@ import { TOKYO_BOUNDS } from "@/lib/map/projection";
 
 export type GooglePlaceSelection = {
   placeId: string;
+  userQueryHint: string;
   displayName: string;
   secondaryText: string | null;
 };
 
-const DEBOUNCE_MS = 250;
-const MIN_QUERY_LENGTH = 2;
+const MIN_QUERY_LENGTH = 1;
 
 function predictionFor(suggestion: GoogleAutocompleteSuggestion) {
   return suggestion.placePrediction ?? null;
@@ -60,15 +61,18 @@ export function GooglePlaceSelector({
     };
   }, [key]);
 
-  useEffect(() => {
+  const search = () => {
     const input = query.trim();
     const version = ++requestVersion.current;
-    if (!library || !tokenRef.current || input.length < MIN_QUERY_LENGTH) return;
-
-    const timer = window.setTimeout(() => {
-      setLoading(true);
-      setError(null);
-      void library.AutocompleteSuggestion.fetchAutocompleteSuggestions({
+    if (input.length < MIN_QUERY_LENGTH) {
+      setError("Enter the restaurant's name.");
+      return;
+    }
+    if (!library || !tokenRef.current) return;
+    setLoading(true);
+    setError(null);
+    setSuggestions([]);
+    void library.AutocompleteSuggestion.fetchAutocompleteSuggestions({
         input,
         includedRegionCodes: ["jp"],
         locationRestriction: TOKYO_BOUNDS,
@@ -87,15 +91,14 @@ export function GooglePlaceSelector({
         .finally(() => {
           if (requestVersion.current === version) setLoading(false);
         });
-    }, DEBOUNCE_MS);
-    return () => window.clearTimeout(timer);
-  }, [library, query]);
+  };
 
   const choose = (suggestion: GoogleAutocompleteSuggestion) => {
     const prediction = predictionFor(suggestion);
     if (!prediction?.placeId) return;
     onSelect({
       placeId: prediction.placeId,
+      userQueryHint: query.trim(),
       displayName: prediction.mainText?.text || prediction.text.text,
       secondaryText: prediction.secondaryText?.text || null,
     });
@@ -104,15 +107,18 @@ export function GooglePlaceSelector({
   const onChange = (value: string) => {
     setQuery(value);
     setActiveIndex(-1);
-    if (value.trim().length < MIN_QUERY_LENGTH) {
-      requestVersion.current += 1;
-      setSuggestions([]);
-      setLoading(false);
-      setError(null);
-    }
+    requestVersion.current += 1;
+    setSuggestions([]);
+    setLoading(false);
+    setError(null);
   };
 
   const onKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Enter" && suggestions.length === 0) {
+      event.preventDefault();
+      search();
+      return;
+    }
     if (suggestions.length === 0) return;
     if (event.key === "ArrowDown") {
       event.preventDefault();
@@ -132,15 +138,16 @@ export function GooglePlaceSelector({
   const expanded = suggestions.length > 0;
   return (
     <div className="min-w-0 max-w-full">
-      <label htmlFor={`${listboxId}-input`} className="sr-only">Search for a restaurant</label>
+      <label htmlFor={`${listboxId}-input`} className="mb-2 block text-sm font-medium text-ink">Restaurant name</label>
       <input
         id={`${listboxId}-input`}
         data-my-pick-search-input
         type="search"
         value={query}
         disabled={disabled || !key}
-        placeholder="Search for a restaurant"
+        placeholder=""
         autoComplete="off"
+        maxLength={200}
         role="combobox"
         aria-autocomplete="list"
         aria-expanded={expanded}
@@ -150,6 +157,10 @@ export function GooglePlaceSelector({
         onKeyDown={onKeyDown}
         className="min-h-12 w-full rounded-xl border border-line bg-canvas px-4 text-base text-ink outline-none placeholder:text-ink-faint focus:border-lavender-400 focus:ring-2 focus:ring-lavender-100 disabled:opacity-50"
       />
+      <p className="mt-2 text-xs leading-5 text-ink-muted">Enter the restaurant&apos;s name. Add the neighborhood if needed.</p>
+      <Button type="button" className="mt-4 w-full" variant="primary" disabled={disabled || !key || !library || loading || !query.trim()} onClick={search}>
+        {loading ? "Finding restaurants…" : "Find restaurant"}
+      </Button>
 
       {(expanded || loading) ? (
         <div className="mt-2 overflow-hidden rounded-xl border border-line bg-surface shadow-lg" data-testid="google-predictions">

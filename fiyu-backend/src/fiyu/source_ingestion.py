@@ -195,12 +195,20 @@ def ensure_my_pick_candidate(
     *,
     provider: str,
     external_place_id: str,
-    display_name_hint: str | None,
+    canonical_name: str | None = None,
+    display_name_hint: str | None = None,
+    canonical_name_ja: str | None = None,
+    canonical_name_en: str | None = None,
+    city: str | None = None,
+    neighborhood: str | None = None,
+    address: str | None = None,
+    primary_category: str | None = None,
 ) -> tuple[str, bool]:
     """Create the minimal canonical queue identity for user-requested research.
 
-    Only the permitted external identity, optional query hint, and My Pick
-    provenance are retained. No provider coordinates, address, rating, reviews,
+    Only the permitted external identity, independently bootstrapped canonical
+    identity fields, and My Pick provenance are retained. The user query is not
+    copied into the candidate. No provider coordinates, address, rating, reviews,
     categories, hours, price, photos, or editorial content enter the catalog.
     The candidate deliberately has no seed score and bypasses ordinary expansion
     selection by being inserted directly into the shared public research queue.
@@ -211,7 +219,9 @@ def ensure_my_pick_candidate(
 
     ensure_public_schema(db_path)
     place_id = my_pick_candidate_place_id(provider, external_place_id)
-    title = (display_name_hint or "").strip()[:200] or f"My Pick {place_id[-12:]}"
+    title = (canonical_name or display_name_hint or "").strip()[:200]
+    if not title:
+        title = f"My Pick {place_id[-12:]}"
     provenance = json.dumps([f"my_pick:{provider.strip().casefold()}"], ensure_ascii=False)
     now = _utc_now()
     with connect(db_path) as connection:
@@ -224,11 +234,11 @@ def ensure_my_pick_candidate(
             cursor = connection.execute(
                 """
                 INSERT INTO restaurants(
-                    place_id, title, rating, review_count, candidate_eligible,
-                    source_files_json
-                ) VALUES (?, ?, 0, 0, 0, ?)
+                    place_id, title, city, neighborhood, address, category,
+                    rating, review_count, candidate_eligible, source_files_json
+                ) VALUES (?, ?, ?, ?, ?, ?, 0, 0, 0, ?)
                 """,
-                (place_id, title, provenance),
+                (place_id, title, city, neighborhood, address, primary_category, provenance),
             )
             source_restaurant_id = int(cursor.lastrowid)
         else:
@@ -236,11 +246,20 @@ def ensure_my_pick_candidate(
         connection.execute(
             """
             INSERT INTO public_restaurants(
-                place_id, source_restaurant_id, created_at, updated_at
-            ) VALUES (?, ?, ?, ?)
+                place_id, source_restaurant_id, name_ja, name_en,
+                primary_category, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(place_id) DO NOTHING
             """,
-            (place_id, source_restaurant_id, now, now),
+            (
+                place_id,
+                source_restaurant_id,
+                canonical_name_ja,
+                canonical_name_en,
+                primary_category,
+                now,
+                now,
+            ),
         )
         connection.commit()
     return place_id, created

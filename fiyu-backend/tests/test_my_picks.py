@@ -11,6 +11,10 @@ from fastapi.testclient import TestClient
 
 from fiyu import api, my_pick_processor, my_picks, pipeline_cli
 from fiyu.database import SCHEMA, connect
+from fiyu.my_pick_identity_bootstrap import (
+    MyPickIdentityBootstrap,
+    MyPickIdentityBootstrapCall,
+)
 from fiyu.public_catalog import ensure_public_schema
 from fiyu.quality_v4 import QUALITY_PRODUCTION_SCORE_VERSION
 
@@ -65,6 +69,26 @@ def add_canonical(
             ),
         )
         connection.commit()
+
+
+def confirmed_bootstrap(name: str = "Independent canonical name"):
+    return MyPickIdentityBootstrapCall(
+        result=MyPickIdentityBootstrap(
+            identity_status="confirmed",
+            identity_confidence=0.95,
+            canonical_name_en=name,
+            city="Tokyo",
+            neighborhood="Chiyoda",
+            primary_category="Japanese",
+            supporting_urls=[
+                "https://restaurant.example/",
+                "https://editorial.example/restaurant",
+            ],
+            independent_source_count=2,
+        ),
+        provider_requests=1,
+        web_search_actions=1,
+    )
 
 
 def test_existing_published_current_score_is_ready_without_worker(catalog):
@@ -317,6 +341,24 @@ def test_hard_reset_removes_failed_work_and_exclusive_transient_candidate(catalo
     assert fresh["attempt_count"] == 0
 
 
+def test_hard_reset_allows_unshared_needs_review_work(catalog):
+    work, _ = my_picks.create_or_get_canonical_work(
+        catalog, provider="google", external_place_id="needs-review-reset"
+    )
+    with connect(catalog) as connection:
+        connection.execute(
+            "UPDATE my_pick_canonical_work SET status='needs_review', "
+            "failure_code='identity_not_confirmed' WHERE id=?",
+            (work["id"],),
+        )
+        connection.commit()
+
+    result = my_picks.hard_reset_my_pick_canonical_work(catalog, str(work["id"]))
+
+    assert result["deleted_canonical_work"] == 1
+    assert my_picks.get_canonical_work(catalog, str(work["id"])) is None
+
+
 def test_hard_reset_preserves_existing_public_restaurant(catalog):
     add_canonical(catalog, "existing-public", score=80, published=True)
     work, _ = my_picks.create_or_get_canonical_work(
@@ -412,13 +454,26 @@ def test_unresolved_canonical_result_never_exposes_internal_identifiers(catalog)
 
 def test_missing_research_provider_is_a_safe_retryable_failure(catalog, monkeypatch):
     work, _ = my_picks.create_or_get_canonical_work(
-        catalog, provider="google", external_place_id="provider-unconfigured"
+        catalog, provider="google", external_place_id="provider-unconfigured",
+        identity_bootstrap_hint="Provider Restaurant Chiyoda",
     )
 
     def unavailable(*_args, **_kwargs):
         raise RuntimeError("OPENAI_API_KEY is missing; private-detail-must-not-leak")
 
     monkeypatch.setattr(my_pick_processor, "run_research_batch", unavailable)
+    bootstrap_calls = 0
+
+    def bootstrap(*_args, **_kwargs):
+        nonlocal bootstrap_calls
+        bootstrap_calls += 1
+        return confirmed_bootstrap()
+
+    monkeypatch.setattr(
+        my_pick_processor,
+        "run_my_pick_identity_bootstrap",
+        bootstrap,
+    )
     processor = my_pick_processor.ProductionMyPickProcessor(
         catalog, osm_index="unused-before-location.sqlite"
     )
@@ -432,6 +487,104 @@ def test_missing_research_provider_is_a_safe_retryable_failure(catalog, monkeypa
     assert failed["status"] == "failed_retryable"
     assert failed["failure_code"] == "research_provider_unconfigured"
     assert "private-detail" not in json.dumps(failed)
+    assert failed["identity_bootstrap_status"] == "confirmed"
+    assert failed["canonical_place_id"] == "provider-unconfigured"
+    my_picks.run_my_pick_worker(
+        catalog,
+        processor=processor,
+        worker_id="provider-retry",
+        retry_failed=True,
+        detailed=True,
+    )
+    assert bootstrap_calls == 1
+
+
+def test_ambiguous_bootstrap_stays_needs_review_without_creating_candidate(
+    catalog, monkeypatch
+):
+    work, _ = my_picks.create_or_get_canonical_work(
+        catalog,
+        provider="google",
+        external_place_id="opaque-ambiguous",
+        identity_bootstrap_hint="sushi",
+    )
+    ambiguous = MyPickIdentityBootstrapCall(
+        result=MyPickIdentityBootstrap(
+            identity_status="ambiguous",
+            identity_confidence=0.2,
+            independent_source_count=0,
+            ambiguity_reason="Many plausible restaurants",
+        ),
+        provider_requests=1,
+        web_search_actions=2,
+    )
+    monkeypatch.setattr(
+        my_pick_processor,
+        "run_my_pick_identity_bootstrap",
+        lambda *_args, **_kwargs: ambiguous,
+    )
+    processor = my_pick_processor.ProductionMyPickProcessor(
+        catalog, osm_index="unused.sqlite"
+    )
+
+    summary = my_picks.run_my_pick_worker(
+        catalog, processor=processor, worker_id="ambiguous", detailed=True
+    )
+
+    updated = my_picks.get_canonical_work(catalog, str(work["id"]))
+    assert updated["status"] == "needs_review"
+    assert updated["failure_code"] == "identity_not_confirmed"
+    assert updated["canonical_place_id"] is None
+    assert updated["identity_bootstrap_status"] == "ambiguous"
+    assert summary["bootstrap_identity_ambiguous"] == 1
+    assert summary["provider_requests"] == 1
+
+
+def test_legacy_unknown_without_query_hint_fails_closed_without_fabrication(catalog):
+    work, _ = my_picks.create_or_get_canonical_work(
+        catalog, provider="google", external_place_id="legacy-no-hint"
+    )
+    processor = my_pick_processor.ProductionMyPickProcessor(
+        catalog, osm_index="unused.sqlite"
+    )
+
+    summary = my_picks.run_my_pick_worker(
+        catalog, processor=processor, worker_id="legacy", detailed=True
+    )
+
+    updated = my_picks.get_canonical_work(catalog, str(work["id"]))
+    assert updated["status"] == "needs_review"
+    assert updated["failure_code"] == "identity_not_confirmed"
+    assert updated["identity_bootstrap_hint"] is None
+    assert summary["provider_requests"] == 0
+
+
+def test_bootstrap_duplicate_reuses_existing_canonical_restaurant(catalog, monkeypatch):
+    add_canonical(catalog, "existing-alias", score=77)
+    work, _ = my_picks.create_or_get_canonical_work(
+        catalog,
+        provider="google",
+        external_place_id="opaque-new-provider-id",
+        identity_bootstrap_hint="Restaurant existing-alias",
+    )
+    monkeypatch.setattr(
+        my_pick_processor,
+        "run_my_pick_identity_bootstrap",
+        lambda *_args, **_kwargs: confirmed_bootstrap("Restaurant existing-alias"),
+    )
+    processor = my_pick_processor.ProductionMyPickProcessor(
+        catalog, osm_index="unused.sqlite"
+    )
+
+    summary = my_picks.run_my_pick_worker(
+        catalog, processor=processor, worker_id="duplicate", detailed=True
+    )
+
+    updated = my_picks.get_canonical_work(catalog, str(work["id"]))
+    assert updated["status"] == "ready"
+    assert updated["canonical_place_id"] == "existing-alias"
+    assert summary["duplicates_reused_after_bootstrap"] == 1
+    assert summary["canonical_candidates_created"] == 0
 
 
 def test_unstructured_worker_failure_is_normalized_before_storage(catalog):
@@ -462,7 +615,7 @@ def test_production_processor_reuses_canonical_stages_without_publishing(
         catalog,
         provider="google",
         external_place_id=f"new-{int(score)}",
-        display_name_hint="Provider hint only",
+        identity_bootstrap_hint="Independent Restaurant Chiyoda",
     )
     calls = {"research": 0, "location": 0, "quality": 0, "promotion": 0}
 
@@ -519,6 +672,11 @@ def test_production_processor_reuses_canonical_stages_without_publishing(
         return {"promoted": 1}
 
     monkeypatch.setattr(my_pick_processor, "run_research_batch", research)
+    monkeypatch.setattr(
+        my_pick_processor,
+        "run_my_pick_identity_bootstrap",
+        lambda *_args, **_kwargs: confirmed_bootstrap(),
+    )
     monkeypatch.setattr(my_pick_processor, "verify_location", locate)
     monkeypatch.setattr(my_pick_processor, "run_quality_v4_backfill", quality)
     monkeypatch.setattr(my_pick_processor, "promote_quality_v4_allowlist", promote)
@@ -536,8 +694,10 @@ def test_production_processor_reuses_canonical_stages_without_publishing(
     completed = my_picks.get_canonical_work(catalog, str(work["id"]))
     assert completed["status"] == "ready"
     assert my_picks.canonical_result(catalog, completed)["fiyu_score"] == score
-    assert summary["provider_requests"] == 2
-    assert summary["web_search_actions"] == 3
+    assert summary["provider_requests"] == 3
+    assert summary["web_search_actions"] == 4
+    assert summary["bootstrap_identity_confirmed"] == 1
+    assert summary["canonical_candidates_created"] == 1
     assert summary["review_queue_additions"] == expected_reviews
     assert calls == {"research": 1, "location": 1, "quality": 1, "promotion": 1}
     with connect(catalog) as connection:
@@ -562,7 +722,8 @@ def test_production_processor_preserves_unresolved_and_outside_location_states(
     catalog, monkeypatch, coordinates, expected_status, quality_calls
 ):
     work, _ = my_picks.create_or_get_canonical_work(
-        catalog, provider="google", external_place_id=f"location-{expected_status}"
+        catalog, provider="google", external_place_id=f"location-{expected_status}",
+        identity_bootstrap_hint="Location Restaurant Tokyo",
     )
 
     def research(db_path, **_kwargs):
@@ -608,6 +769,11 @@ def test_production_processor_preserves_unresolved_and_outside_location_states(
         return {"completed": 1}
 
     monkeypatch.setattr(my_pick_processor, "run_research_batch", research)
+    monkeypatch.setattr(
+        my_pick_processor,
+        "run_my_pick_identity_bootstrap",
+        lambda *_args, **_kwargs: confirmed_bootstrap(f"Location {expected_status}"),
+    )
     monkeypatch.setattr(my_pick_processor, "verify_location", locate)
     monkeypatch.setattr(my_pick_processor, "run_quality_v4_backfill", quality)
     monkeypatch.setattr(
@@ -699,7 +865,7 @@ def my_pick_api(catalog, monkeypatch):
             ),
         }
 
-    def create_or_get(*, user_id, provider, external_place_id, display_name_hint, canonical_work_id):
+    def create_or_get(*, user_id, provider, external_place_id, display_name_hint, user_query_hint, canonical_work_id):
         with quota_lock:
             key = (user_id, provider, external_place_id)
             reused = key in rows
@@ -714,6 +880,7 @@ def my_pick_api(catalog, monkeypatch):
                     "provider": provider,
                     "external_place_id": external_place_id,
                     "display_name_hint": display_name_hint,
+                    "user_query_hint": user_query_hint,
                     "canonical_work_id": canonical_work_id,
                     "status": "pending",
                     "created_at": now,
@@ -758,7 +925,7 @@ def test_api_auth_ownership_idempotency_and_shared_work(my_pick_api):
     payload = {
         "provider": "google_places",
         "external_place_id": "new-shared",
-        "display_name_hint": "Shared",
+        "user_query_hint": "Toritsune Shizendo",
     }
     assert client.post("/my-picks", json=payload).status_code == 401
 
@@ -769,19 +936,31 @@ def test_api_auth_ownership_idempotency_and_shared_work(my_pick_api):
         "/my-picks", json=payload, headers={"Authorization": "Bearer token-a"}
     )
     other = client.post(
-        "/my-picks", json=payload, headers={"Authorization": "Bearer token-b"}
+        "/my-picks",
+        json={**payload, "user_query_hint": "鳥つね自然洞"},
+        headers={"Authorization": "Bearer token-b"},
     )
 
     assert first.status_code == repeated.status_code == other.status_code == 202
     assert first.json()["my_pick_id"] == repeated.json()["my_pick_id"]
     assert first.json()["my_pick_id"] != other.json()["my_pick_id"]
+    assert first.json()["user_query_hint"] == "Toritsune Shizendo"
+    assert other.json()["user_query_hint"] == "鳥つね自然洞"
     assert len(rows) == 2
     with connect(api.DB_PATH) as connection:
         work_rows = connection.execute(
-            "SELECT submission_count, provider_request_count FROM my_pick_canonical_work"
+            "SELECT submission_count, provider_request_count, identity_bootstrap_hint "
+            "FROM my_pick_canonical_work"
         ).fetchall()
-    assert [(row["submission_count"], row["provider_request_count"]) for row in work_rows] == [
-        (2, 0)
+    assert [
+        (
+            row["submission_count"],
+            row["provider_request_count"],
+            row["identity_bootstrap_hint"],
+        )
+        for row in work_rows
+    ] == [
+        (2, 0, "Toritsune Shizendo")
     ]
 
     other_read = client.get(
@@ -999,3 +1178,11 @@ def test_migration_has_rls_atomic_idempotency_and_server_side_rate_limit():
     assert "delete from public.fiyu_my_picks" in hard_reset_migration
     assert "to service_role" in hard_reset_migration
     assert "authenticated;" in hard_reset_migration
+    query_hint_migration = (
+        api.BACKEND_ROOT
+        / "supabase/migrations/202610200002_my_pick_user_query_hint.sql"
+    ).read_text(encoding="utf-8")
+    assert "add column if not exists user_query_hint" in query_hint_migration
+    assert "p_user_query_hint text" in query_hint_migration
+    assert "to service_role" in query_hint_migration
+    assert "authenticated;" in query_hint_migration

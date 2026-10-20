@@ -8,8 +8,8 @@ import { FiyuApiError } from "@/lib/api/errors";
 const api = vi.hoisted(() => ({ fetchMyPickQuota: vi.fn(), submitMyPick: vi.fn() }));
 vi.mock("@/lib/api/client", () => api);
 vi.mock("@/components/my-pick/GooglePlaceSelector", () => ({
-  GooglePlaceSelector: ({ onSelect }: { onSelect(selection: { placeId: string; displayName: string; secondaryText: string }): void }) => (
-    <button onClick={() => onSelect({ placeId: "google-place-1", displayName: "Toritsune", secondaryText: "Shibuya, Tokyo" })}>Mock Google suggestion</button>
+  GooglePlaceSelector: ({ onSelect }: { onSelect(selection: { placeId: string; userQueryHint: string; displayName: string; secondaryText: string }): void }) => (
+    <button onClick={() => onSelect({ placeId: "google-place-1", userQueryHint: "Toritsune Shizendo", displayName: "Toritsune", secondaryText: "Shibuya, Tokyo" })}>Mock Google suggestion</button>
   ),
 }));
 
@@ -34,11 +34,11 @@ describe("MyPickComposer", () => {
     expect(dialog.className).not.toContain("mt-auto");
     expect(await screen.findByText("3 My Picks available now")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Mock Google suggestion" }));
-    expect(screen.getByText("Restaurant selected and ready to send to Fiyu.")).toBeTruthy();
+    expect(screen.getByText(/independently look into this restaurant/)).toBeTruthy();
     expect(screen.getByText("Toritsune")).toBeTruthy();
     expect(screen.getByText("Shibuya, Tokyo")).toBeTruthy();
     expect(screen.queryByText("Your Google Places selection")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Choose another" }));
+    fireEvent.click(screen.getByRole("button", { name: "Search again" }));
     expect(screen.getByRole("button", { name: "Mock Google suggestion" })).toBeTruthy();
   });
 
@@ -52,7 +52,7 @@ describe("MyPickComposer", () => {
     await screen.findByText("3 My Picks available now");
     fireEvent.click(screen.getByRole("button", { name: "Mock Google suggestion" }));
     fireEvent.click(screen.getByRole("button", { name: "Ask Fiyu about this place" }));
-    expect(api.submitMyPick).toHaveBeenCalledWith("google-place-1");
+    expect(api.submitMyPick).toHaveBeenCalledWith("google-place-1", "Toritsune Shizendo");
     expect(await screen.findByText("Submitted to Fiyu")).toBeTruthy();
     expect(onSubmitted).toHaveBeenCalledWith(response);
     expect(await screen.findByText("2 of 3 My Picks remaining")).toBeTruthy();

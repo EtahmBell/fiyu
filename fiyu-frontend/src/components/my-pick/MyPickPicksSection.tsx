@@ -30,7 +30,7 @@ const POLL_DELAYS_MS = [30_000, 60_000, 180_000] as const;
 type DeveloperAction = {
   busy: boolean;
   hardResetBusy: boolean;
-  label: "Process now" | "Retry now";
+  label: "Process now" | "Retry now" | null;
   diagnostic: string | null;
   error: string | null;
   hardResetError: string | null;
@@ -85,14 +85,14 @@ function DeveloperProcessAction({ action }: { action: DeveloperAction }) {
         </p>
       ) : null}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-        <button
+        {action.label ? <button
           type="button"
           disabled={action.busy || action.hardResetBusy}
           onClick={action.process}
           className="min-h-9 text-xs font-semibold tracking-wide text-gold-700 disabled:cursor-wait disabled:opacity-60"
         >
           {action.busy ? "Processing…" : `DEV: ${action.label}`}
-        </button>
+        </button> : null}
         <button
           type="button"
           disabled={action.busy || action.hardResetBusy}
@@ -247,7 +247,7 @@ function MyPickReadyCard({ item, accountId, footer }: { item: MyPick; accountId:
   );
 }
 
-function ResolvedMyPickNotice({ item, footer }: { item: MyPick; footer?: ReactNode }) {
+function ResolvedMyPickNotice({ item, footer, developerAction }: { item: MyPick; footer?: ReactNode; developerAction?: DeveloperAction }) {
   const outside = item.status === "outside_coverage";
   const name = safeItemName(item);
   return (
@@ -260,6 +260,7 @@ function ResolvedMyPickNotice({ item, footer }: { item: MyPick; footer?: ReactNo
           : "Fiyu couldn't complete this Pick yet. Your request is still saved."}
       </p>
       {footer}
+      {!footer && developerAction ? <DeveloperProcessAction action={developerAction} /> : null}
     </article>
   );
 }
@@ -300,7 +301,7 @@ function MyPickCard({
   if (PENDING_STATUSES.has(item.status)) return <PendingMyPickCard item={item} developerAction={developerAction} footer={footer} />;
   if (item.status === "ready") return <MyPickReadyCard item={item} accountId={accountId} footer={footer} />;
   if (item.status === "failed_retryable") return <RetryableMyPickCard developerAction={developerAction} footer={footer} />;
-  return <ResolvedMyPickNotice item={item} footer={footer} />;
+  return <ResolvedMyPickNotice item={item} footer={footer} developerAction={developerAction} />;
 }
 
 export function MyPickPicksSection({
@@ -475,11 +476,14 @@ export function MyPickPicksSection({
         <section className="mt-6" aria-label="Your Picks">
           <div className="space-y-3">
             {visibleItems.map((item, index) => {
-              const developerAction = developerAuthorized && (PENDING_STATUSES.has(item.status) || item.status === "failed_retryable")
+              const canProcess = PENDING_STATUSES.has(item.status) || item.status === "failed_retryable";
+              const developerAction = developerAuthorized && (canProcess || item.status === "needs_review")
                 ? {
                     busy: processingId === item.my_pick_id,
                     hardResetBusy: hardResetId === item.my_pick_id,
-                    label: item.status === "failed_retryable" ? "Retry now" as const : "Process now" as const,
+                    label: canProcess
+                      ? item.status === "failed_retryable" ? "Retry now" as const : "Process now" as const
+                      : null,
                     diagnostic: safeFailureDiagnostic(item.failure_code),
                     error: processError?.id === item.my_pick_id ? processError.message : null,
                     hardResetError: hardResetError?.id === item.my_pick_id ? hardResetError.message : null,

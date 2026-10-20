@@ -293,6 +293,7 @@ export const myPickSchema = z.object({
   provider: z.string(),
   external_place_id: z.string(),
   display_name_hint: nullableString,
+  user_query_hint: nullableString.optional().default(null),
   status: myPickStatusSchema,
   status_message: z.string(),
   failure_code: nullableString,

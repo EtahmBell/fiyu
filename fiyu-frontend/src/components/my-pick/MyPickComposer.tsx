@@ -41,6 +41,7 @@ export function MyPickComposer({
 }) {
   const [state, setState] = useState<ComposerState>("search");
   const [selection, setSelection] = useState<GooglePlaceSelection | null>(null);
+  const [userQueryHint, setUserQueryHint] = useState<string | null>(null);
   const [quota, setQuota] = useState<MyPickQuota | null>(null);
   const [quotaLoading, setQuotaLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -103,15 +104,16 @@ export function MyPickComposer({
   };
   const choose = useCallback((selected: GooglePlaceSelection) => {
     setSelection(selected);
+    setUserQueryHint(selected.userQueryHint);
     setError(null);
     setState("confirm");
   }, []);
   const submit = async () => {
-    if (!selection) return;
+    if (!selection || !userQueryHint) return;
     setError(null);
     setState("submitting");
     try {
-      const result = await submitMyPick(selection.placeId);
+      const result = await submitMyPick(selection.placeId, userQueryHint);
       onSubmitted?.(result);
       setState("submitted");
       void refreshQuota();
@@ -197,14 +199,14 @@ export function MyPickComposer({
 
           {state === "confirm" || state === "submitting" ? (
             <div aria-live="polite">
-              <p id={descriptionId} className="text-sm leading-6 text-ink-muted">Restaurant selected and ready to send to Fiyu.</p>
+              <p id={descriptionId} className="text-sm leading-6 text-ink-muted">Fiyu will independently look into this restaurant and work out its Fiyu Score.</p>
               <div className="mt-5 rounded-xl border border-line bg-subtle px-4 py-4">
                 <p className="text-xs font-semibold tracking-wide text-ink-muted uppercase">Selected restaurant</p>
                 <p className="mt-1 text-sm font-medium text-ink">{selection?.displayName}</p>
                 {selection?.secondaryText ? <p className="mt-1 text-xs leading-5 text-ink-muted">{selection.secondaryText}</p> : null}
                 <p translate="no" className="mt-3 text-xs font-normal tracking-normal text-[#5E5E5E]">Google Maps</p>
               </div>
-              <button type="button" className="mt-3 min-h-11 text-sm font-medium text-plum hover:text-plum-700" disabled={state === "submitting"} onClick={() => { setSelection(null); setError(null); setState("search"); }}>Choose another</button>
+              <button type="button" className="mt-3 min-h-11 text-sm font-medium text-plum hover:text-plum-700" disabled={state === "submitting"} onClick={() => { setSelection(null); setUserQueryHint(null); setError(null); setState("search"); }}>Search again</button>
               <Button className="mt-3 w-full" variant="primary" disabled={state === "submitting"} onClick={() => void submit()}>{state === "submitting" ? "Submitting…" : "Ask Fiyu about this place"}</Button>
               {error ? <p role="alert" className="mt-3 text-sm text-dusty-rose">{error}</p> : null}
             </div>

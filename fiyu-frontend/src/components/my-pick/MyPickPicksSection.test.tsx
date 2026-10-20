@@ -32,6 +32,7 @@ const base: MyPick = {
   provider: "google",
   external_place_id: "google-1",
   display_name_hint: null,
+  user_query_hint: null,
   status: "ready",
   status_message: "ready",
   failure_code: null,
@@ -155,7 +156,9 @@ describe("MyPickPicksSection", () => {
     api.fetchMyPicks.mockResolvedValue([pending]);
     render(<MyPickPicksSection accountId="account-1" />);
     await screen.findByText(/Fiyu is looking into it/);
-    expect(timeout.mock.calls.some((call) => call[1] === 30_000)).toBe(true);
+    await waitFor(() => {
+      expect(timeout.mock.calls.some((call) => call[1] === 30_000)).toBe(true);
+    });
     const calls = api.fetchMyPicks.mock.calls.length;
     fireEvent.focus(window);
     await waitFor(() => expect(api.fetchMyPicks.mock.calls.length).toBeGreaterThan(calls));
@@ -303,6 +306,16 @@ describe("MyPickPicksSection", () => {
     await act(async () => retry.resolve({ my_pick: base, worker_summary: { jobs_claimed: 1, ready: 1 } }));
     expect(await screen.findByRole("button", { name: "Reveal your Pick" })).toBeTruthy();
     expect(api.fetchMyPickQuota).toHaveBeenCalledTimes(quotaCalls);
+  });
+
+  it("offers only Hard reset for an authorized needs-review Pick", async () => {
+    api.fetchDeveloperStatus.mockResolvedValue({ enabled: true, authorized: true, location_mode: "real", area_name: null, location_options: [] });
+    api.fetchMyPicks.mockResolvedValue([{ ...retryable, status: "needs_review" }]);
+    render(<MyPickPicksSection accountId="account-1" />);
+
+    expect(await screen.findByRole("button", { name: "DEV: Hard reset this Pick" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "DEV: Retry now" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "DEV: Process now" })).toBeNull();
   });
 
   it("confirms a developer hard reset, removes the card, and refreshes restored quota", async () => {

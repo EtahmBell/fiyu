@@ -10,6 +10,7 @@ from typing import Any
 from .catalog_pipeline import _strong_published_duplicate_ids, is_map_ready, verify_location
 from .database import connect_readonly
 from .discovery_location import TOKYO_SERVICE_AREA
+from .my_pick_identity_bootstrap import run_my_pick_identity_bootstrap
 from .public_catalog import ensure_public_schema
 from .quality_v4 import QUALITY_PRODUCTION_SCORE_VERSION
 from .quality_v4_backfill import run_quality_v4_backfill
@@ -75,6 +76,53 @@ def _existing_identity(db_path: str | Path, job: dict[str, Any]) -> str | None:
     return candidate_id if _catalog_row(db_path, candidate_id) else None
 
 
+def _bootstrap_duplicate(
+    db_path: str | Path, result: dict[str, Any]
+) -> str | None:
+    names = {
+        str(result.get(key) or "").strip().casefold()
+        for key in ("canonical_name_ja", "canonical_name_en")
+        if str(result.get(key) or "").strip()
+    }
+    if not names:
+        return None
+    with connect_readonly(db_path) as connection:
+        rows = connection.execute(
+            """
+            SELECT p.place_id, p.name_ja, p.name_en, r.title
+            FROM public_restaurants p
+            LEFT JOIN restaurants r ON r.place_id=p.place_id
+            """
+        ).fetchall()
+    matches = [
+        str(row["place_id"])
+        for row in rows
+        if names
+        & {
+            str(row[key] or "").strip().casefold()
+            for key in ("name_ja", "name_en", "title")
+        }
+    ]
+    return matches[0] if len(matches) == 1 else None
+
+
+def _bootstrap_has_independent_confirmation(result: dict[str, Any]) -> bool:
+    names = [result.get("canonical_name_ja"), result.get("canonical_name_en")]
+    urls = [
+        str(url).strip()
+        for url in result.get("supporting_urls") or []
+        if str(url).startswith(("http://", "https://"))
+        and "google." not in str(url).casefold()
+        and "goo.gl/maps" not in str(url).casefold()
+    ]
+    return bool(
+        any(str(name or "").strip() for name in names)
+        and float(result.get("identity_confidence") or 0) >= 0.7
+        and int(result.get("independent_source_count") or 0) >= 2
+        and len(set(urls)) >= 2
+    )
+
+
 def _current_v4(row: dict[str, Any]) -> bool:
     return bool(
         row.get("research_status") == "complete"
@@ -120,9 +168,8 @@ class ProductionMyPickProcessor:
     """Execute one claimed job through existing canonical Fiyu stages.
 
     The Google/provider identity is never treated as restaurant content. A
-    minimal queue identity is established first; canonical names, evidence,
-    location, and scores come only from the existing research, OSM/location,
-    and Quality-v4 systems.
+    independent identity bootstrap establishes a canonical name before the
+    existing research, location, and Quality-v4 systems run.
     """
 
     def __init__(
@@ -145,7 +192,11 @@ class ProductionMyPickProcessor:
     def __call__(self, job: dict[str, Any]) -> MyPickProcessingResult:
         counts = {
             "existing_identity_reused": 0,
-            "new_canonical_identities_created": 0,
+            "bootstrap_attempted": 0,
+            "bootstrap_identity_confirmed": 0,
+            "bootstrap_identity_ambiguous": 0,
+            "canonical_candidates_created": 0,
+            "duplicates_reused_after_bootstrap": 0,
             "research_completed": 0,
             "quality_v4_completed": 0,
             "provider_requests": 0,
@@ -158,15 +209,89 @@ class ProductionMyPickProcessor:
             if row is not None and _current_v4(row):
                 return MyPickProcessingResult(place_id, counts)
         else:
-            place_id, created = ensure_my_pick_candidate(
-                self.db_path,
-                provider=str(job["provider"]),
-                external_place_id=str(job["external_place_id"]),
-                display_name_hint=(
-                    str(job["display_name_hint"]) if job.get("display_name_hint") else None
-                ),
-            )
-            counts["new_canonical_identities_created"] = int(created)
+            from .my_picks import save_identity_bootstrap
+
+            stored = str(job.get("identity_bootstrap_result_json") or "").strip()
+            if stored and str(job.get("identity_bootstrap_status")) == "confirmed":
+                identity = json.loads(stored)
+            else:
+                hint = str(job.get("identity_bootstrap_hint") or "").strip()
+                if not hint:
+                    raise MyPickProcessingError(
+                        "identity_not_confirmed", status="needs_review", counts=counts
+                    )
+                counts["bootstrap_attempted"] = 1
+                try:
+                    bootstrap = run_my_pick_identity_bootstrap(hint, model=self.model)
+                except RuntimeError as exc:
+                    raise MyPickProcessingError(
+                        "identity_bootstrap_unavailable",
+                        status="failed_retryable",
+                        retryable=True,
+                        counts=counts,
+                    ) from exc
+                counts["provider_requests"] += bootstrap.provider_requests
+                counts["web_search_actions"] += bootstrap.web_search_actions
+                identity = bootstrap.result.model_dump(mode="json")
+                if (
+                    identity.get("identity_status") == "confirmed"
+                    and not _bootstrap_has_independent_confirmation(identity)
+                ):
+                    identity["identity_status"] = "ambiguous"
+                    identity["ambiguity_reason"] = (
+                        identity.get("ambiguity_reason")
+                        or "Independent identity evidence did not meet the confirmation threshold."
+                    )
+                save_identity_bootstrap(
+                    self.db_path,
+                    str(job["id"]),
+                    str(job["claim_token"]),
+                    result=identity,
+                )
+                if identity["identity_status"] == "ambiguous":
+                    counts["bootstrap_identity_ambiguous"] = 1
+                    raise MyPickProcessingError(
+                        "identity_not_confirmed", status="needs_review", counts=counts
+                    )
+                if identity["identity_status"] == "non_restaurant":
+                    raise MyPickProcessingError(
+                        "confirmed_non_restaurant", status="failed_terminal", counts=counts
+                    )
+                counts["bootstrap_identity_confirmed"] = 1
+                if identity.get("closure_or_replacement_contradiction"):
+                    raise MyPickProcessingError(
+                        "confirmed_closed_or_replaced",
+                        status="failed_terminal",
+                        counts=counts,
+                    )
+
+            duplicate = _bootstrap_duplicate(self.db_path, identity)
+            if duplicate is not None:
+                place_id = duplicate
+                counts["duplicates_reused_after_bootstrap"] = 1
+                counts["existing_identity_reused"] = 1
+                duplicate_row = _catalog_row(self.db_path, duplicate)
+                if duplicate_row is not None and _current_v4(duplicate_row):
+                    return MyPickProcessingResult(duplicate, counts)
+            else:
+                canonical_name = str(
+                    identity.get("canonical_name_ja")
+                    or identity.get("canonical_name_en")
+                    or ""
+                )
+                place_id, created = ensure_my_pick_candidate(
+                    self.db_path,
+                    provider=str(job["provider"]),
+                    external_place_id=str(job["external_place_id"]),
+                    canonical_name=canonical_name,
+                    canonical_name_ja=identity.get("canonical_name_ja"),
+                    canonical_name_en=identity.get("canonical_name_en"),
+                    city=identity.get("city"),
+                    neighborhood=identity.get("neighborhood"),
+                    address=identity.get("address"),
+                    primary_category=identity.get("primary_category"),
+                )
+                counts["canonical_candidates_created"] = int(created)
 
         from .my_picks import mark_canonical_work_researching
 

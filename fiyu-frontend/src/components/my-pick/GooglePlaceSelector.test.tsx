@@ -60,21 +60,18 @@ afterEach(() => {
 });
 
 describe("GooglePlaceSelector", () => {
-  it("uses the debounced Autocomplete Data API with one token and Fiyu's location constraints", async () => {
+  it("waits for Find restaurant before using the Data API with Fiyu's constraints", async () => {
     render(<div role="dialog"><GooglePlaceSelector onSelect={vi.fn()} /></div>);
-    const input = screen.getByRole("combobox", { name: "Search for a restaurant" });
+    const input = screen.getByRole("combobox", { name: "Restaurant name" });
     await waitFor(() => expect(Token).toHaveBeenCalledTimes(1));
 
-    fireEvent.change(input, { target: { value: "T" } });
-    await act(() => new Promise((resolve) => window.setTimeout(resolve, 275)));
+    fireEvent.change(input, { target: { value: "Toritsune Shizendo" } });
     expect(fetchSuggestions).not.toHaveBeenCalled();
-
-    fireEvent.change(input, { target: { value: "To" } });
-    expect(fetchSuggestions).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Find restaurant" }));
     await waitFor(() => expect(fetchSuggestions).toHaveBeenCalledTimes(1));
     const request = fetchSuggestions.mock.calls[0][0];
     expect(request).toMatchObject({
-      input: "To",
+      input: "Toritsune Shizendo",
       includedRegionCodes: ["jp"],
       locationRestriction: { west: 139.56, east: 139.92, south: 35.52, north: 35.82 },
     });
@@ -86,14 +83,18 @@ describe("GooglePlaceSelector", () => {
   it("renders prediction text and attribution, then selects transient UI text by mouse", async () => {
     const onSelect = vi.fn();
     render(<GooglePlaceSelector onSelect={onSelect} />);
-    const input = screen.getByRole("combobox", { name: "Search for a restaurant" });
+    const input = screen.getByRole("combobox", { name: "Restaurant name" });
+    await waitFor(() => expect(Token).toHaveBeenCalledTimes(1));
     fireEvent.change(input, { target: { value: "Tor" } });
+    expect(fetchSuggestions).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Find restaurant" }));
     expect(await screen.findByText("Toritsune")).toBeTruthy();
     expect(screen.getByText("Shibuya, Tokyo")).toBeTruthy();
     expect(screen.getByLabelText("Google Maps").getAttribute("translate")).toBe("no");
     fireEvent.click(screen.getByRole("button", { name: /Toritsune/ }));
     expect(onSelect).toHaveBeenCalledWith({
       placeId: "place-1",
+      userQueryHint: "Tor",
       displayName: "Toritsune",
       secondaryText: "Shibuya, Tokyo",
     });
@@ -102,8 +103,10 @@ describe("GooglePlaceSelector", () => {
   it("supports keyboard selection", async () => {
     const onSelect = vi.fn();
     render(<GooglePlaceSelector onSelect={onSelect} />);
-    const input = screen.getByRole("combobox", { name: "Search for a restaurant" });
+    const input = screen.getByRole("combobox", { name: "Restaurant name" });
+    await waitFor(() => expect(Token).toHaveBeenCalledTimes(1));
     fireEvent.change(input, { target: { value: "Tor" } });
+    fireEvent.click(screen.getByRole("button", { name: "Find restaurant" }));
     await screen.findByText("Toritsune");
     fireEvent.keyDown(input, { key: "ArrowDown" });
     fireEvent.keyDown(input, { key: "Enter" });
@@ -117,11 +120,14 @@ describe("GooglePlaceSelector", () => {
       .mockImplementationOnce(() => first.promise)
       .mockImplementationOnce(() => second.promise);
     render(<GooglePlaceSelector onSelect={vi.fn()} />);
-    const input = screen.getByRole("combobox", { name: "Search for a restaurant" });
+    const input = screen.getByRole("combobox", { name: "Restaurant name" });
+    await waitFor(() => expect(Token).toHaveBeenCalledTimes(1));
 
     fireEvent.change(input, { target: { value: "To" } });
+    fireEvent.click(screen.getByRole("button", { name: "Find restaurant" }));
     await waitFor(() => expect(fetchSuggestions).toHaveBeenCalledTimes(1));
     fireEvent.change(input, { target: { value: "Tori" } });
+    fireEvent.click(screen.getByRole("button", { name: "Find restaurant" }));
     await waitFor(() => expect(fetchSuggestions).toHaveBeenCalledTimes(2));
     const token = fetchSuggestions.mock.calls[0][0].sessionToken;
     expect(fetchSuggestions.mock.calls[1][0].sessionToken).toBe(token);

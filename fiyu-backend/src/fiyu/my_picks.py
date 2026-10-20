@@ -35,13 +35,16 @@ MyPickStatus = Literal[
     "failed_terminal",
 ]
 
-MY_PICK_SCHEMA_VERSION = "my-pick-orchestration-v1"
+MY_PICK_SCHEMA_VERSION = "my-pick-orchestration-v2-identity-bootstrap"
 MY_PICK_WORK_SCHEMA = """
 CREATE TABLE IF NOT EXISTS my_pick_canonical_work (
     id TEXT PRIMARY KEY,
     provider TEXT NOT NULL,
     external_place_id TEXT NOT NULL,
     display_name_hint TEXT,
+    identity_bootstrap_hint TEXT,
+    identity_bootstrap_status TEXT NOT NULL DEFAULT 'pending',
+    identity_bootstrap_result_json TEXT,
     canonical_place_id TEXT,
     status TEXT NOT NULL CHECK (status IN (
         'pending', 'resolving_identity', 'outside_coverage', 'researching',
@@ -99,6 +102,7 @@ _HARD_RESET_STATUSES = {
     "resolving_identity",
     "researching",
     "failed_retryable",
+    "needs_review",
 }
 _MY_PICK_TRANSIENT_TABLES = {
     "restaurant_research_runs",
@@ -155,6 +159,20 @@ def ensure_my_pick_schema(db_path: str | Path) -> None:
     ensure_public_schema(db_path)
     with connect(db_path) as connection:
         connection.executescript(MY_PICK_WORK_SCHEMA)
+        columns = {
+            str(row["name"])
+            for row in connection.execute("PRAGMA table_info(my_pick_canonical_work)")
+        }
+        additions = {
+            "identity_bootstrap_hint": "TEXT",
+            "identity_bootstrap_status": "TEXT NOT NULL DEFAULT 'pending'",
+            "identity_bootstrap_result_json": "TEXT",
+        }
+        for name, definition in additions.items():
+            if name not in columns:
+                connection.execute(
+                    f"ALTER TABLE my_pick_canonical_work ADD COLUMN {name} {definition}"
+                )
         connection.commit()
 
 
@@ -276,6 +294,7 @@ def create_or_get_canonical_work(
     provider: str,
     external_place_id: str,
     display_name_hint: str | None = None,
+    identity_bootstrap_hint: str | None = None,
     work_id: str | None = None,
     now: datetime | None = None,
 ) -> tuple[dict[str, Any], bool]:
@@ -283,6 +302,7 @@ def create_or_get_canonical_work(
 
     provider, external_place_id = normalize_external_identity(provider, external_place_id)
     hint = (display_name_hint or "").strip()[:200] or None
+    bootstrap_hint = (identity_bootstrap_hint or "").strip()[:200] or None
     ensure_my_pick_schema(db_path)
     timestamp = _now(now)
     with connect(db_path) as connection:
@@ -297,9 +317,10 @@ def create_or_get_canonical_work(
                 UPDATE my_pick_canonical_work
                 SET submission_count=submission_count+1, last_submitted_at=?, updated_at=?,
                     display_name_hint=COALESCE(display_name_hint, ?)
+                    , identity_bootstrap_hint=COALESCE(identity_bootstrap_hint, ?)
                 WHERE id=?
                 """,
-                (timestamp, timestamp, hint, existing["id"]),
+                (timestamp, timestamp, hint, bootstrap_hint, existing["id"]),
             )
             row = connection.execute(
                 "SELECT * FROM my_pick_canonical_work WHERE id=?", (existing["id"],)
@@ -330,16 +351,18 @@ def create_or_get_canonical_work(
         connection.execute(
             """
             INSERT INTO my_pick_canonical_work(
-                id, provider, external_place_id, display_name_hint, canonical_place_id,
+                id, provider, external_place_id, display_name_hint,
+                identity_bootstrap_hint, canonical_place_id,
                 status, first_submitted_at, last_submitted_at, resolved_at,
                 created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 work_id,
                 provider,
                 external_place_id,
                 hint,
+                bootstrap_hint,
                 canonical_id,
                 status,
                 timestamp,
@@ -372,6 +395,43 @@ def get_canonical_work(db_path: str | Path, work_id: str) -> dict[str, Any] | No
             "SELECT * FROM my_pick_canonical_work WHERE id=?", (work_id,)
         ).fetchone()
     return dict(row) if row is not None else None
+
+
+def save_identity_bootstrap(
+    db_path: str | Path,
+    work_id: str,
+    claim_token: str,
+    *,
+    result: dict[str, Any],
+) -> dict[str, Any]:
+    """Checkpoint independently researched identity before candidate creation."""
+
+    ensure_my_pick_schema(db_path)
+    status = str(result.get("identity_status") or "")
+    if status not in {"confirmed", "ambiguous", "non_restaurant"}:
+        raise ValueError("invalid identity bootstrap status")
+    with connect(db_path) as connection:
+        cursor = connection.execute(
+            """
+            UPDATE my_pick_canonical_work
+            SET identity_bootstrap_status=?, identity_bootstrap_result_json=?, updated_at=?
+            WHERE id=? AND claim_token=?
+            """,
+            (
+                status,
+                json.dumps(result, ensure_ascii=False, sort_keys=True),
+                _now(),
+                work_id,
+                claim_token,
+            ),
+        )
+        if cursor.rowcount != 1:
+            raise RuntimeError("My Pick identity bootstrap lost its worker lease")
+        row = connection.execute(
+            "SELECT * FROM my_pick_canonical_work WHERE id=?", (work_id,)
+        ).fetchone()
+        connection.commit()
+    return dict(row)
 
 
 def _quoted_identifier(value: str) -> str:
@@ -826,7 +886,11 @@ def run_my_pick_worker(
         "completed": 0,
         "failed": 0,
         "existing_identity_reused": 0,
-        "new_canonical_identities_created": 0,
+        "bootstrap_attempted": 0,
+        "bootstrap_identity_confirmed": 0,
+        "bootstrap_identity_ambiguous": 0,
+        "canonical_candidates_created": 0,
+        "duplicates_reused_after_bootstrap": 0,
         "research_completed": 0,
         "quality_v4_completed": 0,
         "ready": 0,
@@ -876,7 +940,11 @@ def run_my_pick_worker(
             counts = getattr(processed, "counts", {})
             for key in (
                 "existing_identity_reused",
-                "new_canonical_identities_created",
+                "bootstrap_attempted",
+                "bootstrap_identity_confirmed",
+                "bootstrap_identity_ambiguous",
+                "canonical_candidates_created",
+                "duplicates_reused_after_bootstrap",
                 "research_completed",
                 "quality_v4_completed",
                 "provider_requests",
@@ -901,7 +969,11 @@ def run_my_pick_worker(
             error_counts = getattr(exc, "counts", {})
             for key in (
                 "existing_identity_reused",
-                "new_canonical_identities_created",
+                "bootstrap_attempted",
+                "bootstrap_identity_confirmed",
+                "bootstrap_identity_ambiguous",
+                "canonical_candidates_created",
+                "duplicates_reused_after_bootstrap",
                 "research_completed",
                 "quality_v4_completed",
             ):

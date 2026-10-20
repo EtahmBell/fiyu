@@ -838,6 +838,7 @@ class MyPickSubmissionRequest(BaseModel):
     provider: str = Field(min_length=1, max_length=64)
     external_place_id: str = Field(min_length=1, max_length=512)
     display_name_hint: str | None = Field(default=None, max_length=200)
+    user_query_hint: str | None = Field(default=None, max_length=200)
 
     @field_validator("provider", "external_place_id")
     @classmethod
@@ -847,12 +848,21 @@ class MyPickSubmissionRequest(BaseModel):
             raise ValueError(f"{info.field_name} must not be blank")
         return stripped
 
+    @field_validator("user_query_hint")
+    @classmethod
+    def validate_user_query_hint(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        return stripped or None
+
 
 class MyPickResponse(BaseModel):
     my_pick_id: UUID
     provider: str
     external_place_id: str
     display_name_hint: str | None = None
+    user_query_hint: str | None = None
     status: my_picks.MyPickStatus
     status_message: str
     failure_code: str | None = None
@@ -2271,6 +2281,11 @@ def _my_pick_response(account_row: dict[str, Any]) -> MyPickResponse:
             if account_row.get("display_name_hint")
             else None
         ),
+        user_query_hint=(
+            str(account_row["user_query_hint"])
+            if account_row.get("user_query_hint")
+            else None
+        ),
         status=status,
         status_message=status_messages[status],
         failure_code=(
@@ -3212,6 +3227,7 @@ def submit_my_pick(
         provider=provider,
         external_place_id=external_place_id,
         display_name_hint=request.display_name_hint,
+        user_query_hint=request.user_query_hint,
         canonical_work_id=work_id,
     )
     work = my_picks.get_canonical_work(DB_PATH, work_id)
@@ -3221,6 +3237,7 @@ def submit_my_pick(
             provider=provider,
             external_place_id=external_place_id,
             display_name_hint=request.display_name_hint,
+            identity_bootstrap_hint=request.user_query_hint,
             work_id=work_id,
         )
     elif not bool(account_row.get("reused")):
@@ -3231,6 +3248,7 @@ def submit_my_pick(
             provider=provider,
             external_place_id=external_place_id,
             display_name_hint=request.display_name_hint,
+            identity_bootstrap_hint=request.user_query_hint,
             work_id=work_id,
         )
     _sync_my_pick_projection(work)
