@@ -107,7 +107,9 @@ describe("MyPickPicksSection", () => {
     expect(screen.queryByText(/Fiyu Score/i)).toBeNull();
     expect(screen.queryByText("Your My Picks")).toBeNull();
     expect(screen.queryByRole("button", { name: "Submit a restaurant →" })).toBeNull();
-    expect(await screen.findByText("2 of 3 Picks left")).toBeTruthy();
+    const quota = await screen.findByText("2 of 3 Picks left");
+    expect(quota.closest("[data-my-pick-id]")?.getAttribute("data-my-pick-id")).toBe(pending.my_pick_id);
+    expect(document.querySelectorAll("[data-my-pick-footer]")).toHaveLength(1);
     expect(screen.getByRole("button", { name: "Submit another →" })).toBeTruthy();
   });
 
@@ -200,6 +202,7 @@ describe("MyPickPicksSection", () => {
     render(<MyPickPicksSection accountId="account-1" />);
 
     const button = await screen.findByRole("button", { name: "DEV: Process now" });
+    expect(button.closest("[data-my-pick-id]")?.getAttribute("data-my-pick-id")).toBe(queued.my_pick_id);
     await waitFor(() => expect(api.fetchMyPickQuota).toHaveBeenCalledTimes(1));
     const quotaCalls = api.fetchMyPickQuota.mock.calls.length;
     fireEvent.click(button);
@@ -249,5 +252,7 @@ describe("MyPickPicksSection", () => {
     expect(linked).toBe(document.activeElement);
     expect(scrollIntoView).toHaveBeenCalled();
     expect(document.querySelectorAll("[data-my-pick-id]")).toHaveLength(3);
+    expect(document.querySelectorAll("[data-my-pick-footer]")).toHaveLength(1);
+    expect(document.querySelector("[data-my-pick-footer]")?.closest("[data-my-pick-id]")).toBe(linked);
   });
 });

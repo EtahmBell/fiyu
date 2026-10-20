@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { ReactNode } from "react";
 
 import { MyPickEntry } from "@/components/my-pick/MyPickEntry";
 import revealStyles from "@/components/pick-reveal/PickReveal.module.css";
@@ -24,6 +25,12 @@ import { cn } from "@/lib/utils/cn";
 const PENDING_STATUSES = new Set<MyPick["status"]>(["pending", "resolving_identity", "researching"]);
 const POLL_DELAYS_MS = [30_000, 60_000, 180_000] as const;
 
+type DeveloperAction = {
+  busy: boolean;
+  error: string | null;
+  process(): void;
+};
+
 function itemName(item: MyPick): string {
   return item.name_en || item.name_ja || "Your Pick";
 }
@@ -32,16 +39,54 @@ function revealStorageKey(accountId: string, itemId: string): string {
   return `fiyu:my-pick-revealed:${accountId}:${itemId}`;
 }
 
+function DeveloperProcessAction({ action }: { action: DeveloperAction }) {
+  return (
+    <div className="mt-2">
+      <button
+        type="button"
+        disabled={action.busy}
+        onClick={action.process}
+        className="min-h-9 text-xs font-semibold tracking-wide text-gold-700 disabled:cursor-wait disabled:opacity-60"
+      >
+        {action.busy ? "Processing…" : "DEV: Process now"}
+      </button>
+      {action.error ? <p role="alert" className="mt-1 text-xs leading-5 text-rose-dust">{action.error}</p> : null}
+    </div>
+  );
+}
+
+function MyPickQuotaFooter({
+  quota,
+  onSubmitted,
+  developerAction,
+  className,
+}: {
+  quota: MyPickQuota | null;
+  onSubmitted(item: MyPick): void;
+  developerAction?: DeveloperAction;
+  className?: string;
+}) {
+  return (
+    <div data-my-pick-footer className={cn("mt-5 border-t border-[#D8D3CA] pt-3", className)}>
+      <div className="flex min-h-11 items-center justify-between gap-4">
+        <p className="text-sm text-ink-muted">
+          {quota ? `${quota.remaining} of ${quota.limit} Picks left` : "Checking Picks availability…"}
+        </p>
+        {quota && quota.remaining > 0 ? <MyPickEntry signedIn variant="utility" onSubmitted={onSubmitted} /> : null}
+      </div>
+      {developerAction ? <DeveloperProcessAction action={developerAction} /> : null}
+    </div>
+  );
+}
+
 function PendingMyPickCard({
   item,
   developerAction,
+  footer,
 }: {
   item: MyPick;
-  developerAction?: {
-    busy: boolean;
-    error: string | null;
-    process(): void;
-  };
+  developerAction?: DeveloperAction;
+  footer?: ReactNode;
 }) {
   const canonicalName = item.name_en || item.name_ja;
   const name = canonicalName ? `${canonicalName} is under review` : "Your Pick is under review";
@@ -50,24 +95,17 @@ function PendingMyPickCard({
       <p className="text-[0.6875rem] font-semibold tracking-[0.15em] text-[#756E65] uppercase">Your Pick</p>
       <h3 className="mt-2 font-display text-xl text-[#3F3A35]">{name}</h3>
       <p className="mt-2 text-sm leading-6 text-[#6F6860]">Fiyu is looking into it. We&apos;ll let you know when it&apos;s ready.</p>
-      {developerAction ? (
+      {footer}
+      {!footer && developerAction ? (
         <div className="mt-4 border-t border-[#D8D3CA] pt-3">
-          <button
-            type="button"
-            disabled={developerAction.busy}
-            onClick={developerAction.process}
-            className="min-h-9 text-xs font-semibold tracking-wide text-gold-700 disabled:cursor-wait disabled:opacity-60"
-          >
-            {developerAction.busy ? "Processing…" : "DEV: Process now"}
-          </button>
-          {developerAction.error ? <p role="alert" className="mt-1 text-xs leading-5 text-rose-dust">{developerAction.error}</p> : null}
+          <DeveloperProcessAction action={developerAction} />
         </div>
       ) : null}
     </article>
   );
 }
 
-function MyPickReadyCard({ item, accountId }: { item: MyPick; accountId: string }) {
+function MyPickReadyCard({ item, accountId, footer }: { item: MyPick; accountId: string; footer?: ReactNode }) {
   const reducedMotion = useMediaQuery("(prefers-reduced-motion: reduce)");
   const [revealed, setRevealed] = useState(false);
   const list = useDefaultList(ACTIVE_FIYU_CITY.id, { accountId });
@@ -137,12 +175,15 @@ function MyPickReadyCard({ item, accountId }: { item: MyPick; accountId: string 
           ) : null}
         </div>
       ) : null}
+      {footer ? (
+        <div className={cn("relative z-[4] -mt-px border border-[#CDD5EA] border-t-0 px-5 pb-5", revealed ? "bg-white" : "bg-[#EEF1FA]")}>{footer}</div>
+      ) : null}
       <span className={revealStyles.shineOverlay} data-reveal-active={transition.active} aria-hidden="true" />
     </article>
   );
 }
 
-function ResolvedMyPickNotice({ item }: { item: MyPick }) {
+function ResolvedMyPickNotice({ item, footer }: { item: MyPick; footer?: ReactNode }) {
   const outside = item.status === "outside_coverage";
   return (
     <article className="rounded-card border border-[#D8D3CA] bg-[#F7F5F2] px-5 py-5">
@@ -153,6 +194,7 @@ function ResolvedMyPickNotice({ item }: { item: MyPick }) {
           ? "This restaurant is outside Fiyu's current Tokyo coverage."
           : "Fiyu couldn't complete this Pick yet. Your request is still saved."}
       </p>
+      {footer}
     </article>
   );
 }
@@ -161,18 +203,16 @@ function MyPickCard({
   item,
   accountId,
   developerAction,
+  footer,
 }: {
   item: MyPick;
   accountId: string;
-  developerAction?: {
-    busy: boolean;
-    error: string | null;
-    process(): void;
-  };
+  developerAction?: DeveloperAction;
+  footer?: ReactNode;
 }) {
-  if (PENDING_STATUSES.has(item.status)) return <PendingMyPickCard item={item} developerAction={developerAction} />;
-  if (item.status === "ready") return <MyPickReadyCard item={item} accountId={accountId} />;
-  return <ResolvedMyPickNotice item={item} />;
+  if (PENDING_STATUSES.has(item.status)) return <PendingMyPickCard item={item} developerAction={developerAction} footer={footer} />;
+  if (item.status === "ready") return <MyPickReadyCard item={item} accountId={accountId} footer={footer} />;
+  return <ResolvedMyPickNotice item={item} footer={footer} />;
 }
 
 export function MyPickPicksSection({
@@ -319,7 +359,18 @@ export function MyPickPicksSection({
   return (
         <section className="mt-6" aria-label="Your Picks">
           <div className="space-y-3">
-            {visibleItems.map((item) => (
+            {visibleItems.map((item, index) => {
+              const developerAction = developerAccountId === accountId && item.status === "pending"
+                ? {
+                    busy: processingId === item.my_pick_id,
+                    error: processError?.id === item.my_pick_id ? processError.message : null,
+                    process: () => void processNow(item),
+                  }
+                : undefined;
+              const footer = index === 0
+                ? <MyPickQuotaFooter quota={quota} onSubmitted={submitted} developerAction={developerAction} className={item.status === "ready" ? "mt-0 border-[#CDD5EA]" : undefined} />
+                : undefined;
+              return (
               <div
                 key={item.my_pick_id}
                 ref={item.my_pick_id === initialMyPickId ? (node) => { focusRef.current = node; } : undefined}
@@ -330,24 +381,12 @@ export function MyPickPicksSection({
                 <MyPickCard
                   item={item}
                   accountId={accountId}
-                  developerAction={
-                    developerAccountId === accountId && item.status === "pending"
-                      ? {
-                          busy: processingId === item.my_pick_id,
-                          error: processError?.id === item.my_pick_id ? processError.message : null,
-                          process: () => void processNow(item),
-                        }
-                      : undefined
-                  }
+                  developerAction={developerAction}
+                  footer={footer}
                 />
               </div>
-            ))}
-          </div>
-          <div className="mt-3 flex min-h-12 items-center justify-between gap-4 border-t border-line px-1 pt-3">
-            <p className="text-sm text-ink-muted">
-              {quota ? `${quota.remaining} of ${quota.limit} Picks left` : "Checking Picks availability…"}
-            </p>
-            {quota && quota.remaining > 0 ? <MyPickEntry signedIn variant="utility" onSubmitted={submitted} /> : null}
+              );
+            })}
           </div>
         </section>
   );
