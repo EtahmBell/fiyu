@@ -296,6 +296,90 @@ def test_worker_cli_dry_run_is_read_only(catalog, capsys):
     assert my_picks.get_canonical_work(catalog, str(work["id"]))["status"] == "pending"
 
 
+def test_unresolved_canonical_result_never_exposes_internal_identifiers(catalog):
+    external_id = "ChIJ-provider-RUyUK4yYI8QE"
+    work, _ = my_picks.create_or_get_canonical_work(
+        catalog, provider="google", external_place_id=external_id
+    )
+    place_id, _ = my_pick_processor.ensure_my_pick_candidate(
+        catalog,
+        provider="google",
+        external_place_id=external_id,
+        display_name_hint=None,
+    )
+    with connect(catalog) as connection:
+        connection.execute(
+            "UPDATE public_restaurants SET name_en=?, name_ja=? WHERE place_id=?",
+            (external_id, str(work["id"]), place_id),
+        )
+        connection.execute(
+            "UPDATE my_pick_canonical_work SET canonical_place_id=? WHERE id=?",
+            (place_id, work["id"]),
+        )
+        connection.commit()
+
+    unresolved = my_picks.canonical_result(
+        catalog, my_picks.get_canonical_work(catalog, str(work["id"]))
+    )
+
+    assert unresolved["name_en"] is None
+    assert unresolved["name_ja"] is None
+    assert external_id not in {unresolved["name_en"], unresolved["name_ja"]}
+    assert str(work["id"]) not in {unresolved["name_en"], unresolved["name_ja"]}
+
+    with connect(catalog) as connection:
+        connection.execute(
+            "UPDATE public_restaurants SET name_en='Resolved Izakaya' WHERE place_id=?",
+            (place_id,),
+        )
+        connection.commit()
+    resolved = my_picks.canonical_result(
+        catalog, my_picks.get_canonical_work(catalog, str(work["id"]))
+    )
+    assert resolved["name_en"] == "Resolved Izakaya"
+
+
+def test_missing_research_provider_is_a_safe_retryable_failure(catalog, monkeypatch):
+    work, _ = my_picks.create_or_get_canonical_work(
+        catalog, provider="google", external_place_id="provider-unconfigured"
+    )
+
+    def unavailable(*_args, **_kwargs):
+        raise RuntimeError("OPENAI_API_KEY is missing; private-detail-must-not-leak")
+
+    monkeypatch.setattr(my_pick_processor, "run_research_batch", unavailable)
+    processor = my_pick_processor.ProductionMyPickProcessor(
+        catalog, osm_index="unused-before-location.sqlite"
+    )
+
+    summary = my_picks.run_my_pick_worker(
+        catalog, processor=processor, worker_id="provider-test", detailed=True
+    )
+    failed = my_picks.get_canonical_work(catalog, str(work["id"]))
+
+    assert summary["failed_retryable"] == 1
+    assert failed["status"] == "failed_retryable"
+    assert failed["failure_code"] == "research_provider_unconfigured"
+    assert "private-detail" not in json.dumps(failed)
+
+
+def test_unstructured_worker_failure_is_normalized_before_storage(catalog):
+    work, _ = my_picks.create_or_get_canonical_work(
+        catalog, provider="google", external_place_id="unsafe-failure"
+    )
+
+    class UnsafeFailure(RuntimeError):
+        code = "provider payload: private diagnostic"
+
+    def fails(_job):
+        raise UnsafeFailure("raw secret")
+
+    my_picks.run_my_pick_worker(catalog, processor=fails, worker_id="safe-failure")
+    failed = my_picks.get_canonical_work(catalog, str(work["id"]))
+
+    assert failed["failure_code"] == "processing_error"
+
+
 @pytest.mark.parametrize(
     ("score", "precision", "expected_reviews"),
     [(43.0, "exact", 0), (74.0, "area", 1)],

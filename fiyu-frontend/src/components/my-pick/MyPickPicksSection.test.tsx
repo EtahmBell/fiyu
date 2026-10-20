@@ -72,6 +72,15 @@ const pending: MyPick = {
   recommendation_review_status: "not_eligible",
 };
 const queued: MyPick = { ...pending, status: "pending", status_message: "pending" };
+const retryable: MyPick = {
+  ...pending,
+  external_place_id: "ChIJ-provider-RUyUK4yYI8QE",
+  place_id: "ChIJ-provider-RUyUK4yYI8QE",
+  name_en: "My Pick RUyUK4yYI8QE",
+  status: "failed_retryable",
+  status_message: "retryable",
+  failure_code: "canonical_research_incomplete",
+};
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -117,7 +126,7 @@ describe("MyPickPicksSection", () => {
     api.fetchMyPicks.mockResolvedValue([base]);
     render(<MyPickPicksSection accountId="account-1" />);
     const reveal = await screen.findByRole("button", { name: "Reveal your Pick" });
-    expect(reveal.className).toContain("bg-[#EEF1FA]");
+    expect(reveal.className).toContain("bg-[#E6EDF5]");
     expect(screen.queryByLabelText("Fiyu Score 8.4 out of 10")).toBeNull();
     expect(screen.queryByText("Test Shokudo")).toBeNull();
 
@@ -179,6 +188,34 @@ describe("MyPickPicksSection", () => {
     expect(screen.queryByRole("button", { name: "Submit another →" })).toBeNull();
   });
 
+  it("never renders provider, place, or work identifiers as restaurant titles", async () => {
+    const canonicalWorkId = "48e12be2-6c8c-4eb0-a9ba-0fda848d37ef";
+    api.fetchMyPicks.mockResolvedValue([
+      retryable,
+      { ...retryable, my_pick_id: "10000000-0000-4000-8000-000000000003", name_en: canonicalWorkId },
+    ]);
+    render(<MyPickPicksSection accountId="account-1" />);
+
+    expect(await screen.findAllByText("Your Pick is still under review")).toHaveLength(2);
+    expect(screen.queryByText("My Pick RUyUK4yYI8QE")).toBeNull();
+    expect(screen.queryByText("ChIJ-provider-RUyUK4yYI8QE")).toBeNull();
+    expect(screen.queryByText(canonicalWorkId)).toBeNull();
+    expect(screen.getAllByText("Your Pick").length).toBeGreaterThan(0);
+  });
+
+  it("uses the grey-blue retryable treatment without exposing diagnostics to a normal user", async () => {
+    api.fetchMyPicks.mockResolvedValue([retryable]);
+    render(<MyPickPicksSection accountId="account-1" />);
+
+    const title = await screen.findByText("Your Pick is still under review");
+    expect(title.closest("article")?.className).toContain("bg-[#EEF2F6]");
+    expect(title.closest("article")?.className).toContain("border-[#D2DAE5]");
+    expect(screen.getByText("Fiyu couldn't finish checking this one yet. Your request is saved and can be retried.")).toBeTruthy();
+    expect(screen.queryByText(/canonical_research_incomplete/)).toBeNull();
+    expect(screen.queryByRole("button", { name: "DEV: Retry now" })).toBeNull();
+    expect(screen.getByText("2 of 3 Picks left").closest("article")).toBe(title.closest("article"));
+  });
+
   it("never exposes manual processing to a normal user or on a ready card", async () => {
     api.fetchMyPicks.mockResolvedValue([queued]);
     const view = render(<MyPickPicksSection accountId="account-1" />);
@@ -232,6 +269,36 @@ describe("MyPickPicksSection", () => {
     fireEvent.click(await screen.findByRole("button", { name: "DEV: Process now" }));
     expect((await screen.findByRole("alert")).textContent).toBe("My Pick worker is not configured on this backend.");
     expect(screen.getByRole("button", { name: "DEV: Process now" })).toBeTruthy();
+  });
+
+  it("shows an authorized developer a safe diagnostic and retries the same durable Pick without touching quota", async () => {
+    const retry = deferred<{ my_pick: MyPick; worker_summary: Record<string, number> }>();
+    api.fetchDeveloperStatus.mockResolvedValue({ enabled: true, location_mode: "real", area_name: null, location_options: [] });
+    api.fetchMyPicks.mockResolvedValueOnce([retryable]).mockResolvedValueOnce([base]);
+    api.processDeveloperMyPick.mockReturnValue(retry.promise);
+    render(<MyPickPicksSection accountId="account-1" />);
+
+    const button = await screen.findByRole("button", { name: "DEV: Retry now" });
+    expect(screen.getByText(/canonical_research_incomplete/)).toBeTruthy();
+    expect(button.closest("article")).toBe(screen.getByText("2 of 3 Picks left").closest("article"));
+    await waitFor(() => expect(api.fetchMyPickQuota).toHaveBeenCalledTimes(1));
+    const quotaCalls = api.fetchMyPickQuota.mock.calls.length;
+    fireEvent.click(button);
+    fireEvent.click(button);
+    expect(api.processDeveloperMyPick).toHaveBeenCalledOnce();
+    expect(api.processDeveloperMyPick).toHaveBeenCalledWith(retryable.my_pick_id);
+
+    await act(async () => retry.resolve({ my_pick: base, worker_summary: { jobs_claimed: 1, ready: 1 } }));
+    expect(await screen.findByRole("button", { name: "Reveal your Pick" })).toBeTruthy();
+    expect(api.fetchMyPickQuota).toHaveBeenCalledTimes(quotaCalls);
+  });
+
+  it("normalizes an unstructured failure reason before showing it to a developer", async () => {
+    api.fetchDeveloperStatus.mockResolvedValue({ enabled: true, location_mode: "real", area_name: null, location_options: [] });
+    api.fetchMyPicks.mockResolvedValue([{ ...retryable, failure_code: "provider payload contained private detail" }]);
+    render(<MyPickPicksSection accountId="account-1" />);
+    expect(await screen.findByText(/processing_error/)).toBeTruthy();
+    expect(screen.queryByText(/private detail/)).toBeNull();
   });
 
   it("focuses a deep-linked inline result and keeps the section to three recent cards", async () => {

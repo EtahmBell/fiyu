@@ -8,6 +8,7 @@ finalize a job from the resulting ``public_restaurants`` row.
 
 from __future__ import annotations
 
+import logging
 import re
 import uuid
 from collections.abc import Callable
@@ -89,6 +90,8 @@ CREATE INDEX IF NOT EXISTS idx_my_pick_reviews_status
 _PROVIDER = re.compile(r"^[a-z][a-z0-9_.-]{0,63}$")
 _EXTERNAL_ID_MAX = 512
 _WORK_NAMESPACE = uuid.UUID("e6a8de1f-2a5f-4be8-a95d-84eb3e1d4a02")
+_FAILURE_CODE = re.compile(r"^[a-z][a-z0-9_.-]{0,119}$")
+logger = logging.getLogger(__name__)
 
 
 def _now(value: datetime | None = None) -> str:
@@ -110,6 +113,12 @@ def canonical_work_id(provider: str, external_place_id: str) -> str:
 
     provider, external_place_id = normalize_external_identity(provider, external_place_id)
     return str(uuid.uuid5(_WORK_NAMESPACE, f"{provider}\0{external_place_id}"))
+
+
+def _safe_failure_code(exc: Exception) -> str:
+    raw = str(getattr(exc, "code", type(exc).__name__)).strip()
+    normalized = re.sub(r"(?<!^)(?=[A-Z])", "_", raw).casefold()
+    return normalized if _FAILURE_CODE.fullmatch(normalized) else "processing_error"
 
 
 def ensure_my_pick_schema(db_path: str | Path) -> None:
@@ -383,12 +392,35 @@ def canonical_result(db_path: str | Path, work: dict[str, Any]) -> dict[str, Any
         ).fetchone()
     if row is None:
         return {}
+
+    def safe_name(value: object) -> str | None:
+        name = str(value or "").strip()
+        if not name:
+            return None
+        identifiers = {
+            str(work.get("id") or "").strip().casefold(),
+            str(work.get("external_place_id") or "").strip().casefold(),
+            str(work.get("canonical_place_id") or "").strip().casefold(),
+            str(row.get("place_id") or "").strip().casefold(),
+        }
+        if name.casefold() in identifiers:
+            return None
+        for identifier in identifiers:
+            if identifier and name.casefold() == f"my pick {identifier[-12:]}":
+                return None
+        try:
+            uuid.UUID(name)
+        except ValueError:
+            return name
+        return None
+
     map_ready = is_map_ready(row) and _trusted_coverage(row) is True
     score_current = _current_score(row)
     return {
         "place_id": str(row["place_id"]),
-        "name_ja": row.get("name_ja"),
-        "name_en": row.get("name_en") or row.get("candidate_title"),
+        "name_ja": safe_name(row.get("name_ja")),
+        "name_en": safe_name(row.get("name_en"))
+        or safe_name(row.get("candidate_title")),
         "primary_category": row.get("primary_category"),
         "display_area": row.get("discovery_area") or row.get("neighborhood"),
         "fiyu_score": row.get("fiyu_score") if score_current else None,
@@ -710,7 +742,7 @@ def run_my_pick_worker(
             summary["review_queue_additions"] += max(0, after_reviews - before_reviews)
             notify(completed_row)
         except Exception as exc:  # noqa: BLE001 - preserve each durable job independently.
-            code = str(getattr(exc, "code", type(exc).__name__))
+            code = _safe_failure_code(exc)
             status = str(getattr(exc, "status", ""))
             error_counts = getattr(exc, "counts", {})
             for key in (
@@ -752,6 +784,15 @@ def run_my_pick_worker(
                 failure_status = str(failed_row["status"])
                 summary["failed"] += 1
                 summary[failure_status] += 1
+            logger.warning(
+                "My Pick canonical work attempt did not complete",
+                extra={
+                    "my_pick_work_id": str(job["id"]),
+                    "my_pick_status": str(failed_row["status"]),
+                    "my_pick_failure_code": code,
+                    "my_pick_retryable": retryable,
+                },
+            )
             notify(failed_row)
         if work_id is not None:
             break

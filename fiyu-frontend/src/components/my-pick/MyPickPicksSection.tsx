@@ -27,12 +27,42 @@ const POLL_DELAYS_MS = [30_000, 60_000, 180_000] as const;
 
 type DeveloperAction = {
   busy: boolean;
+  label: "Process now" | "Retry now";
+  diagnostic: string | null;
   error: string | null;
   process(): void;
 };
 
+function safeItemName(item: MyPick): string | null {
+  const identifiers = [item.external_place_id, item.place_id, item.my_pick_id]
+    .filter((value): value is string => Boolean(value))
+    .map((value) => value.trim().toLocaleLowerCase());
+  for (const candidate of [item.name_en, item.name_ja]) {
+    const name = candidate?.trim();
+    if (!name) continue;
+    const normalized = name.toLocaleLowerCase();
+    if (identifiers.includes(normalized)) continue;
+    if (identifiers.some((identifier) => normalized === `my pick ${identifier.slice(-12)}`)) continue;
+    if (/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(name)) continue;
+    return name;
+  }
+  return null;
+}
+
 function itemName(item: MyPick): string {
-  return item.name_en || item.name_ja || "Your Pick";
+  return safeItemName(item) ?? "Your Pick";
+}
+
+function safeFailureDiagnostic(value: string | null): string | null {
+  if (!value) return null;
+  if (!/^[a-z][a-z0-9_.-]{0,119}$/i.test(value)) return "processing_error";
+  const normalized = value
+    .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+    .toLocaleLowerCase()
+    .replace(/[^a-z0-9_.-]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 120);
+  return normalized || "processing_error";
 }
 
 function revealStorageKey(accountId: string, itemId: string): string {
@@ -48,8 +78,14 @@ function DeveloperProcessAction({ action }: { action: DeveloperAction }) {
         onClick={action.process}
         className="min-h-9 text-xs font-semibold tracking-wide text-gold-700 disabled:cursor-wait disabled:opacity-60"
       >
-        {action.busy ? "Processing…" : "DEV: Process now"}
+        {action.busy ? "Processing…" : `DEV: ${action.label}`}
       </button>
+      {action.diagnostic ? (
+        <p className="mt-1 text-xs leading-5 text-[#66788F]">
+          <span className="font-semibold">DEV: Last attempt</span>{" "}
+          <code className="font-mono">{action.diagnostic}</code>
+        </p>
+      ) : null}
       {action.error ? <p role="alert" className="mt-1 text-xs leading-5 text-rose-dust">{action.error}</p> : null}
     </div>
   );
@@ -67,7 +103,7 @@ function MyPickQuotaFooter({
   className?: string;
 }) {
   return (
-    <div data-my-pick-footer className={cn("mt-5 border-t border-[#D8D3CA] pt-3", className)}>
+    <div data-my-pick-footer className={cn("mt-5 border-t border-[#D2DAE5] pt-3", className)}>
       <div className="flex min-h-11 items-center justify-between gap-4">
         <p className="text-sm text-ink-muted">
           {quota ? `${quota.remaining} of ${quota.limit} Picks left` : "Checking Picks availability…"}
@@ -88,16 +124,16 @@ function PendingMyPickCard({
   developerAction?: DeveloperAction;
   footer?: ReactNode;
 }) {
-  const canonicalName = item.name_en || item.name_ja;
+  const canonicalName = safeItemName(item);
   const name = canonicalName ? `${canonicalName} is under review` : "Your Pick is under review";
   return (
-    <article className="rounded-card border border-[#D8D3CA] bg-[#F4F1EC] px-5 py-5" aria-live="polite">
-      <p className="text-[0.6875rem] font-semibold tracking-[0.15em] text-[#756E65] uppercase">Your Pick</p>
-      <h3 className="mt-2 font-display text-xl text-[#3F3A35]">{name}</h3>
-      <p className="mt-2 text-sm leading-6 text-[#6F6860]">Fiyu is looking into it. We&apos;ll let you know when it&apos;s ready.</p>
+    <article className="rounded-card border border-[#D2DAE5] bg-[#EEF2F6] px-5 py-5" aria-live="polite">
+      <p className="text-[0.6875rem] font-semibold tracking-[0.15em] text-[#66788F] uppercase">Your Pick</p>
+      <h3 className="mt-2 font-display text-xl text-[#3F4A59]">{name}</h3>
+      <p className="mt-2 text-sm leading-6 text-[#66788F]">Fiyu is looking into it. We&apos;ll let you know when it&apos;s ready.</p>
       {footer}
       {!footer && developerAction ? (
-        <div className="mt-4 border-t border-[#D8D3CA] pt-3">
+        <div className="mt-4 border-t border-[#D2DAE5] pt-3">
           <DeveloperProcessAction action={developerAction} />
         </div>
       ) : null}
@@ -142,23 +178,23 @@ function MyPickReadyCard({ item, accountId, footer }: { item: MyPick; accountId:
         type="button"
         className={cn(
           revealStyles.hiddenFace,
-          "min-h-[13rem] w-full border border-[#CDD5EA] bg-[#EEF1FA] px-5 py-5 text-[#3E4866]",
+          "min-h-[13rem] w-full border border-[#C9D4E2] bg-[#E6EDF5] px-5 py-5 text-[#38485B]",
         )}
         onClick={reveal}
         aria-label="Reveal your Pick"
       >
         <span className="flex h-full min-h-[10.5rem] flex-col items-center justify-center text-center">
-          <span className="text-[0.6875rem] font-semibold tracking-[0.18em] text-[#6479B8] uppercase">Your Pick is ready</span>
+          <span className="text-[0.6875rem] font-semibold tracking-[0.18em] text-[#5F7590] uppercase">Your Pick is ready</span>
           <span className="mt-4 font-display text-[2rem] leading-none">Fiyu</span>
-          <span className="mt-6 text-sm font-semibold text-[#52699F]">Reveal your Pick →</span>
+          <span className="mt-6 text-sm font-semibold text-[#5F7590]">Reveal your Pick →</span>
         </span>
       </button>
 
       {revealed ? (
-        <div className={cn(revealStyles.restaurantFace, "min-h-[13rem] border border-[#CDD5EA] bg-white px-5 py-5")}>
+        <div className={cn(revealStyles.restaurantFace, "min-h-[13rem] border border-[#C9D4E2] bg-white px-5 py-5")}>
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
-              <p className="text-[0.6875rem] font-semibold tracking-[0.15em] text-[#6479B8] uppercase">Your Pick</p>
+              <p className="text-[0.6875rem] font-semibold tracking-[0.15em] text-[#5F7590] uppercase">Your Pick</p>
               <h3 className="mt-2 font-display text-2xl leading-tight text-ink">{itemName(item)}</h3>
               {item.name_ja && item.name_ja !== itemName(item) ? <p className="mt-1 text-sm text-ink-muted">{item.name_ja}</p> : null}
               {(item.primary_category || item.display_area) ? <p className="mt-2 text-sm text-ink-muted">{[item.primary_category, item.display_area].filter(Boolean).join(" · ")}</p> : null}
@@ -168,7 +204,7 @@ function MyPickReadyCard({ item, accountId, footer }: { item: MyPick; accountId:
           {!item.is_public ? <p className="mt-4 text-sm leading-6 text-ink-muted">This is your private result. It is not currently part of the public Fiyu catalog.</p> : null}
           {publicPlaceId ? (
             <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-[#D8DEEA] pt-4">
-              <Link className="inline-flex min-h-11 items-center text-sm font-semibold text-[#52699F]" href={`/restaurants/${publicPlaceId}`}>View restaurant →</Link>
+              <Link className="inline-flex min-h-11 items-center text-sm font-semibold text-[#5F7590]" href={`/restaurants/${publicPlaceId}`}>View restaurant →</Link>
               <Button variant="secondary" disabled={list.pendingPlaceIds.includes(publicPlaceId)} onClick={() => void list.toggle(publicPlaceId)}>{saved ? "Saved" : "Save"}</Button>
               <Link className="inline-flex min-h-11 items-center text-sm font-medium text-ink-muted" href={`/log?placeId=${encodeURIComponent(publicPlaceId)}`}>Log visit</Link>
             </div>
@@ -176,7 +212,7 @@ function MyPickReadyCard({ item, accountId, footer }: { item: MyPick; accountId:
         </div>
       ) : null}
       {footer ? (
-        <div className={cn("relative z-[4] -mt-px border border-[#CDD5EA] border-t-0 px-5 pb-5", revealed ? "bg-white" : "bg-[#EEF1FA]")}>{footer}</div>
+        <div className={cn("relative z-[4] -mt-px border border-[#C9D4E2] border-t-0 px-5 pb-5", revealed ? "bg-white" : "bg-[#E6EDF5]")}>{footer}</div>
       ) : null}
       <span className={revealStyles.shineOverlay} data-reveal-active={transition.active} aria-hidden="true" />
     </article>
@@ -185,16 +221,39 @@ function MyPickReadyCard({ item, accountId, footer }: { item: MyPick; accountId:
 
 function ResolvedMyPickNotice({ item, footer }: { item: MyPick; footer?: ReactNode }) {
   const outside = item.status === "outside_coverage";
+  const name = safeItemName(item);
   return (
-    <article className="rounded-card border border-[#D8D3CA] bg-[#F7F5F2] px-5 py-5">
-      <p className="text-[0.6875rem] font-semibold tracking-[0.15em] text-[#756E65] uppercase">Your Pick</p>
-      {(item.name_en || item.name_ja) ? <h3 className="mt-2 font-display text-xl text-ink">{itemName(item)}</h3> : null}
-      <p className="mt-2 text-sm leading-6 text-ink-muted">
+    <article className="rounded-card border border-[#D2DAE5] bg-[#EEF2F6] px-5 py-5">
+      <p className="text-[0.6875rem] font-semibold tracking-[0.15em] text-[#66788F] uppercase">Your Pick</p>
+      <h3 className="mt-2 font-display text-xl text-[#3F4A59]">{name ?? "Your Pick"}</h3>
+      <p className="mt-2 text-sm leading-6 text-[#66788F]">
         {outside
           ? "This restaurant is outside Fiyu's current Tokyo coverage."
           : "Fiyu couldn't complete this Pick yet. Your request is still saved."}
       </p>
       {footer}
+    </article>
+  );
+}
+
+function RetryableMyPickCard({
+  footer,
+  developerAction,
+}: {
+  footer?: ReactNode;
+  developerAction?: DeveloperAction;
+}) {
+  return (
+    <article className="rounded-card border border-[#D2DAE5] bg-[#EEF2F6] px-5 py-5">
+      <p className="text-[0.6875rem] font-semibold tracking-[0.15em] text-[#66788F] uppercase">Your Pick</p>
+      <h3 className="mt-2 font-display text-xl text-[#3F4A59]">Your Pick is still under review</h3>
+      <p className="mt-2 text-sm leading-6 text-[#66788F]">Fiyu couldn&apos;t finish checking this one yet. Your request is saved and can be retried.</p>
+      {footer}
+      {!footer && developerAction ? (
+        <div className="mt-4 border-t border-[#D2DAE5] pt-3">
+          <DeveloperProcessAction action={developerAction} />
+        </div>
+      ) : null}
     </article>
   );
 }
@@ -212,6 +271,7 @@ function MyPickCard({
 }) {
   if (PENDING_STATUSES.has(item.status)) return <PendingMyPickCard item={item} developerAction={developerAction} footer={footer} />;
   if (item.status === "ready") return <MyPickReadyCard item={item} accountId={accountId} footer={footer} />;
+  if (item.status === "failed_retryable") return <RetryableMyPickCard developerAction={developerAction} footer={footer} />;
   return <ResolvedMyPickNotice item={item} footer={footer} />;
 }
 
@@ -360,15 +420,17 @@ export function MyPickPicksSection({
         <section className="mt-6" aria-label="Your Picks">
           <div className="space-y-3">
             {visibleItems.map((item, index) => {
-              const developerAction = developerAccountId === accountId && item.status === "pending"
+              const developerAction = developerAccountId === accountId && (item.status === "pending" || item.status === "failed_retryable")
                 ? {
                     busy: processingId === item.my_pick_id,
+                    label: item.status === "failed_retryable" ? "Retry now" as const : "Process now" as const,
+                    diagnostic: safeFailureDiagnostic(item.failure_code),
                     error: processError?.id === item.my_pick_id ? processError.message : null,
                     process: () => void processNow(item),
                   }
                 : undefined;
               const footer = index === 0
-                ? <MyPickQuotaFooter quota={quota} onSubmitted={submitted} developerAction={developerAction} className={item.status === "ready" ? "mt-0 border-[#CDD5EA]" : undefined} />
+                ? <MyPickQuotaFooter quota={quota} onSubmitted={submitted} developerAction={developerAction} className={item.status === "ready" ? "mt-0 border-[#C9D4E2]" : undefined} />
                 : undefined;
               return (
               <div

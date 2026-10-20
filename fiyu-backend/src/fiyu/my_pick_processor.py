@@ -186,14 +186,27 @@ class ProductionMyPickProcessor:
                 counts=counts,
             )
         if row.get("research_status") != "complete":
-            research = run_research_batch(
-                self.db_path,
-                limit=1,
-                place_id=place_id,
-                model=self.model,
-                retry_failed=str(row.get("research_status")) in {"failed", "needs_retry"},
-                max_items=1,
-            )
+            try:
+                research = run_research_batch(
+                    self.db_path,
+                    limit=1,
+                    place_id=place_id,
+                    model=self.model,
+                    retry_failed=str(row.get("research_status")) in {"failed", "needs_retry"},
+                    max_items=1,
+                )
+            except RuntimeError as exc:
+                code = (
+                    "research_provider_unconfigured"
+                    if "OPENAI_API_KEY" in str(exc)
+                    else "research_stage_unavailable"
+                )
+                raise MyPickProcessingError(
+                    code,
+                    status="failed_retryable",
+                    retryable=True,
+                    counts=counts,
+                ) from exc
             counts["provider_requests"] += int(research.get("responses_requests", 0) or 0)
             counts["web_search_actions"] += int(research.get("web_search_actions", 0) or 0)
             counts["research_completed"] += int(research.get("completed", 0) or 0)
@@ -215,12 +228,25 @@ class ProductionMyPickProcessor:
         ):
             from .low_footprint_research import run_low_footprint_research
 
-            enrichment = run_low_footprint_research(
-                self.db_path,
-                place_ids=[place_id],
-                limit=1,
-                model=self.model,
-            )
+            try:
+                enrichment = run_low_footprint_research(
+                    self.db_path,
+                    place_ids=[place_id],
+                    limit=1,
+                    model=self.model,
+                )
+            except RuntimeError as exc:
+                code = (
+                    "low_footprint_provider_unconfigured"
+                    if "OPENAI_API_KEY" in str(exc)
+                    else "low_footprint_stage_unavailable"
+                )
+                raise MyPickProcessingError(
+                    code,
+                    status="failed_retryable",
+                    retryable=True,
+                    counts=counts,
+                ) from exc
             counts["provider_requests"] += int(
                 enrichment.get("responses_requests", 0) or 0
             )
@@ -250,13 +276,26 @@ class ProductionMyPickProcessor:
             )
 
         if not is_map_ready(row):
-            location = verify_location(
-                self.db_path,
-                place_id,
-                osm_index=self.osm_index,
-                osm_address_index=self.osm_address_index,
-                address_model=self.model,
-            )
+            try:
+                location = verify_location(
+                    self.db_path,
+                    place_id,
+                    osm_index=self.osm_index,
+                    osm_address_index=self.osm_address_index,
+                    address_model=self.model,
+                )
+            except RuntimeError as exc:
+                code = (
+                    "location_provider_unconfigured"
+                    if "OPENAI_API_KEY" in str(exc)
+                    else "location_stage_unavailable"
+                )
+                raise MyPickProcessingError(
+                    code,
+                    status="failed_retryable",
+                    retryable=True,
+                    counts=counts,
+                ) from exc
             cost = location.get("cost") or {}
             counts["provider_requests"] += int(
                 cost.get("address_fallback_responses_requests", 0) or 0
@@ -276,18 +315,31 @@ class ProductionMyPickProcessor:
         if not _current_v4(row):
             attempt = int(job.get("attempt_count") or 1)
             base = self.audit_dir / f"{job['id']}-attempt-{attempt}"
-            quality = run_quality_v4_backfill(
-                self.db_path,
-                limit=1,
-                place_id=place_id,
-                retry_failed=(
-                    attempt > 1
-                    or row.get("quality_v4_status") in {"failed", "needs_retry"}
-                ),
-                model=self.model,
-                manifest_path=base.with_suffix(".json"),
-                results_path=base.with_suffix(".jsonl"),
-            )
+            try:
+                quality = run_quality_v4_backfill(
+                    self.db_path,
+                    limit=1,
+                    place_id=place_id,
+                    retry_failed=(
+                        attempt > 1
+                        or row.get("quality_v4_status") in {"failed", "needs_retry"}
+                    ),
+                    model=self.model,
+                    manifest_path=base.with_suffix(".json"),
+                    results_path=base.with_suffix(".jsonl"),
+                )
+            except RuntimeError as exc:
+                code = (
+                    "quality_provider_unconfigured"
+                    if "OPENAI_API_KEY" in str(exc)
+                    else "quality_stage_unavailable"
+                )
+                raise MyPickProcessingError(
+                    code,
+                    status="failed_retryable",
+                    retryable=True,
+                    counts=counts,
+                ) from exc
             counts["provider_requests"] += int(quality.get("responses_requests", 0) or 0)
             counts["web_search_actions"] += int(quality.get("web_search_actions", 0) or 0)
             counts["quality_v4_completed"] += int(quality.get("completed", 0) or 0)
