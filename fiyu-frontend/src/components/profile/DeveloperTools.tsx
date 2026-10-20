@@ -43,6 +43,7 @@ import {
   writeAccountQuery,
 } from "@/lib/accountQueryCache";
 import { authService } from "@/lib/auth/authService";
+import { isDeveloperAuthorized } from "@/lib/developerAuthorization";
 import { dailyPicksStorageKey } from "@/lib/daily-picks/storage";
 
 function MyPickDeveloperTools() {
@@ -322,7 +323,7 @@ export function DeveloperTools() {
       : status.location_mode;
   }, [status]);
 
-  if (!status) return null;
+  if (!isDeveloperAuthorized(status)) return null;
 
   const updateLocation = async (value: string) => {
     setBusy(true);

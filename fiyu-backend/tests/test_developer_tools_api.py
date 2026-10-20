@@ -265,6 +265,7 @@ def test_developer_status_requires_auth_flag_and_allowlist(developer_api, monkey
     response = client.get("/developer/status", headers={"Authorization": "Bearer dev"})
     assert response.status_code == 200
     assert response.json()["enabled"] is True
+    assert response.json()["authorized"] is True
     assert any(row["area_name"] == "Kichijoji" for row in response.json()["location_options"])
 
 

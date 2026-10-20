@@ -226,7 +226,7 @@ describe("MyPickPicksSection", () => {
     await waitFor(() => expect(api.fetchDeveloperStatus).toHaveBeenCalledOnce());
     expect(screen.queryByRole("button", { name: "DEV: Process now" })).toBeNull();
 
-    api.fetchDeveloperStatus.mockResolvedValue({ enabled: true, location_mode: "real", area_name: null, location_options: [] });
+    api.fetchDeveloperStatus.mockResolvedValue({ enabled: true, authorized: true, location_mode: "real", area_name: null, location_options: [] });
     api.fetchMyPicks.mockResolvedValue([base]);
     view.unmount();
     render(<MyPickPicksSection accountId="account-1" />);
@@ -236,7 +236,7 @@ describe("MyPickPicksSection", () => {
 
   it("lets an authorized developer process the exact pending Pick once and refetches durable state", async () => {
     const processing = deferred<{ my_pick: MyPick; worker_summary: Record<string, number> }>();
-    api.fetchDeveloperStatus.mockResolvedValue({ enabled: true, location_mode: "real", area_name: null, location_options: [] });
+    api.fetchDeveloperStatus.mockResolvedValue({ enabled: true, authorized: true, location_mode: "real", area_name: null, location_options: [] });
     api.fetchMyPicks.mockResolvedValueOnce([queued]).mockResolvedValueOnce([base]);
     api.processDeveloperMyPick.mockReturnValue(processing.promise);
     render(<MyPickPicksSection accountId="account-1" />);
@@ -260,7 +260,7 @@ describe("MyPickPicksSection", () => {
   });
 
   it("shows Process now for every processable in-flight developer state", async () => {
-    api.fetchDeveloperStatus.mockResolvedValue({ enabled: true, location_mode: "real", area_name: null, location_options: [] });
+    api.fetchDeveloperStatus.mockResolvedValue({ enabled: true, authorized: true, location_mode: "real", area_name: null, location_options: [] });
     api.fetchMyPicks.mockResolvedValue([pending]);
     render(<MyPickPicksSection accountId="account-1" />);
 
@@ -269,7 +269,7 @@ describe("MyPickPicksSection", () => {
   });
 
   it("shows a safe developer error when the canonical worker index is not configured", async () => {
-    api.fetchDeveloperStatus.mockResolvedValue({ enabled: true, location_mode: "real", area_name: null, location_options: [] });
+    api.fetchDeveloperStatus.mockResolvedValue({ enabled: true, authorized: true, location_mode: "real", area_name: null, location_options: [] });
     api.fetchMyPicks.mockResolvedValue([queued]);
     api.processDeveloperMyPick.mockRejectedValue(new FiyuApiError({
       kind: "backend-unavailable",
@@ -285,7 +285,7 @@ describe("MyPickPicksSection", () => {
 
   it("shows an authorized developer a safe diagnostic and retries the same durable Pick without touching quota", async () => {
     const retry = deferred<{ my_pick: MyPick; worker_summary: Record<string, number> }>();
-    api.fetchDeveloperStatus.mockResolvedValue({ enabled: true, location_mode: "real", area_name: null, location_options: [] });
+    api.fetchDeveloperStatus.mockResolvedValue({ enabled: true, authorized: true, location_mode: "real", area_name: null, location_options: [] });
     api.fetchMyPicks.mockResolvedValueOnce([retryable]).mockResolvedValueOnce([base]);
     api.processDeveloperMyPick.mockReturnValue(retry.promise);
     render(<MyPickPicksSection accountId="account-1" />);
@@ -306,7 +306,7 @@ describe("MyPickPicksSection", () => {
   });
 
   it("confirms a developer hard reset, removes the card, and refreshes restored quota", async () => {
-    api.fetchDeveloperStatus.mockResolvedValue({ enabled: true, location_mode: "real", area_name: null, location_options: [] });
+    api.fetchDeveloperStatus.mockResolvedValue({ enabled: true, authorized: true, location_mode: "real", area_name: null, location_options: [] });
     api.fetchMyPicks.mockResolvedValueOnce([retryable]).mockResolvedValueOnce([]);
     api.fetchMyPickQuota
       .mockResolvedValueOnce({ limit: 3, used: 1, remaining: 2, window_hours: 24, next_available_at: null })
@@ -332,7 +332,7 @@ describe("MyPickPicksSection", () => {
   });
 
   it("normalizes an unstructured failure reason before showing it to a developer", async () => {
-    api.fetchDeveloperStatus.mockResolvedValue({ enabled: true, location_mode: "real", area_name: null, location_options: [] });
+    api.fetchDeveloperStatus.mockResolvedValue({ enabled: true, authorized: true, location_mode: "real", area_name: null, location_options: [] });
     api.fetchMyPicks.mockResolvedValue([{ ...retryable, failure_code: "provider payload contained private detail" }]);
     render(<MyPickPicksSection accountId="account-1" />);
     expect(await screen.findByText(/processing_error/)).toBeTruthy();

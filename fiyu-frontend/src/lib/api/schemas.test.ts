@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   dailyPickAssignmentResponseSchema,
+  developerStatusSchema,
   googlePhotoSchema,
   locationAnchorListSchema,
   parseRestaurantList,
@@ -11,6 +12,23 @@ import {
 import anchorsFixture from "@/test/fixtures/location-anchors.json";
 import photoFixture from "@/test/fixtures/photo-preview.json";
 import restaurantsFixture from "@/test/fixtures/restaurants.json";
+
+describe("developerStatusSchema", () => {
+  const status = {
+    enabled: true,
+    location_mode: "real",
+    area_name: null,
+    location_options: [],
+  } as const;
+
+  it("preserves the explicit developer authorization contract", () => {
+    expect(developerStatusSchema.parse({ ...status, authorized: true }).authorized).toBe(true);
+  });
+
+  it("supports the prior successful response during a rolling deployment", () => {
+    expect(developerStatusSchema.parse(status).authorized).toBe(true);
+  });
+});
 
 /**
  * Fixtures are unmodified responses captured from the running backend. If the

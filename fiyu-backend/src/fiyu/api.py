@@ -945,6 +945,7 @@ class DeveloperLocationOption(BaseModel):
 
 class DeveloperStatusResponse(BaseModel):
     enabled: Literal[True]
+    authorized: Literal[True]
     location_mode: DeveloperLocationMode
     area_name: str | None = None
     location_options: list[DeveloperLocationOption]
@@ -3498,6 +3499,7 @@ def _developer_status(user_id: str) -> DeveloperStatusResponse:
         mode = "real"
     return DeveloperStatusResponse(
         enabled=True,
+        authorized=True,
         location_mode=mode,
         area_name=(str(settings["area_name"]) if settings.get("area_name") else None),
         location_options=[

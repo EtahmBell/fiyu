@@ -17,8 +17,9 @@ import {
   processDeveloperMyPick,
 } from "@/lib/api/client";
 import { isFiyuApiError } from "@/lib/api/errors";
-import type { MyPick, MyPickQuota } from "@/lib/api/schemas";
+import type { DeveloperStatus, MyPick, MyPickQuota } from "@/lib/api/schemas";
 import { ACTIVE_FIYU_CITY } from "@/lib/city/editions";
+import { isDeveloperAuthorized } from "@/lib/developerAuthorization";
 import { useMediaQuery } from "@/lib/hooks/useMediaQuery";
 import { useDefaultList } from "@/lib/lists/useDefaultList";
 import { cn } from "@/lib/utils/cn";
@@ -312,7 +313,7 @@ export function MyPickPicksSection({
   const [items, setItems] = useState<MyPick[]>([]);
   const [quota, setQuota] = useState<MyPickQuota | null>(null);
   const [loaded, setLoaded] = useState(false);
-  const [developerAuthorized, setDeveloperAuthorized] = useState(false);
+  const [developerStatus, setDeveloperStatus] = useState<DeveloperStatus | null>(null);
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [processError, setProcessError] = useState<{ id: string; message: string } | null>(null);
   const [hardResetId, setHardResetId] = useState<string | null>(null);
@@ -353,10 +354,12 @@ export function MyPickPicksSection({
     if (!accountId) return;
     const controller = new AbortController();
     void fetchDeveloperStatus({ signal: controller.signal })
-      .then(() => setDeveloperAuthorized(true))
-      .catch(() => setDeveloperAuthorized(false));
+      .then(setDeveloperStatus)
+      .catch(() => setDeveloperStatus(null));
     return () => controller.abort();
   }, [accountId]);
+
+  const developerAuthorized = isDeveloperAuthorized(developerStatus);
 
   const hasPending = items.some((item) => PENDING_STATUSES.has(item.status));
   useEffect(() => {

@@ -64,6 +64,7 @@ import { DeveloperTools } from "@/components/profile/DeveloperTools";
 
 const status = {
   enabled: true as const,
+  authorized: true as const,
   location_mode: "area" as const,
   area_name: "Ginza",
   location_options: [

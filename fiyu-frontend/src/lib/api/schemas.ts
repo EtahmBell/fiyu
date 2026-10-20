@@ -485,13 +485,19 @@ export const activeDailyPickAssignmentResponseSchema = dailyPickAssignmentRespon
 
 export const developerStatusSchema = z.object({
   enabled: z.literal(true),
+  authorized: z.literal(true).optional(),
   location_mode: z.enum(["real", "area", "outside_tokyo"]),
   area_name: nullableString,
   location_options: z.array(z.object({
     area_name: z.string().min(1),
     display_name: z.string().min(1),
   })),
-});
+}).transform((status) => ({
+  ...status,
+  // A 200 response from this endpoint was already restricted to allowlisted
+  // developers before `authorized` became explicit. Keep rolling deploys safe.
+  authorized: status.authorized ?? true as const,
+}));
 
 export const developerGeneratePicksResponseSchema = z.object({
   assignment: dailyPickAssignmentResponseSchema,
