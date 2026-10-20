@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/auth/authService", () => ({ authService: { getAccessToken: vi.fn(async () => null) } }));
 
-import { fetchMyPickQuota, submitMyPick } from "@/lib/api/client";
+import { fetchMyPickQuota, processDeveloperMyPick, submitMyPick } from "@/lib/api/client";
 import type { FiyuApiError } from "@/lib/api/errors";
 
 const ready = {
@@ -59,5 +59,25 @@ describe("fetchMyPickQuota", () => {
     await expect(fetchMyPickQuota()).resolves.toEqual(quota);
     expect(fetchMock.mock.calls[0][0]).toContain("/my-picks/quota");
     expect(fetchMock.mock.calls[0][1]?.method).toBe("GET");
+  });
+});
+
+describe("processDeveloperMyPick", () => {
+  it("targets one existing My Pick without creating a submission or sending worker paths", async () => {
+    const response = { my_pick: ready, worker_summary: { jobs_claimed: 1, ready: 1 } };
+    const fetchMock = vi.fn<typeof fetch>(async () => new Response(JSON.stringify(response), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await processDeveloperMyPick(ready.my_pick_id);
+
+    expect(fetchMock.mock.calls[0][0]).toContain("/developer/my-picks/process");
+    expect(fetchMock.mock.calls[0][1]?.method).toBe("POST");
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toEqual({
+      my_pick_id: ready.my_pick_id,
+      retry_failed: true,
+    });
   });
 });

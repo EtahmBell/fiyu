@@ -1,11 +1,17 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { MyPick } from "@/lib/api/schemas";
+import { FiyuApiError } from "@/lib/api/errors";
 
-const api = vi.hoisted(() => ({ fetchMyPicks: vi.fn() }));
+const api = vi.hoisted(() => ({
+  fetchDeveloperStatus: vi.fn(),
+  fetchMyPicks: vi.fn(),
+  fetchMyPickQuota: vi.fn(),
+  processDeveloperMyPick: vi.fn(),
+}));
 const list = vi.hoisted(() => ({ isSaved: vi.fn(() => false), toggle: vi.fn() }));
 vi.mock("@/lib/api/client", () => api);
 vi.mock("@/lib/hooks/useMediaQuery", () => ({ useMediaQuery: () => true }));
@@ -13,8 +19,8 @@ vi.mock("@/lib/lists/useDefaultList", () => ({
   useDefaultList: () => ({ isSaved: list.isSaved, toggle: list.toggle, pendingPlaceIds: [] }),
 }));
 vi.mock("@/components/my-pick/MyPickEntry", () => ({
-  MyPickEntry: ({ onSubmitted }: { onSubmitted?: (item: MyPick) => void }) => (
-    <button type="button" onClick={() => onSubmitted?.(pending)}>Submit My Pick</button>
+  MyPickEntry: ({ onSubmitted, variant = "card" }: { onSubmitted?: (item: MyPick) => void; variant?: "card" | "utility" }) => (
+    <button type="button" onClick={() => onSubmitted?.(pending)}>{variant === "utility" ? "Submit another →" : "Submit a restaurant →"}</button>
   ),
 }));
 
@@ -65,9 +71,23 @@ const pending: MyPick = {
   is_public: false,
   recommendation_review_status: "not_eligible",
 };
+const queued: MyPick = { ...pending, status: "pending", status_message: "pending" };
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((onResolve, onReject) => {
+    resolve = onResolve;
+    reject = onReject;
+  });
+  return { promise, resolve, reject };
+}
 
 beforeEach(() => {
   api.fetchMyPicks.mockReset().mockResolvedValue([]);
+  api.fetchMyPickQuota.mockReset().mockResolvedValue({ limit: 3, used: 1, remaining: 2, window_hours: 24, next_available_at: null });
+  api.fetchDeveloperStatus.mockReset().mockRejectedValue(new Error("Not found"));
+  api.processDeveloperMyPick.mockReset();
   list.isSaved.mockReset().mockReturnValue(false);
   list.toggle.mockReset();
   window.localStorage.clear();
@@ -81,15 +101,20 @@ describe("MyPickPicksSection", () => {
   it("shows pending work as a calm inline card without exposing internal states", async () => {
     api.fetchMyPicks.mockResolvedValue([pending]);
     render(<MyPickPicksSection accountId="account-1" />);
-    expect(await screen.findByText("Fiyu is looking into it. We'll let you know when your Pick is ready.")).toBeTruthy();
+    expect(await screen.findByText("Your Pick is under review")).toBeTruthy();
+    expect(screen.getByText("Fiyu is looking into it. We'll let you know when it's ready.")).toBeTruthy();
     expect(screen.queryByText("researching")).toBeNull();
     expect(screen.queryByText(/Fiyu Score/i)).toBeNull();
+    expect(screen.queryByText("Your My Picks")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Submit a restaurant →" })).toBeNull();
+    expect(await screen.findByText("2 of 3 Picks left")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Submit another →" })).toBeTruthy();
   });
 
   it("keeps a ready score out of the DOM until the user reveals the cool-blue card", async () => {
     api.fetchMyPicks.mockResolvedValue([base]);
     render(<MyPickPicksSection accountId="account-1" />);
-    const reveal = await screen.findByRole("button", { name: "Reveal your My Pick" });
+    const reveal = await screen.findByRole("button", { name: "Reveal your Pick" });
     expect(reveal.className).toContain("bg-[#EEF1FA]");
     expect(screen.queryByLabelText("Fiyu Score 8.4 out of 10")).toBeNull();
     expect(screen.queryByText("Test Shokudo")).toBeNull();
@@ -105,7 +130,7 @@ describe("MyPickPicksSection", () => {
   it("never creates broken public actions for a private result", async () => {
     api.fetchMyPicks.mockResolvedValue([{ ...base, is_public: false }]);
     render(<MyPickPicksSection accountId="account-1" />);
-    fireEvent.click(await screen.findByRole("button", { name: "Reveal your My Pick" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Reveal your Pick" }));
     expect(await screen.findByText(/private result/)).toBeTruthy();
     expect(screen.queryByRole("link", { name: "View restaurant →" })).toBeNull();
     expect(screen.queryByRole("link", { name: "Log visit" })).toBeNull();
@@ -127,15 +152,83 @@ describe("MyPickPicksSection", () => {
     const timeout = vi.spyOn(window, "setTimeout");
     api.fetchMyPicks.mockResolvedValue([base]);
     render(<MyPickPicksSection accountId="account-1" />);
-    await screen.findByRole("button", { name: "Reveal your My Pick" });
+    await screen.findByRole("button", { name: "Reveal your Pick" });
     expect(timeout.mock.calls.some((call) => call[1] === 30_000)).toBe(false);
   });
 
   it("inserts a newly submitted request inline without navigating to history", async () => {
     render(<MyPickPicksSection accountId="account-1" />);
     await waitFor(() => expect(api.fetchMyPicks).toHaveBeenCalled());
-    fireEvent.click(screen.getByRole("button", { name: "Submit My Pick" }));
+    fireEvent.click(screen.getByRole("button", { name: "Submit a restaurant →" }));
     expect(await screen.findByText(/Fiyu is looking into it/)).toBeTruthy();
+  });
+
+  it("shows the entry card only when there are no current My Picks", async () => {
+    render(<MyPickPicksSection accountId="account-1" />);
+    expect(await screen.findByRole("button", { name: "Submit a restaurant →" })).toBeTruthy();
+    expect(screen.queryByText(/Picks left/)).toBeNull();
+  });
+
+  it("shows no submission action when the real quota is exhausted", async () => {
+    api.fetchMyPicks.mockResolvedValue([pending]);
+    api.fetchMyPickQuota.mockResolvedValue({ limit: 3, used: 3, remaining: 0, window_hours: 24, next_available_at: "2026-10-20T10:00:00Z" });
+    render(<MyPickPicksSection accountId="account-1" />);
+    expect(await screen.findByText("0 of 3 Picks left")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Submit another →" })).toBeNull();
+  });
+
+  it("never exposes manual processing to a normal user or on a ready card", async () => {
+    api.fetchMyPicks.mockResolvedValue([queued]);
+    const view = render(<MyPickPicksSection accountId="account-1" />);
+    await screen.findByText("Your Pick is under review");
+    await waitFor(() => expect(api.fetchDeveloperStatus).toHaveBeenCalledOnce());
+    expect(screen.queryByRole("button", { name: "DEV: Process now" })).toBeNull();
+
+    api.fetchDeveloperStatus.mockResolvedValue({ enabled: true, location_mode: "real", area_name: null, location_options: [] });
+    api.fetchMyPicks.mockResolvedValue([base]);
+    view.unmount();
+    render(<MyPickPicksSection accountId="account-1" />);
+    await screen.findByRole("button", { name: "Reveal your Pick" });
+    expect(screen.queryByRole("button", { name: "DEV: Process now" })).toBeNull();
+  });
+
+  it("lets an authorized developer process the exact pending Pick once and refetches durable state", async () => {
+    const processing = deferred<{ my_pick: MyPick; worker_summary: Record<string, number> }>();
+    api.fetchDeveloperStatus.mockResolvedValue({ enabled: true, location_mode: "real", area_name: null, location_options: [] });
+    api.fetchMyPicks.mockResolvedValueOnce([queued]).mockResolvedValueOnce([base]);
+    api.processDeveloperMyPick.mockReturnValue(processing.promise);
+    render(<MyPickPicksSection accountId="account-1" />);
+
+    const button = await screen.findByRole("button", { name: "DEV: Process now" });
+    await waitFor(() => expect(api.fetchMyPickQuota).toHaveBeenCalledTimes(1));
+    const quotaCalls = api.fetchMyPickQuota.mock.calls.length;
+    fireEvent.click(button);
+    fireEvent.click(button);
+    expect(api.processDeveloperMyPick).toHaveBeenCalledOnce();
+    expect(api.processDeveloperMyPick).toHaveBeenCalledWith(queued.my_pick_id);
+    expect(screen.getByRole("button", { name: "Processing…" })).toHaveProperty("disabled", true);
+
+    await act(async () => processing.resolve({ my_pick: base, worker_summary: { jobs_claimed: 1, ready: 1 } }));
+    expect(await screen.findByRole("button", { name: "Reveal your Pick" })).toBeTruthy();
+    expect(screen.queryByText("Test Shokudo")).toBeNull();
+    expect(screen.queryByRole("button", { name: "DEV: Process now" })).toBeNull();
+    expect(api.fetchMyPicks).toHaveBeenCalledTimes(2);
+    expect(api.fetchMyPickQuota).toHaveBeenCalledTimes(quotaCalls);
+  });
+
+  it("shows a safe developer error when the canonical worker index is not configured", async () => {
+    api.fetchDeveloperStatus.mockResolvedValue({ enabled: true, location_mode: "real", area_name: null, location_options: [] });
+    api.fetchMyPicks.mockResolvedValue([queued]);
+    api.processDeveloperMyPick.mockRejectedValue(new FiyuApiError({
+      kind: "backend-unavailable",
+      endpoint: "/developer/my-picks/process",
+      status: 503,
+      detail: "FIYU_MY_PICK_OSM_INDEX is required for My Pick processing",
+    }));
+    render(<MyPickPicksSection accountId="account-1" />);
+    fireEvent.click(await screen.findByRole("button", { name: "DEV: Process now" }));
+    expect((await screen.findByRole("alert")).textContent).toBe("My Pick worker is not configured on this backend.");
+    expect(screen.getByRole("button", { name: "DEV: Process now" })).toBeTruthy();
   });
 
   it("focuses a deep-linked inline result and keeps the section to three recent cards", async () => {

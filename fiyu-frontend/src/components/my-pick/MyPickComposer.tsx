@@ -3,7 +3,10 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
-import { GooglePlaceSelector } from "@/components/my-pick/GooglePlaceSelector";
+import {
+  GooglePlaceSelector,
+  type GooglePlaceSelection,
+} from "@/components/my-pick/GooglePlaceSelector";
 import { Button } from "@/components/ui/Button";
 import { fetchMyPickQuota, submitMyPick } from "@/lib/api/client";
 import { FiyuApiError } from "@/lib/api/errors";
@@ -37,7 +40,7 @@ export function MyPickComposer({
   onSubmitted?: (myPick: MyPick) => void;
 }) {
   const [state, setState] = useState<ComposerState>("search");
-  const [placeId, setPlaceId] = useState<string | null>(null);
+  const [selection, setSelection] = useState<GooglePlaceSelection | null>(null);
   const [quota, setQuota] = useState<MyPickQuota | null>(null);
   const [quotaLoading, setQuotaLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -75,7 +78,10 @@ export function MyPickComposer({
     openerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    const frame = window.requestAnimationFrame(() => panelRef.current?.focus());
+    const frame = window.requestAnimationFrame(() => {
+      const search = panelRef.current?.querySelector<HTMLInputElement>("[data-my-pick-search-input]");
+      (search ?? panelRef.current)?.focus();
+    });
     return () => {
       window.cancelAnimationFrame(frame);
       document.body.style.overflow = previousOverflow;
@@ -95,17 +101,17 @@ export function MyPickComposer({
   const close = () => {
     if (state !== "submitting") onClose();
   };
-  const choose = useCallback((selectedPlaceId: string) => {
-    setPlaceId(selectedPlaceId);
+  const choose = useCallback((selected: GooglePlaceSelection) => {
+    setSelection(selected);
     setError(null);
     setState("confirm");
   }, []);
   const submit = async () => {
-    if (!placeId) return;
+    if (!selection) return;
     setError(null);
     setState("submitting");
     try {
-      const result = await submitMyPick(placeId);
+      const result = await submitMyPick(selection.placeId);
       onSubmitted?.(result);
       setState("submitted");
       void refreshQuota();
@@ -116,7 +122,7 @@ export function MyPickComposer({
       if (exhausted?.success) {
         setQuota(exhausted.data.detail.quota);
         setError(null);
-        setPlaceId(null);
+        setSelection(null);
         setState("search");
       } else {
         setError("My Pick could not be submitted right now. Please try again.");
@@ -128,7 +134,7 @@ export function MyPickComposer({
   const trapFocus = (event: React.KeyboardEvent<HTMLDivElement>) => {
     if (event.key !== "Tab") return;
     const focusable = [...event.currentTarget.querySelectorAll<HTMLElement>(
-      'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"]), gmp-place-autocomplete',
+      'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
     )].filter((element) => !element.hasAttribute("hidden"));
     if (focusable.length === 0) {
       event.preventDefault();
@@ -176,7 +182,7 @@ export function MyPickComposer({
 
           {state === "search" ? (
             <>
-              <p id={descriptionId} className="text-sm leading-6 text-ink-muted">Give Fiyu a restaurant and we&apos;ll look into it.</p>
+              <p id={descriptionId} className="text-sm leading-6 text-ink-muted">Give Fiyu a restaurant and we&apos;ll score it.</p>
               {exhausted ? (
                 <div className="mt-5 rounded-xl border border-line bg-subtle px-4 py-4" aria-live="polite">
                   <p className="text-sm font-medium text-ink">You&apos;ve used your 3 My Picks for now.</p>
@@ -192,8 +198,13 @@ export function MyPickComposer({
           {state === "confirm" || state === "submitting" ? (
             <div aria-live="polite">
               <p id={descriptionId} className="text-sm leading-6 text-ink-muted">Restaurant selected and ready to send to Fiyu.</p>
-              <div className="mt-5 rounded-xl border border-line bg-subtle px-4 py-4"><p className="text-xs font-semibold tracking-wide text-ink-muted uppercase">Selected restaurant</p><p className="mt-1 text-sm text-ink">Your Google Places selection</p></div>
-              <button type="button" className="mt-3 min-h-11 text-sm font-medium text-plum hover:text-plum-700" disabled={state === "submitting"} onClick={() => { setPlaceId(null); setError(null); setState("search"); }}>Choose another</button>
+              <div className="mt-5 rounded-xl border border-line bg-subtle px-4 py-4">
+                <p className="text-xs font-semibold tracking-wide text-ink-muted uppercase">Selected restaurant</p>
+                <p className="mt-1 text-sm font-medium text-ink">{selection?.displayName}</p>
+                {selection?.secondaryText ? <p className="mt-1 text-xs leading-5 text-ink-muted">{selection.secondaryText}</p> : null}
+                <p translate="no" className="mt-3 text-xs font-normal tracking-normal text-[#5E5E5E]">Google Maps</p>
+              </div>
+              <button type="button" className="mt-3 min-h-11 text-sm font-medium text-plum hover:text-plum-700" disabled={state === "submitting"} onClick={() => { setSelection(null); setError(null); setState("search"); }}>Choose another</button>
               <Button className="mt-3 w-full" variant="primary" disabled={state === "submitting"} onClick={() => void submit()}>{state === "submitting" ? "Submitting…" : "Ask Fiyu about this place"}</Button>
               {error ? <p role="alert" className="mt-3 text-sm text-dusty-rose">{error}</p> : null}
             </div>
@@ -202,7 +213,7 @@ export function MyPickComposer({
           {state === "submitted" ? (
             <div className="py-3 text-center" aria-live="polite">
               <h3 id={descriptionId} className="font-display text-2xl text-ink">Submitted to Fiyu</h3>
-              <p className="mx-auto mt-3 max-w-sm text-sm leading-6 text-ink-muted">We&apos;ll look into it and let you know when your My Pick is ready.</p>
+              <p className="mx-auto mt-3 max-w-sm text-sm leading-6 text-ink-muted">We&apos;ll look into it and let you know when your Pick is ready.</p>
               <Button className="mt-6 w-full" variant="primary" onClick={close}>Done</Button>
             </div>
           ) : null}

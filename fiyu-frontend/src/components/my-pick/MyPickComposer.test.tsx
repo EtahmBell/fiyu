@@ -8,8 +8,8 @@ import { FiyuApiError } from "@/lib/api/errors";
 const api = vi.hoisted(() => ({ fetchMyPickQuota: vi.fn(), submitMyPick: vi.fn() }));
 vi.mock("@/lib/api/client", () => api);
 vi.mock("@/components/my-pick/GooglePlaceSelector", () => ({
-  GooglePlaceSelector: ({ onSelect }: { onSelect(id: string): void }) => (
-    <button onClick={() => onSelect("google-place-1")}>Mock Google suggestion</button>
+  GooglePlaceSelector: ({ onSelect }: { onSelect(selection: { placeId: string; displayName: string; secondaryText: string }): void }) => (
+    <button onClick={() => onSelect({ placeId: "google-place-1", displayName: "Toritsune", secondaryText: "Shibuya, Tokyo" })}>Mock Google suggestion</button>
   ),
 }));
 
@@ -35,6 +35,9 @@ describe("MyPickComposer", () => {
     expect(await screen.findByText("3 My Picks available now")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Mock Google suggestion" }));
     expect(screen.getByText("Restaurant selected and ready to send to Fiyu.")).toBeTruthy();
+    expect(screen.getByText("Toritsune")).toBeTruthy();
+    expect(screen.getByText("Shibuya, Tokyo")).toBeTruthy();
+    expect(screen.queryByText("Your Google Places selection")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Choose another" }));
     expect(screen.getByRole("button", { name: "Mock Google suggestion" })).toBeTruthy();
   });

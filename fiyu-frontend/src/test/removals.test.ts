@@ -64,6 +64,13 @@ describe("Google Maps JavaScript remains confined to My Pick autocomplete", () =
       "lib/config/env.ts",
     ]);
   });
+
+  it("uses the custom Autocomplete Data API without widget or details requests", () => {
+    const selector = read(join(SRC, "components", "my-pick", "GooglePlaceSelector.tsx"));
+    expect(selector).toMatch(/fetchAutocompleteSuggestions/);
+    expect(selector).not.toMatch(/(?:Basic)?PlaceAutocompleteElement/);
+    expect(selector).not.toMatch(/fetchFields/);
+  });
 });
 
 describe("Google live details are gone", () => {

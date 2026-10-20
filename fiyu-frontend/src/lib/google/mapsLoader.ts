@@ -1,18 +1,32 @@
-export type GooglePlacePrediction = { placeId: string };
+export type GoogleFormattableText = { text: string };
 
-export type GooglePlaceSelectEvent = Event & {
-  placePrediction: GooglePlacePrediction;
+export type GooglePlacePrediction = {
+  placeId: string;
+  mainText?: GoogleFormattableText;
+  secondaryText?: GoogleFormattableText;
+  text: GoogleFormattableText;
 };
 
-export type GooglePlaceAutocompleteElement = HTMLElement & {
+export type GoogleAutocompleteSessionToken = object;
+
+export type GoogleAutocompleteRequest = {
+  input: string;
   includedRegionCodes: string[];
-  includedPrimaryTypes: string[];
   locationRestriction: { west: number; east: number; south: number; north: number };
-  placeholder: string;
+  sessionToken: GoogleAutocompleteSessionToken;
+};
+
+export type GoogleAutocompleteSuggestion = {
+  placePrediction?: GooglePlacePrediction;
 };
 
 export type GooglePlacesLibrary = {
-  PlaceAutocompleteElement: new () => GooglePlaceAutocompleteElement;
+  AutocompleteSessionToken: new () => GoogleAutocompleteSessionToken;
+  AutocompleteSuggestion: {
+    fetchAutocompleteSuggestions(
+      request: GoogleAutocompleteRequest,
+    ): Promise<{ suggestions: GoogleAutocompleteSuggestion[] }>;
+  };
 };
 
 type GoogleMaps = {
@@ -43,7 +57,10 @@ async function importPlaces(): Promise<GooglePlacesLibrary> {
     throw new Error("Restaurant search could not finish loading.");
   }
   const library = await importLibrary.call(mapsWindow().google?.maps, "places");
-  if (typeof library.PlaceAutocompleteElement !== "function") {
+  if (
+    typeof library.AutocompleteSessionToken !== "function"
+    || typeof library.AutocompleteSuggestion?.fetchAutocompleteSuggestions !== "function"
+  ) {
     throw new Error("Restaurant search is unavailable in this browser.");
   }
   return library;

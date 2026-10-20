@@ -1,91 +1,143 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/config/env", () => ({ getGooglePlacesUiKitKey: () => "public-test-key" }));
+vi.mock("@/lib/config/env", () => ({ getGoogleMapsBrowserKey: () => "public-test-key" }));
+
 import { GooglePlaceSelector } from "@/components/my-pick/GooglePlaceSelector";
 import { resetGoogleMapsLoaderForTests } from "@/lib/google/mapsLoader";
 
+type Suggestion = {
+  placePrediction: {
+    placeId: string;
+    mainText: { text: string };
+    secondaryText: { text: string };
+    text: { text: string };
+  };
+};
+
+type TestWindow = Window & {
+  google?: { maps: { importLibrary: ReturnType<typeof vi.fn> } };
+};
+
+const suggestion = (placeId: string, main: string, secondary: string): Suggestion => ({
+  placePrediction: {
+    placeId,
+    mainText: { text: main },
+    secondaryText: { text: secondary },
+    text: { text: `${main}, ${secondary}` },
+  },
+});
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => { resolve = done; });
+  return { promise, resolve };
+}
+
+let fetchSuggestions: ReturnType<typeof vi.fn>;
+let Token: ReturnType<typeof vi.fn>;
+
+beforeEach(() => {
+  fetchSuggestions = vi.fn(async () => ({ suggestions: [suggestion("place-1", "Toritsune", "Shibuya, Tokyo")] }));
+  Token = vi.fn(function MockToken(this: { marker?: string }) { this.marker = "session"; });
+  (window as TestWindow).google = {
+    maps: {
+      importLibrary: vi.fn(async () => ({
+        AutocompleteSessionToken: Token,
+        AutocompleteSuggestion: { fetchAutocompleteSuggestions: fetchSuggestions },
+      })),
+    },
+  };
+});
+
+afterEach(() => {
+  cleanup();
+  resetGoogleMapsLoaderForTests();
+  delete (window as TestWindow).google;
+  document.querySelectorAll('script[data-fiyu-google-maps]').forEach((script) => script.remove());
+});
+
 describe("GooglePlaceSelector", () => {
-  afterEach(() => {
-    cleanup();
-    resetGoogleMapsLoaderForTests();
-    delete (window as Window & { google?: unknown }).google;
-    document.querySelectorAll('script[data-fiyu-google-maps]').forEach((script) => script.remove());
+  it("uses the debounced Autocomplete Data API with one token and Fiyu's location constraints", async () => {
+    render(<div role="dialog"><GooglePlaceSelector onSelect={vi.fn()} /></div>);
+    const input = screen.getByRole("combobox", { name: "Search for a restaurant" });
+    await waitFor(() => expect(Token).toHaveBeenCalledTimes(1));
+
+    fireEvent.change(input, { target: { value: "T" } });
+    await act(() => new Promise((resolve) => window.setTimeout(resolve, 275)));
+    expect(fetchSuggestions).not.toHaveBeenCalled();
+
+    fireEvent.change(input, { target: { value: "To" } });
+    expect(fetchSuggestions).not.toHaveBeenCalled();
+    await waitFor(() => expect(fetchSuggestions).toHaveBeenCalledTimes(1));
+    const request = fetchSuggestions.mock.calls[0][0];
+    expect(request).toMatchObject({
+      input: "To",
+      includedRegionCodes: ["jp"],
+      locationRestriction: { west: 139.56, east: 139.92, south: 35.52, north: 35.82 },
+    });
+    expect(request.sessionToken).toBe(Token.mock.instances[0]);
+    expect(document.querySelector("gmp-place-autocomplete")).toBeNull();
+    expect(within(screen.getByRole("dialog")).getByTestId("google-predictions")).toBeTruthy();
   });
 
-  it("isolates Google UI Kit, restricts suggestions, and emits only the selected Place ID", async () => {
-    class MockAutocomplete extends HTMLElement {
-      readonly input: HTMLInputElement;
-      constructor() {
-        super();
-        this.input = document.createElement("input");
-        this.attachShadow({ mode: "open" }).append(this.input);
-        this.addEventListener("click", () => this.input.focus());
-      }
-    }
-    customElements.define("mock-place-autocomplete", MockAutocomplete);
-    (window as Window & { google?: unknown }).google = {
-      maps: { importLibrary: vi.fn(async () => ({ PlaceAutocompleteElement: MockAutocomplete })) },
-    };
+  it("renders prediction text and attribution, then selects transient UI text by mouse", async () => {
     const onSelect = vi.fn();
     render(<GooglePlaceSelector onSelect={onSelect} />);
-    let element: Element | null = null;
-    await waitFor(() => {
-      element = document.querySelector("mock-place-autocomplete");
-      expect(element).not.toBeNull();
+    const input = screen.getByRole("combobox", { name: "Search for a restaurant" });
+    fireEvent.change(input, { target: { value: "Tor" } });
+    expect(await screen.findByText("Toritsune")).toBeTruthy();
+    expect(screen.getByText("Shibuya, Tokyo")).toBeTruthy();
+    expect(screen.getByLabelText("Google Maps").getAttribute("translate")).toBe("no");
+    fireEvent.click(screen.getByRole("button", { name: /Toritsune/ }));
+    expect(onSelect).toHaveBeenCalledWith({
+      placeId: "place-1",
+      displayName: "Toritsune",
+      secondaryText: "Shibuya, Tokyo",
     });
-    const autocomplete = element as unknown as HTMLElement & {
-      includedRegionCodes: string[];
-      locationRestriction: { west: number; east: number; south: number; north: number };
-    };
-    expect(autocomplete.includedRegionCodes).toEqual(["jp"]);
-    expect(autocomplete.locationRestriction).toEqual({ west: 139.56, east: 139.92, south: 35.52, north: 35.82 });
-    fireEvent.click(autocomplete);
-    const input = autocomplete.shadowRoot?.querySelector("input") as HTMLInputElement;
-    expect(autocomplete.matches(":disabled")).toBe(false);
-    expect(autocomplete.hasAttribute("disabled")).toBe(false);
-    expect(autocomplete).toBe(document.activeElement);
-    expect(autocomplete.shadowRoot?.activeElement).toBe(input);
-    fireEvent.input(input, { target: { value: "Kichijoji" } });
-    expect(input.value).toBe("Kichijoji");
-    const event = new Event("gmp-select") as Event & { placePrediction?: unknown };
-    event.placePrediction = { placeId: "google-place-id" };
-    autocomplete.dispatchEvent(event);
-    expect(onSelect).toHaveBeenCalledWith("google-place-id");
   });
 
-  it("shares one lazy Google loader across simultaneous selectors", async () => {
-    class MockAutocomplete extends HTMLElement {}
-    customElements.define("mock-place-autocomplete-shared", MockAutocomplete);
-    const importLibrary = vi.fn(async () => ({ PlaceAutocompleteElement: MockAutocomplete }));
-    render(<><GooglePlaceSelector onSelect={vi.fn()} /><GooglePlaceSelector onSelect={vi.fn()} /></>);
-    const scripts = document.querySelectorAll('script[data-fiyu-google-maps="true"]');
-    expect(scripts).toHaveLength(1);
-    (window as Window & { google?: unknown }).google = { maps: { importLibrary } };
-    (window as Window & { __fiyuGoogleMapsReady?: () => void }).__fiyuGoogleMapsReady?.();
-    await waitFor(() => expect(document.querySelectorAll("mock-place-autocomplete-shared")).toHaveLength(2));
-    expect(importLibrary).toHaveBeenCalledTimes(1);
+  it("supports keyboard selection", async () => {
+    const onSelect = vi.fn();
+    render(<GooglePlaceSelector onSelect={onSelect} />);
+    const input = screen.getByRole("combobox", { name: "Search for a restaurant" });
+    fireEvent.change(input, { target: { value: "Tor" } });
+    await screen.findByText("Toritsune");
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ placeId: "place-1" }));
   });
 
-  it("shows calm Fiyu error UI after a failed first load", async () => {
+  it("ignores a stale response and reuses its token for the current search interaction", async () => {
+    const first = deferred<{ suggestions: Suggestion[] }>();
+    const second = deferred<{ suggestions: Suggestion[] }>();
+    fetchSuggestions
+      .mockImplementationOnce(() => first.promise)
+      .mockImplementationOnce(() => second.promise);
     render(<GooglePlaceSelector onSelect={vi.fn()} />);
-    document.querySelector<HTMLScriptElement>('script[data-fiyu-google-maps]')?.dispatchEvent(new Event("error"));
-    await waitFor(() => expect(document.querySelector('[role="alert"]')?.textContent).toBe("Restaurant search could not load."));
-    expect(document.body.textContent).not.toContain("importLibrary is not a function");
+    const input = screen.getByRole("combobox", { name: "Search for a restaurant" });
+
+    fireEvent.change(input, { target: { value: "To" } });
+    await waitFor(() => expect(fetchSuggestions).toHaveBeenCalledTimes(1));
+    fireEvent.change(input, { target: { value: "Tori" } });
+    await waitFor(() => expect(fetchSuggestions).toHaveBeenCalledTimes(2));
+    const token = fetchSuggestions.mock.calls[0][0].sessionToken;
+    expect(fetchSuggestions.mock.calls[1][0].sessionToken).toBe(token);
+
+    second.resolve({ suggestions: [suggestion("new", "Toriyoshi", "Shinjuku, Tokyo")] });
+    expect(await screen.findByText("Toriyoshi")).toBeTruthy();
+    first.resolve({ suggestions: [suggestion("old", "Old result", "Tokyo")] });
+    await act(async () => { await first.promise; });
+    expect(screen.queryByText("Old result")).toBeNull();
   });
 
-  it("is safe to unmount and reopen after Places is ready", async () => {
-    class ReopenAutocomplete extends HTMLElement {}
-    customElements.define("mock-place-autocomplete-reopen", ReopenAutocomplete);
-    const importLibrary = vi.fn(async () => ({ PlaceAutocompleteElement: ReopenAutocomplete }));
-    (window as Window & { google?: unknown }).google = { maps: { importLibrary } };
+  it("creates a fresh token when a new selector session mounts", async () => {
     const first = render(<GooglePlaceSelector onSelect={vi.fn()} />);
-    await waitFor(() => expect(document.querySelector("mock-place-autocomplete-reopen")).not.toBeNull());
+    await waitFor(() => expect(Token).toHaveBeenCalledTimes(1));
     first.unmount();
     render(<GooglePlaceSelector onSelect={vi.fn()} />);
-    await waitFor(() => expect(document.querySelector("mock-place-autocomplete-reopen")).not.toBeNull());
-    expect(importLibrary).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(Token).toHaveBeenCalledTimes(2));
   });
 });

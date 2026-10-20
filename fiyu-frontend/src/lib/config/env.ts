@@ -29,7 +29,7 @@ export function isApiBaseUrlConfigured(): boolean {
   return readPublic(process.env.NEXT_PUBLIC_FIYU_API_URL) !== null;
 }
 
-/** Public browser key for the lazy-loaded Google Places autocomplete widget. */
-export function getGooglePlacesUiKitKey(): string | null {
+/** Public browser key for the lazy-loaded Google Places Autocomplete Data API. */
+export function getGoogleMapsBrowserKey(): string | null {
   return readPublic(process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY);
 }

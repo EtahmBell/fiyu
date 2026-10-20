@@ -9,7 +9,11 @@ type TestWindow = Window & {
   __fiyuGoogleMapsReady?: () => void;
 };
 
-class MockAutocomplete extends HTMLElement {}
+class MockToken {}
+const mockLibrary = {
+  AutocompleteSessionToken: MockToken,
+  AutocompleteSuggestion: { fetchAutocompleteSuggestions: vi.fn(async () => ({ suggestions: [] })) },
+};
 
 afterEach(() => {
   resetGoogleMapsLoaderForTests();
@@ -27,16 +31,16 @@ describe("loadGooglePlaces", () => {
     expect(settled).toBe(false);
     expect(document.querySelectorAll('script[data-fiyu-google-maps="true"]')).toHaveLength(1);
 
-    const importLibrary = vi.fn(async () => ({ PlaceAutocompleteElement: MockAutocomplete }));
+    const importLibrary = vi.fn(async () => mockLibrary);
     (window as TestWindow).google = { maps: { importLibrary } };
     (window as TestWindow).__fiyuGoogleMapsReady?.();
 
-    await expect(pending).resolves.toEqual({ PlaceAutocompleteElement: MockAutocomplete });
+    await expect(pending).resolves.toEqual(mockLibrary);
     expect(importLibrary).toHaveBeenCalledWith("places");
   });
 
   it("returns one shared promise and imports Places once for simultaneous consumers", async () => {
-    const importLibrary = vi.fn(async () => ({ PlaceAutocompleteElement: MockAutocomplete }));
+    const importLibrary = vi.fn(async () => mockLibrary);
     (window as TestWindow).google = { maps: { importLibrary } };
     const first = loadGooglePlaces("test-key");
     const second = loadGooglePlaces("test-key");
@@ -52,8 +56,8 @@ describe("loadGooglePlaces", () => {
     await expect(first).rejects.toThrow("Restaurant search could not load.");
     expect(document.querySelector('script[data-fiyu-google-maps]')).toBeNull();
 
-    const importLibrary = vi.fn(async () => ({ PlaceAutocompleteElement: MockAutocomplete }));
+    const importLibrary = vi.fn(async () => mockLibrary);
     (window as TestWindow).google = { maps: { importLibrary } };
-    await expect(loadGooglePlaces("test-key")).resolves.toEqual({ PlaceAutocompleteElement: MockAutocomplete });
+    await expect(loadGooglePlaces("test-key")).resolves.toEqual(mockLibrary);
   });
 });
