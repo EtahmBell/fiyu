@@ -1163,7 +1163,7 @@ def get_research_queue(
         raise ValueError("place_id and place_ids are mutually exclusive")
     ensure_public_schema(db_path)
     statuses = (
-        (*AUTO_RESEARCH_QUEUE_STATUSES, "failed")
+        (*AUTO_RESEARCH_QUEUE_STATUSES, "failed", "needs_retry")
         if retry_failed
         else AUTO_RESEARCH_QUEUE_STATUSES
     )
@@ -1202,7 +1202,8 @@ def get_research_queue(
                 r.digital_footprint_score,
                 r.rating,
                 r.review_count,
-                r.maps_url
+                r.maps_url,
+                r.source_files_json
             FROM public_restaurants p
             JOIN restaurants r ON r.place_id = p.place_id
             WHERE p.research_status IN ({placeholders})
@@ -1252,7 +1253,8 @@ def get_research_candidate(
                 r.digital_footprint_score,
                 r.rating,
                 r.review_count,
-                r.maps_url
+                r.maps_url,
+                r.source_files_json
             FROM public_restaurants p
             JOIN restaurants r ON r.place_id = p.place_id
             WHERE p.place_id = ?

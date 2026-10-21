@@ -10,7 +10,14 @@ from uuid import uuid4
 import pytest
 from fastapi.testclient import TestClient
 
-from fiyu import api, my_pick_identity_bootstrap, my_pick_processor, my_picks, pipeline_cli
+from fiyu import (
+    api,
+    my_pick_identity_bootstrap,
+    my_pick_processor,
+    my_picks,
+    pipeline_cli,
+    research_worker,
+)
 from fiyu.database import SCHEMA, connect
 from fiyu.my_pick_identity_bootstrap import (
     MyPickIdentityBootstrap,
@@ -617,6 +624,124 @@ def test_bootstrap_duplicate_reuses_existing_canonical_restaurant(catalog, monke
     assert summary["canonical_candidates_created"] == 0
 
 
+def test_bootstrapped_candidate_enters_normal_research_without_seed_or_opaque_prompt(
+    catalog,
+):
+    opaque_id = "opaque-google-sawada"
+    place_id, created = my_pick_processor.ensure_my_pick_candidate(
+        catalog,
+        provider="google",
+        external_place_id=opaque_id,
+        canonical_name="らぁ麺 さわ田",
+        canonical_name_ja="らぁ麺 さわ田",
+        canonical_name_en="Raa Men Sawada",
+        city="Musashino",
+        neighborhood="Kichijoji Minamicho",
+        address="1-5-12 Kichijoji Minamicho, Musashino, Tokyo",
+        primary_category="ramen",
+    )
+
+    candidate = research_worker.get_research_candidate(catalog, place_id)
+    plan = research_worker.run_research_batch(
+        catalog, place_id=place_id, limit=1, dry_run=True
+    )
+    prompt = research_worker._restaurant_prompt(candidate)
+
+    assert created is True
+    assert candidate["title"] == "らぁ麺 さわ田"
+    assert candidate["address"] == "1-5-12 Kichijoji Minamicho, Musashino, Tokyo"
+    assert plan["candidates"] == [place_id]
+    assert opaque_id not in prompt
+    assert "Raa Men Sawada" in prompt  # Canonical bootstrap identity is available to queries.
+    assert "らぁ麺 さわ田" in prompt
+    assert "intentionally omitted" in prompt
+    with connect(catalog) as connection:
+        stored = connection.execute(
+            "SELECT candidate_eligible, internal_fiyu_score, source_files_json "
+            "FROM restaurants WHERE place_id=?",
+            (place_id,),
+        ).fetchone()
+    assert stored["candidate_eligible"] == 0
+    assert stored["internal_fiyu_score"] is None
+    assert stored["source_files_json"] == '["my_pick:google"]'
+
+
+def test_incomplete_canonical_research_blocks_location_and_quality(catalog, monkeypatch):
+    work, _ = my_picks.create_or_get_canonical_work(
+        catalog,
+        provider="google",
+        external_place_id="research-incomplete",
+        identity_bootstrap_name_hint="Ramen Sawada",
+        identity_bootstrap_address_hint="Kichijoji, Tokyo",
+    )
+    calls = {"location": 0, "quality": 0}
+    monkeypatch.setattr(
+        my_pick_processor,
+        "run_my_pick_identity_bootstrap",
+        lambda *_args, **_kwargs: confirmed_bootstrap("Raa Men Sawada"),
+    )
+
+    def incomplete(db_path, *, place_id, **_kwargs):
+        with connect(db_path) as connection:
+            connection.execute(
+                """
+                INSERT INTO restaurant_research_runs(
+                    public_restaurant_id, provider, model, prompt_version,
+                    pipeline_version, status, error, is_current, created_at, completed_at
+                ) VALUES (?, 'openai', 'test-model', 'test-prompt',
+                          'catalog-pipeline-v1', 'needs_retry',
+                          'TimeoutError: provider timeout', 0, 'now', 'now')
+                """,
+                (place_id,),
+            )
+            connection.execute(
+                "UPDATE public_restaurants SET research_status='needs_retry', "
+                "research_error='TimeoutError: provider timeout' WHERE place_id=?",
+                (place_id,),
+            )
+            connection.commit()
+        return {"completed": 0, "failed": 1, "responses_requests": 1}
+
+    monkeypatch.setattr(my_pick_processor, "run_research_batch", incomplete)
+    monkeypatch.setattr(
+        my_pick_processor,
+        "verify_location",
+        lambda *_args, **_kwargs: calls.__setitem__("location", calls["location"] + 1),
+    )
+    monkeypatch.setattr(
+        my_pick_processor,
+        "run_quality_v4_backfill",
+        lambda *_args, **_kwargs: calls.__setitem__("quality", calls["quality"] + 1),
+    )
+    processor = my_pick_processor.ProductionMyPickProcessor(
+        catalog, osm_index="unused.sqlite"
+    )
+
+    summary = my_picks.run_my_pick_worker(
+        catalog, processor=processor, worker_id="research-incomplete", detailed=True
+    )
+    updated = my_picks.get_canonical_work(catalog, str(work["id"]))
+
+    assert updated["failure_code"] == "canonical_research_incomplete"
+    assert updated["status"] == "failed_retryable"
+    assert summary["canonical_research_attempted"] == 1
+    assert summary["canonical_research_completed"] == 0
+    assert summary["quality_v4_attempted"] == 0
+    assert calls == {"location": 0, "quality": 0}
+    diagnostics = my_picks.get_my_pick_stage_diagnostics(catalog, str(work["id"]))
+    assert diagnostics["identity_bootstrap_completed"] is True
+    assert diagnostics["canonical_research_attempted"] is True
+    assert diagnostics["canonical_research_completed"] is False
+    assert diagnostics["canonical_research_failure_code"] == "TimeoutError"
+    assert diagnostics["canonical_research_missing_requirements"] == [
+        "research_status:needs_retry",
+        "failure_class:TimeoutError",
+    ]
+    assert diagnostics["accepted_source_count"] == 0
+    assert diagnostics["location_attempted"] is False
+    assert diagnostics["quality_v4_attempted"] is False
+
+
 def test_unstructured_worker_failure_is_normalized_before_storage(catalog):
     work, _ = my_picks.create_or_get_canonical_work(
         catalog, provider="google", external_place_id="unsafe-failure"
@@ -738,6 +863,12 @@ def test_production_processor_reuses_canonical_stages_without_publishing(
         "model": None,
     }]
     assert summary["canonical_candidates_created"] == 1
+    assert summary["canonical_research_attempted"] == 1
+    assert summary["canonical_research_completed"] == 1
+    assert summary["location_attempted"] == 1
+    assert summary["location_completed"] == 1
+    assert summary["quality_v4_attempted"] == 1
+    assert summary["quality_v4_completed"] == 1
     assert summary["review_queue_additions"] == expected_reviews
     assert calls == {"research": 1, "location": 1, "quality": 1, "promotion": 1}
     with connect(catalog) as connection:
@@ -752,6 +883,10 @@ def test_production_processor_reuses_canonical_stages_without_publishing(
             "SELECT is_published FROM public_restaurants WHERE place_id=?",
             (f"new-{int(score)}",),
         ).fetchone()[0] == 0
+        assert connection.execute(
+            "SELECT score_version FROM public_restaurants WHERE place_id=?",
+            (f"new-{int(score)}",),
+        ).fetchone()[0] == QUALITY_PRODUCTION_SCORE_VERSION
 
 
 @pytest.mark.parametrize(

@@ -410,6 +410,110 @@ def get_canonical_work(db_path: str | Path, work_id: str) -> dict[str, Any] | No
     return dict(row) if row is not None else None
 
 
+def get_my_pick_stage_diagnostics(
+    db_path: str | Path, work_id: str
+) -> dict[str, Any]:
+    """Return bounded, developer-safe stage state without raw provider payloads."""
+
+    ensure_my_pick_schema(db_path)
+    with connect_readonly(db_path) as connection:
+        work_row = connection.execute(
+            "SELECT * FROM my_pick_canonical_work WHERE id=?", (work_id,)
+        ).fetchone()
+        if work_row is None:
+            raise ValueError("My Pick canonical work not found")
+        work = dict(work_row)
+        place_id = str(work.get("canonical_place_id") or "").strip() or None
+        restaurant = None
+        research_run = None
+        quality_run = None
+        location_attempted = False
+        if place_id:
+            row = connection.execute(
+                "SELECT * FROM public_restaurants WHERE place_id=?", (place_id,)
+            ).fetchone()
+            restaurant = dict(row) if row is not None else None
+            row = connection.execute(
+                """
+                SELECT status, error, evidence_urls_json
+                FROM restaurant_research_runs
+                WHERE public_restaurant_id=? ORDER BY id DESC LIMIT 1
+                """,
+                (place_id,),
+            ).fetchone()
+            research_run = dict(row) if row is not None else None
+            row = connection.execute(
+                """
+                SELECT status, error_category, score_version
+                FROM quality_v4_research_runs
+                WHERE public_restaurant_id=? ORDER BY id DESC LIMIT 1
+                """,
+                (place_id,),
+            ).fetchone()
+            quality_run = dict(row) if row is not None else None
+            location_attempted = bool(
+                connection.execute(
+                    "SELECT 1 FROM address_research_runs WHERE public_restaurant_id=? LIMIT 1",
+                    (place_id,),
+                ).fetchone()
+            )
+
+    bootstrap_status = str(work.get("identity_bootstrap_status") or "pending")
+    research_status = (
+        str(restaurant.get("research_status") or "pending") if restaurant else None
+    )
+    research_error = str((research_run or {}).get("error") or "")
+    failure_class = research_error.partition(":")[0].strip() or None
+    if failure_class and not re.fullmatch(
+        r"[A-Za-z][A-Za-z0-9_.-]{0,119}", failure_class
+    ):
+        failure_class = "research_failure"
+    accepted_sources: int | None = None
+    if research_run:
+        try:
+            sources = json.loads(str(research_run.get("evidence_urls_json") or "[]"))
+            accepted_sources = len(sources) if isinstance(sources, list) else None
+        except json.JSONDecodeError:
+            accepted_sources = None
+    missing: list[str] = []
+    if place_id is None:
+        missing.append("canonical_identity")
+    elif research_status != "complete":
+        missing.append(f"research_status:{research_status or 'missing'}")
+        if failure_class:
+            missing.append(f"failure_class:{failure_class}")
+    map_ready = bool(restaurant and is_map_ready(restaurant))
+    score_version = str(restaurant.get("score_version") or "") if restaurant else ""
+    quality_status = str((quality_run or {}).get("status") or "") or None
+    return {
+        "identity_bootstrap_attempted": bootstrap_status != "pending",
+        "identity_bootstrap_completed": bootstrap_status == "confirmed",
+        "identity_bootstrap_status": bootstrap_status,
+        "canonical_research_attempted": research_run is not None,
+        "canonical_research_completed": research_status == "complete",
+        "canonical_research_status": research_status,
+        "canonical_research_failure_code": failure_class,
+        "accepted_source_count": accepted_sources,
+        "rejected_source_count": None,
+        "canonical_research_missing_requirements": missing,
+        "location_attempted": location_attempted,
+        "location_completed": map_ready,
+        "location_precision": (
+            str(restaurant.get("map_location_precision") or "") or None
+            if restaurant
+            else None
+        ),
+        "quality_v4_attempted": quality_run is not None,
+        "quality_v4_completed": (
+            quality_status == "complete"
+            and score_version == QUALITY_PRODUCTION_SCORE_VERSION
+        ),
+        "quality_v4_status": quality_status,
+        "score_version": score_version or None,
+        "ready": str(work.get("status")) == "ready",
+    }
+
+
 def save_identity_bootstrap(
     db_path: str | Path,
     work_id: str,
@@ -907,6 +1011,11 @@ def run_my_pick_worker(
         "canonical_candidates_created": 0,
         "duplicates_reused_after_bootstrap": 0,
         "research_completed": 0,
+        "canonical_research_attempted": 0,
+        "canonical_research_completed": 0,
+        "location_attempted": 0,
+        "location_completed": 0,
+        "quality_v4_attempted": 0,
         "quality_v4_completed": 0,
         "ready": 0,
         "needs_location": 0,
@@ -963,6 +1072,11 @@ def run_my_pick_worker(
                 "canonical_candidates_created",
                 "duplicates_reused_after_bootstrap",
                 "research_completed",
+                "canonical_research_attempted",
+                "canonical_research_completed",
+                "location_attempted",
+                "location_completed",
+                "quality_v4_attempted",
                 "quality_v4_completed",
                 "provider_requests",
                 "web_search_actions",
@@ -994,6 +1108,11 @@ def run_my_pick_worker(
                 "canonical_candidates_created",
                 "duplicates_reused_after_bootstrap",
                 "research_completed",
+                "canonical_research_attempted",
+                "canonical_research_completed",
+                "location_attempted",
+                "location_completed",
+                "quality_v4_attempted",
                 "quality_v4_completed",
             ):
                 summary[key] += int(error_counts.get(key, 0) or 0)

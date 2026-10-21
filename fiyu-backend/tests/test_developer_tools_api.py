@@ -605,6 +605,26 @@ def test_my_pick_dev_process_is_owned_and_server_side_gated(developer_api, monke
 
     assert response.status_code == 200
     assert response.json()["my_pick"]["status"] == "pending"
+    assert response.json()["stage_diagnostics"] == {
+        "identity_bootstrap_attempted": False,
+        "identity_bootstrap_completed": False,
+        "identity_bootstrap_status": "pending",
+        "canonical_research_attempted": False,
+        "canonical_research_completed": False,
+        "canonical_research_status": None,
+        "canonical_research_failure_code": None,
+        "accepted_source_count": None,
+        "rejected_source_count": None,
+        "canonical_research_missing_requirements": ["canonical_identity"],
+        "location_attempted": False,
+        "location_completed": False,
+        "location_precision": None,
+        "quality_v4_attempted": False,
+        "quality_v4_completed": False,
+        "quality_v4_status": None,
+        "score_version": None,
+        "ready": False,
+    }
     assert captured["work_id"] == work["id"]
     assert captured["limit"] == 1
     assert captured["retry_failed"] is True

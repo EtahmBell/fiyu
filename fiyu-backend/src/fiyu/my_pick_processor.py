@@ -200,6 +200,11 @@ class ProductionMyPickProcessor:
             "canonical_candidates_created": 0,
             "duplicates_reused_after_bootstrap": 0,
             "research_completed": 0,
+            "canonical_research_attempted": 0,
+            "canonical_research_completed": 0,
+            "location_attempted": 0,
+            "location_completed": 0,
+            "quality_v4_attempted": 0,
             "quality_v4_completed": 0,
             "provider_requests": 0,
             "web_search_actions": 0,
@@ -324,6 +329,7 @@ class ProductionMyPickProcessor:
                 counts=counts,
             )
         if row.get("research_status") != "complete":
+            counts["canonical_research_attempted"] = 1
             try:
                 research = run_research_batch(
                     self.db_path,
@@ -360,6 +366,9 @@ class ProductionMyPickProcessor:
                     retryable=retryable,
                     counts=counts,
                 )
+            counts["canonical_research_completed"] = 1
+        else:
+            counts["canonical_research_completed"] = 1
 
         if row.get("low_footprint_route_eligible") and not row.get(
             "low_footprint_research_attempted"
@@ -414,6 +423,7 @@ class ProductionMyPickProcessor:
             )
 
         if not is_map_ready(row):
+            counts["location_attempted"] = 1
             try:
                 location = verify_location(
                     self.db_path,
@@ -442,6 +452,7 @@ class ProductionMyPickProcessor:
                 cost.get("address_fallback_web_search_actions", 0) or 0
             )
             row = _catalog_row(self.db_path, place_id) or row
+        counts["location_completed"] = int(is_map_ready(row))
 
         if is_map_ready(row) and not TOKYO_SERVICE_AREA.contains(
             float(row["latitude"]), float(row["longitude"])
@@ -451,6 +462,7 @@ class ProductionMyPickProcessor:
             )
 
         if not _current_v4(row):
+            counts["quality_v4_attempted"] = 1
             attempt = int(job.get("attempt_count") or 1)
             base = self.audit_dir / f"{job['id']}-attempt-{attempt}"
             try:

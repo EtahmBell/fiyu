@@ -334,6 +334,26 @@ export const myPickQuotaErrorSchema = z.object({
 export const developerMyPickProcessSchema = z.object({
   my_pick: myPickSchema,
   worker_summary: z.record(z.string(), z.number().int()),
+  stage_diagnostics: z.object({
+    identity_bootstrap_attempted: z.boolean(),
+    identity_bootstrap_completed: z.boolean(),
+    identity_bootstrap_status: z.string(),
+    canonical_research_attempted: z.boolean(),
+    canonical_research_completed: z.boolean(),
+    canonical_research_status: nullableString,
+    canonical_research_failure_code: nullableString,
+    accepted_source_count: z.number().int().nonnegative().nullable(),
+    rejected_source_count: z.number().int().nonnegative().nullable(),
+    canonical_research_missing_requirements: z.array(z.string()),
+    location_attempted: z.boolean(),
+    location_completed: z.boolean(),
+    location_precision: nullableString,
+    quality_v4_attempted: z.boolean(),
+    quality_v4_completed: z.boolean(),
+    quality_v4_status: nullableString,
+    score_version: nullableString,
+    ready: z.boolean(),
+  }).optional(),
 });
 export const developerMyPickResetSchema = z.object({ reset: z.literal(true), deleted_my_picks: z.number().int().nonnegative() });
 export const developerMyPickHardResetSchema = z.object({

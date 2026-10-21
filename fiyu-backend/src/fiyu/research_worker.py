@@ -363,9 +363,15 @@ def _restaurant_prompt(candidate: dict[str, object]) -> str:
     address_queries = generate_address_queries(
         candidate, max_search_actions=DEFAULT_MAX_SEARCH_ACTIONS
     )
+    source_files = str(candidate.get("source_files_json") or "")
+    identity_line = (
+        "Internal candidate key: intentionally omitted for this user-requested candidate"
+        if "my_pick:" in source_files
+        else f'Google place ID: {candidate.get("place_id")}'
+    )
     return f"""Research this exact restaurant:
 
-Google place ID: {candidate.get("place_id")}
+{identity_line}
 Name: {candidate.get("title")}
 Address: {candidate.get("address")}
 Neighborhood: {candidate.get("neighborhood")}
@@ -496,7 +502,10 @@ def run_research_batch(
                 "place_id": place_id,
                 "place_ids": place_ids,
                 "retry_failed": retry_failed,
-                "eligible_statuses": ["pending", *(["failed"] if retry_failed else [])],
+                "eligible_statuses": [
+                    "pending",
+                    *(["failed", "needs_retry"] if retry_failed else []),
+                ],
             },
             config={
                 "model": selected_model,

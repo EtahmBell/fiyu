@@ -460,6 +460,11 @@ def test_timeout_is_ambiguous_and_never_automatically_retried(tmp_path, monkeypa
     assert second["queued"] == 0
     assert client.responses.calls == 1
 
+    explicit = run_research_batch(
+        path, limit=1, model="test-model", retry_failed=True, dry_run=True
+    )
+    assert explicit["candidates"] == ["place-1"]
+
 
 @pytest.mark.parametrize("status_code", (429, 500, 503))
 def test_transient_provider_status_is_retryable(tmp_path, monkeypatch, status_code):

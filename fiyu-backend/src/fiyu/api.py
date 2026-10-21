@@ -1023,9 +1023,31 @@ class DeveloperMyPickProcessRequest(BaseModel):
     retry_failed: bool = True
 
 
+class DeveloperMyPickStageDiagnostics(BaseModel):
+    identity_bootstrap_attempted: bool
+    identity_bootstrap_completed: bool
+    identity_bootstrap_status: str
+    canonical_research_attempted: bool
+    canonical_research_completed: bool
+    canonical_research_status: str | None
+    canonical_research_failure_code: str | None
+    accepted_source_count: int | None
+    rejected_source_count: int | None
+    canonical_research_missing_requirements: list[str]
+    location_attempted: bool
+    location_completed: bool
+    location_precision: str | None
+    quality_v4_attempted: bool
+    quality_v4_completed: bool
+    quality_v4_status: str | None
+    score_version: str | None
+    ready: bool
+
+
 class DeveloperMyPickProcessResponse(BaseModel):
     my_pick: MyPickResponse
     worker_summary: dict[str, int]
+    stage_diagnostics: DeveloperMyPickStageDiagnostics
 
 
 class DeveloperResetMyPicksResponse(BaseModel):
@@ -3371,7 +3393,11 @@ def process_developer_my_pick(
     if refreshed is None:
         raise HTTPException(status_code=404, detail="My Pick not found")
     return DeveloperMyPickProcessResponse(
-        my_pick=_my_pick_response(refreshed), worker_summary=summary
+        my_pick=_my_pick_response(refreshed),
+        worker_summary=summary,
+        stage_diagnostics=my_picks.get_my_pick_stage_diagnostics(
+            DB_PATH, str(refreshed["canonical_work_id"])
+        ),
     )
 
 

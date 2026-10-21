@@ -69,14 +69,23 @@ describe("fetchMyPickQuota", () => {
 
 describe("processDeveloperMyPick", () => {
   it("targets one existing My Pick without creating a submission or sending worker paths", async () => {
-    const response = { my_pick: ready, worker_summary: { jobs_claimed: 1, ready: 1 } };
+    const stage_diagnostics = {
+      identity_bootstrap_attempted: true, identity_bootstrap_completed: true, identity_bootstrap_status: "confirmed",
+      canonical_research_attempted: true, canonical_research_completed: false, canonical_research_status: "needs_retry",
+      canonical_research_failure_code: "TimeoutError", accepted_source_count: 0, rejected_source_count: null,
+      canonical_research_missing_requirements: ["research_status:needs_retry", "failure_class:TimeoutError"],
+      location_attempted: false, location_completed: false, location_precision: null,
+      quality_v4_attempted: false, quality_v4_completed: false, quality_v4_status: null,
+      score_version: null, ready: false,
+    };
+    const response = { my_pick: ready, worker_summary: { jobs_claimed: 1, ready: 1 }, stage_diagnostics };
     const fetchMock = vi.fn<typeof fetch>(async () => new Response(JSON.stringify(response), {
       status: 200,
       headers: { "Content-Type": "application/json" },
     }));
     vi.stubGlobal("fetch", fetchMock);
 
-    await processDeveloperMyPick(ready.my_pick_id);
+    await expect(processDeveloperMyPick(ready.my_pick_id)).resolves.toMatchObject({ stage_diagnostics });
 
     expect(fetchMock.mock.calls[0][0]).toContain("/developer/my-picks/process");
     expect(fetchMock.mock.calls[0][1]?.method).toBe("POST");
