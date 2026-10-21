@@ -76,6 +76,9 @@ describe("processDeveloperMyPick", () => {
       canonical_research_missing_requirements: ["research_status:needs_retry", "failure_class:TimeoutError"],
       location_attempted: false, location_completed: false, location_precision: null,
       quality_v4_attempted: false, quality_v4_completed: false, quality_v4_status: null,
+      quality_v4_internal_score_present: false,
+      quality_v4_promotion_attempted: false, quality_v4_promotion_status: "not_attempted", quality_v4_promotion_failure_code: null,
+      private_result_eligible: false, recommendation_review_eligible: false,
       score_version: null, ready: false,
     };
     const response = { my_pick: ready, worker_summary: { jobs_claimed: 1, ready: 1 }, stage_diagnostics };

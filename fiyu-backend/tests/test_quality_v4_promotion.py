@@ -26,6 +26,7 @@ from fiyu.quality_v4_promotion import (
     COHORT_MANIFEST_VERSION,
     FLOOR70_COHORT_NAME,
     inspect_quality_v4_promotion,
+    promote_quality_v4_allowlist,
     run_quality_v4_promotion,
 )
 
@@ -363,6 +364,35 @@ def test_promotion_is_atomic_safe_and_idempotent(tmp_path) -> None:
             "SELECT COUNT(*) FROM score_calculation_runs WHERE score_version=?",
             (QUALITY_PRODUCTION_SCORE_VERSION,),
         ).fetchone()[0] == 1
+
+
+def test_allowlist_score_promotion_does_not_require_public_eligibility(tmp_path) -> None:
+    _canonical, source, _ = _databases(tmp_path)
+    with connect(source) as connection:
+        connection.execute(
+            """
+            UPDATE public_restaurants
+            SET is_published=0, product_eligible=0, review_status='needs_review'
+            WHERE place_id='place-0'
+            """
+        )
+        connection.commit()
+
+    result = promote_quality_v4_allowlist(source, place_ids=["place-0"])
+
+    assert result["rows_scored"] == 1
+    assert result["publication_state_changes"] == 0
+    with connect(source) as connection:
+        row = connection.execute(
+            "SELECT score_version, is_published, product_eligible, review_status "
+            "FROM public_restaurants WHERE place_id='place-0'"
+        ).fetchone()
+    assert tuple(row) == (
+        QUALITY_PRODUCTION_SCORE_VERSION,
+        0,
+        0,
+        "needs_review",
+    )
 
 
 def test_scoped_promotion_is_allowlisted_safe_and_idempotent(tmp_path) -> None:

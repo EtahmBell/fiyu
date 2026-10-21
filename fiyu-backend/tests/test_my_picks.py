@@ -16,6 +16,7 @@ from fiyu import (
     my_pick_processor,
     my_picks,
     pipeline_cli,
+    quality_v4_backfill,
     research_worker,
 )
 from fiyu.database import SCHEMA, connect
@@ -813,6 +814,10 @@ def test_unknown_my_pick_scoped_research_executes_past_stale_global_ledger(
         return {"cost": {}}
 
     def quality(db_path, *, place_id, **_kwargs):
+        inspection = quality_v4_backfill.inspect_quality_v4_backfill(
+            db_path, place_id=place_id
+        )
+        assert [row["place_id"] for row in inspection["eligible_rows"]] == [place_id]
         with connect(db_path) as connection:
             connection.execute(
                 "UPDATE public_restaurants SET fiyu_score=42, score_version=? "
@@ -847,7 +852,13 @@ def test_unknown_my_pick_scoped_research_executes_past_stale_global_ledger(
             "SELECT research_error FROM public_restaurants WHERE place_id=?",
             (external_id,),
         ).fetchone()[0]
+        durable_internal = connection.execute(
+            "SELECT quality_score, underexposure_score, digital_footprint_score "
+            "FROM restaurants WHERE place_id=?",
+            (external_id,),
+        ).fetchone()
     assert summary["canonical_research_completed"] == 1, research_error
+    assert tuple(durable_internal) == (50.0, 50.0, 50.0)
     assert summary["identity_bootstrap_provider_requests"] == 1
     assert summary["canonical_research_provider_requests"] == 1
     assert summary["location_completed"] == 1
@@ -949,6 +960,139 @@ def test_incomplete_canonical_research_blocks_location_and_quality(catalog, monk
     assert diagnostics["accepted_source_count"] == 0
     assert diagnostics["location_attempted"] is False
     assert diagnostics["quality_v4_attempted"] is False
+
+
+def test_zero_row_quality_v4_selection_is_not_reported_as_promotion_failure(
+    catalog, monkeypatch
+):
+    add_canonical(
+        catalog,
+        "quality-not-selected",
+        score_version="public-v3-local-discovery-specialist-tristate",
+    )
+    with connect(catalog) as connection:
+        connection.execute(
+            "UPDATE public_restaurants SET evidence_json=? WHERE place_id=?",
+            ('{"matched_restaurant":true,"identity_confidence":0.9}', "quality-not-selected"),
+        )
+        connection.commit()
+    monkeypatch.setattr(
+        my_pick_processor,
+        "run_quality_v4_backfill",
+        lambda *_args, **_kwargs: {"selected_count": 0, "completed": 0, "failed": 0},
+    )
+    monkeypatch.setattr(my_picks, "mark_canonical_work_researching", lambda *_args, **_kwargs: None)
+    processor = my_pick_processor.ProductionMyPickProcessor(
+        catalog, osm_index="unused.sqlite"
+    )
+
+    with pytest.raises(my_pick_processor.MyPickProcessingError) as captured:
+        processor(
+            {
+                "id": str(uuid4()),
+                "claim_token": "test-claim",
+                "provider": "google",
+                "external_place_id": "quality-not-selected",
+                "attempt_count": 1,
+            }
+        )
+
+    assert captured.value.code == "quality_v4_not_executed"
+    assert captured.value.status == "needs_review"
+
+
+def test_genuine_quality_promotion_validation_failure_still_needs_review(
+    catalog, monkeypatch
+):
+    add_canonical(
+        catalog,
+        "quality-invalid",
+        score_version="public-v3-local-discovery-specialist-tristate",
+    )
+    with connect(catalog) as connection:
+        connection.execute(
+            "UPDATE public_restaurants SET evidence_json=? WHERE place_id=?",
+            ('{"matched_restaurant":true,"identity_confidence":0.9}', "quality-invalid"),
+        )
+        connection.commit()
+    monkeypatch.setattr(
+        my_pick_processor,
+        "run_quality_v4_backfill",
+        lambda *_args, **_kwargs: {"selected_count": 1, "completed": 1, "failed": 0},
+    )
+    monkeypatch.setattr(
+        my_pick_processor,
+        "promote_quality_v4_allowlist",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            ValueError("shadow/production recomputation mismatch")
+        ),
+    )
+    monkeypatch.setattr(my_picks, "mark_canonical_work_researching", lambda *_args, **_kwargs: None)
+    processor = my_pick_processor.ProductionMyPickProcessor(
+        catalog, osm_index="unused.sqlite"
+    )
+
+    with pytest.raises(my_pick_processor.MyPickProcessingError) as captured:
+        processor(
+            {
+                "id": str(uuid4()),
+                "claim_token": "test-claim",
+                "provider": "google",
+                "external_place_id": "quality-invalid",
+                "attempt_count": 1,
+            }
+        )
+
+    assert captured.value.code == "quality_v4_promotion_needs_review"
+    assert captured.value.status == "needs_review"
+
+
+def test_developer_diagnostics_separate_internal_quality_from_promotion(catalog):
+    add_canonical(
+        catalog,
+        "quality-diagnostic",
+        score=42,
+        score_version="public-v3-local-discovery-specialist-tristate",
+    )
+    work, _ = my_picks.create_or_get_canonical_work(
+        catalog, provider="google", external_place_id="quality-diagnostic"
+    )
+    with connect(catalog) as connection:
+        connection.execute(
+            """
+            INSERT INTO quality_v4_research_runs(
+                public_restaurant_id, provider, model, status,
+                quality_research_version, quality_case_strength_version,
+                score_version, prompt_version, adjustment_guardrail,
+                shadow_v4_score, created_at, completed_at
+            ) VALUES (?, 'openai', 'test', 'complete', 'quality-v4-research-1',
+                      'quality-v4-case-strength-1', 'quality-v4-shadow-1',
+                      'quality-v4-prompt-1', 15, 42, 'now', 'now')
+            """,
+            ("quality-diagnostic",),
+        )
+        connection.execute(
+            """
+            UPDATE my_pick_canonical_work
+            SET status='needs_review', failure_code='quality_v4_promotion_needs_review'
+            WHERE id=?
+            """,
+            (work["id"],),
+        )
+        connection.commit()
+
+    diagnostics = my_picks.get_my_pick_stage_diagnostics(catalog, str(work["id"]))
+
+    assert diagnostics["quality_v4_completed"] is True
+    assert diagnostics["quality_v4_internal_score_present"] is True
+    assert diagnostics["quality_v4_promotion_attempted"] is True
+    assert diagnostics["quality_v4_promotion_status"] == "failed"
+    assert (
+        diagnostics["quality_v4_promotion_failure_code"]
+        == "quality_v4_promotion_needs_review"
+    )
+    assert diagnostics["private_result_eligible"] is False
+    assert diagnostics["recommendation_review_eligible"] is False
 
 
 def test_completed_research_with_insufficient_identity_evidence_needs_review(

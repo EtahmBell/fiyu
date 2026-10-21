@@ -623,13 +623,25 @@ def test_my_pick_dev_process_is_owned_and_server_side_gated(developer_api, monke
         "location_precision": None,
         "quality_v4_attempted": False,
         "quality_v4_completed": False,
+        "quality_v4_internal_score_present": False,
         "quality_v4_status": None,
         "score_version": None,
+        "quality_v4_promotion_attempted": False,
+        "quality_v4_promotion_status": "not_attempted",
+        "quality_v4_promotion_failure_code": None,
+        "private_result_eligible": False,
+        "recommendation_review_eligible": False,
         "ready": False,
     }
     assert captured["work_id"] == work["id"]
     assert captured["limit"] == 1
     assert captured["retry_failed"] is True
+
+
+def test_my_pick_dev_process_openapi_contract_is_post_only():
+    operation = api.app.openapi()["paths"]["/developer/my-picks/process"]
+
+    assert set(operation) == {"post"}
 
 
 def test_my_pick_dev_reset_deletes_only_calling_accounts_rows(developer_api, monkeypatch):

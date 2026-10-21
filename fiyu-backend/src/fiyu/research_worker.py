@@ -680,6 +680,7 @@ def run_research_batch(
                     "usage": (getattr(getattr(response, "usage", None), "model_dump", dict)()),
                 },
                 research_run_id=research_run_id,
+                internal_signals=internal,
             )
             try:
                 address_call = combined_address_call(

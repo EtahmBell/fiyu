@@ -1357,6 +1357,7 @@ def save_research_result(
     usage_metadata: dict[str, object] | None = None,
     pipeline_version: str = "catalog-pipeline-v1",
     research_run_id: int | None = None,
+    internal_signals: InternalSignals | None = None,
 ) -> None:
     now = _utc_now()
     evidence_urls = tuple(sorted(set(evidence_urls)))
@@ -1365,6 +1366,23 @@ def save_research_result(
     )
     verification_status = "automatically_researched"
     with connect(db_path) as connection:
+        if internal_signals is not None:
+            connection.execute(
+                """
+                UPDATE restaurants
+                SET quality_score=?, underexposure_score=?, digital_footprint_score=?
+                WHERE id=(
+                    SELECT source_restaurant_id FROM public_restaurants
+                    WHERE place_id=?
+                )
+                """,
+                (
+                    internal_signals.quality_score,
+                    internal_signals.underexposure_score,
+                    internal_signals.digital_footprint_score,
+                    place_id,
+                ),
+            )
         connection.execute(
             """
             UPDATE public_restaurants

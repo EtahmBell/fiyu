@@ -1041,8 +1041,14 @@ class DeveloperMyPickStageDiagnostics(BaseModel):
     location_precision: str | None
     quality_v4_attempted: bool
     quality_v4_completed: bool
+    quality_v4_internal_score_present: bool
     quality_v4_status: str | None
     score_version: str | None
+    quality_v4_promotion_attempted: bool
+    quality_v4_promotion_status: Literal["not_attempted", "complete", "failed"]
+    quality_v4_promotion_failure_code: str | None
+    private_result_eligible: bool
+    recommendation_review_eligible: bool
     ready: bool
 
 

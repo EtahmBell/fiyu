@@ -519,6 +519,14 @@ class ProductionMyPickProcessor:
                 raise MyPickProcessingError(
                     "quality_v4_failed", status="needs_review", counts=counts
                 )
+            row = _catalog_row(self.db_path, place_id) or row
+            if (
+                int(quality.get("completed", 0) or 0) < 1
+                and str(row.get("quality_v4_status") or "") != "complete"
+            ):
+                raise MyPickProcessingError(
+                    "quality_v4_not_executed", status="needs_review", counts=counts
+                )
             try:
                 promote_quality_v4_allowlist(self.db_path, place_ids=[place_id])
             except ValueError as exc:

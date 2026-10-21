@@ -464,7 +464,7 @@ def get_my_pick_stage_diagnostics(
                 research_provider_requests = int(ledger["provider_requests"])
             row = connection.execute(
                 """
-                SELECT status, error_category, score_version
+                SELECT status, error_category, score_version, shadow_v4_score
                 FROM quality_v4_research_runs
                 WHERE public_restaurant_id=? ORDER BY id DESC LIMIT 1
                 """,
@@ -505,6 +505,26 @@ def get_my_pick_stage_diagnostics(
     map_ready = bool(restaurant and is_map_ready(restaurant))
     score_version = str(restaurant.get("score_version") or "") if restaurant else ""
     quality_status = str((quality_run or {}).get("status") or "") or None
+    quality_internal_score_present = bool(
+        quality_run is not None and quality_run.get("shadow_v4_score") is not None
+    )
+    promotion_completed = score_version == QUALITY_PRODUCTION_SCORE_VERSION
+    work_failure = str(work.get("failure_code") or "") or None
+    promotion_failed = work_failure == "quality_v4_promotion_needs_review"
+    promotion_attempted = bool(
+        quality_status == "complete" and (promotion_completed or promotion_failed)
+    )
+    private_result_eligible = bool(
+        restaurant
+        and _current_score(restaurant)
+        and _trusted_coverage(restaurant) is True
+    )
+    recommendation_review_eligible = False
+    if restaurant:
+        with connect_readonly(db_path) as connection:
+            recommendation_review_eligible = _recommendation_eligible(
+                restaurant, publication_score_threshold_from_connection(connection)
+            )
     return {
         "identity_bootstrap_attempted": bootstrap_status != "pending",
         "identity_bootstrap_completed": bootstrap_status == "confirmed",
@@ -526,12 +546,23 @@ def get_my_pick_stage_diagnostics(
             else None
         ),
         "quality_v4_attempted": quality_run is not None,
-        "quality_v4_completed": (
-            quality_status == "complete"
-            and score_version == QUALITY_PRODUCTION_SCORE_VERSION
-        ),
+        "quality_v4_completed": quality_status == "complete",
+        "quality_v4_internal_score_present": quality_internal_score_present,
         "quality_v4_status": quality_status,
         "score_version": score_version or None,
+        "quality_v4_promotion_attempted": promotion_attempted,
+        "quality_v4_promotion_status": (
+            "complete"
+            if promotion_completed
+            else "failed"
+            if promotion_failed
+            else "not_attempted"
+        ),
+        "quality_v4_promotion_failure_code": (
+            work_failure if promotion_failed else None
+        ),
+        "private_result_eligible": private_result_eligible,
+        "recommendation_review_eligible": recommendation_review_eligible,
         "ready": str(work.get("status")) == "ready",
     }
 
