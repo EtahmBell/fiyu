@@ -43,6 +43,8 @@ CREATE TABLE IF NOT EXISTS my_pick_canonical_work (
     external_place_id TEXT NOT NULL,
     display_name_hint TEXT,
     identity_bootstrap_hint TEXT,
+    identity_bootstrap_name_hint TEXT,
+    identity_bootstrap_address_hint TEXT,
     identity_bootstrap_status TEXT NOT NULL DEFAULT 'pending',
     identity_bootstrap_result_json TEXT,
     canonical_place_id TEXT,
@@ -165,6 +167,8 @@ def ensure_my_pick_schema(db_path: str | Path) -> None:
         }
         additions = {
             "identity_bootstrap_hint": "TEXT",
+            "identity_bootstrap_name_hint": "TEXT",
+            "identity_bootstrap_address_hint": "TEXT",
             "identity_bootstrap_status": "TEXT NOT NULL DEFAULT 'pending'",
             "identity_bootstrap_result_json": "TEXT",
         }
@@ -295,6 +299,8 @@ def create_or_get_canonical_work(
     external_place_id: str,
     display_name_hint: str | None = None,
     identity_bootstrap_hint: str | None = None,
+    identity_bootstrap_name_hint: str | None = None,
+    identity_bootstrap_address_hint: str | None = None,
     work_id: str | None = None,
     now: datetime | None = None,
 ) -> tuple[dict[str, Any], bool]:
@@ -303,6 +309,8 @@ def create_or_get_canonical_work(
     provider, external_place_id = normalize_external_identity(provider, external_place_id)
     hint = (display_name_hint or "").strip()[:200] or None
     bootstrap_hint = (identity_bootstrap_hint or "").strip()[:200] or None
+    bootstrap_name_hint = (identity_bootstrap_name_hint or "").strip()[:200] or None
+    bootstrap_address_hint = (identity_bootstrap_address_hint or "").strip()[:500] or None
     ensure_my_pick_schema(db_path)
     timestamp = _now(now)
     with connect(db_path) as connection:
@@ -318,9 +326,11 @@ def create_or_get_canonical_work(
                 SET submission_count=submission_count+1, last_submitted_at=?, updated_at=?,
                     display_name_hint=COALESCE(display_name_hint, ?)
                     , identity_bootstrap_hint=COALESCE(identity_bootstrap_hint, ?)
+                    , identity_bootstrap_name_hint=COALESCE(identity_bootstrap_name_hint, ?)
+                    , identity_bootstrap_address_hint=COALESCE(identity_bootstrap_address_hint, ?)
                 WHERE id=?
                 """,
-                (timestamp, timestamp, hint, bootstrap_hint, existing["id"]),
+                (timestamp, timestamp, hint, bootstrap_hint, bootstrap_name_hint, bootstrap_address_hint, existing["id"]),
             )
             row = connection.execute(
                 "SELECT * FROM my_pick_canonical_work WHERE id=?", (existing["id"],)
@@ -352,10 +362,11 @@ def create_or_get_canonical_work(
             """
             INSERT INTO my_pick_canonical_work(
                 id, provider, external_place_id, display_name_hint,
-                identity_bootstrap_hint, canonical_place_id,
+                identity_bootstrap_hint, identity_bootstrap_name_hint,
+                identity_bootstrap_address_hint, canonical_place_id,
                 status, first_submitted_at, last_submitted_at, resolved_at,
                 created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 work_id,
@@ -363,6 +374,8 @@ def create_or_get_canonical_work(
                 external_place_id,
                 hint,
                 bootstrap_hint,
+                bootstrap_name_hint,
+                bootstrap_address_hint,
                 canonical_id,
                 status,
                 timestamp,
@@ -887,6 +900,8 @@ def run_my_pick_worker(
         "failed": 0,
         "existing_identity_reused": 0,
         "bootstrap_attempted": 0,
+        "bootstrap_with_name_address": 0,
+        "bootstrap_with_legacy_query": 0,
         "bootstrap_identity_confirmed": 0,
         "bootstrap_identity_ambiguous": 0,
         "canonical_candidates_created": 0,
@@ -941,6 +956,8 @@ def run_my_pick_worker(
             for key in (
                 "existing_identity_reused",
                 "bootstrap_attempted",
+                "bootstrap_with_name_address",
+                "bootstrap_with_legacy_query",
                 "bootstrap_identity_confirmed",
                 "bootstrap_identity_ambiguous",
                 "canonical_candidates_created",
@@ -970,6 +987,8 @@ def run_my_pick_worker(
             for key in (
                 "existing_identity_reused",
                 "bootstrap_attempted",
+                "bootstrap_with_name_address",
+                "bootstrap_with_legacy_query",
                 "bootstrap_identity_confirmed",
                 "bootstrap_identity_ambiguous",
                 "canonical_candidates_created",

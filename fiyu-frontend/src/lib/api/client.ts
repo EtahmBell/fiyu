@@ -526,13 +526,14 @@ export function selectPersonalizedPick(
 
 export function submitMyPick(
   externalPlaceId: string,
-  userQueryHint: string,
+  userNameHint: string,
+  userAddressHint: string,
   options: RequestOptions = {},
 ): Promise<MyPick> {
   return requestJson(myPicksUrl(), paths.myPicks, myPickSchema, {
     ...options,
     method: "POST",
-    body: { provider: "google", external_place_id: externalPlaceId, user_query_hint: userQueryHint },
+    body: { provider: "google", external_place_id: externalPlaceId, user_name_hint: userNameHint, user_address_hint: userAddressHint },
   });
 }
 

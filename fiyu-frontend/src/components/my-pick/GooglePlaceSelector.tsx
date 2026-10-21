@@ -13,7 +13,8 @@ import { TOKYO_BOUNDS } from "@/lib/map/projection";
 
 export type GooglePlaceSelection = {
   placeId: string;
-  userQueryHint: string;
+  userNameHint: string;
+  userAddressHint: string;
   displayName: string;
   secondaryText: string | null;
 };
@@ -29,12 +30,14 @@ export function GooglePlaceSelector({
   onSelect,
 }: {
   disabled?: boolean;
-  onSelect: (selection: GooglePlaceSelection) => void;
+  onSelect: (selection: GooglePlaceSelection | null) => void;
 }) {
   const key = getGoogleMapsBrowserKey();
   const listboxId = useId();
   const [library, setLibrary] = useState<GooglePlacesLibrary | null>(null);
-  const [query, setQuery] = useState("");
+  const [name, setName] = useState("");
+  const [address, setAddress] = useState("");
+  const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<GoogleAutocompleteSuggestion[]>([]);
   const [activeIndex, setActiveIndex] = useState(-1);
   const [loading, setLoading] = useState(false);
@@ -62,10 +65,10 @@ export function GooglePlaceSelector({
   }, [key]);
 
   const search = () => {
-    const input = query.trim();
+    const input = `${name.trim()} ${address.trim()}`;
     const version = ++requestVersion.current;
-    if (input.length < MIN_QUERY_LENGTH) {
-      setError("Enter the restaurant's name.");
+    if (name.trim().length < MIN_QUERY_LENGTH || address.trim().length < MIN_QUERY_LENGTH) {
+      setError("Enter both the restaurant name and address.");
       return;
     }
     if (!library || !tokenRef.current) return;
@@ -80,13 +83,15 @@ export function GooglePlaceSelector({
       })
         .then(({ suggestions: next }) => {
           if (requestVersion.current !== version) return;
-          setSuggestions(next.filter((suggestion) => Boolean(predictionFor(suggestion)?.placeId)));
+          const matches = next.filter((suggestion) => Boolean(predictionFor(suggestion)?.placeId));
+          setSuggestions(matches);
+          if (matches.length === 0) setError("We couldn't find a matching restaurant. Check the name or address and try again.");
           setActiveIndex(-1);
         })
         .catch(() => {
           if (requestVersion.current !== version) return;
           setSuggestions([]);
-          setError("Restaurant suggestions are unavailable right now. Please try again.");
+          setError("We couldn't check restaurants right now. Try again.");
         })
         .finally(() => {
           if (requestVersion.current === version) setLoading(false);
@@ -96,16 +101,20 @@ export function GooglePlaceSelector({
   const choose = (suggestion: GoogleAutocompleteSuggestion) => {
     const prediction = predictionFor(suggestion);
     if (!prediction?.placeId) return;
+    setSelectedPlaceId(prediction.placeId);
     onSelect({
       placeId: prediction.placeId,
-      userQueryHint: query.trim(),
+      userNameHint: name.trim(),
+      userAddressHint: address.trim(),
       displayName: prediction.mainText?.text || prediction.text.text,
       secondaryText: prediction.secondaryText?.text || null,
     });
   };
 
-  const onChange = (value: string) => {
-    setQuery(value);
+  const onChange = (field: "name" | "address", value: string) => {
+    if (field === "name") setName(value); else setAddress(value);
+    setSelectedPlaceId(null);
+    onSelect(null);
     setActiveIndex(-1);
     requestVersion.current += 1;
     setSuggestions([]);
@@ -138,12 +147,12 @@ export function GooglePlaceSelector({
   const expanded = suggestions.length > 0;
   return (
     <div className="min-w-0 max-w-full">
-      <label htmlFor={`${listboxId}-input`} className="mb-2 block text-sm font-medium text-ink">Restaurant name</label>
+      <label htmlFor={`${listboxId}-name`} className="mb-2 block text-sm font-medium text-ink">Restaurant name <span aria-hidden="true">*</span></label>
       <input
-        id={`${listboxId}-input`}
+        id={`${listboxId}-name`}
         data-my-pick-search-input
         type="search"
-        value={query}
+        value={name}
         disabled={disabled || !key}
         placeholder=""
         autoComplete="off"
@@ -153,12 +162,25 @@ export function GooglePlaceSelector({
         aria-expanded={expanded}
         aria-controls={listboxId}
         aria-activedescendant={activeIndex >= 0 ? `${listboxId}-${activeIndex}` : undefined}
-        onChange={(event) => onChange(event.target.value)}
+        onChange={(event) => onChange("name", event.target.value)}
         onKeyDown={onKeyDown}
         className="min-h-12 w-full rounded-xl border border-line bg-canvas px-4 text-base text-ink outline-none placeholder:text-ink-faint focus:border-lavender-400 focus:ring-2 focus:ring-lavender-100 disabled:opacity-50"
       />
-      <p className="mt-2 text-xs leading-5 text-ink-muted">Enter the restaurant&apos;s name. Add the neighborhood if needed.</p>
-      <Button type="button" className="mt-4 w-full" variant="primary" disabled={disabled || !key || !library || loading || !query.trim()} onClick={search}>
+      <p className="mt-2 text-xs leading-5 text-ink-muted">Enter the name as you know it.</p>
+      <label htmlFor={`${listboxId}-address`} className="mt-4 mb-2 block text-sm font-medium text-ink">Restaurant address <span aria-hidden="true">*</span></label>
+      <input
+        id={`${listboxId}-address`}
+        type="text"
+        value={address}
+        disabled={disabled || !key}
+        autoComplete="street-address"
+        maxLength={500}
+        onChange={(event) => onChange("address", event.target.value)}
+        onKeyDown={onKeyDown}
+        className="min-h-12 w-full rounded-xl border border-line bg-canvas px-4 text-base text-ink outline-none focus:border-lavender-400 focus:ring-2 focus:ring-lavender-100 disabled:opacity-50"
+      />
+      <p className="mt-2 text-xs leading-5 text-ink-muted">Enter or paste the restaurant&apos;s address.</p>
+      <Button type="button" className="mt-4 w-full" variant="primary" disabled={disabled || !key || !library || loading || !name.trim() || !address.trim()} onClick={search}>
         {loading ? "Finding restaurants…" : "Find restaurant"}
       </Button>
 
@@ -173,15 +195,15 @@ export function GooglePlaceSelector({
                 const main = prediction.mainText?.text || prediction.text.text;
                 const secondary = prediction.secondaryText?.text;
                 return (
-                  <li key={`${prediction.placeId}-${index}`} role="option" aria-selected={activeIndex === index}>
+                  <li key={`${prediction.placeId}-${index}`} role="option" aria-selected={selectedPlaceId === prediction.placeId}>
                     <button
                       id={`${listboxId}-${index}`}
                       type="button"
                       onMouseEnter={() => setActiveIndex(index)}
                       onClick={() => choose(suggestion)}
-                      className={`block w-full px-4 py-3 text-left ${activeIndex === index ? "bg-lavender-50" : "hover:bg-subtle"}`}
+                      className={`block w-full px-4 py-3 text-left ${selectedPlaceId === prediction.placeId || activeIndex === index ? "bg-lavender-50" : "hover:bg-subtle"}`}
                     >
-                      <span className="block text-sm font-medium text-ink">{main}</span>
+                      <span className="block text-sm font-medium text-ink">{selectedPlaceId === prediction.placeId ? "✓ " : ""}{main}</span>
                       {secondary ? <span className="mt-0.5 block text-xs leading-5 text-ink-muted">{secondary}</span> : null}
                     </button>
                   </li>

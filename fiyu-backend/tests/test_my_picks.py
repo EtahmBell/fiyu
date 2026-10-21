@@ -4,12 +4,13 @@ import json
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from threading import Lock
+from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
 
-from fiyu import api, my_pick_processor, my_picks, pipeline_cli
+from fiyu import api, my_pick_identity_bootstrap, my_pick_processor, my_picks, pipeline_cli
 from fiyu.database import SCHEMA, connect
 from fiyu.my_pick_identity_bootstrap import (
     MyPickIdentityBootstrap,
@@ -89,6 +90,32 @@ def confirmed_bootstrap(name: str = "Independent canonical name"):
         provider_requests=1,
         web_search_actions=1,
     )
+
+
+def test_identity_bootstrap_prompt_separates_untrusted_name_and_address():
+    captured = {}
+
+    class Responses:
+        def parse(self, **kwargs):
+            captured.update(kwargs)
+            return SimpleNamespace(
+                output_parsed=confirmed_bootstrap().result,
+                output=[],
+                status="completed",
+            )
+
+    my_pick_identity_bootstrap.run_my_pick_identity_bootstrap(
+        user_name_hint="Ramen Sawada",
+        user_address_hint="1-5-12 Kichijoji Minamicho",
+        model="test-model",
+        client=SimpleNamespace(responses=Responses()),
+    )
+
+    prompt = captured["input"][1]["content"]
+    assert "User-supplied restaurant name: 'Ramen Sawada'" in prompt
+    assert "User-supplied address: '1-5-12 Kichijoji Minamicho'" in prompt
+    assert "discovery hints, not canonical facts" in prompt
+    assert "opaque-google-place-id" not in prompt
 
 
 def test_existing_published_current_score_is_ready_without_worker(catalog):
@@ -484,6 +511,7 @@ def test_missing_research_provider_is_a_safe_retryable_failure(catalog, monkeypa
     failed = my_picks.get_canonical_work(catalog, str(work["id"]))
 
     assert summary["failed_retryable"] == 1
+    assert summary["bootstrap_with_legacy_query"] == 1
     assert failed["status"] == "failed_retryable"
     assert failed["failure_code"] == "research_provider_unconfigured"
     assert "private-detail" not in json.dumps(failed)
@@ -506,7 +534,8 @@ def test_ambiguous_bootstrap_stays_needs_review_without_creating_candidate(
         catalog,
         provider="google",
         external_place_id="opaque-ambiguous",
-        identity_bootstrap_hint="sushi",
+        identity_bootstrap_name_hint="Ramen Sawada",
+        identity_bootstrap_address_hint="A contradictory Tokyo address",
     )
     ambiguous = MyPickIdentityBootstrapCall(
         result=MyPickIdentityBootstrap(
@@ -537,6 +566,7 @@ def test_ambiguous_bootstrap_stays_needs_review_without_creating_candidate(
     assert updated["canonical_place_id"] is None
     assert updated["identity_bootstrap_status"] == "ambiguous"
     assert summary["bootstrap_identity_ambiguous"] == 1
+    assert summary["bootstrap_with_name_address"] == 1
     assert summary["provider_requests"] == 1
 
 
@@ -615,7 +645,8 @@ def test_production_processor_reuses_canonical_stages_without_publishing(
         catalog,
         provider="google",
         external_place_id=f"new-{int(score)}",
-        identity_bootstrap_hint="Independent Restaurant Chiyoda",
+        identity_bootstrap_name_hint="Independent Restaurant",
+        identity_bootstrap_address_hint="1-2-3 Chiyoda, Tokyo",
     )
     calls = {"research": 0, "location": 0, "quality": 0, "promotion": 0}
 
@@ -672,11 +703,13 @@ def test_production_processor_reuses_canonical_stages_without_publishing(
         return {"promoted": 1}
 
     monkeypatch.setattr(my_pick_processor, "run_research_batch", research)
-    monkeypatch.setattr(
-        my_pick_processor,
-        "run_my_pick_identity_bootstrap",
-        lambda *_args, **_kwargs: confirmed_bootstrap(),
-    )
+    bootstrap_inputs = []
+
+    def bootstrap(*_args, **kwargs):
+        bootstrap_inputs.append(kwargs)
+        return confirmed_bootstrap()
+
+    monkeypatch.setattr(my_pick_processor, "run_my_pick_identity_bootstrap", bootstrap)
     monkeypatch.setattr(my_pick_processor, "verify_location", locate)
     monkeypatch.setattr(my_pick_processor, "run_quality_v4_backfill", quality)
     monkeypatch.setattr(my_pick_processor, "promote_quality_v4_allowlist", promote)
@@ -697,6 +730,13 @@ def test_production_processor_reuses_canonical_stages_without_publishing(
     assert summary["provider_requests"] == 3
     assert summary["web_search_actions"] == 4
     assert summary["bootstrap_identity_confirmed"] == 1
+    assert summary["bootstrap_with_name_address"] == 1
+    assert summary["bootstrap_with_legacy_query"] == 0
+    assert bootstrap_inputs == [{
+        "user_name_hint": "Independent Restaurant",
+        "user_address_hint": "1-2-3 Chiyoda, Tokyo",
+        "model": None,
+    }]
     assert summary["canonical_candidates_created"] == 1
     assert summary["review_queue_additions"] == expected_reviews
     assert calls == {"research": 1, "location": 1, "quality": 1, "promotion": 1}
@@ -865,7 +905,7 @@ def my_pick_api(catalog, monkeypatch):
             ),
         }
 
-    def create_or_get(*, user_id, provider, external_place_id, display_name_hint, user_query_hint, canonical_work_id):
+    def create_or_get(*, user_id, provider, external_place_id, display_name_hint, user_query_hint, user_name_hint, user_address_hint, canonical_work_id):
         with quota_lock:
             key = (user_id, provider, external_place_id)
             reused = key in rows
@@ -881,6 +921,8 @@ def my_pick_api(catalog, monkeypatch):
                     "external_place_id": external_place_id,
                     "display_name_hint": display_name_hint,
                     "user_query_hint": user_query_hint,
+                    "user_name_hint": user_name_hint,
+                    "user_address_hint": user_address_hint,
                     "canonical_work_id": canonical_work_id,
                     "status": "pending",
                     "created_at": now,
@@ -920,12 +962,24 @@ def my_pick_api(catalog, monkeypatch):
     return TestClient(api.app), user_ids, rows
 
 
+def my_pick_payload(external_place_id: str, **values):
+    return {
+        "provider": "google",
+        "external_place_id": external_place_id,
+        "user_name_hint": "User restaurant name",
+        "user_address_hint": "1-2-3 User address, Tokyo",
+        **values,
+    }
+
+
 def test_api_auth_ownership_idempotency_and_shared_work(my_pick_api):
     client, _user_ids, rows = my_pick_api
     payload = {
         "provider": "google_places",
         "external_place_id": "new-shared",
         "user_query_hint": "Toritsune Shizendo",
+        "user_name_hint": "Toritsune Shizendo",
+        "user_address_hint": "1-2-3 Sotokanda, Chiyoda, Tokyo",
     }
     assert client.post("/my-picks", json=payload).status_code == 401
 
@@ -937,7 +991,7 @@ def test_api_auth_ownership_idempotency_and_shared_work(my_pick_api):
     )
     other = client.post(
         "/my-picks",
-        json={**payload, "user_query_hint": "鳥つね自然洞"},
+        json={**payload, "user_query_hint": "鳥つね自然洞", "user_name_hint": "鳥つね自然洞"},
         headers={"Authorization": "Bearer token-b"},
     )
 
@@ -946,10 +1000,13 @@ def test_api_auth_ownership_idempotency_and_shared_work(my_pick_api):
     assert first.json()["my_pick_id"] != other.json()["my_pick_id"]
     assert first.json()["user_query_hint"] == "Toritsune Shizendo"
     assert other.json()["user_query_hint"] == "鳥つね自然洞"
+    assert first.json()["user_name_hint"] == "Toritsune Shizendo"
+    assert other.json()["user_name_hint"] == "鳥つね自然洞"
     assert len(rows) == 2
     with connect(api.DB_PATH) as connection:
         work_rows = connection.execute(
-            "SELECT submission_count, provider_request_count, identity_bootstrap_hint "
+            "SELECT submission_count, provider_request_count, identity_bootstrap_hint, "
+            "identity_bootstrap_name_hint, identity_bootstrap_address_hint "
             "FROM my_pick_canonical_work"
         ).fetchall()
     assert [
@@ -957,10 +1014,12 @@ def test_api_auth_ownership_idempotency_and_shared_work(my_pick_api):
             row["submission_count"],
             row["provider_request_count"],
             row["identity_bootstrap_hint"],
+            row["identity_bootstrap_name_hint"],
+            row["identity_bootstrap_address_hint"],
         )
         for row in work_rows
     ] == [
-        (2, 0, "Toritsune Shizendo")
+        (2, 0, "Toritsune Shizendo", "Toritsune Shizendo", "1-2-3 Sotokanda, Chiyoda, Tokyo")
     ]
 
     other_read = client.get(
@@ -975,7 +1034,7 @@ def test_api_auth_ownership_idempotency_and_shared_work(my_pick_api):
 
 def test_shared_worker_completion_projects_to_both_waiting_users(my_pick_api):
     client, _user_ids, rows = my_pick_api
-    payload = {"provider": "google", "external_place_id": "two-user-new"}
+    payload = my_pick_payload("two-user-new")
     first = client.post(
         "/my-picks", json=payload, headers={"Authorization": "Bearer token-a"}
     )
@@ -1020,13 +1079,35 @@ def test_api_rejects_user_controlled_canonical_fields(my_pick_api):
     assert response.status_code == 422
 
 
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"provider": "google", "external_place_id": "missing-both"},
+        {
+            "provider": "google", "external_place_id": "missing-address",
+            "user_name_hint": "Restaurant",
+        },
+        {
+            "provider": "google", "external_place_id": "blank-name",
+            "user_name_hint": "  ", "user_address_hint": "Tokyo",
+        },
+    ],
+)
+def test_api_requires_both_user_owned_identity_hints(my_pick_api, payload):
+    client, _users, _rows = my_pick_api
+    response = client.post(
+        "/my-picks", json=payload, headers={"Authorization": "Bearer token-a"}
+    )
+    assert response.status_code == 422
+
+
 def test_api_enforces_three_distinct_my_picks_per_rolling_day(my_pick_api):
     client, _users, _rows = my_pick_api
     headers = {"Authorization": "Bearer token-a"}
     responses = [
         client.post(
             "/my-picks",
-            json={"provider": "google", "external_place_id": f"quota-{index}"},
+            json=my_pick_payload(f"quota-{index}"),
             headers=headers,
         )
         for index in range(4)
@@ -1043,7 +1124,7 @@ def test_same_my_pick_is_reused_after_quota_is_exhausted(my_pick_api):
     client, _users, _rows = my_pick_api
     headers = {"Authorization": "Bearer token-a"}
     payloads = [
-        {"provider": "google", "external_place_id": f"same-safe-{index}"}
+        my_pick_payload(f"same-safe-{index}")
         for index in range(3)
     ]
     created = [client.post("/my-picks", json=payload, headers=headers) for payload in payloads]
@@ -1061,7 +1142,7 @@ def test_known_public_restaurant_still_consumes_a_new_account_slot(my_pick_api):
 
     created = client.post(
         "/my-picks",
-        json={"provider": "google", "external_place_id": "already-public"},
+        json=my_pick_payload("already-public"),
         headers=headers,
     )
 
@@ -1073,7 +1154,7 @@ def test_known_public_restaurant_still_consumes_a_new_account_slot(my_pick_api):
 def test_retrying_same_durable_failed_pick_does_not_consume_another_slot(my_pick_api):
     client, users, rows = my_pick_api
     headers = {"Authorization": "Bearer token-a"}
-    payload = {"provider": "google", "external_place_id": "retry-durable"}
+    payload = my_pick_payload("retry-durable")
     first = client.post("/my-picks", json=payload, headers=headers)
     key = (users["token-a"], "google", "retry-durable")
     rows[key]["status"] = "failed_retryable"
@@ -1091,7 +1172,7 @@ def test_rolling_quota_restores_a_slot_after_twenty_four_hours(my_pick_api):
     for index in range(3):
         assert client.post(
             "/my-picks",
-            json={"provider": "google", "external_place_id": f"rolling-{index}"},
+            json=my_pick_payload(f"rolling-{index}"),
             headers=headers,
         ).status_code == 202
     rows[(user_ids["token-a"], "google", "rolling-0")]["created_at"] = (
@@ -1101,7 +1182,7 @@ def test_rolling_quota_restores_a_slot_after_twenty_four_hours(my_pick_api):
     quota = client.get("/my-picks/quota", headers=headers)
     fourth = client.post(
         "/my-picks",
-        json={"provider": "google", "external_place_id": "rolling-3"},
+        json=my_pick_payload("rolling-3"),
         headers=headers,
     )
     assert quota.json() == {
@@ -1116,7 +1197,7 @@ def test_quota_endpoint_is_authenticated_and_account_scoped(my_pick_api):
     assert client.get("/my-picks/quota").status_code == 401
     client.post(
         "/my-picks",
-        json={"provider": "google", "external_place_id": "owned-quota"},
+        json=my_pick_payload("owned-quota"),
         headers={"Authorization": "Bearer token-a"},
     )
     assert client.get(
@@ -1133,7 +1214,7 @@ def test_concurrent_distinct_submissions_cannot_exceed_quota(my_pick_api):
     def submit(index):
         return client.post(
             "/my-picks",
-            json={"provider": "google", "external_place_id": f"race-{index}"},
+            json=my_pick_payload(f"race-{index}"),
             headers={"Authorization": "Bearer token-a"},
         ).status_code
 
@@ -1186,3 +1267,12 @@ def test_migration_has_rls_atomic_idempotency_and_server_side_rate_limit():
     assert "p_user_query_hint text" in query_hint_migration
     assert "to service_role" in query_hint_migration
     assert "authenticated;" in query_hint_migration
+    name_address_migration = (
+        api.BACKEND_ROOT
+        / "supabase/migrations/202610200003_my_pick_name_address_hints.sql"
+    ).read_text(encoding="utf-8")
+    assert "add column if not exists user_name_hint" in name_address_migration
+    assert "add column if not exists user_address_hint" in name_address_migration
+    assert "p_user_name_hint text" in name_address_migration
+    assert "p_user_address_hint text" in name_address_migration
+    assert "to service_role" in name_address_migration

@@ -36,7 +36,7 @@ class MyPickIdentityBootstrapCall:
 
 
 SYSTEM_PROMPT = """You establish the identity of one restaurant requested by a Fiyu user.
-The user query is an untrusted discovery clue, not evidence. Search independent public web sources
+The user-supplied name and address are untrusted discovery clues, not evidence. Search independent public web sources
 for the exact Tokyo/Kanto restaurant. Never use Google Maps or Google Places content as evidence.
 Confirm only when sources distinguish one restaurant from similarly named businesses and support
 its name plus area/address context. Use ambiguous when multiple plausible identities remain or the
@@ -44,13 +44,17 @@ evidence is insufficient. Do not score quality. Return only the structured resul
 
 
 def run_my_pick_identity_bootstrap(
-    user_query_hint: str,
+    user_query_hint: str | None = None,
     *,
+    user_name_hint: str | None = None,
+    user_address_hint: str | None = None,
     model: str | None = None,
     client: OpenAI | None = None,
 ) -> MyPickIdentityBootstrapCall:
-    hint = user_query_hint.strip()
-    if not hint:
+    name_hint = (user_name_hint or "").strip()
+    address_hint = (user_address_hint or "").strip()
+    legacy_hint = (user_query_hint or "").strip()
+    if not ((name_hint and address_hint) or legacy_hint):
         raise ValueError("identity_bootstrap_hint_missing")
     load_dotenv()
     selected_model = model or os.getenv("FIYU_MY_PICK_MODEL") or os.getenv(
@@ -72,7 +76,13 @@ def run_my_pick_identity_bootstrap(
                 "role": "user",
                 "content": (
                     "Independently identify this restaurant in Tokyo/Kanto. "
-                    f"User-authored search clue: {hint!r}. "
+                    + (
+                        f"User-supplied restaurant name: {name_hint!r}. "
+                        f"User-supplied address: {address_hint!r}. "
+                        if name_hint and address_hint
+                        else f"Legacy user-authored search clue: {legacy_hint!r}. "
+                    )
+                    + "These values are discovery hints, not canonical facts. "
                     "The provider identifier is intentionally omitted because it is opaque."
                 ),
             },

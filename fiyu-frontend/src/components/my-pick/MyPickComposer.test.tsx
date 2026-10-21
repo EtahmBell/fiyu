@@ -8,8 +8,8 @@ import { FiyuApiError } from "@/lib/api/errors";
 const api = vi.hoisted(() => ({ fetchMyPickQuota: vi.fn(), submitMyPick: vi.fn() }));
 vi.mock("@/lib/api/client", () => api);
 vi.mock("@/components/my-pick/GooglePlaceSelector", () => ({
-  GooglePlaceSelector: ({ onSelect }: { onSelect(selection: { placeId: string; userQueryHint: string; displayName: string; secondaryText: string }): void }) => (
-    <button onClick={() => onSelect({ placeId: "google-place-1", userQueryHint: "Toritsune Shizendo", displayName: "Toritsune", secondaryText: "Shibuya, Tokyo" })}>Mock Google suggestion</button>
+  GooglePlaceSelector: ({ onSelect }: { onSelect(selection: { placeId: string; userNameHint: string; userAddressHint: string; displayName: string; secondaryText: string }): void }) => (
+    <button onClick={() => onSelect({ placeId: "google-place-1", userNameHint: "Toritsune Shizendo", userAddressHint: "1-2-3 Shibuya, Tokyo", displayName: "Toritsune", secondaryText: "Shibuya, Tokyo" })}>Mock Google suggestion</button>
   ),
 }));
 
@@ -34,12 +34,9 @@ describe("MyPickComposer", () => {
     expect(dialog.className).not.toContain("mt-auto");
     expect(await screen.findByText("3 My Picks available now")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Mock Google suggestion" }));
-    expect(screen.getByText(/independently look into this restaurant/)).toBeTruthy();
-    expect(screen.getByText("Toritsune")).toBeTruthy();
-    expect(screen.getByText("Shibuya, Tokyo")).toBeTruthy();
+    expect(screen.getByRole<HTMLButtonElement>("button", { name: "Submit to Fiyu →" }).disabled).toBe(false);
     expect(screen.queryByText("Your Google Places selection")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Search again" }));
-    expect(screen.getByRole("button", { name: "Mock Google suggestion" })).toBeTruthy();
+    expect(screen.queryByText(/Is this it/i)).toBeNull();
   });
 
   it("submits only the selected Place ID and refreshes quota without blocking completion", async () => {
@@ -51,11 +48,11 @@ describe("MyPickComposer", () => {
     render(<MyPickComposer open onClose={onClose} onSubmitted={onSubmitted} />);
     await screen.findByText("3 My Picks available now");
     fireEvent.click(screen.getByRole("button", { name: "Mock Google suggestion" }));
-    fireEvent.click(screen.getByRole("button", { name: "Ask Fiyu about this place" }));
-    expect(api.submitMyPick).toHaveBeenCalledWith("google-place-1", "Toritsune Shizendo");
+    fireEvent.click(screen.getByRole("button", { name: "Submit to Fiyu →" }));
+    expect(api.submitMyPick).toHaveBeenCalledWith("google-place-1", "Toritsune Shizendo", "1-2-3 Shibuya, Tokyo");
     expect(await screen.findByText("Submitted to Fiyu")).toBeTruthy();
     expect(onSubmitted).toHaveBeenCalledWith(response);
-    expect(await screen.findByText("2 of 3 My Picks remaining")).toBeTruthy();
+    await waitFor(() => expect(api.fetchMyPickQuota).toHaveBeenCalledTimes(2));
     expect(screen.queryByText(/researching|progress/i)).toBeNull();
     expect(screen.queryByRole("link", { name: "View My Picks" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Done" }));
@@ -99,7 +96,7 @@ describe("MyPickComposer", () => {
     render(<MyPickComposer open onClose={vi.fn()} />);
     await screen.findByText("3 My Picks available now");
     fireEvent.click(screen.getByRole("button", { name: "Mock Google suggestion" }));
-    fireEvent.click(screen.getByRole("button", { name: "Ask Fiyu about this place" }));
+    fireEvent.click(screen.getByRole("button", { name: "Submit to Fiyu →" }));
     expect(await screen.findByText("0 of 3 My Picks remaining")).toBeTruthy();
     expect(screen.getByText("You've used your 3 My Picks for now.")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Mock Google suggestion" })).toBeNull();

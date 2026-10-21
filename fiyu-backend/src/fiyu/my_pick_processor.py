@@ -193,6 +193,8 @@ class ProductionMyPickProcessor:
         counts = {
             "existing_identity_reused": 0,
             "bootstrap_attempted": 0,
+            "bootstrap_with_name_address": 0,
+            "bootstrap_with_legacy_query": 0,
             "bootstrap_identity_confirmed": 0,
             "bootstrap_identity_ambiguous": 0,
             "canonical_candidates_created": 0,
@@ -215,14 +217,25 @@ class ProductionMyPickProcessor:
             if stored and str(job.get("identity_bootstrap_status")) == "confirmed":
                 identity = json.loads(stored)
             else:
-                hint = str(job.get("identity_bootstrap_hint") or "").strip()
-                if not hint:
+                name_hint = str(job.get("identity_bootstrap_name_hint") or "").strip()
+                address_hint = str(job.get("identity_bootstrap_address_hint") or "").strip()
+                legacy_hint = str(job.get("identity_bootstrap_hint") or "").strip()
+                if not ((name_hint and address_hint) or legacy_hint):
                     raise MyPickProcessingError(
                         "identity_not_confirmed", status="needs_review", counts=counts
                     )
                 counts["bootstrap_attempted"] = 1
                 try:
-                    bootstrap = run_my_pick_identity_bootstrap(hint, model=self.model)
+                    if name_hint and address_hint:
+                        counts["bootstrap_with_name_address"] = 1
+                        bootstrap = run_my_pick_identity_bootstrap(
+                            user_name_hint=name_hint,
+                            user_address_hint=address_hint,
+                            model=self.model,
+                        )
+                    else:
+                        counts["bootstrap_with_legacy_query"] = 1
+                        bootstrap = run_my_pick_identity_bootstrap(legacy_hint, model=self.model)
                 except RuntimeError as exc:
                     raise MyPickProcessingError(
                         "identity_bootstrap_unavailable",

@@ -12,7 +12,7 @@ import { fetchMyPickQuota, submitMyPick } from "@/lib/api/client";
 import { FiyuApiError } from "@/lib/api/errors";
 import { type MyPick, type MyPickQuota, myPickQuotaErrorSchema } from "@/lib/api/schemas";
 
-type ComposerState = "search" | "confirm" | "submitting" | "submitted";
+type ComposerState = "search" | "submitting" | "submitted";
 
 function nextAvailability(timestamp: string | null): string | null {
   if (!timestamp) return null;
@@ -41,7 +41,7 @@ export function MyPickComposer({
 }) {
   const [state, setState] = useState<ComposerState>("search");
   const [selection, setSelection] = useState<GooglePlaceSelection | null>(null);
-  const [userQueryHint, setUserQueryHint] = useState<string | null>(null);
+  const [selectorKey, setSelectorKey] = useState(0);
   const [quota, setQuota] = useState<MyPickQuota | null>(null);
   const [quotaLoading, setQuotaLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -49,6 +49,13 @@ export function MyPickComposer({
   const openerRef = useRef<HTMLElement | null>(null);
   const titleId = useId();
   const descriptionId = useId();
+
+  const resetComposer = useCallback(() => {
+    setState("search");
+    setSelection(null);
+    setError(null);
+    setSelectorKey((value) => value + 1);
+  }, []);
 
   const refreshQuota = useCallback(async (signal?: AbortSignal) => {
     try {
@@ -93,27 +100,30 @@ export function MyPickComposer({
   useEffect(() => {
     if (!open) return;
     const escape = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && state !== "submitting") onClose();
+      if (event.key === "Escape" && state !== "submitting") {
+        if (state === "submitted") resetComposer();
+        onClose();
+      }
     };
     document.addEventListener("keydown", escape);
     return () => document.removeEventListener("keydown", escape);
-  }, [onClose, open, state]);
+  }, [onClose, open, resetComposer, state]);
 
   const close = () => {
-    if (state !== "submitting") onClose();
+    if (state === "submitting") return;
+    if (state === "submitted") resetComposer();
+    onClose();
   };
-  const choose = useCallback((selected: GooglePlaceSelection) => {
+  const choose = useCallback((selected: GooglePlaceSelection | null) => {
     setSelection(selected);
-    setUserQueryHint(selected.userQueryHint);
     setError(null);
-    setState("confirm");
   }, []);
   const submit = async () => {
-    if (!selection || !userQueryHint) return;
+    if (!selection) return;
     setError(null);
     setState("submitting");
     try {
-      const result = await submitMyPick(selection.placeId, userQueryHint);
+      const result = await submitMyPick(selection.placeId, selection.userNameHint, selection.userAddressHint);
       onSubmitted?.(result);
       setState("submitted");
       void refreshQuota();
@@ -128,7 +138,7 @@ export function MyPickComposer({
         setState("search");
       } else {
         setError("My Pick could not be submitted right now. Please try again.");
-        setState("confirm");
+        setState("search");
       }
     }
   };
@@ -180,9 +190,7 @@ export function MyPickComposer({
         </div>
 
         <div className="min-w-0 pt-2">
-          {quota ? <p className="mb-4 text-xs text-ink-muted" aria-live="polite">{quotaSummary(quota)}</p> : quotaLoading ? <p className="mb-4 text-xs text-ink-muted">Checking availability…</p> : null}
-
-          {state === "search" ? (
+          {state === "search" || state === "submitting" ? (
             <>
               <p id={descriptionId} className="text-sm leading-6 text-ink-muted">Give Fiyu a restaurant and we&apos;ll score it.</p>
               {exhausted ? (
@@ -191,25 +199,14 @@ export function MyPickComposer({
                   {availability ? <p className="mt-1 text-sm leading-6 text-ink-muted">{availability}</p> : null}
                 </div>
               ) : (
-                <div className="relative isolate mt-5 min-w-0 max-w-full overflow-visible"><GooglePlaceSelector onSelect={choose} /></div>
+                <div className="relative isolate mt-5 min-w-0 max-w-full overflow-visible">
+                  <GooglePlaceSelector key={selectorKey} disabled={state === "submitting"} onSelect={choose} />
+                  <Button className="mt-4 w-full" variant="primary" disabled={!selection || state === "submitting"} onClick={() => void submit()}>{state === "submitting" ? "Submitting…" : "Submit to Fiyu →"}</Button>
+                </div>
               )}
+              {quota ? <p className="mt-4 text-xs text-ink-muted" aria-live="polite">{quotaSummary(quota)}</p> : quotaLoading ? <p className="mt-4 text-xs text-ink-muted">Checking availability…</p> : null}
               {error ? <p role="alert" className="mt-3 text-sm text-dusty-rose">{error}</p> : null}
             </>
-          ) : null}
-
-          {state === "confirm" || state === "submitting" ? (
-            <div aria-live="polite">
-              <p id={descriptionId} className="text-sm leading-6 text-ink-muted">Fiyu will independently look into this restaurant and work out its Fiyu Score.</p>
-              <div className="mt-5 rounded-xl border border-line bg-subtle px-4 py-4">
-                <p className="text-xs font-semibold tracking-wide text-ink-muted uppercase">Selected restaurant</p>
-                <p className="mt-1 text-sm font-medium text-ink">{selection?.displayName}</p>
-                {selection?.secondaryText ? <p className="mt-1 text-xs leading-5 text-ink-muted">{selection.secondaryText}</p> : null}
-                <p translate="no" className="mt-3 text-xs font-normal tracking-normal text-[#5E5E5E]">Google Maps</p>
-              </div>
-              <button type="button" className="mt-3 min-h-11 text-sm font-medium text-plum hover:text-plum-700" disabled={state === "submitting"} onClick={() => { setSelection(null); setUserQueryHint(null); setError(null); setState("search"); }}>Search again</button>
-              <Button className="mt-3 w-full" variant="primary" disabled={state === "submitting"} onClick={() => void submit()}>{state === "submitting" ? "Submitting…" : "Ask Fiyu about this place"}</Button>
-              {error ? <p role="alert" className="mt-3 text-sm text-dusty-rose">{error}</p> : null}
-            </div>
           ) : null}
 
           {state === "submitted" ? (

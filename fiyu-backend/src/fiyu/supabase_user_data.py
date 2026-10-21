@@ -135,6 +135,8 @@ def create_or_get_my_pick(
     external_place_id: str,
     display_name_hint: str | None,
     user_query_hint: str | None,
+    user_name_hint: str,
+    user_address_hint: str,
     canonical_work_id: str,
 ) -> dict[str, Any]:
     try:
@@ -147,6 +149,8 @@ def create_or_get_my_pick(
                 "p_external_place_id": external_place_id,
                 "p_display_name_hint": display_name_hint,
                 "p_user_query_hint": user_query_hint,
+                "p_user_name_hint": user_name_hint,
+                "p_user_address_hint": user_address_hint,
                 "p_canonical_work_id": str(UUID(canonical_work_id)),
             },
         )

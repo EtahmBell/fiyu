@@ -33,6 +33,8 @@ const base: MyPick = {
   external_place_id: "google-1",
   display_name_hint: null,
   user_query_hint: null,
+  user_name_hint: null,
+  user_address_hint: null,
   status: "ready",
   status_message: "ready",
   failure_code: null,
