@@ -23,6 +23,12 @@ from fiyu.my_pick_identity_bootstrap import (
     MyPickIdentityBootstrap,
     MyPickIdentityBootstrapCall,
 )
+from fiyu.pipeline_runs import (
+    claim_next_pipeline_item,
+    create_pipeline_run,
+    finish_pipeline_item,
+    mark_pipeline_item_running,
+)
 from fiyu.public_catalog import ensure_public_schema
 from fiyu.quality_v4 import QUALITY_PRODUCTION_SCORE_VERSION
 
@@ -666,6 +672,206 @@ def test_bootstrapped_candidate_enters_normal_research_without_seed_or_opaque_pr
     assert stored["source_files_json"] == '["my_pick:google"]'
 
 
+def test_unknown_my_pick_scoped_research_executes_past_stale_global_ledger(
+    catalog, monkeypatch
+):
+    external_id = "opaque-google-sawada"
+    work, _ = my_picks.create_or_get_canonical_work(
+        catalog,
+        provider="google",
+        external_place_id=external_id,
+        identity_bootstrap_name_hint="Ramen Sawada",
+        identity_bootstrap_address_hint=(
+            "Japan, 〒180-0003 Tokyo, Musashino, Kichijoji Minamicho, "
+            "1 Chome−1−4 Mikawaya Building, 1F"
+        ),
+    )
+    stale_run = create_pipeline_run(
+        catalog,
+        run_type="standard_restaurant_research",
+        item_keys=[external_id],
+        work_key=research_worker._research_work_key("test-model", None),
+        selector={},
+        config={
+            "model": "test-model",
+            "prompt_version": research_worker.PROMPT_VERSION,
+            "pipeline_version": research_worker.RESEARCH_PIPELINE_VERSION,
+        },
+        requested_item_count=1,
+    )
+    stale_claim = claim_next_pipeline_item(
+        catalog, stale_run, worker_id="pre-reset-worker"
+    )
+    mark_pipeline_item_running(
+        catalog, stale_claim["id"], stale_claim["claim_token"]
+    )
+    finish_pipeline_item(
+        catalog,
+        stale_claim["id"],
+        stale_claim["claim_token"],
+        state="succeeded",
+    )
+
+    bootstrap = MyPickIdentityBootstrapCall(
+        result=MyPickIdentityBootstrap(
+            identity_status="confirmed",
+            identity_confidence=0.95,
+            canonical_name_ja="らぁ麺 さわ田",
+            canonical_name_en="Raa Men Sawada",
+            city="Musashino",
+            neighborhood="Kichijoji Minamicho",
+            address="1 Chome−1−4 Mikawaya Building, 1F",
+            primary_category="Ramen restaurant",
+            supporting_urls=[
+                "https://restaurant.example/sawada",
+                "https://editorial.example/sawada",
+            ],
+            independent_source_count=2,
+        ),
+        provider_requests=1,
+        web_search_actions=1,
+    )
+    monkeypatch.setattr(
+        my_pick_processor, "run_my_pick_identity_bootstrap", lambda **_kwargs: bootstrap
+    )
+    monkeypatch.setenv("OPENAI_API_KEY", "not-real")
+    monkeypatch.setattr(research_worker, "load_dotenv", lambda: None)
+    monkeypatch.setattr(
+        research_worker, "OpenAI", lambda **_kwargs: SimpleNamespace(responses=None)
+    )
+    research_calls = []
+
+    def research_response(candidate, **_kwargs):
+        research_calls.append(dict(candidate))
+        with connect(catalog) as connection:
+            assert connection.execute(
+                "SELECT status FROM restaurant_research_runs "
+                "WHERE public_restaurant_id=? ORDER BY id DESC LIMIT 1",
+                (external_id,),
+            ).fetchone()[0] == "running"
+        return SimpleNamespace(
+            id="response-research-sawada",
+            model="test-model",
+            status="completed",
+            output=[],
+            usage=SimpleNamespace(
+                input_tokens=10,
+                output_tokens=5,
+                total_tokens=15,
+                model_dump=lambda: {
+                    "input_tokens": 10,
+                    "output_tokens": 5,
+                    "total_tokens": 15,
+                },
+            ),
+            output_parsed={
+                "matched_restaurant": True,
+                "identity_confidence": 0.95,
+                "name_ja": "らぁ麺 さわ田",
+                "name_en": "Raa Men Sawada",
+                "primary_category": "Ramen restaurant",
+                "food_tags": ["ramen"],
+                "signature_dishes": ["shoyu ramen"],
+                "official_language": "ja",
+                "japanese_source_count": 2,
+                "english_tourist_source_count": 0,
+                "tourist_coverage": "low",
+                "reservation_platform_count": 0,
+                "official_website_found": True,
+                "social_profile_count": 1,
+                "chain_classification": "independent_single",
+                "known_location_count": 1,
+                "specialist_status": "specialist",
+                "independent_positive_source_count": 2,
+                "total_evidence_sources": 2,
+                "conflicting_evidence": False,
+                "local_audience": "high",
+                "tourist_orientation": "low",
+                "international_visibility": "low",
+                "corporate_visibility": "low",
+                "venue_format": "fixed_venue",
+                "food_drink_primary": True,
+                "why_fiyu": "Independent ramen specialist with grounded local evidence.",
+                "evidence_urls": [
+                    "https://restaurant.example/sawada",
+                    "https://editorial.example/sawada",
+                ],
+            },
+        )
+
+    monkeypatch.setattr(research_worker, "_research_response", research_response)
+
+    def locate(db_path, place_id, **_kwargs):
+        with connect(db_path) as connection:
+            connection.execute(
+                "UPDATE public_restaurants SET latitude=35.703, longitude=139.58, "
+                "map_display_eligible=1, map_location_precision='exact' "
+                "WHERE place_id=?",
+                (place_id,),
+            )
+            connection.commit()
+        return {"cost": {}}
+
+    def quality(db_path, *, place_id, **_kwargs):
+        with connect(db_path) as connection:
+            connection.execute(
+                "UPDATE public_restaurants SET fiyu_score=42, score_version=? "
+                "WHERE place_id=?",
+                (QUALITY_PRODUCTION_SCORE_VERSION, place_id),
+            )
+            connection.commit()
+        return {"completed": 1, "responses_requests": 1, "web_search_actions": 1}
+
+    monkeypatch.setattr(my_pick_processor, "verify_location", locate)
+    monkeypatch.setattr(my_pick_processor, "run_quality_v4_backfill", quality)
+    monkeypatch.setattr(
+        my_pick_processor, "promote_quality_v4_allowlist", lambda *_args, **_kwargs: {}
+    )
+    processor = my_pick_processor.ProductionMyPickProcessor(
+        catalog, osm_index="unused.sqlite", model="test-model"
+    )
+
+    summary = my_picks.run_my_pick_worker(
+        catalog, processor=processor, worker_id="scoped-sawada", detailed=True
+    )
+    completed = my_picks.get_canonical_work(catalog, str(work["id"]))
+    diagnostics = my_picks.get_my_pick_stage_diagnostics(catalog, str(work["id"]))
+
+    assert len(research_calls) == 1
+    assert research_calls[0]["place_id"] == external_id
+    assert research_calls[0]["source_files_json"] == '["my_pick:google"]'
+    assert summary["canonical_research_scheduled"] == 1
+    assert summary["canonical_research_attempted"] == 1
+    with connect(catalog) as connection:
+        research_error = connection.execute(
+            "SELECT research_error FROM public_restaurants WHERE place_id=?",
+            (external_id,),
+        ).fetchone()[0]
+    assert summary["canonical_research_completed"] == 1, research_error
+    assert summary["identity_bootstrap_provider_requests"] == 1
+    assert summary["canonical_research_provider_requests"] == 1
+    assert summary["location_completed"] == 1
+    assert summary["quality_v4_completed"] == 1
+    assert completed["status"] == "ready"
+    assert diagnostics["canonical_research_scheduled"] is True
+    assert diagnostics["canonical_research_attempted"] is True
+    assert diagnostics["canonical_research_provider_requests"] == 1
+    assert diagnostics["canonical_research_completed"] is True
+    assert diagnostics["score_version"] == QUALITY_PRODUCTION_SCORE_VERSION
+    with connect(catalog) as connection:
+        stored = connection.execute(
+            "SELECT research_status, fiyu_score, score_version, is_published "
+            "FROM public_restaurants WHERE place_id=?",
+            (external_id,),
+        ).fetchone()
+    assert tuple(stored) == (
+        "complete",
+        42.0,
+        QUALITY_PRODUCTION_SCORE_VERSION,
+        0,
+    )
+
+
 def test_incomplete_canonical_research_blocks_location_and_quality(catalog, monkeypatch):
     work, _ = my_picks.create_or_get_canonical_work(
         catalog,
@@ -681,7 +887,8 @@ def test_incomplete_canonical_research_blocks_location_and_quality(catalog, monk
         lambda *_args, **_kwargs: confirmed_bootstrap("Raa Men Sawada"),
     )
 
-    def incomplete(db_path, *, place_id, **_kwargs):
+    def incomplete(db_path, *, place_ids, **_kwargs):
+        place_id = place_ids[0]
         with connect(db_path) as connection:
             connection.execute(
                 """
@@ -724,13 +931,15 @@ def test_incomplete_canonical_research_blocks_location_and_quality(catalog, monk
 
     assert updated["failure_code"] == "canonical_research_incomplete"
     assert updated["status"] == "failed_retryable"
+    assert summary["canonical_research_scheduled"] == 1
     assert summary["canonical_research_attempted"] == 1
     assert summary["canonical_research_completed"] == 0
     assert summary["quality_v4_attempted"] == 0
     assert calls == {"location": 0, "quality": 0}
     diagnostics = my_picks.get_my_pick_stage_diagnostics(catalog, str(work["id"]))
     assert diagnostics["identity_bootstrap_completed"] is True
-    assert diagnostics["canonical_research_attempted"] is True
+    assert diagnostics["canonical_research_attempted"] is False
+    assert diagnostics["canonical_research_provider_requests"] == 0
     assert diagnostics["canonical_research_completed"] is False
     assert diagnostics["canonical_research_failure_code"] == "TimeoutError"
     assert diagnostics["canonical_research_missing_requirements"] == [
@@ -740,6 +949,57 @@ def test_incomplete_canonical_research_blocks_location_and_quality(catalog, monk
     assert diagnostics["accepted_source_count"] == 0
     assert diagnostics["location_attempted"] is False
     assert diagnostics["quality_v4_attempted"] is False
+
+
+def test_completed_research_with_insufficient_identity_evidence_needs_review(
+    catalog, monkeypatch
+):
+    work, _ = my_picks.create_or_get_canonical_work(
+        catalog,
+        provider="google",
+        external_place_id="insufficient-evidence",
+        identity_bootstrap_name_hint="Ramen Sawada",
+        identity_bootstrap_address_hint="Kichijoji, Tokyo",
+    )
+    monkeypatch.setattr(
+        my_pick_processor,
+        "run_my_pick_identity_bootstrap",
+        lambda *_args, **_kwargs: confirmed_bootstrap("Raa Men Sawada"),
+    )
+
+    def insufficient(db_path, *, place_ids, **_kwargs):
+        with connect(db_path) as connection:
+            connection.execute(
+                "UPDATE public_restaurants SET research_status='complete', "
+                "evidence_json='{\"matched_restaurant\":false,"
+                "\"identity_confidence\":0.3}' WHERE place_id=?",
+                (place_ids[0],),
+            )
+            connection.commit()
+        return {"completed": 1, "responses_requests": 1}
+
+    quality_calls = 0
+
+    def quality(*_args, **_kwargs):
+        nonlocal quality_calls
+        quality_calls += 1
+
+    monkeypatch.setattr(my_pick_processor, "run_research_batch", insufficient)
+    monkeypatch.setattr(my_pick_processor, "run_quality_v4_backfill", quality)
+    processor = my_pick_processor.ProductionMyPickProcessor(
+        catalog, osm_index="unused.sqlite"
+    )
+
+    summary = my_picks.run_my_pick_worker(
+        catalog, processor=processor, worker_id="insufficient-evidence", detailed=True
+    )
+    updated = my_picks.get_canonical_work(catalog, str(work["id"]))
+
+    assert updated["status"] == "needs_review"
+    assert updated["failure_code"] == "identity_not_confirmed"
+    assert summary["canonical_research_completed"] == 1
+    assert summary["quality_v4_attempted"] == 0
+    assert quality_calls == 0
 
 
 def test_unstructured_worker_failure_is_normalized_before_storage(catalog):
@@ -863,6 +1123,7 @@ def test_production_processor_reuses_canonical_stages_without_publishing(
         "model": None,
     }]
     assert summary["canonical_candidates_created"] == 1
+    assert summary["canonical_research_scheduled"] == 1
     assert summary["canonical_research_attempted"] == 1
     assert summary["canonical_research_completed"] == 1
     assert summary["location_attempted"] == 1

@@ -200,8 +200,13 @@ class ProductionMyPickProcessor:
             "canonical_candidates_created": 0,
             "duplicates_reused_after_bootstrap": 0,
             "research_completed": 0,
+            "canonical_research_scheduled": 0,
             "canonical_research_attempted": 0,
             "canonical_research_completed": 0,
+            "identity_bootstrap_provider_requests": 0,
+            "identity_bootstrap_web_search_actions": 0,
+            "canonical_research_provider_requests": 0,
+            "canonical_research_web_search_actions": 0,
             "location_attempted": 0,
             "location_completed": 0,
             "quality_v4_attempted": 0,
@@ -250,6 +255,10 @@ class ProductionMyPickProcessor:
                     ) from exc
                 counts["provider_requests"] += bootstrap.provider_requests
                 counts["web_search_actions"] += bootstrap.web_search_actions
+                counts["identity_bootstrap_provider_requests"] += bootstrap.provider_requests
+                counts["identity_bootstrap_web_search_actions"] += (
+                    bootstrap.web_search_actions
+                )
                 identity = bootstrap.result.model_dump(mode="json")
                 if (
                     identity.get("identity_status") == "confirmed"
@@ -329,15 +338,16 @@ class ProductionMyPickProcessor:
                 counts=counts,
             )
         if row.get("research_status") != "complete":
-            counts["canonical_research_attempted"] = 1
+            counts["canonical_research_scheduled"] = 1
             try:
                 research = run_research_batch(
                     self.db_path,
                     limit=1,
-                    place_id=place_id,
+                    place_ids=[place_id],
                     model=self.model,
                     retry_failed=str(row.get("research_status")) in {"failed", "needs_retry"},
                     max_items=1,
+                    execution_scope=f"my-pick:{job['id']}",
                 )
             except RuntimeError as exc:
                 code = (
@@ -351,8 +361,13 @@ class ProductionMyPickProcessor:
                     retryable=True,
                     counts=counts,
                 ) from exc
-            counts["provider_requests"] += int(research.get("responses_requests", 0) or 0)
-            counts["web_search_actions"] += int(research.get("web_search_actions", 0) or 0)
+            research_requests = int(research.get("responses_requests", 0) or 0)
+            research_web_actions = int(research.get("web_search_actions", 0) or 0)
+            counts["canonical_research_attempted"] = int(research_requests > 0)
+            counts["canonical_research_provider_requests"] += research_requests
+            counts["canonical_research_web_search_actions"] += research_web_actions
+            counts["provider_requests"] += research_requests
+            counts["web_search_actions"] += research_web_actions
             counts["research_completed"] += int(research.get("completed", 0) or 0)
             row = _catalog_row(self.db_path, place_id)
             if row is None or row.get("research_status") != "complete":

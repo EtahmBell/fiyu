@@ -20,6 +20,12 @@ from fiyu.catalog_pipeline import (
     verify_location,
 )
 from fiyu.database import SCHEMA, connect
+from fiyu.pipeline_runs import (
+    claim_next_pipeline_item,
+    create_pipeline_run,
+    finish_pipeline_item,
+    mark_pipeline_item_running,
+)
 from fiyu.public_catalog import (
     ensure_public_schema,
     recover_research_for_retry,
@@ -464,6 +470,67 @@ def test_timeout_is_ambiguous_and_never_automatically_retried(tmp_path, monkeypa
         path, limit=1, model="test-model", retry_failed=True, dry_run=True
     )
     assert explicit["candidates"] == ["place-1"]
+
+
+def test_scoped_targeted_research_ignores_stale_global_success_ledger(
+    tmp_path, monkeypatch
+):
+    import fiyu.research_worker as worker
+
+    path = _db(tmp_path)
+    stale_run = create_pipeline_run(
+        path,
+        run_type="standard_restaurant_research",
+        item_keys=["place-1"],
+        work_key=worker._research_work_key("test-model", None),
+        selector={},
+        config={
+            "model": "test-model",
+            "prompt_version": worker.PROMPT_VERSION,
+            "pipeline_version": worker.RESEARCH_PIPELINE_VERSION,
+        },
+        requested_item_count=1,
+    )
+    stale_claim = claim_next_pipeline_item(path, stale_run, worker_id="old-worker")
+    mark_pipeline_item_running(
+        path, stale_claim["id"], stale_claim["claim_token"]
+    )
+    finish_pipeline_item(
+        path,
+        stale_claim["id"],
+        stale_claim["claim_token"],
+        state="succeeded",
+    )
+
+    client = _RaisingClient(TimeoutError("connection timed out"))
+    monkeypatch.setenv("OPENAI_API_KEY", "not-real")
+    monkeypatch.setattr(worker, "load_dotenv", lambda: None)
+    monkeypatch.setattr(worker, "OpenAI", lambda **_kwargs: client)
+
+    suppressed = run_research_batch(
+        path, place_ids=["place-1"], model="test-model", max_items=1
+    )
+    assert suppressed["responses_requests"] == 0
+    assert client.responses.calls == 0
+    with connect(path) as connection:
+        assert connection.execute(
+            "SELECT research_status FROM public_restaurants WHERE place_id='place-1'"
+        ).fetchone()[0] == "pending"
+
+    executed = run_research_batch(
+        path,
+        place_ids=["place-1"],
+        model="test-model",
+        max_items=1,
+        execution_scope="my-pick:new-work-id",
+    )
+    assert executed["responses_requests"] == 1
+    assert executed["failed"] == 1
+    assert client.responses.calls == 1
+    with connect(path) as connection:
+        assert connection.execute(
+            "SELECT research_status FROM public_restaurants WHERE place_id='place-1'"
+        ).fetchone()[0] == "needs_retry"
 
 
 @pytest.mark.parametrize("status_code", (429, 500, 503))

@@ -368,14 +368,30 @@ def claim_next_pipeline_item(
                 )
                 continue
 
-            active_duplicate = connection.execute(
-                """
-                SELECT id FROM pipeline_run_items
-                WHERE work_key=? AND item_key=? AND state IN ('claimed', 'running') AND id<>?
-                LIMIT 1
-                """,
-                (item["work_key"], item["item_key"], item_id),
-            ).fetchone()
+            if run["run_type"] == "standard_restaurant_research":
+                active_duplicate = connection.execute(
+                    """
+                    SELECT i.id FROM pipeline_run_items i
+                    JOIN pipeline_runs r ON r.id=i.run_id
+                    WHERE r.run_type='standard_restaurant_research'
+                      AND i.item_key=? AND i.state IN ('claimed', 'running')
+                      AND i.id<>?
+                      AND (i.work_key=? OR i.lease_expires_at IS NULL
+                           OR i.lease_expires_at>?)
+                    LIMIT 1
+                    """,
+                    (item["item_key"], item_id, item["work_key"], now_text),
+                ).fetchone()
+            else:
+                active_duplicate = connection.execute(
+                    """
+                    SELECT id FROM pipeline_run_items
+                    WHERE work_key=? AND item_key=?
+                      AND state IN ('claimed', 'running') AND id<>?
+                    LIMIT 1
+                    """,
+                    (item["work_key"], item["item_key"], item_id),
+                ).fetchone()
             if active_duplicate is not None:
                 excluded.append(item_id)
                 continue

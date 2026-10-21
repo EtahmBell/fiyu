@@ -428,6 +428,8 @@ def get_my_pick_stage_diagnostics(
         research_run = None
         quality_run = None
         location_attempted = False
+        research_scheduled = False
+        research_provider_requests = 0
         if place_id:
             row = connection.execute(
                 "SELECT * FROM public_restaurants WHERE place_id=?", (place_id,)
@@ -442,6 +444,24 @@ def get_my_pick_stage_diagnostics(
                 (place_id,),
             ).fetchone()
             research_run = dict(row) if row is not None else None
+            from .research_worker import research_scope_token
+
+            scope_token = research_scope_token(f"my-pick:{work_id}")
+            pipeline_ledger_exists = bool(
+                connection.execute(
+                    "SELECT 1 FROM sqlite_master "
+                    "WHERE type='table' AND name='pipeline_run_items'"
+                ).fetchone()
+            )
+            if pipeline_ledger_exists:
+                ledger = connection.execute(
+                    "SELECT COUNT(*) AS scheduled, "
+                    "COALESCE(SUM(provider_request_count), 0) AS provider_requests "
+                    "FROM pipeline_run_items WHERE place_id=? AND work_key LIKE ?",
+                    (place_id, f"%:scope:{scope_token}"),
+                ).fetchone()
+                research_scheduled = bool(ledger["scheduled"])
+                research_provider_requests = int(ledger["provider_requests"])
             row = connection.execute(
                 """
                 SELECT status, error_category, score_version
@@ -489,7 +509,9 @@ def get_my_pick_stage_diagnostics(
         "identity_bootstrap_attempted": bootstrap_status != "pending",
         "identity_bootstrap_completed": bootstrap_status == "confirmed",
         "identity_bootstrap_status": bootstrap_status,
-        "canonical_research_attempted": research_run is not None,
+        "canonical_research_scheduled": research_scheduled,
+        "canonical_research_attempted": research_provider_requests > 0,
+        "canonical_research_provider_requests": research_provider_requests,
         "canonical_research_completed": research_status == "complete",
         "canonical_research_status": research_status,
         "canonical_research_failure_code": failure_class,
@@ -1011,8 +1033,13 @@ def run_my_pick_worker(
         "canonical_candidates_created": 0,
         "duplicates_reused_after_bootstrap": 0,
         "research_completed": 0,
+        "canonical_research_scheduled": 0,
         "canonical_research_attempted": 0,
         "canonical_research_completed": 0,
+        "identity_bootstrap_provider_requests": 0,
+        "identity_bootstrap_web_search_actions": 0,
+        "canonical_research_provider_requests": 0,
+        "canonical_research_web_search_actions": 0,
         "location_attempted": 0,
         "location_completed": 0,
         "quality_v4_attempted": 0,
@@ -1072,8 +1099,13 @@ def run_my_pick_worker(
                 "canonical_candidates_created",
                 "duplicates_reused_after_bootstrap",
                 "research_completed",
+                "canonical_research_scheduled",
                 "canonical_research_attempted",
                 "canonical_research_completed",
+                "identity_bootstrap_provider_requests",
+                "identity_bootstrap_web_search_actions",
+                "canonical_research_provider_requests",
+                "canonical_research_web_search_actions",
                 "location_attempted",
                 "location_completed",
                 "quality_v4_attempted",
@@ -1108,8 +1140,13 @@ def run_my_pick_worker(
                 "canonical_candidates_created",
                 "duplicates_reused_after_bootstrap",
                 "research_completed",
+                "canonical_research_scheduled",
                 "canonical_research_attempted",
                 "canonical_research_completed",
+                "identity_bootstrap_provider_requests",
+                "identity_bootstrap_web_search_actions",
+                "canonical_research_provider_requests",
+                "canonical_research_web_search_actions",
                 "location_attempted",
                 "location_completed",
                 "quality_v4_attempted",

@@ -253,6 +253,43 @@ def test_active_and_completed_duplicate_work_is_not_bought_twice(tmp_path):
     assert status["attempts"] == status["provider_requests"] == 0
 
 
+def test_active_standard_research_is_deduplicated_across_scoped_work_keys(tmp_path):
+    path = _ledger_db(tmp_path)
+    ensure_public_schema(path)
+    first_run = create_pipeline_run(
+        path,
+        run_type="standard_restaurant_research",
+        item_keys=["place-1"],
+        work_key="standard:v1",
+        selector={},
+        config={},
+        requested_item_count=1,
+    )
+    scoped_run = create_pipeline_run(
+        path,
+        run_type="standard_restaurant_research",
+        item_keys=["place-1"],
+        work_key="standard:v1:scope:new-my-pick",
+        selector={},
+        config={},
+        requested_item_count=1,
+    )
+
+    active = _claim(path, first_run)
+    assert active is not None
+    assert _claim(path, scoped_run, worker="scoped-worker") is None
+    assert get_pipeline_run_status(path, scoped_run)["pending"] == 1
+
+    with connect(path) as connection:
+        connection.execute(
+            "UPDATE pipeline_run_items SET lease_expires_at='2000-01-01T00:00:00+00:00' "
+            "WHERE id=?",
+            (active["id"],),
+        )
+        connection.commit()
+    assert _claim(path, scoped_run, worker="scoped-worker") is not None
+
+
 def test_persisted_standard_research_closes_crash_window_without_second_request(tmp_path):
     path = _ledger_db(tmp_path)
     ensure_public_schema(path)

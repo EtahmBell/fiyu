@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import os
 import socket
 import uuid
@@ -53,6 +54,25 @@ from .public_score import (
 PROMPT_VERSION = "restaurant-research-v8-specialist-tristate"
 RESEARCH_PIPELINE_VERSION = "catalog-pipeline-v1"
 SPECIALIST_SCHEMA_VERSION = "specialist-tristate-1"
+
+
+def research_scope_token(execution_scope: str) -> str:
+    """Return a non-sensitive stable token for one explicitly scoped research job."""
+
+    scope = execution_scope.strip()
+    if not scope:
+        raise ValueError("execution_scope must not be blank")
+    return hashlib.sha256(scope.encode("utf-8")).hexdigest()[:24]
+
+
+def _research_work_key(model: str, execution_scope: str | None) -> str:
+    base = (
+        f"standard_restaurant_research:{RESEARCH_PIPELINE_VERSION}:"
+        f"{PROMPT_VERSION}:{model}"
+    )
+    if execution_scope is None:
+        return base
+    return f"{base}:scope:{research_scope_token(execution_scope)}"
 CompactLabel = Annotated[str, Field(max_length=120)]
 CompactEvidence = Annotated[str, Field(max_length=500)]
 EvidenceUrl = Annotated[str, Field(max_length=2000)]
@@ -450,6 +470,7 @@ def run_research_batch(
     resume_run_id: int | None = None,
     worker_id: str | None = None,
     lease_seconds: int = 900,
+    execution_scope: str | None = None,
 ) -> dict[str, object]:
     if limit < 1 or limit > 100:
         raise ValueError("limit must be between 1 and 100")
@@ -459,6 +480,8 @@ def run_research_batch(
         raise ValueError("place_ids must be a non-empty, duplicate-free allowlist")
     if max_items is not None and max_items < 1:
         raise ValueError("max_items must be positive")
+    if execution_scope is not None:
+        research_scope_token(execution_scope)
     load_dotenv()
     selected_model = model or os.getenv("OPENAI_MODEL", "gpt-5.6-luna")
     if resume_run_id is not None and dry_run:
@@ -493,15 +516,17 @@ def run_research_batch(
             db_path,
             run_type="standard_restaurant_research",
             item_keys=(str(item["place_id"]) for item in queue),
-            work_key=(
-                f"standard_restaurant_research:{RESEARCH_PIPELINE_VERSION}:"
-                f"{PROMPT_VERSION}:{selected_model}"
-            ),
+            work_key=_research_work_key(selected_model, execution_scope),
             selector={
                 "limit": limit,
                 "place_id": place_id,
                 "place_ids": place_ids,
                 "retry_failed": retry_failed,
+                "execution_scope_token": (
+                    research_scope_token(execution_scope)
+                    if execution_scope is not None
+                    else None
+                ),
                 "eligible_statuses": [
                     "pending",
                     *(["failed", "needs_retry"] if retry_failed else []),
