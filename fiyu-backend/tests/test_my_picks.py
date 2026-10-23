@@ -19,6 +19,7 @@ from fiyu import (
     quality_v4_backfill,
     research_worker,
 )
+from fiyu.address_geocoder import AddressGeocodeResult, AddressGeocoderLookupError
 from fiyu.database import SCHEMA, connect
 from fiyu.my_pick_identity_bootstrap import (
     MyPickIdentityBootstrap,
@@ -242,8 +243,204 @@ def test_location_and_coverage_states_use_canonical_map_evidence(catalog):
     unresolved_result = my_picks.canonical_result(catalog, unresolved)
     assert unresolved_result["latitude"] is None
     assert unresolved_result["longitude"] is None
+    assert unresolved_result["result_ready"] is True
     assert area["status"] == "ready"
     assert my_picks.canonical_result(catalog, area)["map_ready"] is True
+
+
+def test_user_submitted_address_uses_strong_local_osm_match(monkeypatch, tmp_path):
+    observed = {}
+
+    class Geocoder:
+        def __init__(self, index_path):
+            observed["index_path"] = str(index_path)
+
+        def geocode(self, address, *, place_id, input_fingerprint):
+            observed.update(address=address, place_id=place_id)
+            return AddressGeocodeResult(
+                normalized_address="東京都武蔵野市吉祥寺南町1-1-4",
+                latitude=35.7021,
+                longitude=139.5798,
+                address_level_match="building",
+                precision="exact",
+                provider="local_osm_addresses",
+                source_reference="https://www.openstreetmap.org/way/123",
+                prefecture="東京都",
+                municipality_or_ward="Musashino",
+                input_fingerprint=input_fingerprint,
+            )
+
+    monkeypatch.setattr(my_pick_processor, "LocalOSMAddressGeocoder", Geocoder)
+    address = (
+        "〒180-0003 Tokyo, Musashino, Kichijoji Minamicho, "
+        "1 Chome−1−4 Mikawaya Building, 1F"
+    )
+    assert my_pick_processor._submitted_address_polygon_components(address) == (
+        "Musashino",
+        "Kichijoji Minamicho",
+        "1",
+        "1",
+        "4",
+    )
+    result = my_pick_processor.resolve_submitted_address_location(
+        address=address,
+        place_id="sawada",
+        osm_address_index=tmp_path / "address.sqlite",
+    )
+
+    assert observed["place_id"] == "sawada"
+    assert observed["address"].startswith("〒180-0003 Tokyo")
+    assert result == {
+        "latitude": 35.7021,
+        "longitude": 139.5798,
+        "precision": "building",
+        "approximate": False,
+        "source_reference": "https://www.openstreetmap.org/way/123",
+    }
+
+
+def test_user_submitted_address_rejects_ambiguous_local_match(monkeypatch, tmp_path):
+    class Geocoder:
+        def __init__(self, _index_path):
+            pass
+
+        def geocode(self, _address, **_kwargs):
+            raise AddressGeocoderLookupError("ambiguous", "multiple candidates")
+
+    monkeypatch.setattr(my_pick_processor, "LocalOSMAddressGeocoder", Geocoder)
+    assert my_pick_processor.resolve_submitted_address_location(
+        address="Tokyo address with a typo",
+        place_id="ambiguous",
+        osm_address_index=tmp_path / "address.sqlite",
+    ) is None
+
+
+def test_location_only_retry_preserves_score_and_private_public_boundary(
+    catalog, monkeypatch, tmp_path
+):
+    add_canonical(
+        catalog,
+        "sawada",
+        score=65.11,
+        latitude=None,
+        longitude=None,
+        map_ready=False,
+    )
+    work, _ = my_picks.create_or_get_canonical_work(
+        catalog,
+        provider="google_places",
+        external_place_id="sawada",
+        identity_bootstrap_name_hint="Ramen Sawada",
+        identity_bootstrap_address_hint=(
+            "Tokyo, Musashino, Kichijoji Minamicho, 1 Chome-1-4"
+        ),
+    )
+    assert work["status"] == "needs_location"
+
+    monkeypatch.setattr(
+        my_pick_processor,
+        "resolve_submitted_address_location",
+        lambda **_kwargs: {
+            "latitude": 35.7021,
+            "longitude": 139.5798,
+            "precision": "building",
+            "approximate": False,
+            "source_reference": "https://www.openstreetmap.org/way/123",
+        },
+    )
+    monkeypatch.setattr(
+        my_pick_processor,
+        "run_research_batch",
+        lambda *_args, **_kwargs: pytest.fail("research checkpoint was rerun"),
+    )
+    monkeypatch.setattr(
+        my_pick_processor,
+        "run_quality_v4_backfill",
+        lambda *_args, **_kwargs: pytest.fail("Quality-v4 checkpoint was rerun"),
+    )
+    processor = my_pick_processor.ProductionMyPickProcessor(
+        catalog,
+        osm_index=tmp_path / "poi.sqlite",
+        osm_address_index=tmp_path / "address.sqlite",
+    )
+    summary = my_picks.run_my_pick_worker(
+        catalog,
+        processor=processor,
+        worker_id="location-retry",
+        work_id=str(work["id"]),
+        retry_location=True,
+        detailed=True,
+    )
+
+    completed = my_picks.get_canonical_work(catalog, str(work["id"]))
+    result = my_picks.canonical_result(catalog, completed)
+    assert summary["provider_requests"] == 0
+    assert summary["quality_v4_attempted"] == 0
+    assert summary["canonical_research_attempted"] == 0
+    assert completed["status"] == "ready"
+    assert completed["private_location_source"] == "user_submitted_address_local_osm"
+    assert result["result_ready"] is True
+    assert result["map_ready"] is True
+    assert result["fiyu_score"] == 65.11
+    assert (result["latitude"], result["longitude"]) == (35.7021, 139.5798)
+    assert my_picks.recommendation_review_count(catalog, "sawada") == 0
+    with connect(catalog) as connection:
+        canonical = connection.execute(
+            "SELECT latitude, longitude, map_display_eligible, is_published "
+            "FROM public_restaurants WHERE place_id='sawada'"
+        ).fetchone()
+    assert tuple(canonical) == (None, None, 0, 0)
+
+
+def test_location_only_retry_miss_keeps_scored_result_and_uses_normal_fallback(
+    catalog, monkeypatch, tmp_path
+):
+    add_canonical(
+        catalog,
+        "location-miss",
+        score=65.11,
+        latitude=None,
+        longitude=None,
+        map_ready=False,
+    )
+    work, _ = my_picks.create_or_get_canonical_work(
+        catalog,
+        provider="google_places",
+        external_place_id="location-miss",
+        identity_bootstrap_address_hint="Tokyo address with typo",
+    )
+    calls = []
+    monkeypatch.setattr(
+        my_pick_processor,
+        "resolve_submitted_address_location",
+        lambda **_kwargs: None,
+    )
+
+    def fallback(*_args, **kwargs):
+        calls.append(kwargs)
+        return {"cost": {}}
+
+    monkeypatch.setattr(my_pick_processor, "verify_location", fallback)
+    processor = my_pick_processor.ProductionMyPickProcessor(
+        catalog,
+        osm_index=tmp_path / "poi.sqlite",
+        osm_address_index=tmp_path / "address.sqlite",
+    )
+    my_picks.run_my_pick_worker(
+        catalog,
+        processor=processor,
+        worker_id="location-miss",
+        work_id=str(work["id"]),
+        retry_location=True,
+    )
+
+    completed = my_picks.get_canonical_work(catalog, str(work["id"]))
+    result = my_picks.canonical_result(catalog, completed)
+    assert calls[0]["allow_address_research"] is False
+    assert completed["status"] == "needs_location"
+    assert result["result_ready"] is True
+    assert result["map_ready"] is False
+    assert result["fiyu_score"] == 65.11
 
 
 def test_stale_known_restaurant_reuses_identity_and_requires_research(catalog):
@@ -1650,6 +1847,83 @@ def test_ready_unpublished_my_pick_is_an_independent_personal_map_relationship(
     assert rows[0]["is_visited"] is True
     assert rows[0]["is_discovered"] is False
 
+
+def test_private_user_address_location_is_visible_only_on_owner_personal_map(
+    catalog, monkeypatch
+):
+    add_canonical(
+        catalog,
+        "private-address-pick",
+        score=65.11,
+        published=False,
+        latitude=None,
+        longitude=None,
+        map_ready=False,
+    )
+    work, _ = my_picks.create_or_get_canonical_work(
+        catalog,
+        provider="google",
+        external_place_id="private-address-pick",
+        identity_bootstrap_address_hint=(
+            "Tokyo, Musashino, Kichijoji Minamicho, 1 Chome-1-4"
+        ),
+    )
+    claimed = my_picks.claim_next_canonical_work(
+        catalog,
+        worker_id="private-map-test",
+        retry_location=True,
+        work_id=str(work["id"]),
+    )
+    my_picks.mark_canonical_work_researching(
+        catalog, str(work["id"]), str(claimed["claim_token"]),
+        place_id="private-address-pick",
+    )
+    my_picks.save_private_my_pick_location(
+        catalog,
+        str(work["id"]),
+        str(claimed["claim_token"]),
+        latitude=35.7021,
+        longitude=139.5798,
+        precision="building",
+        approximate=False,
+        source_reference="https://www.openstreetmap.org/way/123",
+    )
+    my_picks.complete_canonical_work_from_catalog(
+        catalog,
+        str(work["id"]),
+        str(claimed["claim_token"]),
+        place_id="private-address-pick",
+    )
+    monkeypatch.setattr(api, "DB_PATH", catalog)
+    monkeypatch.setattr(
+        api.shared_user_data,
+        "list_my_picks",
+        lambda *, user_id: (
+            [{"canonical_work_id": work["id"]}] if user_id == "owner" else []
+        ),
+    )
+    monkeypatch.setattr(api.shared_user_data, "get_active_daily_picks", lambda **_kwargs: None)
+    monkeypatch.setattr(api.shared_user_data, "get_recent_daily_pick_rounds", lambda **_kwargs: [])
+    monkeypatch.setattr(api.shared_user_data, "latest_visit_ratings", lambda **_kwargs: {})
+    monkeypatch.setattr(api.shared_user_data, "saved_place_ids", lambda **_kwargs: set())
+    monkeypatch.setattr(api.shared_user_data, "visited_place_ids", lambda **_kwargs: [])
+    monkeypatch.setattr(api, "_together_discovery_assignments", lambda *_args: [])
+
+    owner_rows = api._authenticated_map_restaurants("owner")
+    assert len(owner_rows) == 1
+    assert owner_rows[0]["place_id"] == "private-address-pick"
+    assert owner_rows[0]["is_my_pick"] is True
+    assert owner_rows[0]["map_display_eligible"] is True
+    assert owner_rows[0]["directions_coordinates_eligible"] is False
+    assert (owner_rows[0]["latitude"], owner_rows[0]["longitude"]) == (
+        35.7021,
+        139.5798,
+    )
+    assert api._authenticated_map_restaurants("other-user") == []
+    assert api._map_eligible_public_restaurants_for_place_ids(
+        ["private-address-pick"]
+    ) == []
+
 @pytest.fixture
 def my_pick_api(catalog, monkeypatch):
     user_ids = {"token-a": str(uuid4()), "token-b": str(uuid4())}
@@ -1798,7 +2072,6 @@ def test_api_auth_ownership_idempotency_and_shared_work(my_pick_api):
     ] == [
         (2, 0, "Toritsune Shizendo", "Toritsune Shizendo", "1-2-3 Sotokanda, Chiyoda, Tokyo")
     ]
-
     other_read = client.get(
         f"/my-picks/{first.json()['my_pick_id']}",
         headers={"Authorization": "Bearer token-b"},
@@ -1808,6 +2081,30 @@ def test_api_auth_ownership_idempotency_and_shared_work(my_pick_api):
     assert own_list.status_code == 200
     assert [row["my_pick_id"] for row in own_list.json()] == [first.json()["my_pick_id"]]
 
+
+def test_api_explicitly_projects_result_ready_without_map_readiness(my_pick_api):
+    client, _user_ids, _rows = my_pick_api
+    add_canonical(
+        api.DB_PATH,
+        "scored-no-map",
+        score=65.11,
+        latitude=None,
+        longitude=None,
+        map_ready=False,
+    )
+
+    response = client.post(
+        "/my-picks",
+        json=my_pick_payload("scored-no-map"),
+        headers={"Authorization": "Bearer token-a"},
+    )
+
+    assert response.status_code == 202
+    payload = response.json()
+    assert payload["status"] == "needs_location"
+    assert payload["result_ready"] is True
+    assert payload["fiyu_score"] == 65.11
+    assert payload["map_ready"] is False
 
 def test_shared_worker_completion_projects_to_both_waiting_users(my_pick_api):
     client, _user_ids, rows = my_pick_api

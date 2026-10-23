@@ -48,6 +48,7 @@ const base: MyPick = {
   display_area: "Kichijoji",
   fiyu_score: 84,
   score_version: "quality-v4-production-1",
+  result_ready: true,
   map_ready: true,
   latitude: 35.7,
   longitude: 139.58,
@@ -67,6 +68,7 @@ const pending: MyPick = {
   display_area: null,
   fiyu_score: null,
   score_version: null,
+  result_ready: false,
   resolved_at: null,
   map_ready: false,
   latitude: null,
@@ -84,6 +86,20 @@ const retryable: MyPick = {
   status: "failed_retryable",
   status_message: "retryable",
   failure_code: "canonical_research_incomplete",
+};
+const scoredNeedsLocation: MyPick = {
+  ...base,
+  my_pick_id: "10000000-0000-4000-8000-000000000003",
+  status: "needs_location",
+  status_message: "Scored, but a trustworthy map location is not yet available.",
+  fiyu_score: 65.11,
+  result_ready: true,
+  map_ready: false,
+  latitude: null,
+  longitude: null,
+  location_precision: null,
+  is_public: false,
+  recommendation_review_status: "not_eligible",
 };
 
 function deferred<T>() {
@@ -141,6 +157,26 @@ describe("MyPickPicksSection", () => {
     expect(screen.getByRole("link", { name: "View restaurant →" }).getAttribute("href")).toBe("/restaurants/place-1");
     expect(screen.getByRole("link", { name: "Log visit" }).getAttribute("href")).toBe("/log?placeId=place-1");
     await waitFor(() => expect(document.querySelector('[data-reveal-phase="revealed"]')).not.toBeNull());
+  });
+
+  it("keeps a scored needs-location Pick revealable without under-review or broken actions", async () => {
+    api.fetchMyPicks.mockResolvedValue([scoredNeedsLocation]);
+    render(<MyPickPicksSection accountId="account-1" />);
+
+    const reveal = await screen.findByRole("button", { name: "Reveal your Pick" });
+    expect(screen.queryByText(/under review/i)).toBeNull();
+    expect(screen.queryByText("Test Shokudo")).toBeNull();
+    expect(screen.queryByLabelText(/Fiyu score 6\.5 out of 10/i)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Submit a restaurant →" })).toBeNull();
+    expect(screen.getByText("2 of 3 Picks left")).toBeTruthy();
+
+    fireEvent.click(reveal);
+    expect(await screen.findByText("Test Shokudo")).toBeTruthy();
+    expect(screen.getByLabelText(/Fiyu score 6\.5 out of 10/i)).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "View restaurant →" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Log visit" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
+    expect(document.querySelectorAll("[data-my-pick-footer]")).toHaveLength(1);
   });
 
   it("never creates broken public actions for a private result", async () => {
@@ -262,6 +298,18 @@ describe("MyPickPicksSection", () => {
     expect(screen.queryByRole("button", { name: "DEV: Process now" })).toBeNull();
     expect(api.fetchMyPicks).toHaveBeenCalledTimes(2);
     expect(api.fetchMyPickQuota).toHaveBeenCalledTimes(quotaCalls);
+  });
+
+  it("offers an authorized developer a location-only retry for a scored result", async () => {
+    api.fetchDeveloperStatus.mockResolvedValue({ enabled: true, authorized: true, location_mode: "area", area_name: "Koenji", location_options: [] });
+    api.fetchMyPicks.mockResolvedValue([scoredNeedsLocation]);
+    api.processDeveloperMyPick.mockResolvedValue({});
+    render(<MyPickPicksSection accountId="account-1" />);
+
+    const button = await screen.findByRole("button", { name: "DEV: Retry location" });
+    expect(screen.queryByRole("button", { name: "DEV: Hard reset this Pick" })).toBeNull();
+    fireEvent.click(button);
+    await waitFor(() => expect(api.processDeveloperMyPick).toHaveBeenCalledWith(scoredNeedsLocation.my_pick_id));
   });
 
   it("shows Process now for every processable in-flight developer state", async () => {

@@ -888,6 +888,7 @@ class MyPickResponse(BaseModel):
     display_area: str | None = None
     fiyu_score: float | None = None
     score_version: str | None = None
+    result_ready: bool = False
     map_ready: bool = False
     latitude: float | None = None
     longitude: float | None = None
@@ -3066,7 +3067,10 @@ def _map_eligible_public_restaurants_for_place_ids(
 
 
 def _map_eligible_account_restaurants_for_place_ids(
-    place_ids: Iterable[str], *, private_place_ids: set[str]
+    place_ids: Iterable[str],
+    *,
+    private_place_ids: set[str],
+    private_locations: dict[str, dict[str, object]] | None = None,
 ) -> list[dict[str, object]]:
     """Return map-safe summaries, admitting unpublished rows only for owned My Picks."""
 
@@ -3079,6 +3083,18 @@ def _map_eligible_account_restaurants_for_place_ids(
         )
         if restaurant is None:
             continue
+        private_location = (private_locations or {}).get(place_id)
+        if private_location and restaurant.get("map_display_eligible") is not True:
+            restaurant = {
+                **restaurant,
+                "latitude": private_location["latitude"],
+                "longitude": private_location["longitude"],
+                "location_precision": private_location["location_precision"],
+                "map_location_approximate": private_location["approximate"],
+                "map_display_eligible": True,
+                "location_status": "private_user_address_resolved",
+                "directions_coordinates_eligible": False,
+            }
         latitude = restaurant.get("latitude")
         longitude = restaurant.get("longitude")
         if (
@@ -3205,6 +3221,21 @@ def _authenticated_map_restaurants(
         my_pick_place_ids,
         latest_ratings,
     ) = _authenticated_map_membership(user_id, city_id=city_id)
+    private_locations: dict[str, dict[str, object]] = {}
+    for account_row in shared_user_data.list_my_picks(user_id=user_id):
+        work = my_picks.get_canonical_work(
+            DB_PATH, str(account_row["canonical_work_id"])
+        )
+        if not work or not work.get("canonical_place_id"):
+            continue
+        canonical = my_picks.canonical_result(DB_PATH, work)
+        if canonical.get("map_ready") and work.get("private_location_source"):
+            private_locations[str(work["canonical_place_id"])] = {
+                "latitude": canonical["latitude"],
+                "longitude": canonical["longitude"],
+                "location_precision": canonical["location_precision"],
+                "approximate": bool(work.get("private_location_approximate")),
+            }
     return [
         {
             **restaurant,
@@ -3218,7 +3249,9 @@ def _authenticated_map_restaurants(
             "user_rating": latest_ratings.get(str(restaurant["place_id"])),
         }
         for restaurant in _map_eligible_account_restaurants_for_place_ids(
-            visible_place_ids, private_place_ids=my_pick_place_ids
+            visible_place_ids,
+            private_place_ids=my_pick_place_ids,
+            private_locations=private_locations,
         )
     ]
 
@@ -3393,6 +3426,7 @@ def process_developer_my_pick(
         worker_id=f"developer:{user_id}",
         limit=1,
         retry_failed=request.retry_failed,
+        retry_location=True,
         work_id=str(account_row["canonical_work_id"]),
         on_update=_sync_my_pick_projection,
         detailed=True,

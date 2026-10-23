@@ -309,6 +309,7 @@ export const myPickSchema = z.object({
   display_area: nullableString,
   fiyu_score: nullableNumber,
   score_version: nullableString,
+  result_ready: z.boolean().optional().default(false),
   map_ready: z.boolean().default(false),
   latitude: nullableNumber,
   longitude: nullableNumber,

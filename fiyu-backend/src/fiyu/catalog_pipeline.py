@@ -1751,6 +1751,7 @@ def verify_location(
     osm_index: str | Path,
     osm_address_index: str | Path | None = None,
     address_model: str | None = None,
+    allow_address_research: bool = True,
     dry_run: bool = False,
 ) -> dict[str, object]:
     from .osm_resolver import resolve_osm_locations
@@ -1822,7 +1823,7 @@ def verify_location(
                 dry_run=dry_run,
                 allow_candidate_context=True,
             )
-            if area_anchor is None:
+            if area_anchor is None and allow_address_research:
                 address_research = run_address_discovery(
                     db_path,
                     limit=1,

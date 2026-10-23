@@ -30,7 +30,8 @@ const POLL_DELAYS_MS = [30_000, 60_000, 180_000] as const;
 type DeveloperAction = {
   busy: boolean;
   hardResetBusy: boolean;
-  label: "Process now" | "Retry now" | null;
+  canHardReset: boolean;
+  label: "Process now" | "Retry now" | "Retry location" | null;
   diagnostic: string | null;
   error: string | null;
   hardResetError: string | null;
@@ -56,6 +57,11 @@ function safeItemName(item: MyPick): string | null {
 
 function itemName(item: MyPick): string {
   return safeItemName(item) ?? "Your Pick";
+}
+
+function isResultReady(item: MyPick): boolean {
+  // Score fields are a safe rolling-deploy fallback for an older successful API.
+  return item.result_ready || (item.fiyu_score !== null && item.score_version !== null);
 }
 
 function safeFailureDiagnostic(value: string | null): string | null {
@@ -93,14 +99,16 @@ function DeveloperProcessAction({ action }: { action: DeveloperAction }) {
         >
           {action.busy ? "Processing…" : `DEV: ${action.label}`}
         </button> : null}
-        <button
-          type="button"
-          disabled={action.busy || action.hardResetBusy}
-          onClick={() => setConfirmingHardReset(true)}
-          className="min-h-9 text-xs font-medium tracking-wide text-[#66788F] underline decoration-[#AAB6C5] underline-offset-4 disabled:cursor-wait disabled:opacity-60"
-        >
-          DEV: Hard reset this Pick
-        </button>
+        {action.canHardReset ? (
+          <button
+            type="button"
+            disabled={action.busy || action.hardResetBusy}
+            onClick={() => setConfirmingHardReset(true)}
+            className="min-h-9 text-xs font-medium tracking-wide text-[#66788F] underline decoration-[#AAB6C5] underline-offset-4 disabled:cursor-wait disabled:opacity-60"
+          >
+            DEV: Hard reset this Pick
+          </button>
+        ) : null}
       </div>
       {confirmingHardReset ? (
         <div role="dialog" aria-label="Confirm My Pick hard reset" className="mt-2 rounded-lg border border-[#D2DAE5] bg-white/70 p-3">
@@ -299,7 +307,7 @@ function MyPickCard({
   footer?: ReactNode;
 }) {
   if (PENDING_STATUSES.has(item.status)) return <PendingMyPickCard item={item} developerAction={developerAction} footer={footer} />;
-  if (item.status === "ready") return <MyPickReadyCard item={item} accountId={accountId} footer={footer} />;
+  if (isResultReady(item)) return <MyPickReadyCard item={item} accountId={accountId} footer={footer} />;
   if (item.status === "failed_retryable") return <RetryableMyPickCard developerAction={developerAction} footer={footer} />;
   return <ResolvedMyPickNotice item={item} footer={footer} developerAction={developerAction} />;
 }
@@ -476,13 +484,19 @@ export function MyPickPicksSection({
         <section className="mt-6" aria-label="Your Picks">
           <div className="space-y-3">
             {visibleItems.map((item, index) => {
-              const canProcess = PENDING_STATUSES.has(item.status) || item.status === "failed_retryable";
+              const canRetryLocation = item.status === "needs_location" && isResultReady(item);
+              const canProcess = PENDING_STATUSES.has(item.status) || item.status === "failed_retryable" || canRetryLocation;
               const developerAction = developerAuthorized && (canProcess || item.status === "needs_review")
                 ? {
                     busy: processingId === item.my_pick_id,
                     hardResetBusy: hardResetId === item.my_pick_id,
+                    canHardReset: !canRetryLocation,
                     label: canProcess
-                      ? item.status === "failed_retryable" ? "Retry now" as const : "Process now" as const
+                      ? item.status === "failed_retryable"
+                        ? "Retry now" as const
+                        : canRetryLocation
+                          ? "Retry location" as const
+                          : "Process now" as const
                       : null,
                     diagnostic: safeFailureDiagnostic(item.failure_code),
                     error: processError?.id === item.my_pick_id ? processError.message : null,
@@ -492,7 +506,7 @@ export function MyPickPicksSection({
                   }
                 : undefined;
               const footer = index === 0
-                ? <MyPickQuotaFooter quota={quota} onSubmitted={submitted} developerAction={developerAction} className={item.status === "ready" ? "mt-0 border-[#C9D4E2]" : undefined} />
+                ? <MyPickQuotaFooter quota={quota} onSubmitted={submitted} developerAction={developerAction} className={isResultReady(item) ? "mt-0 border-[#C9D4E2]" : undefined} />
                 : undefined;
               return (
               <div

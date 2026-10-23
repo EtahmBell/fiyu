@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
+import re
+import unicodedata
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from .address_geocoder import AddressGeocoderLookupError, LocalOSMAddressGeocoder
+from .address_geocoding import validate_geocode
 from .catalog_pipeline import _strong_published_duplicate_ids, is_map_ready, verify_location
 from .database import connect_readonly
 from .discovery_location import TOKYO_SERVICE_AREA
@@ -41,6 +46,101 @@ class MyPickProcessingError(RuntimeError):
 class MyPickProcessingResult:
     place_id: str
     counts: dict[str, int] = field(default_factory=dict)
+
+
+def _submitted_address_polygon_components(
+    address: str,
+) -> tuple[str, str, str, str, str | None] | None:
+    """Parse the conservative Tokyo English form accepted by the My Pick UI."""
+
+    normalized = unicodedata.normalize("NFKC", address).translate(
+        str.maketrans({"−": "-", "–": "-", "—": "-", "－": "-"})
+    )
+    parts = [part.strip() for part in normalized.split(",") if part.strip()]
+    tokyo_index = next(
+        (
+            index
+            for index, part in enumerate(parts)
+            if re.sub(r"〒?\s*\d{3}-?\d{4}", "", part).strip().casefold()
+            in {"tokyo", "tokyo-to", "tokyo prefecture"}
+        ),
+        None,
+    )
+    if tokyo_index is None or len(parts) < tokyo_index + 4:
+        return None
+    municipality = parts[tokyo_index + 1]
+    neighborhood = parts[tokyo_index + 2]
+    numeric = parts[tokyo_index + 3]
+    match = re.search(
+        r"(?P<chome>\d+)\s*(?:ch(?:o|ō)me|丁目)\s*-?\s*"
+        r"(?P<block>\d+)(?:\s*-\s*(?P<sub>\d+))?",
+        numeric,
+        re.IGNORECASE,
+    )
+    if not match:
+        return None
+    return (
+        municipality,
+        neighborhood,
+        str(int(match.group("chome"))),
+        str(int(match.group("block"))),
+        str(int(match.group("sub"))) if match.group("sub") else None,
+    )
+
+
+def resolve_submitted_address_location(
+    *,
+    address: str,
+    place_id: str,
+    osm_address_index: str | Path | None,
+) -> dict[str, Any] | None:
+    """Resolve user text locally without converting it into canonical evidence."""
+
+    if osm_address_index is None or not address.strip():
+        return None
+    fingerprint = hashlib.sha256(
+        json.dumps(
+            {"address": address.strip(), "place_id": place_id},
+            ensure_ascii=False,
+            sort_keys=True,
+        ).encode("utf-8")
+    ).hexdigest()
+    geocoder = LocalOSMAddressGeocoder(osm_address_index)
+    result = None
+    try:
+        result = geocoder.geocode(
+            address.strip(), place_id=place_id, input_fingerprint=fingerprint
+        )
+    except AddressGeocoderLookupError:
+        components = _submitted_address_polygon_components(address)
+        if components is not None:
+            municipality, neighborhood, chome, block, sub_number = components
+            try:
+                result = geocoder.geocode_polygon(
+                    ward=municipality,
+                    neighborhood=neighborhood,
+                    chome=chome,
+                    block=block,
+                    sub_number=sub_number,
+                    place_id=place_id,
+                    input_fingerprint=fingerprint,
+                    raw_address=address.strip(),
+                    minimum_precision="block",
+                )
+            except AddressGeocoderLookupError:
+                return None
+    if result is None:
+        return None
+    validation = validate_geocode(result, verified_ward=None)
+    if validation.status != "location_verified":
+        return None
+    return {
+        "latitude": result.latitude,
+        "longitude": result.longitude,
+        "precision": validation.location_precision,
+        "approximate": validation.map_location_approximate,
+        "source_reference": result.source_reference or result.provenance,
+    }
 
 
 def _catalog_row(db_path: str | Path, place_id: str) -> dict[str, Any] | None:
@@ -189,6 +289,73 @@ class ProductionMyPickProcessor:
         self.model = model
         self.audit_dir = Path(audit_dir)
 
+    def _resolve_location(
+        self,
+        job: dict[str, Any],
+        place_id: str,
+        row: dict[str, Any],
+        counts: dict[str, int],
+    ) -> tuple[dict[str, Any], bool]:
+        from .my_picks import save_private_my_pick_location
+
+        private_ready = bool(
+            job.get("private_location_latitude") is not None
+            and job.get("private_location_longitude") is not None
+        )
+        if is_map_ready(row) or private_ready:
+            return row, private_ready
+        counts["location_attempted"] = 1
+        submitted = resolve_submitted_address_location(
+            address=str(job.get("identity_bootstrap_address_hint") or ""),
+            place_id=place_id,
+            osm_address_index=self.osm_address_index,
+        )
+        if submitted is not None:
+            saved = save_private_my_pick_location(
+                self.db_path,
+                str(job["id"]),
+                str(job["claim_token"]),
+                latitude=float(submitted["latitude"]),
+                longitude=float(submitted["longitude"]),
+                precision=str(submitted["precision"]),
+                approximate=bool(submitted["approximate"]),
+                source_reference=str(submitted["source_reference"]),
+            )
+            job.update(saved)
+            counts["location_completed"] = 1
+            return row, True
+        try:
+            location = verify_location(
+                self.db_path,
+                place_id,
+                osm_index=self.osm_index,
+                osm_address_index=self.osm_address_index,
+                address_model=self.model,
+                allow_address_research=False,
+            )
+        except RuntimeError as exc:
+            code = (
+                "location_provider_unconfigured"
+                if "OPENAI_API_KEY" in str(exc)
+                else "location_stage_unavailable"
+            )
+            raise MyPickProcessingError(
+                code,
+                status="failed_retryable",
+                retryable=True,
+                counts=counts,
+            ) from exc
+        cost = location.get("cost") or {}
+        counts["provider_requests"] += int(
+            cost.get("address_fallback_responses_requests", 0) or 0
+        )
+        counts["web_search_actions"] += int(
+            cost.get("address_fallback_web_search_actions", 0) or 0
+        )
+        row = _catalog_row(self.db_path, place_id) or row
+        counts["location_completed"] = int(is_map_ready(row))
+        return row, False
+
     def __call__(self, job: dict[str, Any]) -> MyPickProcessingResult:
         counts = {
             "existing_identity_reused": 0,
@@ -218,8 +385,6 @@ class ProductionMyPickProcessor:
         if place_id is not None:
             counts["existing_identity_reused"] = 1
             row = _catalog_row(self.db_path, place_id)
-            if row is not None and _current_v4(row):
-                return MyPickProcessingResult(place_id, counts)
         else:
             from .my_picks import save_identity_bootstrap
 
@@ -297,9 +462,6 @@ class ProductionMyPickProcessor:
                 place_id = duplicate
                 counts["duplicates_reused_after_bootstrap"] = 1
                 counts["existing_identity_reused"] = 1
-                duplicate_row = _catalog_row(self.db_path, duplicate)
-                if duplicate_row is not None and _current_v4(duplicate_row):
-                    return MyPickProcessingResult(duplicate, counts)
             else:
                 canonical_name = str(
                     identity.get("canonical_name_ja")
@@ -337,6 +499,9 @@ class ProductionMyPickProcessor:
                 retryable=True,
                 counts=counts,
             )
+        if _current_v4(row):
+            row, _private_ready = self._resolve_location(job, place_id, row, counts)
+            return MyPickProcessingResult(place_id, counts)
         if row.get("research_status") != "complete":
             counts["canonical_research_scheduled"] = 1
             try:
@@ -437,37 +602,7 @@ class ProductionMyPickProcessor:
                 "ambiguous_duplicate", status="needs_review", counts=counts
             )
 
-        if not is_map_ready(row):
-            counts["location_attempted"] = 1
-            try:
-                location = verify_location(
-                    self.db_path,
-                    place_id,
-                    osm_index=self.osm_index,
-                    osm_address_index=self.osm_address_index,
-                    address_model=self.model,
-                )
-            except RuntimeError as exc:
-                code = (
-                    "location_provider_unconfigured"
-                    if "OPENAI_API_KEY" in str(exc)
-                    else "location_stage_unavailable"
-                )
-                raise MyPickProcessingError(
-                    code,
-                    status="failed_retryable",
-                    retryable=True,
-                    counts=counts,
-                ) from exc
-            cost = location.get("cost") or {}
-            counts["provider_requests"] += int(
-                cost.get("address_fallback_responses_requests", 0) or 0
-            )
-            counts["web_search_actions"] += int(
-                cost.get("address_fallback_web_search_actions", 0) or 0
-            )
-            row = _catalog_row(self.db_path, place_id) or row
-        counts["location_completed"] = int(is_map_ready(row))
+        row, _private_ready = self._resolve_location(job, place_id, row, counts)
 
         if is_map_ready(row) and not TOKYO_SERVICE_AREA.contains(
             float(row["latitude"]), float(row["longitude"])

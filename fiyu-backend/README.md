@@ -234,7 +234,15 @@ FIYU_ALLOW_LEGACY_CLIENT_ID=false
 SUPABASE_URL=...
 SUPABASE_ANON_KEY=...
 SUPABASE_SERVICE_ROLE_KEY=...
+FIYU_MY_PICK_OSM_INDEX=/data/fiyu-kanto-index.sqlite
+FIYU_MY_PICK_OSM_ADDRESS_INDEX=/data/fiyu-kanto-address-index-v2.sqlite
 ```
+
+My Pick processing requires the Kanto POI index. Upload the repository's current
+Kanto address-index artifact, `fiyu-kanto-address-index-v2.sqlite`, to the same
+Railway volume to enable deterministic user-address-first location resolution. If
+the address index variable is omitted, scored results remain available and location
+resolution falls back without treating the user address as canonical evidence.
 
 `FIYU_ADMIN_API_KEY` is optional and should be omitted to disable admin endpoints.
 `GOOGLE_PLACES_SERVER_KEY` is optional unless hosted photo proxy endpoints are used.

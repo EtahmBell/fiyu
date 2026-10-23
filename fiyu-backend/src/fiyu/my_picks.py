@@ -35,7 +35,7 @@ MyPickStatus = Literal[
     "failed_terminal",
 ]
 
-MY_PICK_SCHEMA_VERSION = "my-pick-orchestration-v2-identity-bootstrap"
+MY_PICK_SCHEMA_VERSION = "my-pick-orchestration-v3-private-location"
 MY_PICK_WORK_SCHEMA = """
 CREATE TABLE IF NOT EXISTS my_pick_canonical_work (
     id TEXT PRIMARY KEY,
@@ -47,6 +47,14 @@ CREATE TABLE IF NOT EXISTS my_pick_canonical_work (
     identity_bootstrap_address_hint TEXT,
     identity_bootstrap_status TEXT NOT NULL DEFAULT 'pending',
     identity_bootstrap_result_json TEXT,
+    private_location_latitude REAL,
+    private_location_longitude REAL,
+    private_location_precision TEXT,
+    private_location_approximate INTEGER NOT NULL DEFAULT 0
+        CHECK (private_location_approximate IN (0, 1)),
+    private_location_source TEXT,
+    private_location_source_reference TEXT,
+    private_location_resolved_at TEXT,
     canonical_place_id TEXT,
     status TEXT NOT NULL CHECK (status IN (
         'pending', 'resolving_identity', 'outside_coverage', 'researching',
@@ -171,6 +179,13 @@ def ensure_my_pick_schema(db_path: str | Path) -> None:
             "identity_bootstrap_address_hint": "TEXT",
             "identity_bootstrap_status": "TEXT NOT NULL DEFAULT 'pending'",
             "identity_bootstrap_result_json": "TEXT",
+            "private_location_latitude": "REAL",
+            "private_location_longitude": "REAL",
+            "private_location_precision": "TEXT",
+            "private_location_approximate": "INTEGER NOT NULL DEFAULT 0",
+            "private_location_source": "TEXT",
+            "private_location_source_reference": "TEXT",
+            "private_location_resolved_at": "TEXT",
         }
         for name, definition in additions.items():
             if name not in columns:
@@ -206,6 +221,16 @@ def _current_score(row: dict[str, Any]) -> bool:
         row.get("fiyu_score") is not None
         and row.get("score_version") == QUALITY_PRODUCTION_SCORE_VERSION
         and row.get("research_status") == "complete"
+    )
+
+
+def _private_location_ready(work: dict[str, Any]) -> bool:
+    latitude = work.get("private_location_latitude")
+    longitude = work.get("private_location_longitude")
+    return bool(
+        latitude is not None
+        and longitude is not None
+        and TOKYO_SERVICE_AREA.contains(float(latitude), float(longitude))
     )
 
 
@@ -547,7 +572,9 @@ def get_my_pick_stage_diagnostics(
         missing.append(f"research_status:{research_status or 'missing'}")
         if failure_class:
             missing.append(f"failure_class:{failure_class}")
-    map_ready = bool(restaurant and is_map_ready(restaurant))
+    canonical_map_ready = bool(restaurant and is_map_ready(restaurant))
+    private_map_ready = _private_location_ready(work)
+    map_ready = canonical_map_ready or private_map_ready
     score_version = str(restaurant.get("score_version") or "") if restaurant else ""
     quality_status = str((quality_run or {}).get("status") or "") or None
     quality_internal_score_present = bool(
@@ -559,11 +586,7 @@ def get_my_pick_stage_diagnostics(
     promotion_attempted = bool(
         quality_status == "complete" and (promotion_completed or promotion_failed)
     )
-    private_result_eligible = bool(
-        restaurant
-        and _current_score(restaurant)
-        and _trusted_coverage(restaurant) is True
-    )
+    private_result_eligible = bool(restaurant and _current_score(restaurant))
     recommendation_review_eligible = False
     if restaurant:
         with connect_readonly(db_path) as connection:
@@ -589,8 +612,8 @@ def get_my_pick_stage_diagnostics(
         "location_completed": map_ready,
         "location_precision": (
             str(restaurant.get("map_location_precision") or "") or None
-            if restaurant
-            else None
+            if canonical_map_ready and restaurant
+            else str(work.get("private_location_precision") or "") or None
         ),
         "quality_v4_attempted": quality_run is not None,
         "quality_v4_completed": quality_status == "complete",
@@ -644,6 +667,64 @@ def save_identity_bootstrap(
         )
         if cursor.rowcount != 1:
             raise RuntimeError("My Pick identity bootstrap lost its worker lease")
+        row = connection.execute(
+            "SELECT * FROM my_pick_canonical_work WHERE id=?", (work_id,)
+        ).fetchone()
+        connection.commit()
+    return dict(row)
+
+
+def save_private_my_pick_location(
+    db_path: str | Path,
+    work_id: str,
+    claim_token: str,
+    *,
+    latitude: float,
+    longitude: float,
+    precision: str,
+    approximate: bool,
+    source_reference: str,
+) -> dict[str, Any]:
+    """Checkpoint a user-address-derived location outside canonical catalog state."""
+
+    if not TOKYO_SERVICE_AREA.contains(latitude, longitude):
+        raise ValueError("private My Pick location is outside the service area")
+    if precision not in {
+        "exact_entrance",
+        "building",
+        "parcel_or_street_number",
+        "block",
+    }:
+        raise ValueError("private My Pick location precision is not trusted")
+    reference = source_reference.strip()
+    if not reference:
+        raise ValueError("private My Pick location provenance is required")
+    timestamp = _now()
+    with connect(db_path) as connection:
+        cursor = connection.execute(
+            """
+            UPDATE my_pick_canonical_work
+            SET private_location_latitude=?, private_location_longitude=?,
+                private_location_precision=?, private_location_approximate=?,
+                private_location_source='user_submitted_address_local_osm',
+                private_location_source_reference=?, private_location_resolved_at=?,
+                updated_at=?
+            WHERE id=? AND claim_token=?
+            """,
+            (
+                latitude,
+                longitude,
+                precision,
+                int(approximate),
+                reference,
+                timestamp,
+                timestamp,
+                work_id,
+                claim_token,
+            ),
+        )
+        if cursor.rowcount != 1:
+            raise RuntimeError("My Pick location checkpoint lost its worker lease")
         row = connection.execute(
             "SELECT * FROM my_pick_canonical_work WHERE id=?", (work_id,)
         ).fetchone()
@@ -845,7 +926,9 @@ def canonical_result(db_path: str | Path, work: dict[str, Any]) -> dict[str, Any
             return name
         return None
 
-    map_ready = is_map_ready(row) and _trusted_coverage(row) is True
+    canonical_map_ready = is_map_ready(row) and _trusted_coverage(row) is True
+    private_map_ready = _private_location_ready(work)
+    map_ready = canonical_map_ready or private_map_ready
     score_current = _current_score(row)
     return {
         "place_id": str(row["place_id"]),
@@ -856,11 +939,23 @@ def canonical_result(db_path: str | Path, work: dict[str, Any]) -> dict[str, Any
         "display_area": row.get("discovery_area") or row.get("neighborhood"),
         "fiyu_score": row.get("fiyu_score") if score_current else None,
         "score_version": row.get("score_version") if score_current else None,
+        "result_ready": bool(score_current),
         "map_ready": bool(map_ready),
-        "latitude": row.get("latitude") if map_ready else None,
-        "longitude": row.get("longitude") if map_ready else None,
-        "location_precision": row.get("map_location_precision")
-        or row.get("location_precision"),
+        "latitude": (
+            row.get("latitude")
+            if canonical_map_ready
+            else work.get("private_location_latitude") if private_map_ready else None
+        ),
+        "longitude": (
+            row.get("longitude")
+            if canonical_map_ready
+            else work.get("private_location_longitude") if private_map_ready else None
+        ),
+        "location_precision": (
+            row.get("map_location_precision") or row.get("location_precision")
+            if canonical_map_ready
+            else work.get("private_location_precision") if private_map_ready else None
+        ),
         "is_public": bool(row.get("is_published")),
         "recommendation_review_status": str(review["status"]) if review else "not_eligible",
     }
@@ -895,6 +990,7 @@ def claim_next_canonical_work(
     *,
     worker_id: str,
     retry_failed: bool = False,
+    retry_location: bool = False,
     work_id: str | None = None,
     lease_seconds: int = 900,
     now: datetime | None = None,
@@ -903,9 +999,13 @@ def claim_next_canonical_work(
     current = now or datetime.now(UTC)
     timestamp = _now(current)
     lease = _now(current + timedelta(seconds=lease_seconds))
+    if retry_location and work_id is None:
+        raise ValueError("location retries must target one My Pick work item")
     eligible = ["pending"]
     if retry_failed:
         eligible.append("failed_retryable")
+    if retry_location:
+        eligible.append("needs_location")
     placeholders = ",".join("?" for _ in eligible)
     with connect(db_path) as connection:
         connection.execute("BEGIN IMMEDIATE")
@@ -981,6 +1081,8 @@ def complete_canonical_work_from_catalog(
         if row is None:
             raise ValueError("canonical pipeline did not produce a restaurant")
         status = _status_from_canonical(row)
+        if status == "needs_location" and _private_location_ready(dict(work)):
+            status = "ready"
         if status == "researching":
             raise ValueError("canonical pipeline result is not current and complete")
         connection.execute(
@@ -1086,6 +1188,7 @@ def run_my_pick_worker(
     worker_id: str,
     limit: int = 1,
     retry_failed: bool = False,
+    retry_location: bool = False,
     work_id: str | None = None,
     lease_seconds: int = 900,
     on_update: Callable[[dict[str, Any]], None] | None = None,
@@ -1147,6 +1250,7 @@ def run_my_pick_worker(
             db_path,
             worker_id=worker_id,
             retry_failed=retry_failed,
+            retry_location=retry_location,
             work_id=work_id,
             lease_seconds=lease_seconds,
         )
