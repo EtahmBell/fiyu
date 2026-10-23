@@ -341,6 +341,8 @@ export const developerMyPickProcessSchema = z.object({
     canonical_research_scheduled: z.boolean().optional(),
     canonical_research_attempted: z.boolean(),
     canonical_research_provider_requests: z.number().int().nonnegative().optional(),
+    canonical_research_claim_status: z.string().optional(),
+    canonical_research_skip_reason: nullableString.optional(),
     canonical_research_completed: z.boolean(),
     canonical_research_status: nullableString,
     canonical_research_failure_code: nullableString,

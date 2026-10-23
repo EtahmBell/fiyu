@@ -612,6 +612,8 @@ def test_my_pick_dev_process_is_owned_and_server_side_gated(developer_api, monke
         "canonical_research_scheduled": False,
         "canonical_research_attempted": False,
         "canonical_research_provider_requests": 0,
+        "canonical_research_claim_status": "not_selected",
+        "canonical_research_skip_reason": None,
         "canonical_research_completed": False,
         "canonical_research_status": None,
         "canonical_research_failure_code": None,

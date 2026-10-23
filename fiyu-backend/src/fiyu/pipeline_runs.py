@@ -265,10 +265,12 @@ def _equivalent_standard_research_complete(
 ) -> int | None:
     row = connection.execute(
         """
-        SELECT id FROM restaurant_research_runs
-        WHERE public_restaurant_id=? AND status='complete'
-          AND prompt_version=? AND pipeline_version=? AND model=?
-        ORDER BY id DESC LIMIT 1
+        SELECT rr.id FROM restaurant_research_runs rr
+        JOIN public_restaurants p ON p.place_id=rr.public_restaurant_id
+        WHERE rr.public_restaurant_id=? AND rr.status='complete' AND rr.is_current=1
+          AND p.research_status='complete'
+          AND rr.prompt_version=? AND rr.pipeline_version=? AND rr.model=?
+        ORDER BY rr.id DESC LIMIT 1
         """,
         (
             place_id,
@@ -278,6 +280,12 @@ def _equivalent_standard_research_complete(
         ),
     ).fetchone()
     return int(row["id"]) if row else None
+
+
+def _recovery_work_key(work_key: str, run_id: int) -> str:
+    """Keep stale audit history while allowing a new artifact-producing attempt."""
+
+    return f"{work_key}:artifact-recovery:{run_id}"
 
 
 def claim_next_pipeline_item(
@@ -349,9 +357,17 @@ def claim_next_pipeline_item(
                 research_run_id = _equivalent_standard_research_complete(
                     connection, place_id=place_id, config=config
                 )
-            if existing_success or research_run_id is not None:
+            standard_research = run["run_type"] == "standard_restaurant_research"
+            should_skip = (
+                research_run_id is not None if standard_research else existing_success is not None
+            )
+            if should_skip:
                 reference = {
-                    "reason": "equivalent_research_already_complete",
+                    "reason": (
+                        "current_artifact_already_complete"
+                        if standard_research
+                        else "equivalent_pipeline_work_already_complete"
+                    ),
                     "pipeline_run_item_id": int(existing_success["id"])
                     if existing_success
                     else None,
@@ -368,7 +384,31 @@ def claim_next_pipeline_item(
                 )
                 continue
 
-            if run["run_type"] == "standard_restaurant_research":
+            claim_reason = "selected"
+            effective_work_key = str(item["work_key"])
+            if standard_research:
+                expired_same_scope = connection.execute(
+                    """
+                    SELECT id FROM pipeline_run_items
+                    WHERE work_key=? AND item_key=? AND state IN ('claimed', 'running')
+                      AND id<>? AND lease_expires_at IS NOT NULL AND lease_expires_at<=?
+                    LIMIT 1
+                    """,
+                    (item["work_key"], item["item_key"], item_id, now_text),
+                ).fetchone()
+                if existing_success is not None or expired_same_scope is not None:
+                    effective_work_key = _recovery_work_key(str(item["work_key"]), run_id)
+                    claim_reason = (
+                        "stale_ledger_artifact_missing"
+                        if existing_success is not None
+                        else "expired_active_lease_recovery"
+                    )
+                    connection.execute(
+                        "UPDATE pipeline_run_items SET work_key=? WHERE id=?",
+                        (effective_work_key, item_id),
+                    )
+
+            if standard_research:
                 active_duplicate = connection.execute(
                     """
                     SELECT i.id FROM pipeline_run_items i
@@ -376,11 +416,10 @@ def claim_next_pipeline_item(
                     WHERE r.run_type='standard_restaurant_research'
                       AND i.item_key=? AND i.state IN ('claimed', 'running')
                       AND i.id<>?
-                      AND (i.work_key=? OR i.lease_expires_at IS NULL
-                           OR i.lease_expires_at>?)
+                      AND (i.lease_expires_at IS NULL OR i.lease_expires_at>?)
                     LIMIT 1
                     """,
-                    (item["item_key"], item_id, item["work_key"], now_text),
+                    (item["item_key"], item_id, now_text),
                 ).fetchone()
             else:
                 active_duplicate = connection.execute(
@@ -447,6 +486,7 @@ def claim_next_pipeline_item(
                 "claim_owner": worker_id,
                 "claim_token": token,
                 "lease_expires_at": lease_text,
+                "claim_reason": claim_reason,
             }
 
 

@@ -430,20 +430,13 @@ def get_my_pick_stage_diagnostics(
         location_attempted = False
         research_scheduled = False
         research_provider_requests = 0
+        research_claim_status = "not_selected"
+        research_skip_reason = None
         if place_id:
             row = connection.execute(
                 "SELECT * FROM public_restaurants WHERE place_id=?", (place_id,)
             ).fetchone()
             restaurant = dict(row) if row is not None else None
-            row = connection.execute(
-                """
-                SELECT status, error, evidence_urls_json
-                FROM restaurant_research_runs
-                WHERE public_restaurant_id=? ORDER BY id DESC LIMIT 1
-                """,
-                (place_id,),
-            ).fetchone()
-            research_run = dict(row) if row is not None else None
             from .research_worker import research_scope_token
 
             scope_token = research_scope_token(f"my-pick:{work_id}")
@@ -454,14 +447,62 @@ def get_my_pick_stage_diagnostics(
                 ).fetchone()
             )
             if pipeline_ledger_exists:
-                ledger = connection.execute(
-                    "SELECT COUNT(*) AS scheduled, "
-                    "COALESCE(SUM(provider_request_count), 0) AS provider_requests "
-                    "FROM pipeline_run_items WHERE place_id=? AND work_key LIKE ?",
-                    (place_id, f"%:scope:{scope_token}"),
+                ledger_row = connection.execute(
+                    """
+                    SELECT i.id, i.run_id, i.state, i.provider_request_count,
+                           i.result_reference_json
+                    FROM pipeline_run_items i
+                    JOIN pipeline_runs r ON r.id=i.run_id
+                    WHERE r.run_type='standard_restaurant_research'
+                      AND i.place_id=? AND i.work_key LIKE ?
+                    ORDER BY i.run_id DESC, i.id DESC LIMIT 1
+                    """,
+                    (place_id, f"%:scope:{scope_token}%"),
                 ).fetchone()
-                research_scheduled = bool(ledger["scheduled"])
-                research_provider_requests = int(ledger["provider_requests"])
+                if ledger_row is not None:
+                    ledger = dict(ledger_row)
+                    research_scheduled = True
+                    research_provider_requests = int(ledger["provider_request_count"])
+                    try:
+                        reference = json.loads(str(ledger["result_reference_json"] or "{}"))
+                    except json.JSONDecodeError:
+                        reference = {}
+                    research_run_id = reference.get("restaurant_research_run_id")
+                    if isinstance(research_run_id, int):
+                        row = connection.execute(
+                            """
+                            SELECT status, error, evidence_urls_json
+                            FROM restaurant_research_runs WHERE id=?
+                            """,
+                            (research_run_id,),
+                        ).fetchone()
+                        research_run = dict(row) if row is not None else None
+                    state = str(ledger["state"])
+                    if state == "skipped":
+                        research_claim_status = "skipped"
+                        reason = reference.get("reason")
+                        research_skip_reason = str(reason) if reason else None
+                    elif state == "pending":
+                        if str(work.get("failure_code") or "") == "research_provider_unconfigured":
+                            research_claim_status = "provider_unconfigured"
+                        else:
+                            active = connection.execute(
+                                """
+                                SELECT 1 FROM pipeline_run_items i
+                                JOIN pipeline_runs r ON r.id=i.run_id
+                                WHERE r.run_type='standard_restaurant_research'
+                                  AND i.item_key=? AND i.id<>?
+                                  AND i.state IN ('claimed', 'running')
+                                  AND (i.lease_expires_at IS NULL OR i.lease_expires_at>?)
+                                LIMIT 1
+                                """,
+                                (place_id, ledger["id"], _now()),
+                            ).fetchone()
+                            research_claim_status = (
+                                "blocked_by_active_lease" if active else "not_claimed"
+                            )
+                    else:
+                        research_claim_status = "claimed"
             row = connection.execute(
                 """
                 SELECT status, error_category, score_version, shadow_v4_score
@@ -482,7 +523,11 @@ def get_my_pick_stage_diagnostics(
     research_status = (
         str(restaurant.get("research_status") or "pending") if restaurant else None
     )
-    research_error = str((research_run or {}).get("error") or "")
+    research_error = str(
+        (research_run or {}).get("error")
+        or (restaurant or {}).get("research_error")
+        or ""
+    )
     failure_class = research_error.partition(":")[0].strip() or None
     if failure_class and not re.fullmatch(
         r"[A-Za-z][A-Za-z0-9_.-]{0,119}", failure_class
@@ -532,6 +577,8 @@ def get_my_pick_stage_diagnostics(
         "canonical_research_scheduled": research_scheduled,
         "canonical_research_attempted": research_provider_requests > 0,
         "canonical_research_provider_requests": research_provider_requests,
+        "canonical_research_claim_status": research_claim_status,
+        "canonical_research_skip_reason": research_skip_reason,
         "canonical_research_completed": research_status == "complete",
         "canonical_research_status": research_status,
         "canonical_research_failure_code": failure_class,

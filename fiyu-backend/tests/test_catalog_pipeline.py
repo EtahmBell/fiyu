@@ -472,7 +472,7 @@ def test_timeout_is_ambiguous_and_never_automatically_retried(tmp_path, monkeypa
     assert explicit["candidates"] == ["place-1"]
 
 
-def test_scoped_targeted_research_ignores_stale_global_success_ledger(
+def test_targeted_research_ignores_stale_success_ledger_without_current_artifact(
     tmp_path, monkeypatch
 ):
     import fiyu.research_worker as worker
@@ -507,22 +507,8 @@ def test_scoped_targeted_research_ignores_stale_global_success_ledger(
     monkeypatch.setattr(worker, "load_dotenv", lambda: None)
     monkeypatch.setattr(worker, "OpenAI", lambda **_kwargs: client)
 
-    suppressed = run_research_batch(
-        path, place_ids=["place-1"], model="test-model", max_items=1
-    )
-    assert suppressed["responses_requests"] == 0
-    assert client.responses.calls == 0
-    with connect(path) as connection:
-        assert connection.execute(
-            "SELECT research_status FROM public_restaurants WHERE place_id='place-1'"
-        ).fetchone()[0] == "pending"
-
     executed = run_research_batch(
-        path,
-        place_ids=["place-1"],
-        model="test-model",
-        max_items=1,
-        execution_scope="my-pick:new-work-id",
+        path, place_ids=["place-1"], model="test-model", max_items=1
     )
     assert executed["responses_requests"] == 1
     assert executed["failed"] == 1

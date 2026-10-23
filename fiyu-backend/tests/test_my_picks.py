@@ -28,6 +28,7 @@ from fiyu.pipeline_runs import (
     claim_next_pipeline_item,
     create_pipeline_run,
     finish_pipeline_item,
+    get_pipeline_run_status,
     mark_pipeline_item_running,
 )
 from fiyu.public_catalog import ensure_public_schema
@@ -382,6 +383,118 @@ def test_hard_reset_removes_failed_work_and_exclusive_transient_candidate(catalo
     assert fresh["attempt_count"] == 0
 
 
+def test_hard_reset_recreated_work_claims_research_past_preserved_success_ledger(
+    catalog,
+):
+    external_id = "hard-reset-research-ledger"
+    work, _ = my_picks.create_or_get_canonical_work(
+        catalog, provider="google", external_place_id=external_id
+    )
+    place_id, _ = my_pick_processor.ensure_my_pick_candidate(
+        catalog,
+        provider="google",
+        external_place_id=external_id,
+        canonical_name="Research fixture",
+    )
+    scope = f"my-pick:{work['id']}"
+    config = {
+        "model": "test-model",
+        "prompt_version": research_worker.PROMPT_VERSION,
+        "pipeline_version": research_worker.RESEARCH_PIPELINE_VERSION,
+    }
+    with connect(catalog) as connection:
+        connection.execute(
+            "UPDATE my_pick_canonical_work SET canonical_place_id=?, status='needs_review' "
+            "WHERE id=?",
+            (place_id, work["id"]),
+        )
+        connection.commit()
+    first_run = create_pipeline_run(
+        catalog,
+        run_type="standard_restaurant_research",
+        item_keys=[place_id],
+        work_key=research_worker._research_work_key("test-model", scope),
+        selector={"execution_scope_token": research_worker.research_scope_token(scope)},
+        config=config,
+        requested_item_count=1,
+    )
+    first_claim = claim_next_pipeline_item(catalog, first_run, worker_id="first-worker")
+    mark_pipeline_item_running(
+        catalog, first_claim["id"], first_claim["claim_token"], provider_request_started=True
+    )
+    with connect(catalog) as connection:
+        research_run = connection.execute(
+            """
+            INSERT INTO restaurant_research_runs(
+                public_restaurant_id, provider, model, prompt_version, pipeline_version,
+                status, is_current, created_at, completed_at
+            ) VALUES (?, 'openai', 'test-model', ?, ?, 'complete', 1, 'now', 'now')
+            """,
+            (
+                place_id,
+                research_worker.PROMPT_VERSION,
+                research_worker.RESEARCH_PIPELINE_VERSION,
+            ),
+        )
+        connection.execute(
+            "UPDATE public_restaurants SET research_status='complete' WHERE place_id=?",
+            (place_id,),
+        )
+        research_run_id = int(research_run.lastrowid)
+        connection.commit()
+    finish_pipeline_item(
+        catalog,
+        first_claim["id"],
+        first_claim["claim_token"],
+        state="succeeded",
+        result_reference={"restaurant_research_run_id": research_run_id},
+    )
+
+    my_picks.hard_reset_my_pick_canonical_work(catalog, str(work["id"]))
+    recreated, created = my_picks.create_or_get_canonical_work(
+        catalog, provider="google", external_place_id=external_id
+    )
+    recreated_place_id, _ = my_pick_processor.ensure_my_pick_candidate(
+        catalog,
+        provider="google",
+        external_place_id=external_id,
+        canonical_name="Research fixture",
+    )
+    second_run = create_pipeline_run(
+        catalog,
+        run_type="standard_restaurant_research",
+        item_keys=[recreated_place_id],
+        work_key=research_worker._research_work_key("test-model", scope),
+        selector={"execution_scope_token": research_worker.research_scope_token(scope)},
+        config=config,
+        requested_item_count=1,
+    )
+    second_claim = claim_next_pipeline_item(
+        catalog, second_run, worker_id="second-worker"
+    )
+    mark_pipeline_item_running(
+        catalog,
+        second_claim["id"],
+        second_claim["claim_token"],
+        provider_request_started=True,
+    )
+
+    assert created is True
+    assert recreated["id"] == work["id"]
+    assert recreated_place_id == place_id
+    assert second_claim["claim_reason"] == "stale_ledger_artifact_missing"
+    assert get_pipeline_run_status(catalog, second_run)["provider_requests"] == 1
+    with connect(catalog) as connection:
+        assert connection.execute(
+            "SELECT COUNT(*) FROM restaurant_research_runs WHERE public_restaurant_id=?",
+            (place_id,),
+        ).fetchone()[0] == 0
+        assert connection.execute(
+            "SELECT COUNT(*) FROM pipeline_run_items WHERE place_id=? AND state='succeeded'",
+            (place_id,),
+        ).fetchone()[0] == 1
+
+
 def test_hard_reset_allows_unshared_needs_review_work(catalog):
     work, _ = my_picks.create_or_get_canonical_work(
         catalog, provider="google", external_place_id="needs-review-reset"
@@ -673,7 +786,7 @@ def test_bootstrapped_candidate_enters_normal_research_without_seed_or_opaque_pr
     assert stored["source_files_json"] == '["my_pick:google"]'
 
 
-def test_unknown_my_pick_scoped_research_executes_past_stale_global_ledger(
+def test_unknown_my_pick_research_executes_past_stale_same_scope_ledger(
     catalog, monkeypatch
 ):
     external_id = "opaque-google-sawada"
@@ -691,7 +804,9 @@ def test_unknown_my_pick_scoped_research_executes_past_stale_global_ledger(
         catalog,
         run_type="standard_restaurant_research",
         item_keys=[external_id],
-        work_key=research_worker._research_work_key("test-model", None),
+        work_key=research_worker._research_work_key(
+            "test-model", f"my-pick:{work['id']}"
+        ),
         selector={},
         config={
             "model": "test-model",
@@ -957,9 +1072,131 @@ def test_incomplete_canonical_research_blocks_location_and_quality(catalog, monk
         "research_status:needs_retry",
         "failure_class:TimeoutError",
     ]
-    assert diagnostics["accepted_source_count"] == 0
+    assert diagnostics["accepted_source_count"] is None
+    assert diagnostics["canonical_research_claim_status"] == "not_selected"
     assert diagnostics["location_attempted"] is False
     assert diagnostics["quality_v4_attempted"] is False
+
+
+def test_stage_diagnostics_use_latest_scoped_run_not_prior_attempt(catalog):
+    external_id = "diagnostic-current-attempt"
+    work, _ = my_picks.create_or_get_canonical_work(
+        catalog, provider="google", external_place_id=external_id
+    )
+    place_id, _ = my_pick_processor.ensure_my_pick_candidate(
+        catalog,
+        provider="google",
+        external_place_id=external_id,
+        canonical_name="Diagnostic fixture",
+    )
+    with connect(catalog) as connection:
+        connection.execute(
+            "UPDATE my_pick_canonical_work SET canonical_place_id=?, status='researching' "
+            "WHERE id=?",
+            (place_id, work["id"]),
+        )
+        connection.commit()
+    scope = f"my-pick:{work['id']}"
+    work_key = research_worker._research_work_key("test-model", scope)
+    config = {
+        "model": "test-model",
+        "prompt_version": research_worker.PROMPT_VERSION,
+        "pipeline_version": research_worker.RESEARCH_PIPELINE_VERSION,
+    }
+    prior_run = create_pipeline_run(
+        catalog,
+        run_type="standard_restaurant_research",
+        item_keys=[place_id],
+        work_key=work_key,
+        selector={"execution_scope_token": research_worker.research_scope_token(scope)},
+        config=config,
+        requested_item_count=1,
+    )
+    prior = claim_next_pipeline_item(catalog, prior_run, worker_id="prior-worker")
+    mark_pipeline_item_running(
+        catalog, prior["id"], prior["claim_token"], provider_request_started=True
+    )
+    finish_pipeline_item(
+        catalog, prior["id"], prior["claim_token"], state="succeeded"
+    )
+    active_run = create_pipeline_run(
+        catalog,
+        run_type="standard_restaurant_research",
+        item_keys=[place_id],
+        work_key=research_worker._research_work_key("test-model", "other-scope"),
+        selector={},
+        config=config,
+        requested_item_count=1,
+    )
+    active = claim_next_pipeline_item(catalog, active_run, worker_id="active-worker")
+    current_run = create_pipeline_run(
+        catalog,
+        run_type="standard_restaurant_research",
+        item_keys=[place_id],
+        work_key=work_key,
+        selector={"execution_scope_token": research_worker.research_scope_token(scope)},
+        config=config,
+        requested_item_count=1,
+    )
+
+    assert active is not None
+    assert claim_next_pipeline_item(
+        catalog, current_run, worker_id="current-worker"
+    ) is None
+    diagnostics = my_picks.get_my_pick_stage_diagnostics(catalog, str(work["id"]))
+
+    assert diagnostics["canonical_research_scheduled"] is True
+    assert diagnostics["canonical_research_attempted"] is False
+    assert diagnostics["canonical_research_provider_requests"] == 0
+    assert diagnostics["canonical_research_claim_status"] == "blocked_by_active_lease"
+    assert diagnostics["canonical_research_skip_reason"] is None
+
+
+def test_stage_diagnostics_explain_current_artifact_skip(catalog):
+    place_id = "diagnostic-current-artifact"
+    add_canonical(catalog, place_id)
+    work, _ = my_picks.create_or_get_canonical_work(
+        catalog, provider="google", external_place_id=place_id
+    )
+    scope = f"my-pick:{work['id']}"
+    with connect(catalog) as connection:
+        connection.execute(
+            """
+            INSERT INTO restaurant_research_runs(
+                public_restaurant_id, provider, model, prompt_version, pipeline_version,
+                status, evidence_urls_json, is_current, created_at, completed_at
+            ) VALUES (?, 'openai', 'test-model', ?, ?, 'complete', '[]', 1, 'now', 'now')
+            """,
+            (
+                place_id,
+                research_worker.PROMPT_VERSION,
+                research_worker.RESEARCH_PIPELINE_VERSION,
+            ),
+        )
+        connection.commit()
+    run_id = create_pipeline_run(
+        catalog,
+        run_type="standard_restaurant_research",
+        item_keys=[place_id],
+        work_key=research_worker._research_work_key("test-model", scope),
+        selector={"execution_scope_token": research_worker.research_scope_token(scope)},
+        config={
+            "model": "test-model",
+            "prompt_version": research_worker.PROMPT_VERSION,
+            "pipeline_version": research_worker.RESEARCH_PIPELINE_VERSION,
+        },
+        requested_item_count=1,
+    )
+
+    assert claim_next_pipeline_item(catalog, run_id, worker_id="skip-worker") is None
+    diagnostics = my_picks.get_my_pick_stage_diagnostics(catalog, str(work["id"]))
+
+    assert diagnostics["canonical_research_attempted"] is False
+    assert diagnostics["canonical_research_provider_requests"] == 0
+    assert diagnostics["canonical_research_claim_status"] == "skipped"
+    assert diagnostics["canonical_research_skip_reason"] == (
+        "current_artifact_already_complete"
+    )
 
 
 def test_zero_row_quality_v4_selection_is_not_reported_as_promotion_failure(

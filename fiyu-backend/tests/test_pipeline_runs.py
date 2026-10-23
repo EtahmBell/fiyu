@@ -290,6 +290,77 @@ def test_active_standard_research_is_deduplicated_across_scoped_work_keys(tmp_pa
     assert _claim(path, scoped_run, worker="scoped-worker") is not None
 
 
+def test_stale_same_scope_success_without_current_artifact_is_claimable(tmp_path):
+    path = _ledger_db(tmp_path)
+    ensure_public_schema(path)
+    config = {"model": "model", "prompt_version": "prompt", "pipeline_version": "pipeline"}
+    first_run = create_pipeline_run(
+        path,
+        run_type="standard_restaurant_research",
+        item_keys=["place-1"],
+        work_key="standard:v1:scope:stable-my-pick",
+        selector={},
+        config=config,
+        requested_item_count=1,
+    )
+    first = _claim(path, first_run)
+    _succeed(path, first)
+    second_run = create_pipeline_run(
+        path,
+        run_type="standard_restaurant_research",
+        item_keys=["place-1"],
+        work_key="standard:v1:scope:stable-my-pick",
+        selector={},
+        config=config,
+        requested_item_count=1,
+    )
+
+    recovered = _claim(path, second_run, worker="recovery-worker")
+
+    assert recovered is not None
+    assert recovered["claim_reason"] == "stale_ledger_artifact_missing"
+    _succeed(path, recovered)
+    assert get_pipeline_run_status(path, second_run)["succeeded"] == 1
+
+
+def test_expired_same_scope_standard_research_lease_allows_recovery(tmp_path):
+    path = _ledger_db(tmp_path)
+    ensure_public_schema(path)
+    now = datetime(2026, 1, 1, tzinfo=UTC)
+    config = {"model": "model", "prompt_version": "prompt", "pipeline_version": "pipeline"}
+    first_run = create_pipeline_run(
+        path,
+        run_type="standard_restaurant_research",
+        item_keys=["place-1"],
+        work_key="standard:v1:scope:stable-my-pick",
+        selector={},
+        config=config,
+        requested_item_count=1,
+    )
+    active = _claim(path, first_run, now=now, lease_seconds=10)
+    second_run = create_pipeline_run(
+        path,
+        run_type="standard_restaurant_research",
+        item_keys=["place-1"],
+        work_key="standard:v1:scope:stable-my-pick",
+        selector={},
+        config=config,
+        requested_item_count=1,
+    )
+
+    assert _claim(path, second_run, worker="blocked", now=now) is None
+    recovered = _claim(
+        path,
+        second_run,
+        worker="recovery-worker",
+        now=now + timedelta(seconds=11),
+    )
+
+    assert active is not None
+    assert recovered is not None
+    assert recovered["claim_reason"] == "expired_active_lease_recovery"
+
+
 def test_persisted_standard_research_closes_crash_window_without_second_request(tmp_path):
     path = _ledger_db(tmp_path)
     ensure_public_schema(path)

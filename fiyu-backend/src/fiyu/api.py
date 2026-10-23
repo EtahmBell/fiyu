@@ -1030,6 +1030,8 @@ class DeveloperMyPickStageDiagnostics(BaseModel):
     canonical_research_scheduled: bool
     canonical_research_attempted: bool
     canonical_research_provider_requests: int
+    canonical_research_claim_status: str
+    canonical_research_skip_reason: str | None
     canonical_research_completed: bool
     canonical_research_status: str | None
     canonical_research_failure_code: str | None

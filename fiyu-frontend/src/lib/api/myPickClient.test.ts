@@ -72,6 +72,7 @@ describe("processDeveloperMyPick", () => {
     const stage_diagnostics = {
       identity_bootstrap_attempted: true, identity_bootstrap_completed: true, identity_bootstrap_status: "confirmed",
       canonical_research_scheduled: true, canonical_research_attempted: true, canonical_research_provider_requests: 1, canonical_research_completed: false, canonical_research_status: "needs_retry",
+      canonical_research_claim_status: "claimed", canonical_research_skip_reason: null,
       canonical_research_failure_code: "TimeoutError", accepted_source_count: 0, rejected_source_count: null,
       canonical_research_missing_requirements: ["research_status:needs_retry", "failure_class:TimeoutError"],
       location_attempted: false, location_completed: false, location_precision: null,
