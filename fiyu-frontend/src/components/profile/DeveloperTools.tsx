@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { Button } from "@/components/ui/Button";
@@ -23,8 +23,9 @@ import {
   resetDeveloperDailyPicks,
   resetDeveloperVisitTaste,
   updateDeveloperLocation,
+  fetchMyPicks,
+  hardResetDeveloperMyPick,
   processDeveloperMyPick,
-  resetDeveloperMyPicks,
   previewDeveloperMyPick,
 } from "@/lib/api/client";
 import type {
@@ -47,22 +48,64 @@ import { isDeveloperAuthorized } from "@/lib/developerAuthorization";
 import { dailyPicksStorageKey } from "@/lib/daily-picks/storage";
 
 function MyPickDeveloperTools() {
-  const [myPickId, setMyPickId] = useState("");
+  const [items, setItems] = useState<MyPick[]>([]);
   const [preview, setPreview] = useState<MyPick | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const load = useCallback(async () => setItems((await fetchMyPicks()).slice(0, 5)), []);
+  useEffect(() => {
+    const controller = new AbortController();
+    void fetchMyPicks({ signal: controller.signal })
+      .then((recent) => setItems(recent.slice(0, 5)))
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, []);
   const run = async (action: () => Promise<void>) => {
     setBusy(true); setMessage(null);
     try { await action(); } catch (cause) { setMessage(cause instanceof Error ? cause.message : "My Pick dev action failed."); }
     finally { setBusy(false); }
   };
+  const process = (item: MyPick) => void run(async () => {
+    await processDeveloperMyPick(item.my_pick_id);
+    await load();
+    setMessage(item.status === "needs_location" ? "Location retry completed." : "Canonical My Pick worker completed.");
+  });
+  const hardReset = (item: MyPick) => void run(async () => {
+    if (!window.confirm("Hard reset this My Pick and its unshared canonical work?")) return;
+    await hardResetDeveloperMyPick(item.my_pick_id);
+    await load();
+    setMessage("My Pick hard-reset completed.");
+  });
   return <div className="mt-8 border-t border-line pt-7" aria-labelledby="developer-my-pick-title">
-    <h4 id="developer-my-pick-title" className="text-sm font-semibold text-ink">My Pick</h4>
-    <p className="mt-2 text-sm leading-6 text-ink-muted">Preview lifecycle states without writes, or process/reset this developer account through the canonical backend path.</p>
+    <h4 id="developer-my-pick-title" className="text-sm font-semibold text-ink">My Pick Developer Tools</h4>
+    <p className="mt-2 text-sm leading-6 text-ink-muted">Inspect and operate this developer account&apos;s recent requests through the canonical backend path.</p>
     <div className="mt-4 flex flex-wrap gap-2">{(["below_70", "review_eligible", "needs_location", "outside_coverage", "failed_retryable"] as const).map((scenario) => <Button key={scenario} size="sm" variant="secondary" disabled={busy} onClick={() => void run(async () => setPreview((await previewDeveloperMyPick(scenario)).my_pick))}>{scenario.replaceAll("_", " ")}</Button>)}</div>
-    <label className="mt-5 block text-xs font-semibold tracking-wide text-ink" htmlFor="developer-my-pick-id">REAL MY PICK ID</label>
-    <input id="developer-my-pick-id" value={myPickId} onChange={(event) => setMyPickId(event.target.value)} className="mt-2 min-h-11 w-full rounded-lg border border-line bg-canvas px-3 text-sm text-ink" placeholder="UUID from /my-pick" />
-    <div className="mt-3 flex flex-wrap gap-2"><Button size="sm" variant="primary" disabled={busy || !myPickId} onClick={() => void run(async () => { setPreview((await processDeveloperMyPick(myPickId)).my_pick); setMessage("Canonical My Pick worker processed this request."); })}>Process request</Button><Button size="sm" variant="secondary" disabled={busy} onClick={() => void run(async () => { const count = await resetDeveloperMyPicks(); setPreview(null); setMyPickId(""); setMessage(`My Pick state reset (${count} rows).`); })}>Reset My Picks</Button><Link href="/picks" className="inline-flex min-h-11 items-center px-2 text-sm font-semibold text-plum underline underline-offset-4">Open Picks →</Link></div>
+    <div className="mt-5 space-y-3" aria-label="Recent My Picks">
+      {items.length === 0 ? <p className="text-sm text-ink-muted">No recent My Picks.</p> : items.map((item) => {
+        const canProcess = item.status === "pending" || item.status === "resolving_identity" || item.status === "researching";
+        const canRetry = item.status === "failed_retryable";
+        const canRetryLocation = item.status === "needs_location" && item.result_ready;
+        const canHardReset = canProcess || canRetry || item.status === "needs_review";
+        return <article key={item.my_pick_id} className="rounded-lg border border-my-pick-line bg-my-pick-soft px-4 py-3">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="font-medium text-my-pick-ink">{item.name_en || item.name_ja || "Your Pick"}</p>
+              <p className="mt-1 text-xs text-my-pick-700">{item.status} · {new Date(item.created_at).toLocaleString()}</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {(canProcess || canRetry || canRetryLocation) ? <Button size="sm" variant="primary" disabled={busy} onClick={() => process(item)}>{canRetryLocation ? "Retry location" : canRetry ? "Retry" : "Process now"}</Button> : null}
+              {canHardReset ? <Button size="sm" variant="secondary" disabled={busy} onClick={() => hardReset(item)}>Hard reset</Button> : null}
+            </div>
+          </div>
+          <dl className="mt-3 grid gap-x-3 gap-y-1 text-xs leading-5 text-ink-muted sm:grid-cols-[7rem_1fr]">
+            <dt>Failure</dt><dd className="break-all text-ink">{item.failure_code ?? "—"}</dd>
+            <dt>Result / map</dt><dd className="text-ink">{item.result_ready ? "ready" : "not ready"} / {item.map_ready ? "map-ready" : "no map location"}</dd>
+            <dt>Score</dt><dd className="text-ink">{item.fiyu_score ?? "—"}</dd>
+          </dl>
+        </article>;
+      })}
+    </div>
+    <div className="mt-3 flex flex-wrap gap-2"><Button size="sm" variant="secondary" disabled={busy} onClick={() => void run(load)}>Refresh requests</Button><Link href="/picks" className="inline-flex min-h-11 items-center px-2 text-sm font-semibold text-plum underline underline-offset-4">Open Picks →</Link></div>
     {message ? <p role="status" className="mt-3 text-sm text-ink-muted">{message}</p> : null}
     {preview ? <dl className="mt-4 grid gap-x-4 gap-y-1 rounded-lg border border-line bg-subtle px-4 py-3 text-xs leading-5 text-ink-muted sm:grid-cols-[8rem_1fr]"><dt>Status</dt><dd className="text-ink">{preview.status}</dd><dt>Score</dt><dd className="text-ink">{preview.fiyu_score ?? "—"}</dd><dt>Public</dt><dd className="text-ink">{preview.is_public ? "yes" : "no"}</dd><dt>Review</dt><dd className="text-ink">{preview.recommendation_review_status}</dd></dl> : null}
   </div>;

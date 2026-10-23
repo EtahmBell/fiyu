@@ -9,6 +9,7 @@ const api = vi.hoisted(() => ({
   fetchAuthenticatedMapRestaurants: vi.fn(),
   fetchDeveloperPersonalizedPick: vi.fn(),
   fetchDeveloperStatus: vi.fn(),
+  fetchMyPicks: vi.fn(),
   fetchRestaurants: vi.fn(),
   fetchUserFiyuSummary: vi.fn(),
   forceDeveloperPersonalizedPick: vi.fn(),
@@ -18,6 +19,7 @@ const api = vi.hoisted(() => ({
   resetDeveloperVisitTaste: vi.fn(),
   updateDeveloperLocation: vi.fn(),
   processDeveloperMyPick: vi.fn(),
+  hardResetDeveloperMyPick: vi.fn(),
   resetDeveloperMyPicks: vi.fn(),
   previewDeveloperMyPick: vi.fn(),
 }));
@@ -76,6 +78,7 @@ const status = {
 beforeEach(() => {
   window.localStorage.clear();
   api.fetchDeveloperStatus.mockReset();
+  api.fetchMyPicks.mockReset().mockResolvedValue([]);
   api.fetchDeveloperPersonalizedPick.mockReset().mockResolvedValue(ppDebug);
   api.fetchRestaurants.mockReset();
   api.forceDeveloperPersonalizedPick.mockReset();
@@ -89,6 +92,7 @@ beforeEach(() => {
   api.resetDeveloperVisitTaste.mockReset();
   api.updateDeveloperLocation.mockReset();
   api.processDeveloperMyPick.mockReset();
+  api.hardResetDeveloperMyPick.mockReset();
   api.resetDeveloperMyPicks.mockReset();
   api.previewDeveloperMyPick.mockReset();
   cache.accountQueryKey.mockClear();
@@ -341,5 +345,48 @@ describe("DeveloperTools", () => {
     await waitFor(() => expect(api.expireDeveloperPersonalizedPick).toHaveBeenCalledOnce());
     fireEvent.click(screen.getByRole("button", { name: "Reset event" }));
     await waitFor(() => expect(api.resetDeveloperPersonalizedPick).toHaveBeenCalledOnce());
+  });
+
+  it("shows lifecycle-appropriate My Pick controls only inside authorized Developer Tools", async () => {
+    const pending = {
+      my_pick_id: "pick-pending",
+      status: "researching",
+      name_en: "Pending Ramen",
+      name_ja: null,
+      failure_code: null,
+      result_ready: false,
+      map_ready: false,
+      fiyu_score: null,
+      created_at: "2026-10-23T10:00:00Z",
+    };
+    const retry = {
+      ...pending,
+      my_pick_id: "pick-retry",
+      status: "failed_retryable",
+      name_en: "Retry Ramen",
+      failure_code: "provider_retryable",
+    };
+    const location = {
+      ...pending,
+      my_pick_id: "pick-location",
+      status: "needs_location",
+      name_en: "Located Ramen",
+      result_ready: true,
+      fiyu_score: 65,
+    };
+    api.fetchDeveloperStatus.mockResolvedValue(status);
+    api.fetchMyPicks.mockResolvedValue([pending, retry, location]);
+    api.processDeveloperMyPick.mockResolvedValue({});
+
+    render(<DeveloperTools />);
+    expect(await screen.findByRole("heading", { name: "My Pick Developer Tools" })).toBeTruthy();
+    expect(await screen.findByText("provider_retryable")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Process now" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Retry" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Retry location" })).toBeTruthy();
+    expect(screen.getAllByRole("button", { name: "Hard reset" })).toHaveLength(2);
+
+    fireEvent.click(screen.getByRole("button", { name: "Retry location" }));
+    await waitFor(() => expect(api.processDeveloperMyPick).toHaveBeenCalledWith("pick-location"));
   });
 });

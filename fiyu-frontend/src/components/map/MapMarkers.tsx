@@ -20,10 +20,10 @@ function markerForRestaurants(restaurants: readonly MappableRestaurant[]): strin
     return "var(--map-marker-personalized)";
   }
   const states = restaurants.map(personalMapMarkerState);
+  if (states.includes("my_pick")) return "var(--map-marker-my-pick)";
   if (states.includes("discovered")) return "var(--map-marker-discovered)";
-  if (states.includes("visited")) return "var(--map-marker-visited)";
-  if (states.includes("my_pick")) return "var(--map-marker)";
   if (states.includes("saved")) return "var(--map-marker-saved)";
+  if (states.includes("visited")) return "var(--map-marker-visited)";
   return "var(--map-marker)";
 }
 
@@ -47,7 +47,8 @@ export interface MapMarkersProps {
  *
  * The map is an orientation surface, not a directions product. Pin colour
  * distinguishes the dominant personal relationship without changing filter
- * membership: Personalized Pick, active discovery, Visited, then Saved. This
+ * membership: Personalized Pick, My Pick, active discovery, Saved, then
+ * Visited. This
  * component never fabricates, shifts, or recentres a coordinate; approximate
  * area geometry remains a backend provenance concern.
  */
@@ -154,11 +155,14 @@ export function MapMarkers({
         const visited = restaurant.is_visited === true;
         const visitedMarker = markerState === "visited";
         const discovered = markerState === "discovered";
+        const myPick = markerState === "my_pick";
         const saved = markerState === "saved";
         const personalized = restaurant.is_personalized_pick === true;
         const marker = personalized
           ? "var(--map-marker-personalized)"
-          : discovered
+          : myPick
+            ? "var(--map-marker-my-pick)"
+            : discovered
             ? "var(--map-marker-discovered)"
             : visitedMarker
               ? "var(--map-marker-visited)"

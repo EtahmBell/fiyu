@@ -37,10 +37,10 @@ describe("MyPickEntry", () => {
   it("uses the same calm grey-blue surface family as a pending My Pick", () => {
     render(<MyPickEntry signedIn />);
     const trigger = screen.getByRole("button", { name: /Try My Pick/ });
-    expect(trigger.className).toContain("bg-[#EEF2F6]");
-    expect(trigger.className).toContain("border-[#D2DAE5]");
-    expect(screen.getByRole("heading", { name: "Try My Pick" }).className).toContain("text-[#3F4A59]");
-    expect(screen.getByText("Submit a restaurant →").className).toContain("text-[#66788F]");
+    expect(trigger.className).toContain("bg-my-pick-soft");
+    expect(trigger.className).toContain("border-my-pick-line");
+    expect(screen.getByRole("heading", { name: "Try My Pick" }).className).toContain("text-my-pick-ink");
+    expect(screen.getByText("Submit a restaurant →").className).toContain("text-my-pick-700");
   });
 
   it("renders the single restrained utility action for an existing Pick", () => {

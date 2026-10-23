@@ -26,7 +26,7 @@ export function MyPickEntry({
     window.requestAnimationFrame(() => trigger.current?.focus());
   };
   const submitted = (myPick: MyPick) => { submittedRef.current = myPick; };
-  const content = <><h2 id="my-pick-entry-title" className="font-display text-2xl text-[#3F4A59]">Try My Pick</h2><p className="mt-2 text-sm leading-6 text-[#66788F]">Give Fiyu a restaurant and we&apos;ll score it.</p><span aria-hidden="true" className="mt-4 inline-block font-semibold text-[#66788F]">Submit a restaurant →</span></>;
+  const content = <><h2 id="my-pick-entry-title" className="font-display text-2xl text-my-pick-ink">Try My Pick</h2><p className="mt-2 text-sm leading-6 text-my-pick-700">Give Fiyu a restaurant and we&apos;ll score it.</p><span aria-hidden="true" className="mt-4 inline-block font-semibold text-my-pick-700">Submit a restaurant →</span></>;
 
   if (variant === "utility") {
     return <>
@@ -36,7 +36,7 @@ export function MyPickEntry({
   }
 
   return <aside className="mt-6" aria-labelledby="my-pick-entry-title">
-    {signedIn ? <button ref={trigger} type="button" onClick={() => setOpen(true)} className="block w-full rounded-card border border-[#D2DAE5] bg-[#EEF2F6] p-5 text-left hover:border-[#C4CFDC]">{content}</button> : <Link href="/signin?next=%2Fpicks" className="block rounded-card border border-[#D2DAE5] bg-[#EEF2F6] p-5 hover:border-[#C4CFDC]">{content}</Link>}
+    {signedIn ? <button ref={trigger} type="button" onClick={() => setOpen(true)} className="block w-full rounded-card border border-my-pick-line bg-my-pick-soft p-5 text-left hover:border-my-pick">{content}</button> : <Link href="/signin?next=%2Fpicks" className="block rounded-card border border-my-pick-line bg-my-pick-soft p-5 hover:border-my-pick">{content}</Link>}
     {open ? <MyPickComposer open onClose={close} onSubmitted={submitted} /> : null}
   </aside>;
 }

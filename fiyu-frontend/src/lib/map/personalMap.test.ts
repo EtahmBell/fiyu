@@ -93,7 +93,7 @@ describe("personal Map membership", () => {
     )).toBe(true);
   });
 
-  it("defaults to ALL and gives an active discovery marker precedence over visit history", () => {
+  it("defaults to ALL and gives active discovery precedence over saved and visit history", () => {
     const rows = [
       restaurant("discovered", { is_discovered: true }),
       restaurant("saved", { is_saved: true }),
@@ -113,10 +113,11 @@ describe("personal Map membership", () => {
     ["discovered only", { is_discovered: true }, "discovered"],
     ["saved and discovered", { is_saved: true, is_discovered: true }, "discovered"],
     ["visited only", { is_visited: true }, "visited"],
-    ["saved and visited", { is_saved: true, is_visited: true }, "visited"],
+    ["saved and visited", { is_saved: true, is_visited: true }, "saved"],
     ["My Pick only", { is_my_pick: true }, "my_pick"],
     ["saved My Pick", { is_saved: true, is_my_pick: true }, "my_pick"],
-    ["visited My Pick", { is_visited: true, is_my_pick: true }, "visited"],
+    ["visited My Pick", { is_visited: true, is_my_pick: true }, "my_pick"],
+    ["discovered My Pick", { is_discovered: true, is_my_pick: true }, "my_pick"],
     ["discovered and visited", { is_discovered: true, is_visited: true }, "discovered"],
     [
       "saved, discovered, and visited",
@@ -185,6 +186,6 @@ describe("personal Map membership", () => {
     expect(filterPersonalMapRestaurants(merged, "saved")).toHaveLength(1);
     expect(filterPersonalMapRestaurants(merged, "visited")).toHaveLength(1);
     expect(filterPersonalMapRestaurants(merged, "discovered")).toHaveLength(1);
-    expect(personalMapMarkerState(merged[0])).toBe("discovered");
+    expect(personalMapMarkerState(merged[0])).toBe("my_pick");
   });
 });

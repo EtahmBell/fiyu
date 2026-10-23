@@ -12,13 +12,13 @@
  *   primary action and the Fiyu Score. It is the brand, so it is spent
  *   deliberately and nowhere else.
  *
- *   Dusty blue is DISCOVERED. It identifies Recent Discoveries without
- *   competing with the ochre reserved for Personalized Picks.
+ *   Pastel lavender is DISCOVERED. It identifies Recent Discoveries and the
+ *   product's active state without competing with Personalized Pick ochre.
  *
- *   Rose-red is SAVED ON THE MAP. It marks an active intent to return, while
- *   saved buttons stay in the product's purple action language.
+ *   Dusty mauve is SAVED ON THE MAP. It marks an active intent to return, while
+ *   saved buttons stay in the product's lavender action language.
  *
- *   Slate is VISITED. It is deliberately quieter than an active save or
+ *   Muted sage is VISITED. It is deliberately quieter than an active save or
  *   discovery and is always paired with a status label or marker shape.
  *
  *   Champagne remains an editorial accent for exceptional scores and other
@@ -31,10 +31,9 @@
  *   the pair (the reveal, the hub masthead), and pale washes, hairlines and
  *   micro-caps everywhere else. Restaurant cards stay on white paper under it.
  *
- * Contrast, measured against WCAG 2.1:
- *   lavender-500  3.77:1 on white  -> GRAPHICS ONLY (pins, rules, focus rings)
- *   lavender-600  4.89:1 on white  -> AA for text and for white-on-fill
- *   lavender-700  6.65:1 on white  -> comfortable for small text
+ * Contrast usage:
+ *   lavender-500 is GRAPHICS ONLY (pins, rules, focus rings)
+ *   lavender-600 is the primary fill; lavender-700/800 carry small text
  *   gold          3.20:1 on white  -> GRAPHICS ONLY (pins, rules, hairlines)
  *   gold-700      5.04:1 on white, 4.64:1 on canvas -> AA for small text
  *   ink-muted     4.76:1 on canvas -> AA for body text
@@ -61,18 +60,19 @@
   --color-ink-muted: #706b76;
   --color-ink-faint: #9a949f;
 
-  --color-lavender-50: #f5f1ff;
-  --color-lavender-100: #eae2ff;
-  --color-lavender-500: #8b6cf6;
-  --color-lavender-600: #7657e8;
-  --color-lavender-700: #6044c8;
+  --color-lavender-50: #f4f2fb;
+  --color-lavender-100: #eae7f8;
+  --color-lavender-200: #d5cef1;
+  --color-lavender-500: #9589df;
+  --color-lavender-600: #7568be;
+  --color-lavender-700: #6256a8;
   /*
    * The identity text step: the deep blue-violet "plum" of the editorial
    * eyebrow and the Fiyu Score wordmark. Kept in the lavender family, turned
    * well away from Together's red-violet, and dark enough that tracked 10-11px
    * caps stay comfortably legible on paper and on the pale score wash.
    */
-  --color-lavender-800: #45308f;
+  --color-lavender-800: #443a78;
   --color-plum: #31283d;
 
   /*
@@ -116,22 +116,29 @@
   --color-gold: #b18a36;
   --color-gold-700: #8a6a1f;
 
-  /* Recent Discoveries: a restrained blue-grey distinct from current
-     lavender, visited slate, and Personalized Pick gold. */
-  --color-discovery-line: #d8deea;
-  --color-discovery-soft: #eef1f7;
-  --color-discovery: #7d90b8;
-  --color-discovery-700: #5d6f95;
+  /* Recent Discoveries use the product lavender family. */
+  --color-discovery-line: #d5cef1;
+  --color-discovery-soft: #f4f2fb;
+  --color-discovery: #9b8edb;
+  --color-discovery-700: #6256a8;
 
-  /* Saved on the map: a soft editorial rose-red. Saved actions remain purple;
+  /* My Pick: a cool blue-grey reserved for user-requested research. */
+  --color-my-pick-concealed: #e6edf5;
+  --color-my-pick-soft: #eef2f6;
+  --color-my-pick-line: #d2dae5;
+  --color-my-pick: #8296aa;
+  --color-my-pick-700: #5f7287;
+  --color-my-pick-ink: #3f4a59;
+
+  /* Saved on the map: a dusty editorial mauve. Saved actions remain lavender;
      this token exists only to distinguish saved-but-unvisited map locations. */
-  --color-saved-marker: #bf7378;
+  --color-saved-marker: #b88fa5;
 
-  /* Visited: neutral graphite/slate, quieter than every active intent state. */
-  --color-visited-line: #d9dade;
-  --color-visited-soft: #f0f1f2;
-  --color-visited: #7d818a;
-  --color-visited-700: #5f636b;
+  /* Visited: muted sage, quieter than every active intent state. */
+  --color-visited-line: #d5ddd8;
+  --color-visited-soft: #f0f3f1;
+  --color-visited: #94a69c;
+  --color-visited-700: #66776e;
 
   /* Personalized Picks: bright warm gold for the rarest relationship. The
      darker step is used for text so the accent itself remains graphics-only. */
@@ -286,8 +293,9 @@
   --map-station-stroke: #7d6ba8;
   --map-landmark: #8a7f9c;
 
-  --map-marker: #8b6cf6;
+  --map-marker: #9a9490;
   --map-marker-discovered: var(--color-discovery);
+  --map-marker-my-pick: var(--color-my-pick);
   --map-marker-saved: var(--color-saved-marker);
   --map-marker-selected: #3e304f;
   --map-marker-center: #fff9ef;

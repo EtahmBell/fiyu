@@ -293,6 +293,7 @@ describe("map key", () => {
     for (const label of [
       "Discovered",
       "Personalized Pick",
+      "My Pick",
       "Saved",
       "Visited",
       "Station",
@@ -303,6 +304,8 @@ describe("map key", () => {
     expect(screen.queryByText("Approximate area")).toBeNull();
     expect(screen.getByText("Personalized Pick").closest("li")
       ?.querySelector("circle")?.getAttribute("fill")).toBe("var(--map-marker-personalized)");
+    expect(screen.getByText("My Pick").closest("li")
+      ?.querySelector("circle")?.getAttribute("fill")).toBe("var(--map-marker-my-pick)");
     expect(screen.getByText("Discovered").closest("li")
       ?.querySelector("circle")?.getAttribute("fill")).toBe("var(--map-marker-discovered)");
     expect(screen.getByText("Saved").closest("li")

@@ -37,6 +37,15 @@ const ENTRIES: LegendEntry[] = [
     ),
   },
   {
+    id: "my-pick",
+    label: "My Pick",
+    swatch: (
+      <svg viewBox="0 0 16 16" className="size-4" aria-hidden="true">
+        <circle cx="8" cy="8" r="5.5" fill="var(--map-marker-my-pick)" stroke="var(--map-marker-center)" strokeWidth="1.5" />
+      </svg>
+    ),
+  },
+  {
     id: "restaurant",
     label: "Discovered",
     swatch: (

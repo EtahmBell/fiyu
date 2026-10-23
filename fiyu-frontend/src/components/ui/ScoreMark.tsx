@@ -70,7 +70,7 @@ const TONES: Record<ScoreMarkTone, Palette> = {
   history: { label: "text-discovery-700", rule: "bg-discovery", zone: "bg-discovery-soft/70" },
   together: { label: "text-plum-700", rule: "bg-plum-500", zone: "bg-plum-100/70" },
   personalized: { label: "text-personalized-700", rule: "bg-personalized", zone: "bg-personalized-soft/55" },
-  "my-pick": { label: "text-[#52699F]", rule: "bg-[#6479B8]", zone: "bg-[#EEF1FA]" },
+  "my-pick": { label: "text-my-pick-700", rule: "bg-my-pick", zone: "bg-my-pick-soft" },
 };
 
 /**
