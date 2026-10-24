@@ -1,0 +1,16 @@
+{
+  "name": "@fiyu/contracts",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./endpoints": "./src/endpoints.ts",
+    "./errors": "./src/errors.ts",
+    "./schemas": "./src/schemas.ts",
+    "./transport": "./src/transport.ts"
+  },
+  "dependencies": {
+    "zod": "^4.6.7"
+  }
+}

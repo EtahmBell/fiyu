@@ -15,11 +15,12 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@fiyu/contracts": "file:../packages/fiyu-contracts",
     "@supabase/supabase-js": "^2.112.2",
     "next": "16.2.11",
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "zod": "^4.4.3"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

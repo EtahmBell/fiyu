@@ -1,0 +1,66 @@
+{
+  "name": "fiyu-mobile",
+  "version": "1.0.0",
+  "main": "expo-router/entry",
+  "dependencies": {
+    "@babel/runtime": "^7.29.10",
+    "@expo-google-fonts/instrument-serif": "^0.4.1",
+    "@expo-google-fonts/inter": "^0.4.2",
+    "@expo-google-fonts/noto-sans-jp": "^0.4.4",
+    "@expo/vector-icons": "^15.0.2",
+    "@fiyu/contracts": "file:../packages/fiyu-contracts",
+    "@fiyu/design": "file:../packages/fiyu-design",
+    "@supabase/supabase-js": "^2.118.0",
+    "@tanstack/react-query": "^5.104.5",
+    "expo": "~58.0.19",
+    "expo-constants": "~58.0.13",
+    "expo-font": "~58.0.10",
+    "expo-image": "~58.0.17",
+    "expo-linking": "~58.0.14",
+    "expo-router": "~58.0.26",
+    "expo-secure-store": "~58.0.2",
+    "expo-splash-screen": "~58.0.11",
+    "expo-status-bar": "~58.0.4",
+    "expo-system-ui": "~58.0.6",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "react-native": "0.88.0",
+    "react-native-safe-area-context": "~5.10.1",
+    "react-native-screens": "~4.30.0",
+    "react-native-web": "~0.21.4",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@testing-library/react-native": "^14.1.0",
+    "@types/jest": "30.0.0",
+    "@types/react": "~19.3.0",
+    "eslint": "^9.0.0",
+    "eslint-config-expo": "~58.0.4",
+    "jest": "~30.5.2",
+    "jest-expo": "~58.0.12",
+    "tsx": "^4.23.15",
+    "typescript": "~6.0.3"
+  },
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web",
+    "lint": "expo lint",
+    "typecheck": "tsc --noEmit",
+    "test": "jest --runInBand",
+    "proof:catalog": "tsx scripts/proveCatalog.ts"
+  },
+  "jest": {
+    "preset": "jest-expo",
+    "moduleNameMapper": {
+      "^@/(.*)$": "<rootDir>/src/$1",
+      "^@babel/runtime/(.*)$": "<rootDir>/node_modules/@babel/runtime/$1",
+      "^zod$": "<rootDir>/node_modules/zod"
+    },
+    "transformIgnorePatterns": [
+      "node_modules/(?!((jest-)?react-native|@react-native(-community)?)|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|@fiyu/.*|react-navigation|@react-navigation/.*|react-native-svg)"
+    ]
+  },
+  "private": true
+}
