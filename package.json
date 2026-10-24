@@ -1,0 +1,9 @@
+{
+  "name": "fiyu",
+  "private": true,
+  "workspaces": [
+    "fiyu-frontend",
+    "fiyu-mobile",
+    "packages/*"
+  ]
+}

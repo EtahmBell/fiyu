@@ -15,7 +15,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@fiyu/contracts": "file:../packages/fiyu-contracts",
+    "@fiyu/contracts": "*",
     "@supabase/supabase-js": "^2.112.2",
     "next": "16.2.11",
     "react": "19.2.4",
