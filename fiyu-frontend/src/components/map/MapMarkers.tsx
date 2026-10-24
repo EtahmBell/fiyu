@@ -22,8 +22,8 @@ function markerForRestaurants(restaurants: readonly MappableRestaurant[]): strin
   const states = restaurants.map(personalMapMarkerState);
   if (states.includes("my_pick")) return "var(--map-marker-my-pick)";
   if (states.includes("discovered")) return "var(--map-marker-discovered)";
-  if (states.includes("saved")) return "var(--map-marker-saved)";
   if (states.includes("visited")) return "var(--map-marker-visited)";
+  if (states.includes("saved")) return "var(--map-marker-saved)";
   return "var(--map-marker)";
 }
 
@@ -47,8 +47,8 @@ export interface MapMarkersProps {
  *
  * The map is an orientation surface, not a directions product. Pin colour
  * distinguishes the dominant personal relationship without changing filter
- * membership: Personalized Pick, My Pick, active discovery, Saved, then
- * Visited. This
+ * membership: Personalized Pick, My Pick, active discovery, Visited, then
+ * Saved. This
  * component never fabricates, shifts, or recentres a coordinate; approximate
  * area geometry remains a backend provenance concern.
  */
@@ -91,7 +91,7 @@ export function MapMarkers({
             cy={activeCluster.cluster.point.y}
             r={size(CLUSTER_RADIUS)}
             fill={activeClusterMarker}
-            stroke="var(--map-marker-center)"
+            stroke="var(--map-marker-outline)"
             strokeWidth={size(2)}
           />
           <text
@@ -130,7 +130,7 @@ export function MapMarkers({
                 cy={y}
                 r={size(CLUSTER_RADIUS)}
                 fill={marker}
-                stroke="var(--map-marker-center)"
+                stroke="var(--map-marker-outline)"
                 strokeWidth={size(2)}
               />
               <text
@@ -226,8 +226,8 @@ export function MapMarkers({
                       : MARKER_RADIUS
               )}
               fill={marker}
-              stroke="var(--map-marker-center)"
-              strokeWidth={size(selected ? 3 : personalized ? 3 : 2.5)}
+              stroke="var(--map-marker-outline)"
+              strokeWidth={size(selected ? 2.5 : 1.75)}
               className="transition-[fill,stroke,stroke-width] duration-[180ms] ease-(--ease-fiyu)"
             />
             <title>{label}</title>

@@ -294,6 +294,7 @@
   --map-landmark: #8a7f9c;
 
   --map-marker: #9a9490;
+  --map-marker-outline: #403b46;
   --map-marker-discovered: var(--color-discovery);
   --map-marker-my-pick: var(--color-my-pick);
   --map-marker-saved: var(--color-saved-marker);

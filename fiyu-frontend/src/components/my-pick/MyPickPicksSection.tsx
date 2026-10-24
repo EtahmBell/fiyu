@@ -61,8 +61,8 @@ function MyPickQuotaFooter({
   className?: string;
 }) {
   return (
-    <div data-my-pick-footer className={cn("mt-5 border-t border-my-pick-line pt-3", className)}>
-      <div className="flex min-h-11 items-center justify-between gap-4">
+    <div data-my-pick-footer className={cn("mt-4 border-t border-my-pick-line pt-2", className)}>
+      <div className="flex min-h-10 items-center justify-between gap-4">
         <p className="text-sm text-ink-muted">
           {quota ? `${quota.remaining} of ${quota.limit} Picks left` : "Checking Picks availability…"}
         </p>
@@ -120,20 +120,26 @@ function MyPickReadyCard({ item, accountId, footer }: { item: MyPick; accountId:
 
   return (
     <article
-      className={cn(revealStyles.stage, revealStyles.motionTarget, "min-h-[13rem] overflow-hidden rounded-card")}
+      className={cn(
+        revealStyles.stage,
+        revealStyles.motionTarget,
+        "min-h-[13rem] grid-rows-[minmax(0,1fr)_auto] overflow-hidden rounded-card border border-my-pick-line",
+        revealed ? "bg-my-pick-soft" : "bg-my-pick-concealed",
+      )}
       data-reveal-phase={transition.phase}
       data-reveal-active={transition.active}
+      data-my-pick-card="ready"
     >
       <button
         type="button"
         className={cn(
           revealStyles.hiddenFace,
-          "min-h-[13rem] w-full border border-my-pick-line bg-my-pick-concealed px-5 py-5 text-my-pick-ink",
+          "w-full bg-my-pick-concealed px-4 py-4 text-my-pick-ink sm:px-5",
         )}
         onClick={reveal}
         aria-label="Reveal your Pick"
       >
-        <span className="flex h-full min-h-[10.5rem] flex-col items-center justify-center text-center">
+        <span className="flex h-full min-h-[7.5rem] flex-col items-center justify-center text-center">
           <span className="text-[0.6875rem] font-semibold tracking-[0.18em] text-my-pick-700 uppercase">Your Pick is ready</span>
           <span className="mt-4 font-display text-[2rem] leading-none">Fiyu</span>
           <span className="mt-6 text-sm font-semibold text-my-pick-700">Reveal your Pick →</span>
@@ -141,19 +147,19 @@ function MyPickReadyCard({ item, accountId, footer }: { item: MyPick; accountId:
       </button>
 
       {revealed ? (
-        <div className={cn(revealStyles.restaurantFace, "min-h-[13rem] border border-my-pick-line bg-my-pick-soft px-5 py-5")}>
-          <div>
-            <div className="min-w-0">
+        <div className={cn(revealStyles.restaurantFace, "bg-my-pick-soft px-4 pt-4 sm:px-5")}>
+          <div className="flex min-w-0 items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
               <p className="text-[0.6875rem] font-semibold tracking-[0.15em] text-my-pick-700 uppercase">Your Pick</p>
-              <h3 className="mt-2 font-display text-2xl leading-tight text-ink">{itemName(item)}</h3>
-              {item.name_ja && item.name_ja !== itemName(item) ? <p className="mt-1 text-sm text-ink-muted">{item.name_ja}</p> : null}
-              {(item.primary_category || item.display_area) ? <p className="mt-2 text-sm text-ink-muted">{[item.primary_category, item.display_area].filter(Boolean).join(" · ")}</p> : null}
+              <h3 className="mt-1.5 line-clamp-2 font-display text-xl leading-tight text-ink">{itemName(item)}</h3>
+              {item.name_ja && item.name_ja !== itemName(item) ? <p className="mt-0.5 line-clamp-1 text-[0.8125rem] leading-5 text-ink-muted">{item.name_ja}</p> : null}
+              {(item.primary_category || item.display_area) ? <p className="mt-1 line-clamp-1 text-[0.8125rem] leading-5 text-ink-muted">{[item.primary_category, item.display_area].filter(Boolean).join(" · ")}</p> : null}
             </div>
+            {item.fiyu_score !== null ? <ScoreMark score={item.fiyu_score} size="reveal" tone="my-pick" /> : null}
           </div>
-          {!item.is_public ? <p className="mt-4 text-sm leading-6 text-ink-muted">This is your private result. It is not currently part of the public Fiyu catalog.</p> : null}
-          {item.fiyu_score !== null ? <div className="mt-5 flex justify-end"><ScoreMark score={item.fiyu_score} size="reveal" tone="my-pick" /></div> : null}
+          {!item.is_public ? <p className="mt-2.5 max-w-[34rem] text-sm leading-5 text-ink-muted">This is your private result. It is not currently part of the public Fiyu catalog.</p> : null}
           {publicPlaceId ? (
-            <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-my-pick-line pt-4">
+            <div className="mt-3 flex flex-wrap items-center gap-3">
               <Link className="inline-flex min-h-11 items-center text-sm font-semibold text-my-pick-700" href={`/restaurants/${publicPlaceId}`}>View restaurant →</Link>
               <Button variant="secondary" disabled={list.pendingPlaceIds.includes(publicPlaceId)} onClick={() => void list.toggle(publicPlaceId)}>{saved ? "Saved" : "Save"}</Button>
               <Link className="inline-flex min-h-11 items-center text-sm font-medium text-ink-muted" href={`/log?placeId=${encodeURIComponent(publicPlaceId)}`}>Log visit</Link>
@@ -162,7 +168,7 @@ function MyPickReadyCard({ item, accountId, footer }: { item: MyPick; accountId:
         </div>
       ) : null}
       {footer ? (
-        <div className={cn("relative z-[4] -mt-px border border-my-pick-line border-t-0 px-5 pb-5", revealed ? "bg-my-pick-soft" : "bg-my-pick-concealed")}>{footer}</div>
+        <div className={cn("relative z-[4] col-start-1 row-start-2 px-4 pb-2 sm:px-5", revealed ? "bg-my-pick-soft" : "bg-my-pick-concealed")}>{footer}</div>
       ) : null}
       <span className={revealStyles.shineOverlay} data-reveal-active={transition.active} aria-hidden="true" />
     </article>

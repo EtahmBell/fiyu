@@ -129,13 +129,23 @@ describe("MyPickPicksSection", () => {
     api.fetchMyPicks.mockResolvedValue([base]);
     render(<MyPickPicksSection accountId="account-1" />);
     const reveal = await screen.findByRole("button", { name: "Reveal your Pick" });
+    const card = reveal.closest("[data-my-pick-card='ready']");
+    const footer = document.querySelector("[data-my-pick-footer]");
+    expect(card).toBeTruthy();
+    expect(card?.className).toContain("min-h-[13rem]");
+    expect(card?.className).toContain("border-my-pick-line");
+    expect(footer?.closest("[data-my-pick-card='ready']")).toBe(card);
+    expect(footer?.parentElement?.className).not.toContain("border ");
     expect(reveal.className).toContain("bg-my-pick-concealed");
     expect(screen.queryByLabelText("Fiyu Score 8.4 out of 10")).toBeNull();
     expect(screen.queryByText("Test Shokudo")).toBeNull();
 
     fireEvent.click(reveal);
     expect(await screen.findByText("Test Shokudo")).toBeTruthy();
-    expect(screen.getByLabelText(/Fiyu score 8\.4 out of 10/i)).toBeTruthy();
+    const score = screen.getByLabelText(/Fiyu score 8\.4 out of 10/i);
+    expect(score).toBeTruthy();
+    expect(score.parentElement?.className).toContain("justify-between");
+    expect(score.closest("[data-my-pick-card='ready']")).toBe(card);
     expect(screen.getByRole("link", { name: "View restaurant →" }).getAttribute("href")).toBe("/restaurants/place-1");
     expect(screen.getByRole("link", { name: "Log visit" }).getAttribute("href")).toBe("/log?placeId=place-1");
     await waitFor(() => expect(document.querySelector('[data-reveal-phase="revealed"]')).not.toBeNull());

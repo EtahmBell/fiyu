@@ -151,7 +151,7 @@ describe("approximate locations remain on the discovery map", () => {
       expect(marker?.getAttribute("aria-label")).not.toContain("Approximate area");
       expect(marker?.querySelector("title")?.textContent).not.toContain("Approximate area");
       expect(marker?.querySelector("[stroke-dasharray]")).toBeNull();
-      expect(marker?.innerHTML).toContain("var(--map-marker-center)");
+      expect(marker?.innerHTML).toContain("var(--map-marker-outline)");
     }
   });
 });

@@ -312,6 +312,11 @@ describe("map key", () => {
       ?.querySelector("circle")?.getAttribute("fill")).toBe("var(--map-marker-saved)");
     expect(screen.getByText("Visited").closest("li")
       ?.querySelector("circle")?.getAttribute("fill")).toBe("var(--map-marker-visited)");
+    for (const label of ["Personalized Pick", "My Pick", "Discovered", "Saved", "Visited"]) {
+      const circle = screen.getByText(label).closest("li")?.querySelector("circle");
+      expect(circle?.getAttribute("stroke"), label).toBe("var(--map-marker-outline)");
+      expect(circle?.getAttribute("stroke-width"), label).toBe("1.5");
+    }
   });
 
   it("credits OpenStreetMap whether the key is open or closed", () => {

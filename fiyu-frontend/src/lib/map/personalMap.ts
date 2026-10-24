@@ -106,7 +106,7 @@ export function personalMapMarkerState(
 ): "discovered" | "saved" | "visited" | "my_pick" | "default" {
   if (restaurant.is_my_pick) return "my_pick";
   if (restaurant.is_discovered !== false) return "discovered";
-  if (restaurant.is_saved) return "saved";
   if (restaurant.is_visited) return "visited";
+  if (restaurant.is_saved) return "saved";
   return "default";
 }
