@@ -73,6 +73,9 @@ describe("restaurant detail view", () => {
     render(<RestaurantDetailShell restaurant={restaurant} restaurants={[restaurant]} />);
 
     expect(screen.getByRole("heading", { level: 1, name: "鮨さいとう" })).toBeTruthy();
+    const score = screen.getByRole("img", { name: "Fiyu score 9.4 out of 10" });
+    expect(score.className).not.toContain("bg-lavender-50");
+    expect(score.className).not.toContain("rounded-xl");
     expect(screen.getByText("Area").nextElementSibling?.textContent).toBe("Roppongi");
     expect(screen.getByText("東京都港区六本木1丁目")).toBeTruthy();
     expect(screen.getByText("Cuisine").nextElementSibling?.textContent).toContain("Sushi");

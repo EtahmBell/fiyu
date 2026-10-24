@@ -361,7 +361,7 @@ function RestaurantDetailContent({
             </h1>
             {names.secondary && <p lang={names.secondary.lang} className="mt-1.5 text-base text-ink-muted">{names.secondary.text}</p>}
           </div>
-          <ScoreMark score={restaurant.fiyu_score} size="lg" zone className="-mt-1 rounded-xl" />
+          <ScoreMark score={restaurant.fiyu_score} size="lg" className="-mt-1" />
         </div>
         {summaryFacts.length > 0 && (
           <dl className="grid grid-cols-2 gap-x-5 gap-y-3 border-y border-line py-3 text-sm sm:grid-cols-3">
