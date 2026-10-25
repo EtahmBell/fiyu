@@ -6,6 +6,7 @@ export const paths = {
   restaurants: "/public/restaurants",
   restaurant: (placeId: string) => `/public/restaurants/${encodeURIComponent(placeId)}`,
   photoPreview: (placeId: string) => `/public/restaurants/${encodeURIComponent(placeId)}/photo-preview`,
+  photos: (placeId: string) => `/public/restaurants/${encodeURIComponent(placeId)}/photos`,
   discoveryLocation: "/profiles/me/discovery-location",
   dailyPicksAssign: "/daily-picks/assign",
   dailyPicksActive: "/daily-picks/active",

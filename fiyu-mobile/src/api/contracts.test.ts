@@ -1,6 +1,6 @@
-import { parseRestaurantList, publicRestaurantSchema } from "@fiyu/contracts";
+import { parseRestaurantList, publicRestaurantDetailSchema, publicRestaurantSchema } from "@fiyu/contracts";
 
-import { restaurantFixture } from "@/test/restaurantFixture";
+import { restaurantDetailFixture, restaurantFixture } from "@/test/restaurantFixture";
 
 describe("shared Fiyu contracts", () => {
   it("parses the same real-shaped restaurant schema used by web", () => {
@@ -9,6 +9,10 @@ describe("shared Fiyu contracts", () => {
 
   it("parses a native catalog response through the shared row-safe parser", () => {
     expect(parseRestaurantList([restaurantFixture])?.restaurants).toHaveLength(1);
+  });
+
+  it("validates the production restaurant detail shape with editorial score data", () => {
+    expect(publicRestaurantDetailSchema.parse(restaurantDetailFixture).score_transparency?.model_label).toBe("Quality-v4");
   });
 
   it("rejects malformed rows consistently without discarding valid rows", () => {

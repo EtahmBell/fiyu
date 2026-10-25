@@ -4,9 +4,10 @@ import { Image } from "expo-image";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 
 import { fetchPhotoPreview } from "@/api/client";
+import { ScoreMark } from "@/components/restaurant/ScoreMark";
 import { colors, fontFamilies, radii, spacing } from "@/design";
 import { budgetLabel } from "@/lib/picks";
-import { formatFiyuScore, restaurantArea, restaurantName, restaurantSecondaryName } from "@/lib/presentation";
+import { restaurantArea, restaurantName, restaurantSecondaryName } from "@/lib/presentation";
 
 export function ConcealedPickCard({ index, personalized = false }: { index: number; personalized?: boolean }) {
   const accent = personalized ? "#C79A32" : colors.lavender[600];
@@ -68,7 +69,7 @@ export function RevealedPickCard({ restaurant, saved, visited, savePending, visi
       <View style={[styles.topRule, { backgroundColor: accent }]} />
       <View style={styles.header}>
         <View style={styles.titleBlock}><Text style={styles.name}>{name}</Text>{secondary ? <Text style={styles.secondary}>{secondary}</Text> : null}</View>
-        <View accessible accessibilityLabel={`Fiyu score ${formatFiyuScore(restaurant.fiyu_score)} out of 10`} style={styles.scoreBlock}><Text style={styles.scoreLabel}>FIYU SCORE</Text><Text style={styles.score}>{formatFiyuScore(restaurant.fiyu_score)}</Text><View style={[styles.scoreRule, { backgroundColor: accent }]} /></View>
+        <ScoreMark score={restaurant.fiyu_score} accentColor={accent} />
       </View>
       {metadata ? <Text style={styles.metadata}>{metadata}</Text> : null}
       <PhotoPreview restaurant={restaurant} enabled={photoEnabled} />
@@ -98,10 +99,6 @@ const styles = StyleSheet.create({
   name: { color: colors.ink, fontFamily: fontFamilies.display, fontSize: 27, lineHeight: 32 },
   secondary: { marginTop: 2, color: colors.inkMuted, fontFamily: fontFamilies.bodyMedium, fontSize: 12 },
   metadata: { marginTop: spacing[2], color: colors.inkMuted, fontFamily: fontFamilies.body, fontSize: 12 },
-  scoreBlock: { alignItems: "flex-end", minWidth: 63 },
-  scoreLabel: { color: colors.lavender[800], fontFamily: fontFamilies.bodySemiBold, fontSize: 8, letterSpacing: 1 },
-  score: { color: colors.ink, fontFamily: fontFamilies.display, fontSize: 30, lineHeight: 34 },
-  scoreRule: { width: 24, height: 2 },
   photo: { width: "100%", height: 176, marginTop: spacing[4], borderRadius: 10, backgroundColor: colors.subtle },
   photoFallback: { height: 176, marginTop: spacing[4], alignItems: "center", justifyContent: "center", gap: spacing[2], borderRadius: 10, backgroundColor: colors.subtle },
   photoFallbackMark: { color: colors.lavender[600], fontFamily: fontFamilies.display, fontSize: 34 },

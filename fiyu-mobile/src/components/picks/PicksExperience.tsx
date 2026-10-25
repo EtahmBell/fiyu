@@ -1,19 +1,17 @@
-import type { DailyPickAssignmentResponse, DefaultListResponse, PersonalizedPickState, PublicRestaurant, RestaurantVisit } from "@fiyu/contracts";
+import type { DailyPickAssignmentResponse, PersonalizedPickState, PublicRestaurant } from "@fiyu/contracts";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
 
 import {
-  addToDefaultList,
   assignDailyPicks,
   createPersonalizedPickEvent,
-  createRestaurantVisit,
   dismissPersonalizedPickEvent,
-  removeFromDefaultList,
   revealDailyPick,
   selectPersonalizedPick,
 } from "@/api/client";
 import { PICKS_CITY_ID, picksKeys, usePicksResources } from "@/api/queries";
+import { useRestaurantRelationships } from "@/components/restaurant/useRestaurantRelationships";
 import { colors, fontFamilies, radii, spacing } from "@/design";
 import { recentDiscoveries } from "@/lib/picks";
 import { restaurantName } from "@/lib/presentation";
@@ -35,6 +33,7 @@ function message(error: unknown, fallback: string): string {
 
 export function PicksExperience({ onOpenRestaurant }: PicksExperienceProps) {
   const resources = usePicksResources();
+  const relationships = useRestaurantRelationships();
   const queryClient = useQueryClient();
   const [actionError, setActionError] = useState<string | null>(null);
   const [visitTarget, setVisitTarget] = useState<PublicRestaurant | null>(null);
@@ -42,8 +41,8 @@ export function PicksExperience({ onOpenRestaurant }: PicksExperienceProps) {
   const eventAttempted = useRef(false);
 
   const active = resources.active.data;
-  const savedIds = useMemo(() => new Set(resources.saved.data?.items.map((item) => item.place_id) ?? []), [resources.saved.data]);
-  const visitsByPlace = useMemo(() => new Map(resources.log.data?.map((visit) => [visit.place_id, visit]) ?? []), [resources.log.data]);
+  const savedIds = relationships.savedIds;
+  const visitsByPlace = relationships.visitsByPlace;
   const activeIds = useMemo(() => new Set(active?.place_ids ?? []), [active?.place_ids]);
   const recent = useMemo(() => recentDiscoveries(resources.recent.data ?? [], now, activeIds), [activeIds, now, resources.recent.data]);
 
@@ -75,21 +74,6 @@ export function PicksExperience({ onOpenRestaurant }: PicksExperienceProps) {
       void queryClient.invalidateQueries({ queryKey: picksKeys.recent });
     },
     onError: (error) => setActionError(message(error, "This Pick could not be revealed. Try again.")),
-  });
-  const save = useMutation({
-    mutationFn: ({ placeId, saved }: { placeId: string; saved: boolean }) => saved ? removeFromDefaultList(PICKS_CITY_ID, placeId) : addToDefaultList(PICKS_CITY_ID, placeId),
-    onSuccess: (response) => { setActionError(null); queryClient.setQueryData<DefaultListResponse>(picksKeys.saved, response.list); },
-    onError: (error) => setActionError(message(error, "Saved places could not be updated.")),
-  });
-  const visit = useMutation({
-    mutationFn: ({ placeId, rating, note }: { placeId: string; rating: 1 | 2 | 3 | 4 | 5; note: string | null }) => createRestaurantVisit({ place_id: placeId, visited_at: new Date().toISOString(), rating, private_note: note }),
-    onSuccess: (created) => {
-      setActionError(null);
-      queryClient.setQueryData<RestaurantVisit[]>(picksKeys.log, (prior = []) => [created, ...prior.filter((item) => item.place_id !== created.place_id)]);
-      setVisitTarget(null);
-      void queryClient.invalidateQueries({ queryKey: picksKeys.personalized });
-    },
-    onError: (error) => setActionError(message(error, "Your visit could not be saved.")),
   });
   const personalizedCreate = useMutation({
     mutationFn: createPersonalizedPickEvent,
@@ -126,9 +110,9 @@ export function PicksExperience({ onOpenRestaurant }: PicksExperienceProps) {
 
   const refresh = () => {
     setNow(Date.now());
-    return Promise.all([resources.active.refetch(), resources.recent.refetch(), resources.saved.refetch(), resources.log.refetch(), resources.personalized.refetch()]);
+    return Promise.all([resources.active.refetch(), resources.recent.refetch(), relationships.refetch(), resources.personalized.refetch()]);
   };
-  const loading = resources.active.isLoading || resources.saved.isLoading || resources.log.isLoading;
+  const loading = resources.active.isLoading || relationships.loading;
   const primaryError = !active && resources.active.error;
   const personalizedVisible = resources.personalized.data?.status === "event_available"
     && (!resources.personalized.data.dismissed_until || Date.parse(resources.personalized.data.dismissed_until) <= now);
@@ -148,7 +132,7 @@ export function PicksExperience({ onOpenRestaurant }: PicksExperienceProps) {
     const restaurant = item.restaurant;
     const saved = savedIds.has(restaurant.place_id);
     const visited = visitsByPlace.has(restaurant.place_id);
-    const card = <RevealedPickCard restaurant={restaurant} saved={saved} visited={visited} savePending={save.isPending && save.variables?.placeId === restaurant.place_id} visitPending={visit.isPending && visit.variables?.placeId === restaurant.place_id} tone={item.kind === "recent" ? "recent" : item.kind === "personalized" ? "personalized" : "current"} onOpen={() => onOpenRestaurant(restaurant.place_id)} onSave={() => !save.isPending && save.mutate({ placeId: restaurant.place_id, saved })} onLog={() => setVisitTarget(restaurant)} />;
+    const card = <RevealedPickCard restaurant={restaurant} saved={saved} visited={visited} savePending={relationships.savePendingPlaceId === restaurant.place_id} visitPending={relationships.visitPendingPlaceId === restaurant.place_id} tone={item.kind === "recent" ? "recent" : item.kind === "personalized" ? "personalized" : "current"} onOpen={() => onOpenRestaurant(restaurant.place_id)} onSave={() => relationships.toggleSaved(restaurant.place_id)} onLog={() => setVisitTarget(restaurant)} />;
     if (item.kind !== "daily") return <View>{item.kind === "recent" && recent[0]?.restaurant.place_id === restaurant.place_id ? <View style={styles.sectionHeading}><Text style={styles.sectionEyebrow}>YOUR DISCOVERIES</Text><Text style={styles.sectionTitle}>Recent Discoveries</Text></View> : null}{item.kind === "personalized" ? <View style={styles.sectionHeading}><Text style={styles.personalizedEyebrow}>PERSONALIZED PICK</Text><Text style={styles.sectionTitle}>Picked for you</Text></View> : null}<View style={styles.item}>{card}{item.kind === "recent" ? <Text style={styles.expiry}>Available in Recent Discoveries for 72 hours</Text> : null}</View></View>;
     return <View style={styles.item}><RevealCard revealed={item.revealed} busy={reveal.isPending} label={`Reveal Fiyu Pick ${item.index + 1}`} onReveal={() => active ? reveal.mutateAsync({ roundId: active.round_id, placeId: restaurant.place_id }) : Promise.resolve()} concealed={<ConcealedPickCard index={item.index} />}>{card}</RevealCard></View>;
   };
@@ -164,11 +148,11 @@ export function PicksExperience({ onOpenRestaurant }: PicksExperienceProps) {
         renderItem={({ item }) => renderRestaurant(item)}
         contentContainerStyle={styles.list}
         refreshControl={<RefreshControl refreshing={resources.active.isRefetching} onRefresh={() => void refresh()} tintColor={colors.lavender[600]} />}
-        ListHeaderComponent={<View><Text style={styles.eyebrow}>TODAY</Text><View style={styles.headingRow}><Text style={styles.heading}>Today’s Fiyu Picks</Text><Text style={styles.frequency}>{active?.expires_at ? `UNTIL\n${new Date(active.expires_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : `3 PICKS\nDAILY`}</Text></View><View style={styles.headingRule}><View style={styles.headingAccent} /></View><View style={styles.headerMeta}>{resources.location.data?.discovery_label ? <Text numberOfLines={1} style={styles.location}>{resources.location.data.discovery_label}</Text> : <View />}{active ? <Pressable accessibilityRole="button" disabled={reveal.isPending || unrevealed.length === 0} onPress={() => void revealAll()} style={styles.revealAll}><Text style={styles.revealAllText}>{unrevealed.length === 0 ? "All Picks revealed" : reveal.isPending ? "Revealing…" : "Reveal all →"}</Text></Pressable> : null}</View>{loading && !active ? <View style={styles.status}><ActivityIndicator color={colors.lavender[600]} /><Text style={styles.statusText}>Loading your Picks…</Text></View> : null}{primaryError ? <View style={styles.status}><Text style={styles.error}>Your Picks could not connect.</Text><Pressable onPress={() => void resources.active.refetch()} style={styles.button}><Text style={styles.buttonText}>Try again</Text></Pressable></View> : null}{!loading && !primaryError && !active ? <View style={styles.invitation}><Text style={styles.invitationTitle}>Three places, chosen for today.</Text><Text style={styles.invitationCopy}>Fiyu uses your discovery location and history. Saved places stay out of the selection.</Text><Pressable accessibilityRole="button" disabled={assign.isPending} onPress={() => assign.mutate()} style={styles.button}><Text style={styles.buttonText}>{assign.isPending ? "Finding…" : "Find today’s Picks"}</Text></Pressable></View> : null}{actionError ? <Text accessibilityRole="alert" style={styles.error}>{actionError}</Text> : null}</View>}
+        ListHeaderComponent={<View><Text style={styles.eyebrow}>TODAY</Text><View style={styles.headingRow}><Text style={styles.heading}>Today’s Fiyu Picks</Text><Text style={styles.frequency}>{active?.expires_at ? `UNTIL\n${new Date(active.expires_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : `3 PICKS\nDAILY`}</Text></View><View style={styles.headingRule}><View style={styles.headingAccent} /></View><View style={styles.headerMeta}>{resources.location.data?.discovery_label ? <Text numberOfLines={1} style={styles.location}>{resources.location.data.discovery_label}</Text> : <View />}{active ? <Pressable accessibilityRole="button" disabled={reveal.isPending || unrevealed.length === 0} onPress={() => void revealAll()} style={styles.revealAll}><Text style={styles.revealAllText}>{unrevealed.length === 0 ? "All Picks revealed" : reveal.isPending ? "Revealing…" : "Reveal all →"}</Text></Pressable> : null}</View>{loading && !active ? <View style={styles.status}><ActivityIndicator color={colors.lavender[600]} /><Text style={styles.statusText}>Loading your Picks…</Text></View> : null}{primaryError ? <View style={styles.status}><Text style={styles.error}>Your Picks could not connect.</Text><Pressable onPress={() => void resources.active.refetch()} style={styles.button}><Text style={styles.buttonText}>Try again</Text></Pressable></View> : null}{!loading && !primaryError && !active ? <View style={styles.invitation}><Text style={styles.invitationTitle}>Three places, chosen for today.</Text><Text style={styles.invitationCopy}>Fiyu uses your discovery location and history. Saved places stay out of the selection.</Text><Pressable accessibilityRole="button" disabled={assign.isPending} onPress={() => assign.mutate()} style={styles.button}><Text style={styles.buttonText}>{assign.isPending ? "Finding…" : "Find today’s Picks"}</Text></Pressable></View> : null}{actionError || relationships.saveError || relationships.visitError ? <Text accessibilityRole="alert" style={styles.error}>{actionError ?? relationships.saveError ?? relationships.visitError}</Text> : null}</View>}
         ListFooterComponent={<View><PersonalizedStatus state={resources.personalized.data} /><View style={styles.bottomSpace} /></View>}
       />
       <PersonalizedPickModal visible={personalizedVisible} pending={personalizedSelect.isPending || personalizedDismiss.isPending} error={personalizedSelect.error ? message(personalizedSelect.error, "Try again.") : null} onChoose={(position) => { const id = resources.personalized.data?.event_id; if (id && !personalizedSelect.isPending) personalizedSelect.mutate({ eventId: id, position }); }} onDismiss={() => { const id = resources.personalized.data?.event_id; if (id && !personalizedDismiss.isPending) personalizedDismiss.mutate(id); }} />
-      <VisitModal name={visitTarget ? restaurantName(visitTarget) : null} pending={visit.isPending} error={visit.error ? message(visit.error, "Try again.") : null} onClose={() => !visit.isPending && setVisitTarget(null)} onSubmit={(rating, note) => visitTarget && !visit.isPending && visit.mutate({ placeId: visitTarget.place_id, rating, note })} />
+      <VisitModal name={visitTarget ? restaurantName(visitTarget) : null} pending={relationships.visitPendingPlaceId !== null} error={relationships.visitError} onClose={() => !relationships.visitPendingPlaceId && setVisitTarget(null)} onSubmit={(rating, note) => visitTarget && relationships.logVisit(visitTarget.place_id, rating, note, () => setVisitTarget(null))} />
     </>
   );
 }

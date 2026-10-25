@@ -39,3 +39,8 @@ export function budgetLabel(restaurant: PublicRestaurant): string | null {
   if (budget.maximum !== null) return `Up to ${money(budget.maximum)}`;
   return null;
 }
+
+export function budgetLabelPerPerson(restaurant: PublicRestaurant): string | null {
+  const value = budgetLabel(restaurant);
+  return value ? `${value} per person` : null;
+}

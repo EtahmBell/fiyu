@@ -12,5 +12,6 @@ describe("native Picks endpoint contract", () => {
     expect(paths.defaultListItems).toBe("/lists/default/items");
     expect(paths.log).toBe("/log");
     expect(paths.photoPreview("place/one")).toBe("/public/restaurants/place%2Fone/photo-preview");
+    expect(withQuery(paths.photos("place/one"), { limit: "5" })).toBe("/public/restaurants/place%2Fone/photos?limit=5");
   });
 });

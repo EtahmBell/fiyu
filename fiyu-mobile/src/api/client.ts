@@ -8,6 +8,7 @@ import {
   discoveryLocationSchema,
   FiyuApiError,
   googlePhotoSchema,
+  googlePhotoListSchema,
   parseRestaurantList,
   paths,
   personalizedPickStateSchema,
@@ -140,6 +141,13 @@ export async function createRestaurantVisit(input: { place_id: string; visited_a
 
 export function fetchPhotoPreview(placeId: string): Promise<GooglePhoto> {
   return transport.requestJson(paths.photoPreview(placeId), googlePhotoSchema);
+}
+
+export function fetchPhotos(placeId: string, limit = 5): Promise<GooglePhoto[]> {
+  return transport.requestJson(
+    withQuery(paths.photos(placeId), { limit: String(limit) }),
+    googlePhotoListSchema,
+  );
 }
 
 export function fetchPersonalizedPickState(): Promise<PersonalizedPickState> {
