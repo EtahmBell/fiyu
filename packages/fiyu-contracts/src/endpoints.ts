@@ -5,6 +5,19 @@ export const LIST_LIMIT_DEFAULT = 100;
 export const paths = {
   restaurants: "/public/restaurants",
   restaurant: (placeId: string) => `/public/restaurants/${encodeURIComponent(placeId)}`,
+  photoPreview: (placeId: string) => `/public/restaurants/${encodeURIComponent(placeId)}/photo-preview`,
+  discoveryLocation: "/profiles/me/discovery-location",
+  dailyPicksAssign: "/daily-picks/assign",
+  dailyPicksActive: "/daily-picks/active",
+  dailyPicksRecent: "/daily-picks/recent",
+  dailyPicksReveal: (roundId: string) => `/daily-picks/${encodeURIComponent(roundId)}/reveal`,
+  personalizedPicksState: "/personalized-picks/me",
+  personalizedPicksEvents: "/personalized-picks/events",
+  personalizedPicksDismiss: (eventId: string) => `/personalized-picks/${encodeURIComponent(eventId)}/dismiss`,
+  personalizedPicksSelect: (eventId: string) => `/personalized-picks/${encodeURIComponent(eventId)}/select`,
+  log: "/log",
+  defaultList: "/lists/default",
+  defaultListItems: "/lists/default/items",
   authSignIn: "/auth/signin",
   authSignUp: "/auth/signup",
 } as const;
@@ -21,6 +34,11 @@ export function restaurantsPath(limit: number = LIST_LIMIT_DEFAULT): string {
 
 export function restaurantPath(placeId: string): string {
   return paths.restaurant(placeId);
+}
+
+export function withQuery(path: string, values: Record<string, string>): string {
+  const query = new URLSearchParams(values).toString();
+  return query ? `${path}?${query}` : path;
 }
 
 export function joinApiUrl(baseUrl: string, path: string): string {

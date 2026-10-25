@@ -1,13 +1,35 @@
 import {
+  activeDailyPickAssignmentResponseSchema,
   createFetchTransport,
+  dailyPickAssignmentResponseSchema,
+  dailyPickRevealResponseSchema,
+  defaultListMutationResponseSchema,
+  defaultListResponseSchema,
+  discoveryLocationSchema,
   FiyuApiError,
+  googlePhotoSchema,
   parseRestaurantList,
+  paths,
+  personalizedPickStateSchema,
   publicRestaurantDetailSchema,
+  recentDailyPickRoundListSchema,
   restaurantPath,
+  restaurantVisitListSchema,
+  restaurantVisitSchema,
   restaurantsPath,
+  withQuery,
+  type DailyPickAssignmentResponse,
+  type DefaultListMutationResponse,
+  type DefaultListResponse,
+  type DiscoveryLocation,
+  type GooglePhoto,
   type ParsedRestaurantList,
+  type PersonalizedPickState,
   type PublicRestaurantDetail,
+  type RecentDailyPickRound,
+  type RestaurantVisit,
 } from "@fiyu/contracts";
+import * as SecureStore from "expo-secure-store";
 
 import { getSupabaseClient, isSupabaseConfigured } from "@/auth/supabase";
 import { getApiBaseUrl } from "@/config/env";
@@ -22,6 +44,39 @@ const transport = createFetchTransport({
     },
   },
 });
+
+const CLIENT_ID_KEY = "fiyu.native.client-id";
+let clientIdPromise: Promise<string> | null = null;
+
+async function getClientId(): Promise<string> {
+  if (!clientIdPromise) {
+    clientIdPromise = (async () => {
+      const stored = await SecureStore.getItemAsync(CLIENT_ID_KEY);
+      if (stored) return stored;
+      const created = `native-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      await SecureStore.setItemAsync(CLIENT_ID_KEY, created);
+      return created;
+    })();
+  }
+  return clientIdPromise;
+}
+
+async function identityHeaders(): Promise<Record<string, string>> {
+  return { "X-Fiyu-Client-Id": await getClientId() };
+}
+
+export interface DailyPickAssignmentRequest {
+  city_id: string;
+  legacy_served_place_ids: string[];
+  categories: string[];
+  non_japanese: "yes" | "occasionally" | "japanese-only";
+  active_area: string | null;
+  location_mode?: "current" | "preview" | "manual" | null;
+  location_state?: "in_tokyo_live_gps" | "outside_tokyo_with_preview_area" | "outside_tokyo_needs_preview_area" | "location_unavailable" | null;
+  discovery_latitude?: number | null;
+  discovery_longitude?: number | null;
+  requested_count: 3;
+}
 
 export async function fetchRestaurants(limit = 100): Promise<ParsedRestaurantList> {
   const path = restaurantsPath(limit);
@@ -41,4 +96,64 @@ export async function fetchRestaurants(limit = 100): Promise<ParsedRestaurantLis
 export function fetchRestaurant(placeId: string): Promise<PublicRestaurantDetail> {
   const path = restaurantPath(placeId);
   return transport.requestJson(path, publicRestaurantDetailSchema);
+}
+
+export async function fetchActiveDailyPicks(cityId: string): Promise<DailyPickAssignmentResponse | null> {
+  return transport.requestJson(withQuery(paths.dailyPicksActive, { city_id: cityId }), activeDailyPickAssignmentResponseSchema, { headers: await identityHeaders() });
+}
+
+export async function fetchRecentDailyPicks(cityId: string): Promise<RecentDailyPickRound[]> {
+  return transport.requestJson(withQuery(paths.dailyPicksRecent, { city_id: cityId }), recentDailyPickRoundListSchema, { headers: await identityHeaders() });
+}
+
+export async function assignDailyPicks(request: DailyPickAssignmentRequest): Promise<DailyPickAssignmentResponse> {
+  return transport.requestJson(paths.dailyPicksAssign, dailyPickAssignmentResponseSchema, { method: "POST", body: request, headers: await identityHeaders() });
+}
+
+export async function revealDailyPick(roundId: string, placeId: string) {
+  return transport.requestJson(paths.dailyPicksReveal(roundId), dailyPickRevealResponseSchema, { method: "POST", body: { place_id: placeId }, headers: await identityHeaders() });
+}
+
+export function fetchDiscoveryLocation(): Promise<DiscoveryLocation> {
+  return transport.requestJson(paths.discoveryLocation, discoveryLocationSchema);
+}
+
+export async function fetchDefaultList(cityId: string): Promise<DefaultListResponse> {
+  return transport.requestJson(withQuery(paths.defaultList, { city_id: cityId }), defaultListResponseSchema, { headers: await identityHeaders() });
+}
+
+export async function addToDefaultList(cityId: string, placeId: string): Promise<DefaultListMutationResponse> {
+  return transport.requestJson(paths.defaultListItems, defaultListMutationResponseSchema, { method: "POST", body: { city_id: cityId, place_id: placeId }, headers: await identityHeaders() });
+}
+
+export async function removeFromDefaultList(cityId: string, placeId: string): Promise<DefaultListMutationResponse> {
+  return transport.requestJson(paths.defaultListItems, defaultListMutationResponseSchema, { method: "DELETE", body: { city_id: cityId, place_id: placeId }, headers: await identityHeaders() });
+}
+
+export async function fetchRestaurantLog(): Promise<RestaurantVisit[]> {
+  return transport.requestJson(paths.log, restaurantVisitListSchema, { headers: await identityHeaders() });
+}
+
+export async function createRestaurantVisit(input: { place_id: string; visited_at: string; rating: 1 | 2 | 3 | 4 | 5; private_note: string | null }): Promise<RestaurantVisit> {
+  return transport.requestJson(paths.log, restaurantVisitSchema, { method: "POST", body: input, headers: await identityHeaders() });
+}
+
+export function fetchPhotoPreview(placeId: string): Promise<GooglePhoto> {
+  return transport.requestJson(paths.photoPreview(placeId), googlePhotoSchema);
+}
+
+export function fetchPersonalizedPickState(): Promise<PersonalizedPickState> {
+  return transport.requestJson(paths.personalizedPicksState, personalizedPickStateSchema);
+}
+
+export function createPersonalizedPickEvent(): Promise<PersonalizedPickState> {
+  return transport.requestJson(paths.personalizedPicksEvents, personalizedPickStateSchema, { method: "POST" });
+}
+
+export function dismissPersonalizedPickEvent(eventId: string): Promise<PersonalizedPickState> {
+  return transport.requestJson(paths.personalizedPicksDismiss(eventId), personalizedPickStateSchema, { method: "POST" });
+}
+
+export function selectPersonalizedPick(eventId: string, position: number): Promise<PersonalizedPickState> {
+  return transport.requestJson(paths.personalizedPicksSelect(eventId), personalizedPickStateSchema, { method: "POST", body: { position } });
 }

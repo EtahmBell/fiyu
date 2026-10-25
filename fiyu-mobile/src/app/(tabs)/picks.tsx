@@ -1,17 +1,17 @@
 import { router } from "expo-router";
+import { StyleSheet } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-import { PicksView } from "@/components/PicksView";
-import { useRestaurants } from "@/api/queries";
+import { PicksExperience } from "@/components/picks/PicksExperience";
 
 export default function PicksScreen() {
-  const query = useRestaurants();
   return (
-    <PicksView
-      data={query.data}
-      isLoading={query.isLoading}
-      error={query.error}
-      onRetry={() => void query.refetch()}
-      onOpenRestaurant={(placeId) => router.push({ pathname: "/restaurants/[placeId]", params: { placeId } })}
-    />
+    <SafeAreaView edges={["top"]} style={styles.screen}>
+      <PicksExperience
+        onOpenRestaurant={(placeId) => router.push({ pathname: "/restaurants/[placeId]", params: { placeId } })}
+      />
+    </SafeAreaView>
   );
 }
+
+const styles = StyleSheet.create({ screen: { flex: 1 } });
