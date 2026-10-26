@@ -1,4 +1,4 @@
-import type { DailyPickAssignmentResponse, MapRestaurant, MyPick, ParsedRestaurantList, PersonalizedPickState, PublicRestaurantDetail, RecentDailyPickRound } from "@fiyu/contracts";
+import type { DailyPickAssignmentResponse, MapRestaurant, MyPick, ParsedRestaurantList, PersonalizedPickState, PublicRestaurantDetail, RecentDailyPickRound, TogetherSession, TogetherState } from "@fiyu/contracts";
 import { publicRestaurantDetailSchema } from "@fiyu/contracts";
 import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 
@@ -13,6 +13,8 @@ import {
   fetchRestaurantLog,
   fetchSmartView,
   fetchSmartViews,
+  fetchTogetherSession,
+  fetchTogetherState,
   fetchMyPickQuota,
   fetchMyPicks,
   fetchPersonalizedPickState,
@@ -38,6 +40,8 @@ export const picksKeys = {
   smartViews: ["lists", "smart", PICKS_CITY_ID] as const,
   smartView: (viewKey: string) => ["lists", "smart", PICKS_CITY_ID, viewKey] as const,
   developerStatus: ["developer", "status"] as const,
+  together: ["together"] as const,
+  togetherSession: (sessionId: string) => ["together", "session", sessionId] as const,
 };
 
 const MY_PICK_UNFINISHED = new Set<MyPick["status"]>(["pending", "resolving_identity", "researching"]);
@@ -47,6 +51,16 @@ export function myPickPollingInterval(items: MyPick[] | undefined): number | fal
     const resultReady = item.result_ready || (item.fiyu_score !== null && item.score_version !== null);
     return !resultReady && MY_PICK_UNFINISHED.has(item.status);
   }) ? 30_000 : false;
+}
+
+export function togetherPollingInterval(state: TogetherState | undefined): number | false {
+  return state?.session?.status === "pending" || state?.current_sessions.some((session) => session.reveal_pending)
+    ? 5_000
+    : false;
+}
+
+export function togetherSessionPollingInterval(session: TogetherSession | undefined): number | false {
+  return session?.status === "pending" ? 5_000 : false;
 }
 
 export const catalogQueryKey = ["catalog", "published"] as const;
@@ -99,7 +113,32 @@ export function usePicksResources() {
   const recent = useQuery({ queryKey: picksKeys.recent, queryFn: () => fetchRecentDailyPicks(PICKS_CITY_ID) });
   const location = useQuery({ queryKey: picksKeys.location, queryFn: fetchDiscoveryLocation });
   const personalized = useQuery({ queryKey: picksKeys.personalized, queryFn: fetchPersonalizedPickState });
-  return { active, recent, location, personalized };
+  const together = useQuery({
+    queryKey: picksKeys.together,
+    queryFn: fetchTogetherState,
+    refetchInterval: (query) => togetherPollingInterval(query.state.data),
+    refetchIntervalInBackground: false,
+  });
+  return { active, recent, location, personalized, together };
+}
+
+export function useTogetherState() {
+  return useQuery({
+    queryKey: picksKeys.together,
+    queryFn: fetchTogetherState,
+    refetchInterval: (query) => togetherPollingInterval(query.state.data),
+    refetchIntervalInBackground: false,
+  });
+}
+
+export function useTogetherSession(sessionId: string) {
+  return useQuery({
+    queryKey: picksKeys.togetherSession(sessionId),
+    queryFn: () => fetchTogetherSession(sessionId),
+    enabled: sessionId.length > 0,
+    refetchInterval: (query) => togetherSessionPollingInterval(query.state.data),
+    refetchIntervalInBackground: false,
+  });
 }
 
 export function useMapSupplementalResources() {

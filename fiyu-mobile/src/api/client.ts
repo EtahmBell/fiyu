@@ -29,6 +29,10 @@ import {
   restaurantVisitSchema,
   smartViewCatalogResponseSchema,
   smartViewResponseSchema,
+  togetherInviteCreatedSchema,
+  togetherInvitePreviewSchema,
+  togetherSessionSchema,
+  togetherStateSchema,
   userProfileSchema,
   restaurantsPath,
   withQuery,
@@ -52,6 +56,10 @@ import {
   type RestaurantVisit,
   type SmartViewCatalogResponse,
   type SmartViewResponse,
+  type TogetherInviteCreated,
+  type TogetherInvitePreview,
+  type TogetherSession,
+  type TogetherState,
   type UserProfile,
 } from "@fiyu/contracts";
 import * as SecureStore from "expo-secure-store";
@@ -258,6 +266,38 @@ export function dismissPersonalizedPickEvent(eventId: string): Promise<Personali
 
 export function selectPersonalizedPick(eventId: string, position: number): Promise<PersonalizedPickState> {
   return transport.requestJson(paths.personalizedPicksSelect(eventId), personalizedPickStateSchema, { method: "POST", body: { position } });
+}
+
+export function fetchTogetherState(): Promise<TogetherState> {
+  return transport.requestJson(paths.togetherState, togetherStateSchema);
+}
+
+export function createTogetherInvite(): Promise<TogetherInviteCreated> {
+  return transport.requestJson(paths.togetherInvites, togetherInviteCreatedSchema, { method: "POST" });
+}
+
+export function rotateTogetherInvite(sessionId: string): Promise<TogetherInviteCreated> {
+  return transport.requestJson(paths.togetherShareToken(sessionId), togetherInviteCreatedSchema, { method: "POST" });
+}
+
+export async function cancelTogetherInvite(sessionId: string): Promise<void> {
+  await transport.requestRaw(paths.togetherSession(sessionId), { method: "DELETE" });
+}
+
+export function fetchTogetherInvite(token: string): Promise<TogetherInvitePreview> {
+  return transport.requestJson(paths.togetherInvite(token), togetherInvitePreviewSchema);
+}
+
+export function acceptTogetherInvite(token: string): Promise<TogetherSession> {
+  return transport.requestJson(paths.togetherAccept(token), togetherSessionSchema, { method: "POST" });
+}
+
+export function fetchTogetherSession(sessionId: string): Promise<TogetherSession> {
+  return transport.requestJson(paths.togetherSession(sessionId), togetherSessionSchema);
+}
+
+export function revealTogetherSession(sessionId: string): Promise<TogetherSession> {
+  return transport.requestJson(paths.togetherReveal(sessionId), togetherSessionSchema, { method: "POST" });
 }
 
 export function fetchMyPicks(): Promise<MyPick[]> {

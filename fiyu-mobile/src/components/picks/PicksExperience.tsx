@@ -13,6 +13,7 @@ import {
 import { PICKS_CITY_ID, picksKeys, usePicksResources } from "@/api/queries";
 import { useRestaurantRelationships } from "@/components/restaurant/useRestaurantRelationships";
 import { MyPickSection } from "@/components/my-pick/MyPickSection";
+import { TogetherEntry } from "@/components/together/TogetherEntry";
 import { colors, fontFamilies, radii, spacing } from "@/design";
 import { recentDiscoveries } from "@/lib/picks";
 import { restaurantName } from "@/lib/presentation";
@@ -24,16 +25,17 @@ import { VisitModal } from "./VisitModal";
 type ListItem =
   | { key: string; kind: "daily"; restaurant: PublicRestaurant; index: number; revealed: boolean }
   | { key: string; kind: "my-pick" }
+  | { key: string; kind: "together" }
   | { key: string; kind: "recent"; restaurant: PublicRestaurant; expiresAt: string }
   | { key: string; kind: "personalized"; restaurant: PublicRestaurant };
 
-interface PicksExperienceProps { onOpenRestaurant(placeId: string): void; initialMyPickId?: string }
+interface PicksExperienceProps { onOpenRestaurant(placeId: string): void; onOpenTogether(): void; onOpenTogetherSession(sessionId: string): void; initialMyPickId?: string }
 
 function message(error: unknown, fallback: string): string {
   return error instanceof Error && error.message ? error.message : fallback;
 }
 
-export function PicksExperience({ onOpenRestaurant, initialMyPickId }: PicksExperienceProps) {
+export function PicksExperience({ onOpenRestaurant, onOpenTogether, onOpenTogetherSession, initialMyPickId }: PicksExperienceProps) {
   const resources = usePicksResources();
   const relationships = useRestaurantRelationships();
   const queryClient = useQueryClient();
@@ -105,15 +107,16 @@ export function PicksExperience({ onOpenRestaurant, initialMyPickId }: PicksExpe
       next.push({ key: `daily-${restaurant.place_id}`, kind: "daily", restaurant, index, revealed: active?.revealed_place_ids.includes(restaurant.place_id) === true || visitsByPlace.has(restaurant.place_id) });
     }
     next.push({ key: "my-pick", kind: "my-pick" });
+    if (resources.together.data) next.push({ key: "together", kind: "together" });
     for (const discovery of recent) next.push({ key: `recent-${discovery.restaurant.place_id}`, kind: "recent", restaurant: discovery.restaurant, expiresAt: discovery.expiresAt });
     const pp = resources.personalized.data;
     if (pp?.status === "selected" && pp.selected_restaurant) next.push({ key: `personalized-${pp.selected_restaurant.place_id}`, kind: "personalized", restaurant: pp.selected_restaurant });
     return next;
-  }, [active, recent, resources.personalized.data, visitsByPlace]);
+  }, [active, recent, resources.personalized.data, resources.together.data, visitsByPlace]);
 
   const refresh = () => {
     setNow(Date.now());
-    return Promise.all([resources.active.refetch(), resources.recent.refetch(), relationships.refetch(), resources.personalized.refetch()]);
+    return Promise.all([resources.active.refetch(), resources.recent.refetch(), relationships.refetch(), resources.personalized.refetch(), resources.together.refetch()]);
   };
   const loading = resources.active.isLoading || relationships.loading;
   const primaryError = !active && resources.active.error;
@@ -133,6 +136,7 @@ export function PicksExperience({ onOpenRestaurant, initialMyPickId }: PicksExpe
 
   const renderRestaurant = (item: ListItem) => {
     if (item.kind === "my-pick") return <MyPickSection initialMyPickId={initialMyPickId} onOpenRestaurant={onOpenRestaurant} />;
+    if (item.kind === "together") return <TogetherEntry state={resources.together.data!} onOpenHub={onOpenTogether} onOpenSession={onOpenTogetherSession} />;
     const restaurant = item.restaurant;
     const saved = savedIds.has(restaurant.place_id);
     const visited = visitsByPlace.has(restaurant.place_id);

@@ -18,12 +18,15 @@ function RootNavigator() {
   return (
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.canvas } }}>
       <Stack.Screen name="index" />
+      <Stack.Screen name="together/[token]" />
       <Stack.Protected guard={guards.auth}><Stack.Screen name="(auth)" /></Stack.Protected>
       <Stack.Protected guard={guards.application}>
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="restaurants/[placeId]" />
         <Stack.Screen name="my-pick/[myPickId]" />
         <Stack.Screen name="lists/smart/[viewKey]" />
+        <Stack.Screen name="together/index" />
+        <Stack.Screen name="together/session/[sessionId]" />
       </Stack.Protected>
     </Stack>
   );

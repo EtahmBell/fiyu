@@ -51,18 +51,19 @@ export interface RevealedPickCardProps {
   visited: boolean;
   savePending?: boolean;
   visitPending?: boolean;
-  tone?: "current" | "recent" | "personalized";
+  tone?: "current" | "recent" | "personalized" | "together";
   photoEnabled?: boolean;
+  showLog?: boolean;
   onOpen(): void;
   onSave(): void;
   onLog(): void;
 }
 
-export function RevealedPickCard({ restaurant, saved, visited, savePending, visitPending, tone = "current", photoEnabled = true, onOpen, onSave, onLog }: RevealedPickCardProps) {
+export function RevealedPickCard({ restaurant, saved, visited, savePending, visitPending, tone = "current", photoEnabled = true, showLog = true, onOpen, onSave, onLog }: RevealedPickCardProps) {
   const name = restaurantName(restaurant);
   const secondary = restaurantSecondaryName(restaurant);
   const metadata = [restaurant.category, restaurantArea(restaurant)].filter(Boolean).join(" · ");
-  const accent = tone === "personalized" ? "#C79A32" : tone === "recent" ? "#7D90B8" : colors.lavender[500];
+  const accent = tone === "personalized" ? "#C79A32" : tone === "recent" ? "#7D90B8" : tone === "together" ? colors.plum : colors.lavender[500];
   const description = restaurant.card_description ?? restaurant.description_en;
   return (
     <View style={styles.card} testID={`revealed-pick-${restaurant.place_id}`}>
@@ -78,7 +79,7 @@ export function RevealedPickCard({ restaurant, saved, visited, savePending, visi
       <View style={styles.actions}>
         <Pressable accessibilityRole="button" accessibilityLabel={`View ${name}`} onPress={onOpen} style={styles.primaryAction}><Text style={styles.primaryActionText}>View restaurant →</Text></Pressable>
         <Pressable accessibilityRole="button" accessibilityState={{ selected: saved, disabled: savePending }} disabled={savePending} onPress={onSave} style={styles.secondaryAction}><Text style={styles.secondaryActionText}>{saved ? "Saved" : "Save"}</Text></Pressable>
-        <Pressable accessibilityRole="button" accessibilityState={{ selected: visited, disabled: visitPending || visited }} disabled={visitPending || visited} onPress={onLog} style={styles.secondaryAction}><Text style={styles.secondaryActionText}>{visited ? "Visited" : "Log"}</Text></Pressable>
+        {showLog ? <Pressable accessibilityRole="button" accessibilityState={{ selected: visited, disabled: visitPending || visited }} disabled={visitPending || visited} onPress={onLog} style={styles.secondaryAction}><Text style={styles.secondaryActionText}>{visited ? "Visited" : "Log"}</Text></Pressable> : null}
       </View>
     </View>
   );

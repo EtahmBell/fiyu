@@ -1,4 +1,4 @@
-import { router, useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams, type Href } from "expo-router";
 import { StyleSheet } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -11,6 +11,8 @@ export default function PicksScreen() {
       <PicksExperience
         initialMyPickId={myPickId}
         onOpenRestaurant={(placeId) => router.push({ pathname: "/restaurants/[placeId]", params: { placeId } })}
+        onOpenTogether={() => router.push("/together" as Href)}
+        onOpenTogetherSession={(sessionId) => router.push(`/together/session/${encodeURIComponent(sessionId)}` as Href)}
       />
     </SafeAreaView>
   );

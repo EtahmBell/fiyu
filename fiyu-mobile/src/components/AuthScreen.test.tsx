@@ -6,10 +6,15 @@ import { AuthProvider } from "@/auth/AuthProvider";
 import type { AuthService, AuthSession } from "@/auth/service";
 import { AuthScreen } from "@/components/AuthScreen";
 
+let mockSearchParams: { returnTo?: string } = {};
 jest.mock("expo-router", () => {
   const react = jest.requireActual<typeof import("react")>("react");
   const native = jest.requireActual<typeof import("react-native")>("react-native");
-  return { Link: ({ children }: { children: React.ReactNode }) => react.createElement(native.Text, null, children) };
+  return {
+    Link: ({ children }: { children: React.ReactNode }) => react.createElement(native.Text, null, children),
+    router: { replace: jest.fn() },
+    useLocalSearchParams: () => mockSearchParams,
+  };
 });
 
 const session: AuthSession = { userId: "user-1", email: "dev@example.com", accessToken: "token" };
@@ -29,6 +34,7 @@ function mockService(signIn: AuthService["signIn"]): AuthService {
 }
 
 describe("AuthScreen", () => {
+  beforeEach(() => { mockSearchParams = {}; });
   it("submits the existing identifier/password contract", async () => {
     const signIn = jest.fn(async () => session);
     await render(<AuthProvider service={mockService(signIn)}><AuthScreen mode="signin" /></AuthProvider>);
@@ -45,5 +51,16 @@ describe("AuthScreen", () => {
     await fireEvent.changeText(screen.getByLabelText("Password"), "password");
     await fireEvent.press(screen.getByText("Sign in"));
     await waitFor(() => expect(screen.getByText("Fiyu could not connect right now. Please try again.")).toBeTruthy());
+  });
+
+  it("continues a safe Together invitation after sign in", async () => {
+    mockSearchParams = { returnTo: "/together/invite-token?join=1" };
+    const signIn = jest.fn(async () => session);
+    await render(<AuthProvider service={mockService(signIn)}><AuthScreen mode="signin" /></AuthProvider>);
+    await fireEvent.changeText(screen.getByLabelText("Email or username"), "dev@example.com");
+    await fireEvent.changeText(screen.getByLabelText("Password"), "password");
+    await fireEvent.press(screen.getByText("Sign in"));
+    const { router } = jest.requireMock("expo-router");
+    await waitFor(() => expect(router.replace).toHaveBeenCalledWith("/together/invite-token?join=1"));
   });
 });

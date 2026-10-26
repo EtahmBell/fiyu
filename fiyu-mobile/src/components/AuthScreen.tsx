@@ -1,13 +1,16 @@
-import { Link } from "expo-router";
+import { Link, router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 
 import { useAuth } from "@/auth/AuthProvider";
 import { authErrorMessage } from "@/auth/service";
 import { colors, fontFamilies, radii, spacing } from "@/design";
+import { safeTogetherReturnTo } from "@/lib/together";
 
 export function AuthScreen({ mode }: { mode: "signin" | "signup" }) {
   const signup = mode === "signup";
+  const params = useLocalSearchParams<{ returnTo?: string | string[] }>();
+  const returnTo = safeTogetherReturnTo(params.returnTo);
   const auth = useAuth();
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
@@ -29,8 +32,10 @@ export function AuthScreen({ mode }: { mode: "signin" | "signup" }) {
       if (signup) {
         const result = await auth.signUp({ email: normalizedIdentifier, password, username: normalizedUsername });
         if (result.emailVerificationRequired) setVerificationEmail(result.email);
+        else if (returnTo) router.replace(returnTo as never);
       } else {
         await auth.signIn({ identifier: normalizedIdentifier, password });
+        if (returnTo) router.replace(returnTo as never);
       }
     } catch (cause) {
       setError(authErrorMessage(cause));
@@ -69,7 +74,7 @@ export function AuthScreen({ mode }: { mode: "signin" | "signup" }) {
         </View>
         <Text style={styles.switchCopy}>
           {signup ? "Already have an account? " : "New to Fiyu? "}
-          <Link href={signup ? "/(auth)/sign-in" : "/(auth)/sign-up"} style={styles.link}>{signup ? "Sign in" : "Sign up"}</Link>
+          <Link href={{ pathname: signup ? "/(auth)/sign-in" : "/(auth)/sign-up", params: returnTo ? { returnTo } : undefined }} style={styles.link}>{signup ? "Sign in" : "Sign up"}</Link>
         </Text>
       </ScrollView>
     </KeyboardAvoidingView>
