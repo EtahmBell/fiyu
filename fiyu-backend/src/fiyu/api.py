@@ -5,6 +5,8 @@ import os
 import re
 import secrets
 import sqlite3
+import threading
+import time
 from collections.abc import Iterable
 from datetime import UTC, date, datetime, timedelta
 from hashlib import sha256
@@ -59,6 +61,7 @@ from .google_places import (
     GooglePlacesProviderError,
     GooglePlacesTimeoutError,
     get_place_photos,
+    get_place_suggestions,
 )
 from .list_policy import ListPolicyError, resolve_capability
 from .location_anchors import load_location_anchors
@@ -129,6 +132,22 @@ from .utils import haversine_km
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
 load_dotenv(BACKEND_ROOT / ".env")
 DB_PATH = Path(os.getenv("FIYU_DB_PATH", "data/fiyu.db"))
+MY_PICK_SUGGESTION_RATE_LIMIT = 12
+MY_PICK_SUGGESTION_WINDOW_SECONDS = 60.0
+_my_pick_suggestion_requests: dict[str, list[float]] = {}
+_my_pick_suggestion_rate_lock = threading.Lock()
+
+
+def _check_my_pick_suggestion_rate_limit(user_id: str) -> None:
+    now = time.monotonic()
+    cutoff = now - MY_PICK_SUGGESTION_WINDOW_SECONDS
+    with _my_pick_suggestion_rate_lock:
+        recent = [value for value in _my_pick_suggestion_requests.get(user_id, []) if value > cutoff]
+        if len(recent) >= MY_PICK_SUGGESTION_RATE_LIMIT:
+            _my_pick_suggestion_requests[user_id] = recent
+            raise HTTPException(status_code=429, detail="Too many restaurant searches")
+        recent.append(now)
+        _my_pick_suggestion_requests[user_id] = recent
 logger = logging.getLogger(__name__)
 
 PERSONALIZED_PICK_UNLOCK_THRESHOLD = 10
@@ -865,6 +884,28 @@ class MyPickSubmissionRequest(BaseModel):
         if not stripped:
             raise ValueError(f"{info.field_name} must not be blank")
         return stripped
+
+
+class MyPickPlaceSuggestionsRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1, max_length=200)
+    address: str = Field(min_length=1, max_length=500)
+    session_token: UUID
+
+    @field_validator("name", "address")
+    @classmethod
+    def validate_suggestion_text(cls, value: str, info: Any) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError(f"{info.field_name} must not be blank")
+        return stripped
+
+
+class MyPickPlaceSuggestionResponse(BaseModel):
+    external_place_id: str
+    primary_text: str
+    secondary_text: str | None = None
 
 
 class MyPickResponse(BaseModel):
@@ -3279,6 +3320,31 @@ def _authenticated_user_id(
     authorization: Annotated[str | None, Header()] = None,
 ) -> str:
     return str(_authenticated_user(authorization)["id"])
+
+
+@app.post(
+    "/my-picks/place-suggestions",
+    response_model=list[MyPickPlaceSuggestionResponse],
+)
+def suggest_my_pick_places(
+    request: MyPickPlaceSuggestionsRequest,
+    user_id: Annotated[str, Depends(_authenticated_user_id)],
+) -> list[MyPickPlaceSuggestionResponse]:
+    _check_my_pick_suggestion_rate_limit(user_id)
+    try:
+        suggestions = get_place_suggestions(
+            request.name,
+            request.address,
+            session_token=str(request.session_token),
+        )
+    except GooglePlacesConfigurationError:
+        logger.error("Google Places suggestions are not configured")
+        raise HTTPException(status_code=503, detail="Restaurant search is unavailable") from None
+    except GooglePlacesTimeoutError:
+        raise HTTPException(status_code=504, detail="Restaurant search timed out") from None
+    except GooglePlacesProviderError:
+        raise HTTPException(status_code=502, detail="Restaurant search failed") from None
+    return [MyPickPlaceSuggestionResponse.model_validate(item) for item in suggestions]
 
 
 @app.post("/my-picks", response_model=MyPickResponse, status_code=202)

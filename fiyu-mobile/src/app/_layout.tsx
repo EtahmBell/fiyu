@@ -22,6 +22,7 @@ function RootNavigator() {
       <Stack.Protected guard={guards.application}>
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="restaurants/[placeId]" />
+        <Stack.Screen name="my-pick/[myPickId]" />
       </Stack.Protected>
     </Stack>
   );

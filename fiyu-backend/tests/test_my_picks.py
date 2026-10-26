@@ -2023,6 +2023,110 @@ def my_pick_payload(external_place_id: str, **values):
     }
 
 
+def test_place_suggestions_are_authenticated_minimal_and_do_not_persist(my_pick_api, monkeypatch):
+    client, _users, rows = my_pick_api
+    calls = []
+    monkeypatch.setattr(
+        api,
+        "get_place_suggestions",
+        lambda name, address, *, session_token: calls.append((name, address, session_token)) or [{
+            "external_place_id": "ChIJsuggested",
+            "primary_text": "Suggested restaurant",
+            "secondary_text": "Tokyo",
+        }],
+    )
+    payload = {
+        "name": "Original name",
+        "address": "Original address, Tokyo",
+        "session_token": str(uuid4()),
+    }
+
+    assert client.post("/my-picks/place-suggestions", json=payload).status_code == 401
+    response = client.post(
+        "/my-picks/place-suggestions",
+        json=payload,
+        headers={"Authorization": "Bearer token-a"},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == [{
+        "external_place_id": "ChIJsuggested",
+        "primary_text": "Suggested restaurant",
+        "secondary_text": "Tokyo",
+    }]
+    assert calls == [(payload["name"], payload["address"], payload["session_token"])]
+    assert rows == {}
+
+
+def test_place_suggestions_validate_input_and_rate_limit_per_user(my_pick_api, monkeypatch):
+    client, users, _rows = my_pick_api
+    monkeypatch.setattr(api, "get_place_suggestions", lambda *_args, **_kwargs: [])
+    monkeypatch.setattr(api, "MY_PICK_SUGGESTION_RATE_LIMIT", 1)
+    api._my_pick_suggestion_requests.pop(users["token-a"], None)
+    api._my_pick_suggestion_requests.pop(users["token-b"], None)
+    payload = {"name": "Name", "address": "Tokyo", "session_token": str(uuid4())}
+
+    first = client.post("/my-picks/place-suggestions", json=payload, headers={"Authorization": "Bearer token-a"})
+    limited = client.post("/my-picks/place-suggestions", json=payload, headers={"Authorization": "Bearer token-a"})
+    other = client.post("/my-picks/place-suggestions", json=payload, headers={"Authorization": "Bearer token-b"})
+    invalid = client.post("/my-picks/place-suggestions", json={**payload, "session_token": "not-a-uuid"}, headers={"Authorization": "Bearer token-b"})
+
+    assert first.status_code == other.status_code == 200
+    assert limited.status_code == 429
+    assert invalid.status_code == 422
+
+
+@pytest.mark.parametrize(
+    ("provider_error", "expected_status"),
+    [
+        (api.GooglePlacesTimeoutError("private timeout"), 504),
+        (api.GooglePlacesProviderError("private provider body"), 502),
+        (api.GooglePlacesConfigurationError("private-key-value"), 503),
+    ],
+)
+def test_place_suggestion_provider_failures_are_sanitized(
+    my_pick_api, monkeypatch, caplog, provider_error, expected_status
+):
+    client, users, _rows = my_pick_api
+    api._my_pick_suggestion_requests.pop(users["token-a"], None)
+
+    def fail(*_args, **_kwargs):
+        raise provider_error
+
+    monkeypatch.setattr(api, "get_place_suggestions", fail)
+    response = client.post(
+        "/my-picks/place-suggestions",
+        json={"name": "Name", "address": "Tokyo", "session_token": str(uuid4())},
+        headers={"Authorization": "Bearer token-a"},
+    )
+
+    assert response.status_code == expected_status
+    assert "private" not in response.text
+    assert "private-key-value" not in caplog.text
+
+
+def test_place_suggestions_allow_zero_predictions(my_pick_api, monkeypatch):
+    client, users, rows = my_pick_api
+    api._my_pick_suggestion_requests.pop(users["token-a"], None)
+    monkeypatch.setattr(api, "get_place_suggestions", lambda *_args, **_kwargs: [])
+
+    response = client.post(
+        "/my-picks/place-suggestions",
+        json={"name": "Ambiguous", "address": "Tokyo", "session_token": str(uuid4())},
+        headers={"Authorization": "Bearer token-a"},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == []
+    assert rows == {}
+
+
+def test_place_suggestions_are_present_in_openapi_as_a_narrow_post():
+    operation = api.app.openapi()["paths"]["/my-picks/place-suggestions"]
+    assert set(operation) == {"post"}
+    assert operation["post"]["responses"]["200"]["content"]["application/json"]
+
+
 def test_api_auth_ownership_idempotency_and_shared_work(my_pick_api):
     client, _user_ids, rows = my_pick_api
     payload = {

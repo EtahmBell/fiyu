@@ -9,6 +9,10 @@ import {
   FiyuApiError,
   googlePhotoSchema,
   googlePhotoListSchema,
+  myPickListSchema,
+  myPickPlaceSuggestionListSchema,
+  myPickQuotaSchema,
+  myPickSchema,
   parseRestaurantList,
   paths,
   personalizedPickStateSchema,
@@ -24,6 +28,9 @@ import {
   type DefaultListResponse,
   type DiscoveryLocation,
   type GooglePhoto,
+  type MyPick,
+  type MyPickPlaceSuggestion,
+  type MyPickQuota,
   type ParsedRestaurantList,
   type PersonalizedPickState,
   type PublicRestaurantDetail,
@@ -164,4 +171,51 @@ export function dismissPersonalizedPickEvent(eventId: string): Promise<Personali
 
 export function selectPersonalizedPick(eventId: string, position: number): Promise<PersonalizedPickState> {
   return transport.requestJson(paths.personalizedPicksSelect(eventId), personalizedPickStateSchema, { method: "POST", body: { position } });
+}
+
+export function fetchMyPicks(): Promise<MyPick[]> {
+  return transport.requestJson(paths.myPicks, myPickListSchema);
+}
+
+export function fetchMyPick(myPickId: string): Promise<MyPick> {
+  return transport.requestJson(paths.myPick(myPickId), myPickSchema);
+}
+
+export function fetchMyPickQuota(): Promise<MyPickQuota> {
+  return transport.requestJson(paths.myPicksQuota, myPickQuotaSchema);
+}
+
+export function fetchMyPickPlaceSuggestions(input: {
+  name: string;
+  address: string;
+  session_token: string;
+}): Promise<MyPickPlaceSuggestion[]> {
+  return transport.requestJson(paths.myPickPlaceSuggestions, myPickPlaceSuggestionListSchema, {
+    method: "POST",
+    body: input,
+  });
+}
+
+export function submitMyPick(input: {
+  externalPlaceId: string;
+  userNameHint: string;
+  userAddressHint: string;
+}): Promise<MyPick> {
+  return transport.requestJson(paths.myPicks, myPickSchema, {
+    method: "POST",
+    body: myPickSubmissionBody(input),
+  });
+}
+
+export function myPickSubmissionBody(input: {
+  externalPlaceId: string;
+  userNameHint: string;
+  userAddressHint: string;
+}) {
+  return {
+    provider: "google" as const,
+    external_place_id: input.externalPlaceId,
+    user_name_hint: input.userNameHint,
+    user_address_hint: input.userAddressHint,
+  };
 }

@@ -318,6 +318,12 @@ export const myPickSchema = z.object({
   recommendation_review_status: z.enum(["not_eligible", "pending", "approved", "declined", "withdrawn"]),
 });
 export const myPickListSchema = z.array(myPickSchema);
+export const myPickPlaceSuggestionSchema = z.object({
+  external_place_id: z.string().min(1),
+  primary_text: z.string().min(1),
+  secondary_text: nullableString,
+});
+export const myPickPlaceSuggestionListSchema = z.array(myPickPlaceSuggestionSchema);
 export const myPickQuotaSchema = z.object({
   limit: z.literal(3),
   used: z.number().int().nonnegative(),
@@ -828,6 +834,7 @@ export type PublicRestaurant = z.infer<typeof publicRestaurantSchema>;
 export type MapRestaurant = z.infer<typeof mapRestaurantSchema>;
 export type MyPick = z.infer<typeof myPickSchema>;
 export type MyPickStatus = z.infer<typeof myPickStatusSchema>;
+export type MyPickPlaceSuggestion = z.infer<typeof myPickPlaceSuggestionSchema>;
 export type DeveloperMyPickProcess = z.infer<typeof developerMyPickProcessSchema>;
 export type DeveloperMyPickHardReset = z.infer<typeof developerMyPickHardResetSchema>;
 export type DeveloperMyPickPreview = z.infer<typeof developerMyPickPreviewSchema>;

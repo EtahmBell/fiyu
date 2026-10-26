@@ -12,6 +12,7 @@ import {
 } from "@/api/client";
 import { PICKS_CITY_ID, picksKeys, usePicksResources } from "@/api/queries";
 import { useRestaurantRelationships } from "@/components/restaurant/useRestaurantRelationships";
+import { MyPickSection } from "@/components/my-pick/MyPickSection";
 import { colors, fontFamilies, radii, spacing } from "@/design";
 import { recentDiscoveries } from "@/lib/picks";
 import { restaurantName } from "@/lib/presentation";
@@ -22,16 +23,17 @@ import { VisitModal } from "./VisitModal";
 
 type ListItem =
   | { key: string; kind: "daily"; restaurant: PublicRestaurant; index: number; revealed: boolean }
+  | { key: string; kind: "my-pick" }
   | { key: string; kind: "recent"; restaurant: PublicRestaurant; expiresAt: string }
   | { key: string; kind: "personalized"; restaurant: PublicRestaurant };
 
-interface PicksExperienceProps { onOpenRestaurant(placeId: string): void }
+interface PicksExperienceProps { onOpenRestaurant(placeId: string): void; initialMyPickId?: string }
 
 function message(error: unknown, fallback: string): string {
   return error instanceof Error && error.message ? error.message : fallback;
 }
 
-export function PicksExperience({ onOpenRestaurant }: PicksExperienceProps) {
+export function PicksExperience({ onOpenRestaurant, initialMyPickId }: PicksExperienceProps) {
   const resources = usePicksResources();
   const relationships = useRestaurantRelationships();
   const queryClient = useQueryClient();
@@ -102,6 +104,7 @@ export function PicksExperience({ onOpenRestaurant }: PicksExperienceProps) {
     for (const [index, restaurant] of (active?.restaurants ?? []).entries()) {
       next.push({ key: `daily-${restaurant.place_id}`, kind: "daily", restaurant, index, revealed: active?.revealed_place_ids.includes(restaurant.place_id) === true || visitsByPlace.has(restaurant.place_id) });
     }
+    next.push({ key: "my-pick", kind: "my-pick" });
     for (const discovery of recent) next.push({ key: `recent-${discovery.restaurant.place_id}`, kind: "recent", restaurant: discovery.restaurant, expiresAt: discovery.expiresAt });
     const pp = resources.personalized.data;
     if (pp?.status === "selected" && pp.selected_restaurant) next.push({ key: `personalized-${pp.selected_restaurant.place_id}`, kind: "personalized", restaurant: pp.selected_restaurant });
@@ -129,6 +132,7 @@ export function PicksExperience({ onOpenRestaurant }: PicksExperienceProps) {
   };
 
   const renderRestaurant = (item: ListItem) => {
+    if (item.kind === "my-pick") return <MyPickSection initialMyPickId={initialMyPickId} onOpenRestaurant={onOpenRestaurant} />;
     const restaurant = item.restaurant;
     const saved = savedIds.has(restaurant.place_id);
     const visited = visitsByPlace.has(restaurant.place_id);

@@ -1,10 +1,12 @@
-import type { DailyPickAssignmentResponse, ParsedRestaurantList, PersonalizedPickState, PublicRestaurantDetail, RecentDailyPickRound } from "@fiyu/contracts";
+import type { DailyPickAssignmentResponse, MyPick, ParsedRestaurantList, PersonalizedPickState, PublicRestaurantDetail, RecentDailyPickRound } from "@fiyu/contracts";
 import { publicRestaurantDetailSchema } from "@fiyu/contracts";
 import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 
 import {
   fetchActiveDailyPicks,
   fetchDiscoveryLocation,
+  fetchMyPickQuota,
+  fetchMyPicks,
   fetchPersonalizedPickState,
   fetchPhotos,
   fetchRecentDailyPicks,
@@ -20,7 +22,18 @@ export const picksKeys = {
   log: ["log"] as const,
   location: ["profile", "discovery-location"] as const,
   personalized: ["personalized-picks"] as const,
+  myPicks: ["my-picks"] as const,
+  myPickQuota: ["my-picks", "quota"] as const,
 };
+
+const MY_PICK_UNFINISHED = new Set<MyPick["status"]>(["pending", "resolving_identity", "researching"]);
+
+export function myPickPollingInterval(items: MyPick[] | undefined): number | false {
+  return items?.some((item) => {
+    const resultReady = item.result_ready || (item.fiyu_score !== null && item.score_version !== null);
+    return !resultReady && MY_PICK_UNFINISHED.has(item.status);
+  }) ? 30_000 : false;
+}
 
 export const catalogQueryKey = ["catalog", "published"] as const;
 export const restaurantQueryKey = (placeId: string) => ["restaurant", placeId] as const;
@@ -73,4 +86,22 @@ export function usePicksResources() {
   const location = useQuery({ queryKey: picksKeys.location, queryFn: fetchDiscoveryLocation });
   const personalized = useQuery({ queryKey: picksKeys.personalized, queryFn: fetchPersonalizedPickState });
   return { active, recent, location, personalized };
+}
+
+export function useMyPickResources() {
+  const picks = useQuery({
+    queryKey: picksKeys.myPicks,
+    queryFn: fetchMyPicks,
+    refetchOnWindowFocus: true,
+    refetchInterval: (query) => {
+      return myPickPollingInterval(query.state.data as MyPick[] | undefined);
+    },
+    refetchIntervalInBackground: false,
+  });
+  const quota = useQuery({
+    queryKey: picksKeys.myPickQuota,
+    queryFn: fetchMyPickQuota,
+    refetchOnWindowFocus: true,
+  });
+  return { picks, quota };
 }

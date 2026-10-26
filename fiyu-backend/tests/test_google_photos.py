@@ -49,3 +49,41 @@ def test_missing_and_malformed_photos_are_controlled(monkeypatch):
 
     with pytest.raises(google_places.GooglePlacesProviderError):
         google_places.normalize_photo_metadata({"photos": "bad"})
+
+
+def test_place_suggestions_use_server_key_kanto_restriction_and_minimal_projection(monkeypatch):
+    captured = {}
+
+    def post(url, payload, **kwargs):
+        captured.update(url=url, payload=payload, kwargs=kwargs)
+        return {
+            "suggestions": [
+                {
+                    "placePrediction": {
+                        "placeId": "ChIJnative",
+                        "structuredFormat": {
+                            "mainText": {"text": "User Restaurant"},
+                            "secondaryText": {"text": "Koenji, Tokyo"},
+                        },
+                        "extraProviderField": "must not escape",
+                    }
+                },
+                {"queryPrediction": {"text": {"text": "ignored"}}},
+            ]
+        }
+
+    monkeypatch.setattr(google_places, "_post_json", post)
+    result = google_places.get_place_suggestions(
+        " User Restaurant ", " Koenji, Tokyo ", session_token="session-id"
+    )
+
+    assert result == [{
+        "external_place_id": "ChIJnative",
+        "primary_text": "User Restaurant",
+        "secondary_text": "Koenji, Tokyo",
+    }]
+    assert captured["url"].endswith("/v1/places:autocomplete")
+    assert captured["payload"]["input"] == "User Restaurant Koenji, Tokyo"
+    assert captured["payload"]["includedRegionCodes"] == ["jp"]
+    assert "locationRestriction" in captured["payload"]
+    assert captured["kwargs"]["timeout"] == 5.0
