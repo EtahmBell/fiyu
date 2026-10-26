@@ -23,6 +23,7 @@ function RootNavigator() {
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="restaurants/[placeId]" />
         <Stack.Screen name="my-pick/[myPickId]" />
+        <Stack.Screen name="lists/smart/[viewKey]" />
       </Stack.Protected>
     </Stack>
   );

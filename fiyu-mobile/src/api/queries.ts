@@ -6,6 +6,13 @@ import {
   fetchActiveDailyPicks,
   fetchAuthenticatedMapRestaurants,
   fetchDiscoveryLocation,
+  fetchDeveloperStatus,
+  fetchDefaultList,
+  fetchLocationAnchors,
+  fetchProfile,
+  fetchRestaurantLog,
+  fetchSmartView,
+  fetchSmartViews,
   fetchMyPickQuota,
   fetchMyPicks,
   fetchPersonalizedPickState,
@@ -26,6 +33,11 @@ export const picksKeys = {
   myPicks: ["my-picks"] as const,
   myPickQuota: ["my-picks", "quota"] as const,
   map: ["map-restaurants"] as const,
+  profile: ["profile"] as const,
+  locationAnchors: ["location-anchors"] as const,
+  smartViews: ["lists", "smart", PICKS_CITY_ID] as const,
+  smartView: (viewKey: string) => ["lists", "smart", PICKS_CITY_ID, viewKey] as const,
+  developerStatus: ["developer", "status"] as const,
 };
 
 const MY_PICK_UNFINISHED = new Set<MyPick["status"]>(["pending", "resolving_identity", "researching"]);
@@ -121,4 +133,31 @@ export function useMapRestaurants() {
     refetchOnWindowFocus: true,
     refetchInterval: 60_000,
   });
+}
+
+export function useListsResources() {
+  const saved = useQuery({ queryKey: picksKeys.saved, queryFn: () => fetchDefaultList(PICKS_CITY_ID) });
+  const smart = useQuery({ queryKey: picksKeys.smartViews, queryFn: () => fetchSmartViews(PICKS_CITY_ID) });
+  return { saved, smart };
+}
+
+export function useSmartView(viewKey: string) {
+  const queryClient = useQueryClient();
+  return useQuery({
+    queryKey: picksKeys.smartView(viewKey),
+    queryFn: () => fetchSmartView(PICKS_CITY_ID, viewKey, queryClient.getQueryData(picksKeys.location)),
+    enabled: viewKey.length > 0,
+  });
+}
+
+export function useLog() {
+  return useQuery({ queryKey: picksKeys.log, queryFn: fetchRestaurantLog });
+}
+
+export function useProfileResources() {
+  const profile = useQuery({ queryKey: picksKeys.profile, queryFn: fetchProfile });
+  const location = useQuery({ queryKey: picksKeys.location, queryFn: fetchDiscoveryLocation });
+  const anchors = useQuery({ queryKey: picksKeys.locationAnchors, queryFn: fetchLocationAnchors, staleTime: 24 * 60 * 60_000 });
+  const developer = useQuery({ queryKey: picksKeys.developerStatus, queryFn: fetchDeveloperStatus, retry: false });
+  return { profile, location, anchors, developer };
 }

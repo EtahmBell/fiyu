@@ -5,6 +5,10 @@ import {
   dailyPickRevealResponseSchema,
   defaultListMutationResponseSchema,
   defaultListResponseSchema,
+  deleteRestaurantVisitResponseSchema,
+  developerMyPickHardResetSchema,
+  developerMyPickProcessSchema,
+  developerStatusSchema,
   discoveryLocationSchema,
   FiyuApiError,
   googlePhotoSchema,
@@ -14,6 +18,7 @@ import {
   myPickQuotaSchema,
   myPickSchema,
   mapRestaurantListSchema,
+  locationAnchorListSchema,
   parseRestaurantList,
   paths,
   personalizedPickStateSchema,
@@ -22,22 +27,32 @@ import {
   restaurantPath,
   restaurantVisitListSchema,
   restaurantVisitSchema,
+  smartViewCatalogResponseSchema,
+  smartViewResponseSchema,
+  userProfileSchema,
   restaurantsPath,
   withQuery,
   type DailyPickAssignmentResponse,
   type DefaultListMutationResponse,
   type DefaultListResponse,
+  type DeveloperMyPickHardReset,
+  type DeveloperMyPickProcess,
+  type DeveloperStatus,
   type DiscoveryLocation,
   type GooglePhoto,
   type MyPick,
   type MyPickPlaceSuggestion,
   type MyPickQuota,
   type MapRestaurant,
+  type LocationAnchor,
   type ParsedRestaurantList,
   type PersonalizedPickState,
   type PublicRestaurantDetail,
   type RecentDailyPickRound,
   type RestaurantVisit,
+  type SmartViewCatalogResponse,
+  type SmartViewResponse,
+  type UserProfile,
 } from "@fiyu/contracts";
 import * as SecureStore from "expo-secure-store";
 
@@ -128,6 +143,35 @@ export function fetchDiscoveryLocation(): Promise<DiscoveryLocation> {
   return transport.requestJson(paths.discoveryLocation, discoveryLocationSchema);
 }
 
+export function fetchLocationAnchors(): Promise<LocationAnchor[]> {
+  return transport.requestJson(paths.locationAnchors, locationAnchorListSchema);
+}
+
+export function updateDiscoveryLocation(anchor: LocationAnchor): Promise<DiscoveryLocation> {
+  return transport.requestJson(paths.discoveryLocation, discoveryLocationSchema, {
+    method: "PUT",
+    body: {
+      location_mode: "manual",
+      discovery_latitude: anchor.latitude,
+      discovery_longitude: anchor.longitude,
+      discovery_label: anchor.area_name,
+      arrival_date: null,
+    },
+  });
+}
+
+export function fetchProfile(): Promise<UserProfile> {
+  return transport.requestJson(paths.profile, userProfileSchema);
+}
+
+export function updateProfile(input: { username: string; display_name: string | null; bio: string | null }): Promise<UserProfile> {
+  return transport.requestJson(paths.profile, userProfileSchema, { method: "PATCH", body: input });
+}
+
+export function updateProfileAvatar(avatarUrl: string | null): Promise<UserProfile> {
+  return transport.requestJson(paths.profileAvatar, userProfileSchema, { method: "PATCH", body: { avatar_url: avatarUrl } });
+}
+
 export function fetchAuthenticatedMapRestaurants(): Promise<MapRestaurant[]> {
   return transport.requestJson(paths.authenticatedMapRestaurants, mapRestaurantListSchema);
 }
@@ -146,6 +190,43 @@ export async function removeFromDefaultList(cityId: string, placeId: string): Pr
 
 export async function fetchRestaurantLog(): Promise<RestaurantVisit[]> {
   return transport.requestJson(paths.log, restaurantVisitListSchema, { headers: await identityHeaders() });
+}
+
+export function updateRestaurantVisit(visitId: string, input: { visited_at?: string; rating?: 1 | 2 | 3 | 4 | 5; private_note?: string | null }): Promise<RestaurantVisit> {
+  return transport.requestJson(paths.logVisit(visitId), restaurantVisitSchema, { method: "PATCH", body: input });
+}
+
+export function deleteRestaurantVisit(visitId: string): Promise<boolean> {
+  return transport.requestJson(paths.logVisit(visitId), deleteRestaurantVisitResponseSchema, { method: "DELETE" }).then((value) => value.deleted);
+}
+
+export function fetchSmartViews(cityId: string): Promise<SmartViewCatalogResponse> {
+  return transport.requestJson(withQuery(paths.defaultListSmartViews, { city_id: cityId }), smartViewCatalogResponseSchema);
+}
+
+export function fetchSmartView(cityId: string, viewKey: string, location?: DiscoveryLocation): Promise<SmartViewResponse> {
+  const query: Record<string, string> = { city_id: cityId };
+  if (location?.discovery_latitude != null && location.discovery_longitude != null) {
+    query.origin_latitude = String(location.discovery_latitude);
+    query.origin_longitude = String(location.discovery_longitude);
+  }
+  return transport.requestJson(withQuery(paths.defaultListSmartView(viewKey), query), smartViewResponseSchema);
+}
+
+export function fetchDeveloperStatus(): Promise<DeveloperStatus> {
+  return transport.requestJson(paths.developerStatus, developerStatusSchema);
+}
+
+export function processDeveloperMyPick(myPickId: string): Promise<DeveloperMyPickProcess> {
+  return transport.requestJson(paths.developerMyPicksProcess, developerMyPickProcessSchema, {
+    method: "POST", body: { my_pick_id: myPickId, retry_failed: true },
+  });
+}
+
+export function hardResetDeveloperMyPick(myPickId: string): Promise<DeveloperMyPickHardReset> {
+  return transport.requestJson(paths.developerMyPickHardReset, developerMyPickHardResetSchema, {
+    method: "POST", body: { my_pick_id: myPickId },
+  });
 }
 
 export async function createRestaurantVisit(input: { place_id: string; visited_at: string; rating: 1 | 2 | 3 | 4 | 5; private_note: string | null }): Promise<RestaurantVisit> {

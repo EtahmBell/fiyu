@@ -465,6 +465,18 @@ export const currentLocationCheckSchema = z.object({
   location: discoveryLocationSchema,
 });
 
+export const userProfileSchema = z.object({
+  user_id: z.string().min(1),
+  username: z.string().min(1),
+  display_name: nullableString,
+  bio: nullableString,
+  avatar_url: nullableString,
+  created_at: z.string().min(1),
+  updated_at: z.string().min(1),
+});
+
+export const deleteAccountResponseSchema = z.object({ deleted: z.literal(true) });
+
 const savedRestaurantSummarySchema = z.object({
   place_id: z.string().min(1),
   name_ja: nullableString,
@@ -845,6 +857,8 @@ export type PhotoAttribution = z.infer<typeof photoAttributionSchema>;
 export type LocationAnchor = z.infer<typeof locationAnchorSchema>;
 export type DiscoveryLocation = z.infer<typeof discoveryLocationSchema>;
 export type CurrentLocationCheck = z.infer<typeof currentLocationCheckSchema>;
+export type UserProfile = z.infer<typeof userProfileSchema>;
+export type DeleteAccountResponse = z.infer<typeof deleteAccountResponseSchema>;
 export type SavedRestaurantSummary = z.infer<typeof savedRestaurantSummarySchema>;
 export type DefaultListItem = z.infer<typeof defaultListItemSchema>;
 export type DefaultListResponse = z.infer<typeof defaultListResponseSchema>;

@@ -16,6 +16,7 @@ interface AuthContextValue {
   signIn(input: { identifier: string; password: string }): Promise<void>;
   signUp(input: { email: string; password: string; username: string }): Promise<SignUpResult>;
   signOut(): Promise<void>;
+  deleteAccount(password: string): Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -75,6 +76,11 @@ export function AuthProvider({
     },
     async signOut() {
       await service.signOut();
+      setSession(null);
+      setStatus("unauthenticated");
+    },
+    async deleteAccount(password) {
+      await service.deleteAccount(password);
       setSession(null);
       setStatus("unauthenticated");
     },

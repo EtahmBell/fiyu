@@ -1,7 +1,7 @@
 import type { Session, SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 
-import { createFetchTransport, FiyuApiError, paths } from "@fiyu/contracts";
+import { createFetchTransport, deleteAccountResponseSchema, FiyuApiError, paths } from "@fiyu/contracts";
 
 import { getApiBaseUrl } from "@/config/env";
 import { getSupabaseClient, isSupabaseConfigured } from "@/auth/supabase";
@@ -34,6 +34,7 @@ export interface AuthService {
   signIn(input: { identifier: string; password: string }): Promise<AuthSession>;
   signUp(input: { email: string; password: string; username: string }): Promise<SignUpResult>;
   signOut(): Promise<void>;
+  deleteAccount(password: string): Promise<void>;
   subscribe(listener: (session: AuthSession | null) => void): () => void;
   startAutoRefresh(): void;
   stopAutoRefresh(): void;
@@ -64,6 +65,7 @@ export function createAuthService(
   getClient: () => SupabaseClient = getSupabaseClient,
 ): AuthService {
   const transport = createFetchTransport({ baseUrl: getApiBaseUrl() });
+  let deletedAccountPendingCleanup = false;
   return {
     isConfigured: isSupabaseConfigured,
     async getSession() {
@@ -101,6 +103,24 @@ export function createAuthService(
       if (!this.isConfigured()) return;
       const { error } = await getClient().auth.signOut();
       if (error) throw error;
+    },
+    async deleteAccount(password) {
+      if (!this.isConfigured()) throw new Error("Account access is not configured.");
+      if (deletedAccountPendingCleanup) {
+        const { error } = await getClient().auth.signOut({ scope: "local" });
+        if (error) throw error;
+        deletedAccountPendingCleanup = false;
+        return;
+      }
+      const { data: current, error: sessionError } = await getClient().auth.getSession();
+      if (sessionError || !current.session?.user.email) throw sessionError ?? new Error("Sign in to delete your account.");
+      const { data: verified, error: verificationError } = await getClient().auth.signInWithPassword({ email: current.session.user.email, password });
+      if (verificationError || !verified.session) throw new Error("Current password is incorrect.");
+      await transport.requestJson(paths.profileAccount, deleteAccountResponseSchema, { method: "DELETE", headers: { Authorization: `Bearer ${verified.session.access_token}` } });
+      deletedAccountPendingCleanup = true;
+      const { error } = await getClient().auth.signOut({ scope: "local" });
+      if (error) throw error;
+      deletedAccountPendingCleanup = false;
     },
     subscribe(listener) {
       if (!this.isConfigured()) return () => undefined;

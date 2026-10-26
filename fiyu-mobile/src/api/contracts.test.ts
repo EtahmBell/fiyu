@@ -26,4 +26,14 @@ describe("shared Fiyu contracts", () => {
     const parsed = mapRestaurantListSchema.parse([{ ...restaurantDetailFixture, is_discovered: true, is_saved: true, is_visited: false, is_my_pick: true, user_rating: null }]);
     expect(parsed[0]).toMatchObject({ is_discovered: true, is_saved: true, is_my_pick: true });
   });
+
+  it("shares the account, Log, Smart List, and developer endpoint paths", () => {
+    expect(paths.profile).toBe("/profiles/me");
+    expect(paths.profileAvatar).toBe("/profiles/me/avatar");
+    expect(paths.profileAccount).toBe("/profiles/me/account");
+    expect(paths.logVisit("visit-1")).toBe("/log/visit-1");
+    expect(paths.defaultListSmartViews).toBe("/lists/default/smart-views");
+    expect(paths.defaultListSmartView("nearby")).toBe("/lists/default/smart-views/nearby");
+    expect(paths.developerStatus).toBe("/developer/status");
+  });
 });

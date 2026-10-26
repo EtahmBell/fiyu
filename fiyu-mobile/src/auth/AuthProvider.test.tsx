@@ -18,6 +18,7 @@ function serviceWith(initial: AuthSession | null): AuthService {
     signIn: jest.fn(async () => session),
     signUp: jest.fn(async () => ({ email: session.email, emailVerificationRequired: false })),
     signOut: jest.fn(async () => undefined),
+    deleteAccount: jest.fn(async () => undefined),
     subscribe: jest.fn(() => () => undefined),
     startAutoRefresh: jest.fn(),
     stopAutoRefresh: jest.fn(),

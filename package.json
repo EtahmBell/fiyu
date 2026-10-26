@@ -5,5 +5,8 @@
     "fiyu-frontend",
     "fiyu-mobile",
     "packages/*"
-  ]
+  ],
+  "devDependencies": {
+    "@types/react": "19.3.0"
+  }
 }
