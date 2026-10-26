@@ -8,6 +8,7 @@ export const paths = {
   photoPreview: (placeId: string) => `/public/restaurants/${encodeURIComponent(placeId)}/photo-preview`,
   photos: (placeId: string) => `/public/restaurants/${encodeURIComponent(placeId)}/photos`,
   discoveryLocation: "/profiles/me/discovery-location",
+  authenticatedMapRestaurants: "/profiles/me/map-restaurants",
   dailyPicksAssign: "/daily-picks/assign",
   dailyPicksActive: "/daily-picks/active",
   dailyPicksRecent: "/daily-picks/recent",

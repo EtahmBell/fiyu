@@ -1,4 +1,4 @@
-import { parseRestaurantList, publicRestaurantDetailSchema, publicRestaurantSchema } from "@fiyu/contracts";
+import { mapRestaurantListSchema, parseRestaurantList, paths, publicRestaurantDetailSchema, publicRestaurantSchema } from "@fiyu/contracts";
 
 import { restaurantDetailFixture, restaurantFixture } from "@/test/restaurantFixture";
 
@@ -19,5 +19,11 @@ describe("shared Fiyu contracts", () => {
     const parsed = parseRestaurantList([restaurantFixture, { place_id: "bad", fiyu_score: "84" }]);
     expect(parsed?.restaurants).toHaveLength(1);
     expect(parsed?.rejected).toHaveLength(1);
+  });
+
+  it("shares the authenticated personal-map endpoint and validates its private flags", () => {
+    expect(paths.authenticatedMapRestaurants).toBe("/profiles/me/map-restaurants");
+    const parsed = mapRestaurantListSchema.parse([{ ...restaurantDetailFixture, is_discovered: true, is_saved: true, is_visited: false, is_my_pick: true, user_rating: null }]);
+    expect(parsed[0]).toMatchObject({ is_discovered: true, is_saved: true, is_my_pick: true });
   });
 });

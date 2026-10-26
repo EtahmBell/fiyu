@@ -1,9 +1,10 @@
-import type { DailyPickAssignmentResponse, MyPick, ParsedRestaurantList, PersonalizedPickState, PublicRestaurantDetail, RecentDailyPickRound } from "@fiyu/contracts";
+import type { DailyPickAssignmentResponse, MapRestaurant, MyPick, ParsedRestaurantList, PersonalizedPickState, PublicRestaurantDetail, RecentDailyPickRound } from "@fiyu/contracts";
 import { publicRestaurantDetailSchema } from "@fiyu/contracts";
 import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 
 import {
   fetchActiveDailyPicks,
+  fetchAuthenticatedMapRestaurants,
   fetchDiscoveryLocation,
   fetchMyPickQuota,
   fetchMyPicks,
@@ -24,6 +25,7 @@ export const picksKeys = {
   personalized: ["personalized-picks"] as const,
   myPicks: ["my-picks"] as const,
   myPickQuota: ["my-picks", "quota"] as const,
+  map: ["map-restaurants"] as const,
 };
 
 const MY_PICK_UNFINISHED = new Set<MyPick["status"]>(["pending", "resolving_identity", "researching"]);
@@ -88,6 +90,12 @@ export function usePicksResources() {
   return { active, recent, location, personalized };
 }
 
+export function useMapSupplementalResources() {
+  const location = useQuery({ queryKey: picksKeys.location, queryFn: fetchDiscoveryLocation });
+  const personalized = useQuery({ queryKey: picksKeys.personalized, queryFn: fetchPersonalizedPickState });
+  return { location, personalized };
+}
+
 export function useMyPickResources() {
   const picks = useQuery({
     queryKey: picksKeys.myPicks,
@@ -104,4 +112,13 @@ export function useMyPickResources() {
     refetchOnWindowFocus: true,
   });
   return { picks, quota };
+}
+
+export function useMapRestaurants() {
+  return useQuery<MapRestaurant[]>({
+    queryKey: picksKeys.map,
+    queryFn: fetchAuthenticatedMapRestaurants,
+    refetchOnWindowFocus: true,
+    refetchInterval: 60_000,
+  });
 }

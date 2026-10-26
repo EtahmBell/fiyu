@@ -13,6 +13,7 @@ import {
   myPickPlaceSuggestionListSchema,
   myPickQuotaSchema,
   myPickSchema,
+  mapRestaurantListSchema,
   parseRestaurantList,
   paths,
   personalizedPickStateSchema,
@@ -31,6 +32,7 @@ import {
   type MyPick,
   type MyPickPlaceSuggestion,
   type MyPickQuota,
+  type MapRestaurant,
   type ParsedRestaurantList,
   type PersonalizedPickState,
   type PublicRestaurantDetail,
@@ -124,6 +126,10 @@ export async function revealDailyPick(roundId: string, placeId: string) {
 
 export function fetchDiscoveryLocation(): Promise<DiscoveryLocation> {
   return transport.requestJson(paths.discoveryLocation, discoveryLocationSchema);
+}
+
+export function fetchAuthenticatedMapRestaurants(): Promise<MapRestaurant[]> {
+  return transport.requestJson(paths.authenticatedMapRestaurants, mapRestaurantListSchema);
 }
 
 export async function fetchDefaultList(cityId: string): Promise<DefaultListResponse> {

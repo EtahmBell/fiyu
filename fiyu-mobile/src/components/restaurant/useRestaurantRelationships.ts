@@ -22,7 +22,10 @@ export function useRestaurantRelationships() {
     mutationFn: ({ placeId, saved }: { placeId: string; saved: boolean }) => saved
       ? removeFromDefaultList(PICKS_CITY_ID, placeId)
       : addToDefaultList(PICKS_CITY_ID, placeId),
-    onSuccess: (response) => queryClient.setQueryData<DefaultListResponse>(picksKeys.saved, response.list),
+    onSuccess: (response) => {
+      queryClient.setQueryData<DefaultListResponse>(picksKeys.saved, response.list);
+      void queryClient.invalidateQueries({ queryKey: picksKeys.map });
+    },
     onSettled: () => { saveGuard.current = false; },
   });
   const visit = useMutation({
@@ -35,6 +38,7 @@ export function useRestaurantRelationships() {
     onSuccess: (created) => {
       queryClient.setQueryData<RestaurantVisit[]>(picksKeys.log, (prior = []) => [created, ...prior.filter((item) => item.place_id !== created.place_id)]);
       void queryClient.invalidateQueries({ queryKey: picksKeys.personalized });
+      void queryClient.invalidateQueries({ queryKey: picksKeys.map });
     },
     onSettled: () => { visitGuard.current = false; },
   });
