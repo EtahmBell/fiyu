@@ -41,6 +41,15 @@ describe("AuthProvider", () => {
     await waitFor(() => expect(screen.getByText("authenticated")).toBeTruthy());
   });
 
+  it("finishes bootstrap without crashing when persisted storage is unavailable", async () => {
+    const service = serviceWith(null);
+    service.getSession = jest.fn(async () => { throw new Error("storage unavailable"); });
+
+    await render(<AuthProvider service={service}><Consumer /></AuthProvider>);
+
+    await waitFor(() => expect(screen.getByText("unauthenticated")).toBeTruthy());
+  });
+
   it("drives mutually exclusive protected route groups", () => {
     expect(protectedRouteGroups("unauthenticated")).toEqual({ auth: true, application: false });
     expect(protectedRouteGroups("authenticated")).toEqual({ auth: false, application: true });

@@ -62,10 +62,10 @@ import {
   type TogetherState,
   type UserProfile,
 } from "@fiyu/contracts";
-import * as SecureStore from "expo-secure-store";
 
 import { getSupabaseClient, isSupabaseConfigured } from "@/auth/supabase";
 import { getApiBaseUrl } from "@/config/env";
+import { persistentStorage } from "@/storage/persistentStorage";
 
 const transport = createFetchTransport({
   baseUrl: getApiBaseUrl(),
@@ -84,10 +84,10 @@ let clientIdPromise: Promise<string> | null = null;
 async function getClientId(): Promise<string> {
   if (!clientIdPromise) {
     clientIdPromise = (async () => {
-      const stored = await SecureStore.getItemAsync(CLIENT_ID_KEY);
+      const stored = await persistentStorage.getItem(CLIENT_ID_KEY);
       if (stored) return stored;
       const created = `native-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-      await SecureStore.setItemAsync(CLIENT_ID_KEY, created);
+      await persistentStorage.setItem(CLIENT_ID_KEY, created);
       return created;
     })();
   }

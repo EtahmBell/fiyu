@@ -1,5 +1,4 @@
 import type { MyPick, MyPickQuota } from "@fiyu/contracts";
-import * as SecureStore from "expo-secure-store";
 import { useEffect, useState, type ReactNode } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
@@ -9,6 +8,7 @@ import { VisitModal } from "@/components/picks/VisitModal";
 import { ScoreMark } from "@/components/restaurant/ScoreMark";
 import { useRestaurantRelationships } from "@/components/restaurant/useRestaurantRelationships";
 import { colors, fontFamilies, radii, spacing } from "@/design";
+import { persistentStorage } from "@/storage/persistentStorage";
 import { MyPickComposer } from "./MyPickComposer";
 
 const PENDING = new Set<MyPick["status"]>(["pending", "resolving_identity", "researching"]);
@@ -33,8 +33,8 @@ function PendingCard({ item, footer }: { item: MyPick; footer?: ReactNode }) {
 function ReadyCard({ item, footer, saved, visited, onOpenRestaurant, onSave, onLog }: { item: MyPick; footer?: ReactNode; saved: boolean; visited: boolean; onOpenRestaurant(placeId: string): void; onSave(): void; onLog(): void }) {
   const [revealed, setRevealed] = useState(false);
   const key = `fiyu.native.my-pick-revealed.${item.my_pick_id}`;
-  useEffect(() => { let active = true; void SecureStore.getItemAsync(key).then((value) => { if (active) setRevealed(value === "true"); }); return () => { active = false; }; }, [key]);
-  const reveal = async () => { await SecureStore.setItemAsync(key, "true"); setRevealed(true); };
+  useEffect(() => { let active = true; void persistentStorage.getItem(key).then((value) => { if (active) setRevealed(value === "true"); }); return () => { active = false; }; }, [key]);
+  const reveal = async () => { await persistentStorage.setItem(key, "true"); setRevealed(true); };
   const face = <View style={styles.readyFace}><View style={styles.readyHeader}><View style={styles.readyTitle}><Text style={styles.eyebrow}>YOUR PICK</Text><Text style={styles.title}>{safeName(item)}</Text>{item.name_ja && item.name_ja !== safeName(item) ? <Text style={styles.secondary}>{item.name_ja}</Text> : null}{item.primary_category || item.display_area ? <Text style={styles.secondary}>{[item.primary_category, item.display_area].filter(Boolean).join(" · ")}</Text> : null}</View><ScoreMark score={item.fiyu_score} accentColor="#8296AA" /></View>{!item.is_public ? <Text style={styles.privateCopy}>This is your private result. It is not currently part of the public Fiyu catalog.</Text> : null}{item.is_public && item.place_id ? <View style={styles.publicActions}><Pressable accessibilityRole="button" onPress={() => onOpenRestaurant(item.place_id!)} style={styles.viewAction}><Text style={styles.viewActionText}>View restaurant →</Text></Pressable><Pressable accessibilityRole="button" accessibilityState={{ selected: saved }} onPress={onSave} style={styles.secondaryAction}><Text style={styles.secondaryActionText}>{saved ? "Saved" : "Save"}</Text></Pressable><Pressable accessibilityRole="button" accessibilityState={{ selected: visited, disabled: visited }} disabled={visited} onPress={onLog} style={styles.secondaryAction}><Text style={styles.secondaryActionText}>{visited ? "Visited" : "Log"}</Text></Pressable></View> : null}</View>;
   return <View testID="my-pick-ready-card" style={styles.readyCard}><RevealCard revealed={revealed} label="Reveal your Pick" onReveal={reveal} concealed={<View style={styles.concealed}><View style={styles.topRule} /><Text style={styles.eyebrow}>YOUR PICK IS READY</Text><Text style={styles.concealedBrand}>Fiyu</Text><Text style={styles.revealText}>Reveal your Pick →</Text></View>}>{face}</RevealCard>{footer ? <View style={styles.readyFooter}>{footer}</View> : null}</View>;
 }
