@@ -4,7 +4,7 @@ import sqlite3
 from uuid import uuid4
 
 import pytest
-from fastapi import HTTPException
+from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 
 from fiyu import api
@@ -39,6 +39,66 @@ def test_production_cors_is_env_driven_and_fails_closed_without_configuration(mo
 
     monkeypatch.setenv("FIYU_CORS_ORIGINS", "https://fiyu.app")
     assert api._configured_cors_origins() == ["https://fiyu.app"]
+
+
+@pytest.mark.parametrize(
+    "origin",
+    (
+        "http://localhost:8081",
+        "http://localhost:8082",
+        "http://127.0.0.1:8081",
+        "http://127.0.0.1:8082",
+    ),
+)
+def test_configured_localhost_origins_pass_cors_preflight(monkeypatch, origin):
+    monkeypatch.setenv("FIYU_ENVIRONMENT", "production")
+    monkeypatch.setenv(
+        "FIYU_CORS_ORIGINS",
+        "https://fiyu.app,http://localhost:8081,http://localhost:8082,"
+        "http://127.0.0.1:8081,http://127.0.0.1:8082",
+    )
+    cors_app = FastAPI()
+    api._configure_cors(cors_app, api._configured_cors_origins())
+    client = TestClient(cors_app)
+
+    response = client.options(
+        "/auth/signin",
+        headers={
+            "Origin": origin,
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "content-type",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == origin
+    assert "access-control-allow-credentials" not in response.headers
+    assert "POST" in response.headers["access-control-allow-methods"]
+    assert "content-type" in response.headers["access-control-allow-headers"].casefold()
+
+
+def test_arbitrary_origin_fails_cors_preflight(monkeypatch):
+    monkeypatch.setenv("FIYU_ENVIRONMENT", "production")
+    monkeypatch.setenv(
+        "FIYU_CORS_ORIGINS",
+        "https://fiyu.app,http://localhost:8081,http://localhost:8082,"
+        "http://127.0.0.1:8081,http://127.0.0.1:8082",
+    )
+    cors_app = FastAPI()
+    api._configure_cors(cors_app, api._configured_cors_origins())
+    client = TestClient(cors_app)
+
+    response = client.options(
+        "/auth/signin",
+        headers={
+            "Origin": "https://arbitrary.example",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "content-type",
+        },
+    )
+
+    assert response.status_code == 400
+    assert "access-control-allow-origin" not in response.headers
 
 
 def test_readiness_requires_readable_catalog_schema(tmp_path, monkeypatch):

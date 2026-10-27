@@ -229,7 +229,7 @@ Set these hosted backend variables:
 ```text
 FIYU_ENVIRONMENT=production
 FIYU_DB_PATH=/data/fiyu.db
-FIYU_CORS_ORIGINS=https://fiyu.app
+FIYU_CORS_ORIGINS=https://fiyu.app,http://localhost:8081,http://localhost:8082,http://127.0.0.1:8081,http://127.0.0.1:8082
 FIYU_ALLOW_LEGACY_CLIENT_ID=false
 SUPABASE_URL=...
 SUPABASE_ANON_KEY=...
@@ -1059,11 +1059,12 @@ not presented as a negative rating, and community data never changes `fiyu_score
 
 ### Backend environment
 
-Local frontend origins default to `http://localhost:3000` and
-`http://127.0.0.1:3000`. Override them with a comma-separated value:
+Local frontend origins default to the Next.js ports at `http://localhost:3000` and
+`http://127.0.0.1:3000`, plus the Expo web QA ports `8081` and `8082` on both
+hostnames. Override them with a comma-separated value:
 
 ```text
-FIYU_CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+FIYU_CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000,http://localhost:8081,http://localhost:8082,http://127.0.0.1:8081,http://127.0.0.1:8082
 ```
 
 `GOOGLE_PLACES_SERVER_KEY` is backend-only and must never be sent to the frontend.

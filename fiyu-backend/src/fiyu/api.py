@@ -161,12 +161,26 @@ def _production_mode() -> bool:
 
 
 def _configured_cors_origins() -> list[str]:
-    default = "" if _production_mode() else "http://localhost:3000,http://127.0.0.1:3000"
+    default = "" if _production_mode() else (
+        "http://localhost:3000,http://127.0.0.1:3000,"
+        "http://localhost:8081,http://localhost:8082,"
+        "http://127.0.0.1:8081,http://127.0.0.1:8082"
+    )
     return [
         value.strip()
         for value in os.getenv("FIYU_CORS_ORIGINS", default).split(",")
         if value.strip()
     ]
+
+
+def _configure_cors(application: FastAPI, allowed_origins: list[str]) -> None:
+    application.add_middleware(
+        CORSMiddleware,
+        allow_origins=allowed_origins,
+        allow_credentials=False,
+        allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH"],
+        allow_headers=["*"],
+    )
 
 
 def _legacy_client_identity_allowed() -> bool:
@@ -208,13 +222,7 @@ app = FastAPI(
     redoc_url=None if production_mode else "/redoc",
     openapi_url=None if production_mode else "/openapi.json",
 )
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=False,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH"],
-    allow_headers=["*"],
-)
+_configure_cors(app, origins)
 
 
 @app.exception_handler(shared_user_data.SharedUserDataError)
