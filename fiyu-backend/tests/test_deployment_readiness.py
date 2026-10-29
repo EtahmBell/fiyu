@@ -42,19 +42,34 @@ def test_production_cors_is_env_driven_and_fails_closed_without_configuration(mo
 
 
 @pytest.mark.parametrize(
-    "origin",
+    ("path", "origin", "method", "request_header"),
     (
-        "http://localhost:8081",
-        "http://localhost:8082",
-        "http://127.0.0.1:8081",
-        "http://127.0.0.1:8082",
+        ("/auth/signin", "http://localhost:8081", "POST", "content-type"),
+        ("/auth/signin", "http://localhost:8082", "POST", "content-type"),
+        ("/auth/signin", "http://127.0.0.1:8081", "POST", "content-type"),
+        ("/auth/signin", "http://127.0.0.1:8082", "POST", "content-type"),
+        (
+            "/profiles/me/map-restaurants",
+            "https://www.fiyuapp.com",
+            "GET",
+            "authorization",
+        ),
+        (
+            "/profiles/me/map-restaurants",
+            "https://fiyuapp.com",
+            "GET",
+            "authorization",
+        ),
     ),
 )
-def test_configured_localhost_origins_pass_cors_preflight(monkeypatch, origin):
+def test_configured_origins_pass_cors_preflight(
+    monkeypatch, path, origin, method, request_header
+):
     monkeypatch.setenv("FIYU_ENVIRONMENT", "production")
     monkeypatch.setenv(
         "FIYU_CORS_ORIGINS",
-        "https://fiyu.app,http://localhost:8081,http://localhost:8082,"
+        "https://fiyu.app,https://fiyuapp.com,https://www.fiyuapp.com,"
+        "http://localhost:8081,http://localhost:8082,"
         "http://127.0.0.1:8081,http://127.0.0.1:8082",
     )
     cors_app = FastAPI()
@@ -62,26 +77,27 @@ def test_configured_localhost_origins_pass_cors_preflight(monkeypatch, origin):
     client = TestClient(cors_app)
 
     response = client.options(
-        "/auth/signin",
+        path,
         headers={
             "Origin": origin,
-            "Access-Control-Request-Method": "POST",
-            "Access-Control-Request-Headers": "content-type",
+            "Access-Control-Request-Method": method,
+            "Access-Control-Request-Headers": request_header,
         },
     )
 
     assert response.status_code == 200
     assert response.headers["access-control-allow-origin"] == origin
     assert "access-control-allow-credentials" not in response.headers
-    assert "POST" in response.headers["access-control-allow-methods"]
-    assert "content-type" in response.headers["access-control-allow-headers"].casefold()
+    assert method in response.headers["access-control-allow-methods"]
+    assert request_header in response.headers["access-control-allow-headers"].casefold()
 
 
 def test_arbitrary_origin_fails_cors_preflight(monkeypatch):
     monkeypatch.setenv("FIYU_ENVIRONMENT", "production")
     monkeypatch.setenv(
         "FIYU_CORS_ORIGINS",
-        "https://fiyu.app,http://localhost:8081,http://localhost:8082,"
+        "https://fiyu.app,https://fiyuapp.com,https://www.fiyuapp.com,"
+        "http://localhost:8081,http://localhost:8082,"
         "http://127.0.0.1:8081,http://127.0.0.1:8082",
     )
     cors_app = FastAPI()

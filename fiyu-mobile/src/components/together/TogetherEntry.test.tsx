@@ -18,6 +18,7 @@ describe("TogetherEntry", () => {
     const view = await show({ ...eligibleTogetherState, rated_visit_count: 3, can_initiate: false, block_reason: "ratings_required" });
     expect(view.getByText("Review 2 more restaurants to unlock.")).toBeTruthy();
     expect(view.queryByText(/Premium/i)).toBeNull();
+    expect(view.getByLabelText("Fiyu Together")).toHaveStyle({ backgroundColor: "#FAF5FA", borderColor: "#E4D7E7" });
   });
 
   it("routes an unrevealed session without rendering restaurant identity", async () => {

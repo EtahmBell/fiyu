@@ -72,13 +72,13 @@ function EntrySurface({ headline, detail, action, error, disabled, onPress }: { 
 }
 
 const styles = StyleSheet.create({
-  card: { marginTop: spacing[6], minHeight: 96, justifyContent: "center", borderWidth: 1, borderColor: colors.lavender[200], borderRadius: radii.card, backgroundColor: colors.lavender[50], padding: spacing[5] },
-  pressed: { backgroundColor: colors.lavender[100], transform: [{ scale: 0.995 }] },
+  card: { marginTop: spacing[6], minHeight: 96, justifyContent: "center", borderWidth: 1, borderColor: "#E4D7E7", borderRadius: radii.card, backgroundColor: "#FAF5FA", padding: spacing[5] },
+  pressed: { backgroundColor: "#F0E7F2", transform: [{ scale: 0.995 }] },
   row: { flexDirection: "row", alignItems: "center", gap: spacing[4] },
   copy: { flex: 1 },
-  eyebrow: { color: colors.lavender[700], fontFamily: fontFamilies.bodySemiBold, fontSize: 9, letterSpacing: 1.5 },
+  eyebrow: { color: "#6B3F75", fontFamily: fontFamilies.bodySemiBold, fontSize: 9, letterSpacing: 1.5 },
   headline: { marginTop: spacing[1], color: colors.ink, fontFamily: fontFamilies.display, fontSize: 20, lineHeight: 24 },
   detail: { marginTop: 2, color: colors.inkMuted, fontFamily: fontFamilies.body, fontSize: 12, lineHeight: 17 },
-  action: { color: colors.lavender[700], fontFamily: fontFamilies.bodySemiBold, fontSize: 13 },
+  action: { color: "#6B3F75", fontFamily: fontFamilies.bodySemiBold, fontSize: 13 },
   error: { marginTop: spacing[2], color: colors.roseDust, fontFamily: fontFamilies.body, fontSize: 12 },
 });

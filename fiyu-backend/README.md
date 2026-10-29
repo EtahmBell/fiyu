@@ -229,7 +229,7 @@ Set these hosted backend variables:
 ```text
 FIYU_ENVIRONMENT=production
 FIYU_DB_PATH=/data/fiyu.db
-FIYU_CORS_ORIGINS=https://fiyu.app,http://localhost:8081,http://localhost:8082,http://127.0.0.1:8081,http://127.0.0.1:8082
+FIYU_CORS_ORIGINS=https://fiyu.app,https://fiyuapp.com,https://www.fiyuapp.com,http://localhost:8081,http://localhost:8082,http://127.0.0.1:8081,http://127.0.0.1:8082
 FIYU_ALLOW_LEGACY_CLIENT_ID=false
 SUPABASE_URL=...
 SUPABASE_ANON_KEY=...

@@ -13,6 +13,7 @@ export default function PicksScreen() {
         onOpenRestaurant={(placeId) => router.push({ pathname: "/restaurants/[placeId]", params: { placeId } })}
         onOpenTogether={() => router.push("/together" as Href)}
         onOpenTogetherSession={(sessionId) => router.push(`/together/session/${encodeURIComponent(sessionId)}` as Href)}
+        onOpenMenu={() => router.push("/profile" as Href)}
       />
     </SafeAreaView>
   );
