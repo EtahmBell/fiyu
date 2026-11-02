@@ -1,7 +1,8 @@
-import type { DailyPickAssignmentResponse, PersonalizedPickState, PublicRestaurant } from "@fiyu/contracts";
+import type { DailyPickAssignmentResponse, PublicRestaurant } from "@fiyu/contracts";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Animated, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
+import Svg, { Path, Rect } from "react-native-svg";
 
 import {
   assignDailyPicks,
@@ -185,8 +186,8 @@ export function PicksExperience({ onOpenRestaurant, onOpenTogether, onOpenTogeth
         renderItem={({ item }) => renderRestaurant(item)}
         contentContainerStyle={styles.list}
         refreshControl={<RefreshControl refreshing={resources.active.isRefetching} onRefresh={() => void refresh()} tintColor={colors.lavender[600]} />}
-        ListHeaderComponent={<View><View style={styles.eyebrowRow}><View style={styles.eyebrowLine} /><Text style={styles.eyebrow}>TODAY</Text></View><View style={styles.headingRow}><Text style={styles.heading}>Today’s Fiyu Picks</Text><Text style={styles.frequency}>{active?.expires_at ? `UNTIL\n${new Date(active.expires_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : `3 PICKS\nDAILY`}</Text></View><View style={styles.headingRule}><View style={styles.headingAccent} /></View><View style={styles.headerMeta}>{resources.location.data?.discovery_label ? <Text numberOfLines={1} style={styles.location}>{resources.location.data.discovery_label}</Text> : <View />}{active ? <Pressable accessibilityRole="button" disabled={reveal.isPending || unrevealed.length === 0} onPress={() => void revealAll()} style={styles.revealAll}><Text style={styles.revealAllText}>{unrevealed.length === 0 ? "All Picks revealed" : reveal.isPending ? "Revealing…" : "Reveal all →"}</Text></Pressable> : null}</View>{(loading && !active) || finding ? <FindingState label={searchLabel} /> : null}{primaryError && !finding ? <View style={styles.status}><Text style={styles.error}>Your Picks could not connect.</Text><Pressable onPress={() => void resources.active.refetch()} style={styles.button}><Text style={styles.buttonText}>Try again</Text></Pressable></View> : null}{!loading && !finding && !primaryError && !active ? <View style={styles.ctaWrap}><Pressable accessibilityRole="button" disabled={assign.isPending} onPress={() => void beginAssignment()} style={styles.button}><Text style={styles.buttonText}>Find today’s restaurants</Text></Pressable></View> : null}{actionError || relationships.saveError || relationships.visitError ? <Text accessibilityRole="alert" style={styles.error}>{actionError ?? relationships.saveError ?? relationships.visitError}</Text> : null}</View>}
-        ListFooterComponent={<View><PersonalizedStatus state={resources.personalized.data} /><View style={styles.bottomSpace} /></View>}
+        ListHeaderComponent={<View><View style={styles.eyebrowRow}><View style={styles.eyebrowLine} /><Text style={styles.eyebrow}>TODAY</Text></View><View style={styles.headingRow}><Text style={styles.heading}>Today’s Fiyu Picks</Text><Text style={styles.frequency}>3 PICKS{"\n"}<Text style={styles.frequencyDaily}>Daily</Text></Text></View><View style={styles.headingRule}><View style={styles.headingAccent} /></View><View style={styles.headerMeta}>{resources.location.data?.discovery_label ? <Text numberOfLines={1} style={styles.location}>{resources.location.data.discovery_label}</Text> : <Text style={styles.location}>Near you</Text>}{active ? <Pressable accessibilityRole="button" disabled={reveal.isPending || unrevealed.length === 0} onPress={() => void revealAll()} style={styles.revealAll}><Text style={styles.revealAllText}>{unrevealed.length === 0 ? "All Picks revealed" : reveal.isPending ? "Revealing…" : "Reveal all →"}</Text></Pressable> : null}</View>{(loading && !active) || finding ? <FindingState label={searchLabel} /> : null}{primaryError && !finding ? <View style={styles.status}><Text style={styles.error}>Your Picks could not connect.</Text><Pressable onPress={() => void resources.active.refetch()} style={styles.retryButton}><Text style={styles.retryButtonText}>Try again</Text></Pressable></View> : null}{!loading && !finding && !primaryError && !active ? <View style={styles.ctaWrap}><Pressable accessibilityRole="button" disabled={assign.isPending} onPress={() => void beginAssignment()} style={styles.button}><Text style={styles.buttonText}>Find today’s restaurants</Text></Pressable></View> : null}{actionError || relationships.saveError || relationships.visitError ? <Text accessibilityRole="alert" style={styles.error}>{actionError ?? relationships.saveError ?? relationships.visitError}</Text> : null}</View>}
+        ListFooterComponent={<View style={styles.bottomSpace} />}
       />
       <PersonalizedPickModal visible={personalizedVisible} pending={personalizedSelect.isPending || personalizedDismiss.isPending} error={personalizedSelect.error ? message(personalizedSelect.error, "Try again.") : null} onChoose={(position) => { const id = resources.personalized.data?.event_id; if (id && !personalizedSelect.isPending) personalizedSelect.mutate({ eventId: id, position }); }} onDismiss={() => { const id = resources.personalized.data?.event_id; if (id && !personalizedDismiss.isPending) personalizedDismiss.mutate(id); }} />
       <VisitModal name={visitTarget ? restaurantName(visitTarget) : null} pending={relationships.visitPendingPlaceId !== null} error={relationships.visitError} onClose={() => !relationships.visitPendingPlaceId && setVisitTarget(null)} onSubmit={(rating, note) => visitTarget && relationships.logVisit(visitTarget.place_id, rating, note, () => setVisitTarget(null))} />
@@ -222,58 +223,63 @@ function RecentDiscoveriesSection({ personalized, recent, savedIds, visitsByPlac
   const discoveries = recent.filter((entry) => entry.restaurant.place_id !== personalized?.place_id);
   const rows = personalized ? [{ restaurant: personalized, personalized: true, expiresAt: null }, ...discoveries.map((entry) => ({ ...entry, personalized: false }))] : discoveries.map((entry) => ({ ...entry, personalized: false }));
   return <View style={styles.recentSection}>
-    <View style={styles.sectionHeading}><Text style={styles.sectionEyebrow}>YOUR DISCOVERIES</Text><Text style={styles.sectionTitle}>Recent Discoveries</Text></View>
-    {rows.length === 0 ? <View style={styles.emptyDiscoveries}><Text style={styles.emptyTitle}>No recent discoveries</Text><Text style={styles.emptyCopy}>Revealed restaurants remain here for 72 hours.</Text></View> : rows.map(({ restaurant, personalized: isPersonalized }) => <View key={restaurant.place_id} style={styles.item}>
+    <View style={styles.sectionHeading}><Text style={styles.sectionTitle}>Recent Discoveries</Text></View>
+    {rows.length === 0 ? <RecentDiscoveriesEmptyState /> : rows.map(({ restaurant, personalized: isPersonalized }) => <View key={restaurant.place_id} style={styles.item}>
       <RevealedPickCard restaurant={restaurant} saved={savedIds.has(restaurant.place_id)} visited={visitsByPlace.has(restaurant.place_id)} savePending={relationships.savePendingPlaceId === restaurant.place_id} visitPending={relationships.visitPendingPlaceId === restaurant.place_id} tone={isPersonalized ? "personalized" : "recent"} onOpen={() => onOpenRestaurant(restaurant.place_id)} onSave={() => relationships.toggleSaved(restaurant.place_id)} onLog={() => onVisit(restaurant)} />
       <Text style={styles.expiry}>Available in Recent Discoveries for 72 hours</Text>
     </View>)}
   </View>;
 }
 
-function PersonalizedStatus({ state }: { state?: PersonalizedPickState }) {
-  if (!state || state.status === "event_available" || state.status === "selected") return null;
-  if (state.status === "locked") return <View style={styles.personalizedStatus}><Text style={styles.personalizedEyebrow}>PERSONALIZED PICK</Text><Text style={styles.personalizedTitle}>Your taste is taking shape.</Text><Text style={styles.invitationCopy}>{state.qualifying_rating_count} of {state.unlock_threshold} rated visits. Your first Personalized Pick unlocks at ten.</Text></View>;
-  return <View style={styles.personalizedStatus}><Text style={styles.personalizedEyebrow}>PERSONALIZED PICK</Text><Text style={styles.personalizedTitle}>{state.status === "expired" ? "Your last Pick has expired." : "Your next Pick will arrive occasionally."}</Text></View>;
+export function RecentDiscoveriesEmptyState() {
+  return <View style={styles.emptyDiscoveries}>
+    <Svg testID="recent-discoveries-icon" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" width={64} height={34} viewBox="0 0 64 34">
+      <Path d="M3 29.5h58M8 29V17h9v12M19 29V13h10v16M31 29V8h11v21M44 29V16h9v13M25 13V8h4v5M34 8V4h5v4" fill="none" stroke="#4D435A" strokeWidth={1.25} strokeLinecap="round" strokeLinejoin="round" />
+      <Rect x={12} y={20} width={2} height={2} fill="#9589DF" />
+      <Rect x={35} y={12} width={2} height={2} fill="#9589DF" />
+      <Rect x={47} y={20} width={2} height={2} fill="#9589DF" />
+    </Svg>
+    <Text style={styles.emptyTitle}>No recent discoveries</Text>
+    <Text style={styles.emptyCopy}>Revealed restaurants remain here for 72 hours.</Text>
+  </View>;
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.canvas },
-  list: { paddingHorizontal: spacing[5], paddingTop: spacing[6], backgroundColor: colors.canvas },
+  list: { paddingHorizontal: spacing[5], paddingTop: spacing[4], backgroundColor: colors.canvas },
   eyebrowRow: { flexDirection: "row", alignItems: "center", gap: spacing[2] },
   eyebrowLine: { width: 20, height: 2, backgroundColor: colors.lavender[500] },
   eyebrow: { color: colors.lavender[700], fontFamily: fontFamilies.bodySemiBold, fontSize: 10, letterSpacing: 1.8 },
-  headingRow: { flexDirection: "row", alignItems: "flex-end", gap: spacing[3], marginTop: spacing[2] },
-  heading: { flex: 1, color: colors.ink, fontFamily: fontFamilies.display, fontSize: 36, lineHeight: 40 },
-  frequency: { color: colors.inkMuted, fontFamily: fontFamilies.bodySemiBold, fontSize: 9, lineHeight: 15, letterSpacing: 1, textAlign: "right" },
-  headingRule: { height: 1, marginTop: spacing[3], backgroundColor: colors.line },
+  headingRow: { flexDirection: "row", alignItems: "flex-end", gap: spacing[3], marginTop: spacing[1] },
+  heading: { flex: 1, color: colors.ink, fontFamily: fontFamilies.display, fontSize: 34, lineHeight: 38 },
+  frequency: { color: colors.inkMuted, fontFamily: fontFamilies.bodySemiBold, fontSize: 9, lineHeight: 16, letterSpacing: 1, textAlign: "right" },
+  frequencyDaily: { color: colors.inkBody, fontSize: 12, letterSpacing: 0 },
+  headingRule: { height: 1, marginTop: spacing[2], backgroundColor: colors.line },
   headingAccent: { width: 40, height: 2, backgroundColor: colors.lavender[500] },
-  location: { marginTop: spacing[2], color: colors.inkMuted, fontFamily: fontFamilies.body, fontSize: 12 },
-  headerMeta: { minHeight: 44, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing[3] },
+  location: { color: colors.inkMuted, fontFamily: fontFamilies.body, fontSize: 13 },
+  headerMeta: { minHeight: 42, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing[3] },
   revealAll: { minHeight: 44, justifyContent: "center", paddingHorizontal: spacing[2] },
   revealAllText: { color: colors.lavender[700], fontFamily: fontFamilies.bodySemiBold, fontSize: 12 },
   item: { marginTop: spacing[4] },
   status: { minHeight: 220, alignItems: "center", justifyContent: "center", gap: spacing[3] },
   statusText: { color: colors.inkMuted, fontFamily: fontFamilies.body },
-  invitationCopy: { marginTop: spacing[2], color: colors.inkBody, fontFamily: fontFamilies.body, fontSize: 14, lineHeight: 22 },
-  ctaWrap: { alignItems: "center", paddingVertical: spacing[8] },
-  button: { alignSelf: "flex-start", minHeight: 46, justifyContent: "center", marginTop: spacing[4], borderRadius: radii.control, backgroundColor: colors.plum, paddingHorizontal: spacing[4] },
+  ctaWrap: { paddingTop: spacing[4], paddingBottom: spacing[2] },
+  button: { width: "100%", minHeight: 48, alignItems: "center", justifyContent: "center", borderRadius: radii.control, backgroundColor: colors.lavender[600], paddingHorizontal: spacing[4] },
   buttonText: { color: colors.surface, fontFamily: fontFamilies.bodySemiBold, fontSize: 14 },
+  retryButton: { minHeight: 44, justifyContent: "center", marginTop: spacing[3], borderRadius: radii.control, backgroundColor: colors.plum, paddingHorizontal: spacing[4] },
+  retryButtonText: { color: colors.surface, fontFamily: fontFamilies.bodySemiBold, fontSize: 14 },
   error: { marginTop: spacing[3], color: colors.roseDust, fontFamily: fontFamilies.bodyMedium, fontSize: 13 },
   expiry: { marginTop: spacing[2], color: "#5D6F95", fontFamily: fontFamilies.bodyMedium, fontSize: 11 },
-  sectionHeading: { marginTop: spacing[10], borderBottomWidth: 1, borderBottomColor: colors.line, paddingBottom: spacing[2] },
-  sectionEyebrow: { color: "#5D6F95", fontFamily: fontFamilies.bodySemiBold, fontSize: 9, letterSpacing: 1.5 },
-  sectionTitle: { marginTop: spacing[1], color: colors.ink, fontFamily: fontFamilies.display, fontSize: 28 },
-  recentSection: { marginTop: spacing[2] },
-  emptyDiscoveries: { paddingVertical: spacing[6], borderBottomWidth: 1, borderBottomColor: colors.line },
-  emptyTitle: { color: colors.ink, fontFamily: fontFamilies.bodySemiBold, fontSize: 14 },
-  emptyCopy: { marginTop: spacing[1], color: colors.inkMuted, fontFamily: fontFamilies.body, fontSize: 13 },
+  sectionHeading: { paddingBottom: spacing[2] },
+  sectionTitle: { color: colors.ink, fontFamily: fontFamilies.display, fontSize: 22, lineHeight: 28 },
+  recentSection: { marginTop: spacing[5], borderTopWidth: 2, borderTopColor: colors.lavender[100], paddingTop: spacing[5] },
+  emptyDiscoveries: { alignItems: "center", paddingTop: spacing[8], paddingBottom: spacing[6] },
+  emptyTitle: { marginTop: spacing[3], color: colors.ink, fontFamily: fontFamilies.display, fontSize: 17, lineHeight: 22 },
+  emptyCopy: { marginTop: spacing[2], color: colors.inkMuted, fontFamily: fontFamilies.body, fontSize: 13, textAlign: "center" },
   finding: { minHeight: 220, alignItems: "center", justifyContent: "center" },
   findingWordmark: { color: colors.ink, fontFamily: fontFamilies.display, fontSize: 31 },
   findingLabel: { marginTop: spacing[3], color: colors.ink, fontFamily: fontFamilies.bodySemiBold, fontSize: 14 },
   dots: { flexDirection: "row", gap: spacing[2], marginTop: spacing[4] },
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.plum },
-  personalizedStatus: { marginTop: spacing[8], borderTopWidth: 3, borderTopColor: "#C79A32", borderRadius: radii.card, backgroundColor: "#FBF7ED", padding: spacing[5] },
-  personalizedEyebrow: { color: "#946F2D", fontFamily: fontFamilies.bodySemiBold, fontSize: 9, letterSpacing: 1.5 },
-  personalizedTitle: { marginTop: spacing[2], color: colors.ink, fontFamily: fontFamilies.display, fontSize: 25 },
-  bottomSpace: { height: spacing[12] },
+  bottomSpace: { height: spacing[6] },
 });

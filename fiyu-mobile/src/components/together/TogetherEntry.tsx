@@ -72,12 +72,12 @@ function EntrySurface({ headline, detail, action, error, disabled, onPress }: { 
 }
 
 const styles = StyleSheet.create({
-  card: { marginTop: spacing[6], minHeight: 96, justifyContent: "center", borderWidth: 1, borderColor: "#E4D7E7", borderRadius: radii.card, backgroundColor: "#FAF5FA", padding: spacing[5] },
+  card: { marginTop: spacing[4], minHeight: 86, justifyContent: "center", borderWidth: 1, borderColor: "#E4D7E7", borderRadius: radii.card, backgroundColor: "#FAF5FA", paddingHorizontal: spacing[5], paddingVertical: spacing[4] },
   pressed: { backgroundColor: "#F0E7F2", transform: [{ scale: 0.995 }] },
   row: { flexDirection: "row", alignItems: "center", gap: spacing[4] },
   copy: { flex: 1 },
   eyebrow: { color: "#6B3F75", fontFamily: fontFamilies.bodySemiBold, fontSize: 9, letterSpacing: 1.5 },
-  headline: { marginTop: spacing[1], color: colors.ink, fontFamily: fontFamilies.display, fontSize: 20, lineHeight: 24 },
+  headline: { marginTop: spacing[1], color: colors.ink, fontFamily: fontFamilies.display, fontSize: 19, lineHeight: 23 },
   detail: { marginTop: 2, color: colors.inkMuted, fontFamily: fontFamilies.body, fontSize: 12, lineHeight: 17 },
   action: { color: "#6B3F75", fontFamily: fontFamilies.bodySemiBold, fontSize: 13 },
   error: { marginTop: spacing[2], color: colors.roseDust, fontFamily: fontFamilies.body, fontSize: 12 },

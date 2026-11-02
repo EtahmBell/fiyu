@@ -1,5 +1,5 @@
 import type { MyPick } from "@fiyu/contracts";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react-native";
+import { act, fireEvent, render, screen } from "@testing-library/react-native";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import { useMyPickResources } from "@/api/queries";
@@ -10,6 +10,13 @@ jest.mock("@/api/queries", () => ({
   useMyPickResources: jest.fn(),
 }));
 jest.mock("expo-secure-store", () => ({ getItemAsync: jest.fn().mockResolvedValue(null), setItemAsync: jest.fn().mockResolvedValue(undefined) }));
+jest.mock("@/storage/persistentStorage", () => ({
+  persistentStorage: {
+    getItem: jest.fn().mockResolvedValue(null),
+    setItem: jest.fn().mockResolvedValue(undefined),
+    removeItem: jest.fn().mockResolvedValue(undefined),
+  },
+}));
 jest.mock("@/components/restaurant/useRestaurantRelationships", () => ({
   useRestaurantRelationships: () => ({
     savedIds: new Set<string>(), visitsByPlace: new Map(), visitPendingPlaceId: null,
@@ -18,7 +25,7 @@ jest.mock("@/components/restaurant/useRestaurantRelationships", () => ({
 }));
 
 const base: MyPick = {
-  my_pick_id: "0d196bd8-2d5f-4be9-a0b5-4bd247188526", provider: "google", external_place_id: "ChIJnative", display_name_hint: null, user_query_hint: null, user_name_hint: "Authored", user_address_hint: "Tokyo", status: "needs_location", status_message: "Scored", failure_code: null, created_at: "2026-10-25T00:00:00Z", updated_at: "2026-10-25T00:00:00Z", resolved_at: null, featured_until: "2099-10-28T00:00:00Z", place_id: "private-native", name_ja: "ネイティブ", name_en: "Native Pick", primary_category: "Izakaya", display_area: "Koenji", fiyu_score: 76.2, score_version: "quality-v4-production-1", result_ready: true, map_ready: false, latitude: null, longitude: null, location_precision: null, is_public: false, recommendation_review_status: "not_eligible",
+  my_pick_id: "0d196bd8-2d5f-4be9-a0b5-4bd247188526", provider: "google", external_place_id: "ChIJnative", display_name_hint: null, user_query_hint: null, user_name_hint: "Authored", user_address_hint: "Tokyo", status: "needs_location", status_message: "Scored", failure_code: null, created_at: "2026-10-25T00:00:00Z", updated_at: "2026-10-25T00:00:00Z", resolved_at: null, featured_until: null, place_id: "private-native", name_ja: "ネイティブ", name_en: "Native Pick", primary_category: "Izakaya", display_area: "Koenji", fiyu_score: 76.2, score_version: "quality-v4-production-1", result_ready: true, map_ready: false, latitude: null, longitude: null, location_precision: null, is_public: false, recommendation_review_status: "not_eligible",
 };
 
 function resources(items: MyPick[]) {
@@ -35,8 +42,11 @@ describe("MyPickSection", () => {
     expect(screen.queryByText("Native Pick")).toBeNull();
     expect(screen.queryByText("ネイティブ")).toBeNull();
     expect(screen.queryByLabelText(/Fiyu score/i)).toBeNull();
-    fireEvent.press(screen.getByLabelText("Reveal your Pick"));
-    await waitFor(() => expect(screen.getByText("Native Pick")).toBeTruthy());
+    await act(async () => {
+      fireEvent.press(screen.getByLabelText("Reveal your Pick"));
+      await Promise.resolve();
+    });
+    expect(screen.getByText("Native Pick")).toBeTruthy();
     expect(screen.getByText("ネイティブ")).toBeTruthy();
     expect(screen.getByLabelText("Fiyu score 7.6 out of 10")).toBeTruthy();
     expect(screen.getByText("This is your private result. It is not currently part of the public Fiyu catalog.")).toBeTruthy();
@@ -58,6 +68,12 @@ describe("MyPickSection", () => {
     await render(<QueryClientProvider client={new QueryClient()}><MyPickSection onOpenRestaurant={jest.fn()} /></QueryClientProvider>);
     expect(screen.getByText("Try My Pick")).toBeTruthy();
     expect(screen.queryByLabelText("Reveal your Pick")).toBeNull();
+  });
+
+  it("uses the compact editorial entry-card geometry", async () => {
+    resources([]);
+    await render(<QueryClientProvider client={new QueryClient()}><MyPickSection onOpenRestaurant={jest.fn()} /></QueryClientProvider>);
+    expect(screen.getByText("Try My Pick").parent).toHaveStyle({ minHeight: 142, padding: 18 });
   });
 
   it.each([
