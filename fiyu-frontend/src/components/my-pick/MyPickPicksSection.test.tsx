@@ -37,6 +37,7 @@ const base: MyPick = {
   created_at: "2026-10-19T10:00:00Z",
   updated_at: "2026-10-19T10:05:00Z",
   resolved_at: "2026-10-19T10:05:00Z",
+  featured_until: "2099-10-22T10:05:00Z",
   place_id: "place-1",
   name_ja: "テスト食堂",
   name_en: "Test Shokudo",
@@ -213,6 +214,13 @@ describe("MyPickPicksSection", () => {
     render(<MyPickPicksSection accountId="account-1" />);
     expect(await screen.findByRole("button", { name: "Submit a restaurant →" })).toBeTruthy();
     expect(screen.queryByText(/Picks left/)).toBeNull();
+  });
+
+  it("removes an expired result from Picks and restores Try My Pick", async () => {
+    api.fetchMyPicks.mockResolvedValue([{ ...base, featured_until: "2020-01-01T00:00:00Z" }]);
+    render(<MyPickPicksSection accountId="account-1" />);
+    expect(await screen.findByRole("button", { name: "Submit a restaurant →" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Reveal your Pick" })).toBeNull();
   });
 
   it("shows no submission action when the real quota is exhausted", async () => {

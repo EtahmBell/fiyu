@@ -176,8 +176,9 @@ export function useMapRestaurants() {
 
 export function useListsResources() {
   const saved = useQuery({ queryKey: picksKeys.saved, queryFn: () => fetchDefaultList(PICKS_CITY_ID) });
+  const mine = useQuery({ queryKey: picksKeys.myPicks, queryFn: fetchMyPicks, refetchOnWindowFocus: true });
   const smart = useQuery({ queryKey: picksKeys.smartViews, queryFn: () => fetchSmartViews(PICKS_CITY_ID) });
-  return { saved, smart };
+  return { saved, mine, smart };
 }
 
 export function useSmartView(viewKey: string) {

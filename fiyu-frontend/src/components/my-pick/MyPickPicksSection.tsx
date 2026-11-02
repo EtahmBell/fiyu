@@ -17,6 +17,11 @@ import type { MyPick, MyPickQuota } from "@/lib/api/schemas";
 import { ACTIVE_FIYU_CITY } from "@/lib/city/editions";
 import { useMediaQuery } from "@/lib/hooks/useMediaQuery";
 import { useDefaultList } from "@/lib/lists/useDefaultList";
+import {
+  isMyPickHomepageVisible,
+  isMyPickResultReady,
+  nextMyPickExpiry,
+} from "@/lib/my-pick/lifecycle";
 import { cn } from "@/lib/utils/cn";
 
 const PENDING_STATUSES = new Set<MyPick["status"]>(["pending", "resolving_identity", "researching"]);
@@ -40,11 +45,6 @@ function safeItemName(item: MyPick): string | null {
 
 function itemName(item: MyPick): string {
   return safeItemName(item) ?? "Your Pick";
-}
-
-function isResultReady(item: MyPick): boolean {
-  // Score fields are a safe rolling-deploy fallback for an older successful API.
-  return item.result_ready || (item.fiyu_score !== null && item.score_version !== null);
 }
 
 function revealStorageKey(accountId: string, itemId: string): string {
@@ -217,7 +217,7 @@ function MyPickCard({
   footer?: ReactNode;
 }) {
   if (PENDING_STATUSES.has(item.status)) return <PendingMyPickCard item={item} footer={footer} />;
-  if (isResultReady(item)) return <MyPickReadyCard item={item} accountId={accountId} footer={footer} />;
+  if (isMyPickResultReady(item)) return <MyPickReadyCard item={item} accountId={accountId} footer={footer} />;
   if (item.status === "failed_retryable") return <RetryableMyPickCard footer={footer} />;
   return <ResolvedMyPickNotice item={item} footer={footer} />;
 }
@@ -232,6 +232,7 @@ export function MyPickPicksSection({
   const [items, setItems] = useState<MyPick[]>([]);
   const [quota, setQuota] = useState<MyPickQuota | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const [lifecycleNow, setLifecycleNow] = useState(() => Date.now());
   const pollAttempt = useRef(0);
   const focusRef = useRef<HTMLElement | null>(null);
 
@@ -303,12 +304,22 @@ export function MyPickPicksSection({
     };
   }, [accountId, hasPending, refresh, refreshQuota]);
 
+  useEffect(() => {
+    const expiry = nextMyPickExpiry(items, lifecycleNow);
+    if (expiry === null) return;
+    const delay = Math.min(expiry - lifecycleNow + 50, 2_147_483_647);
+    const timer = window.setTimeout(() => setLifecycleNow(Date.now()), delay);
+    return () => window.clearTimeout(timer);
+  }, [items, lifecycleNow]);
+
   const visibleItems = useMemo(() => {
-    const recent = items.slice(0, 3);
+    const recent = items.filter((item) => isMyPickHomepageVisible(item, lifecycleNow)).slice(0, 3);
     if (!initialMyPickId || recent.some((item) => item.my_pick_id === initialMyPickId)) return recent;
-    const linked = items.find((item) => item.my_pick_id === initialMyPickId);
+    const linked = items.find(
+      (item) => item.my_pick_id === initialMyPickId && isMyPickHomepageVisible(item, lifecycleNow),
+    );
     return linked ? [linked, ...recent.slice(0, 2)] : recent;
-  }, [initialMyPickId, items]);
+  }, [initialMyPickId, items, lifecycleNow]);
 
   useEffect(() => {
     if (!initialMyPickId || !focusRef.current) return;
@@ -331,7 +342,7 @@ export function MyPickPicksSection({
           <div className="space-y-3">
             {visibleItems.map((item, index) => {
               const footer = index === 0
-                ? <MyPickQuotaFooter quota={quota} onSubmitted={submitted} className={isResultReady(item) ? "mt-0 border-my-pick-line" : undefined} />
+                ? <MyPickQuotaFooter quota={quota} onSubmitted={submitted} className={isMyPickResultReady(item) ? "mt-0 border-my-pick-line" : undefined} />
                 : undefined;
               return (
               <div

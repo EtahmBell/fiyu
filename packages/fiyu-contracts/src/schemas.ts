@@ -302,6 +302,7 @@ export const myPickSchema = z.object({
   created_at: z.string(),
   updated_at: z.string(),
   resolved_at: nullableString,
+  featured_until: nullableString.optional().default(null),
   place_id: nullableString,
   name_ja: nullableString,
   name_en: nullableString,

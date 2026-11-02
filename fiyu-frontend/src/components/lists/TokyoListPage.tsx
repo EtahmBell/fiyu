@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils/cn";
 import { formatRestaurantBudget } from "@/lib/restaurant/budget";
 import { restaurantMetadataParts } from "@/lib/restaurant/displayArea";
 import { ListTabs } from "@/components/lists/ListTabs";
+import { MineList } from "@/components/lists/MineList";
 import { SmartViewCard } from "@/components/lists/SmartViewCard";
 import { PremiumSmartCollectionCard } from "@/components/lists/PremiumSmartCollectionCard";
 import {
@@ -217,10 +218,16 @@ const SMART_PAGE_HEADER = {
   description: "Your saved places, reorganized for different ways of exploring Tokyo.",
 } as const;
 
-export function TokyoListPage({ initialTab = "saved" }: { initialTab?: "saved" | "smart" }) {
+const MINE_PAGE_HEADER = {
+  eyebrow: "Your Fiyu",
+  title: "Mine",
+  description: "Restaurants you brought to Fiyu, kept here after their result is ready.",
+} as const;
+
+export function TokyoListPage({ initialTab = "saved" }: { initialTab?: "saved" | "mine" | "smart" }) {
   const cityId = ACTIVE_FIYU_CITY.id;
   const list = useDefaultList(cityId);
-  const [activeTab, setActiveTab] = useState<"saved" | "smart">(initialTab);
+  const [activeTab, setActiveTab] = useState<"saved" | "mine" | "smart">(initialTab);
   const [smartLoading, setSmartLoading] = useState(initialTab === "smart");
   const [smartError, setSmartError] = useState<string | null>(null);
   const [smartViews, setSmartViews] = useState<SmartViewCatalogEntry[]>([]);
@@ -304,7 +311,7 @@ export function TokyoListPage({ initialTab = "saved" }: { initialTab?: "saved" |
     list.status === "ready" && items.length > 0
       ? `${items.length} saved ${items.length === 1 ? "place" : "places"}`
       : null;
-  const heading = activeTab === "smart" ? SMART_PAGE_HEADER : SAVED_PAGE_HEADER;
+  const heading = activeTab === "smart" ? SMART_PAGE_HEADER : activeTab === "mine" ? MINE_PAGE_HEADER : SAVED_PAGE_HEADER;
   const freeSmartViews = smartViews.filter((view) => !isPremiumSmartView(view));
   const premiumSmartViews = smartViews.filter((view) => isPremiumSmartView(view));
 
@@ -400,6 +407,10 @@ export function TokyoListPage({ initialTab = "saved" }: { initialTab?: "saved" |
             </section>
           )}
         </section>
+      ) : activeTab === "mine" ? (
+        <div role="tabpanel" id="lists-panel-mine" aria-labelledby="lists-tab-mine">
+          <MineList />
+        </div>
       ) : (
         <section
           role="tabpanel"

@@ -3,9 +3,9 @@ import { TokyoListPage } from "@/components/lists/TokyoListPage";
 
 export const metadata: Metadata = { title: "Lists" };
 
-function resolveInitialTab(value: string | string[] | undefined): "saved" | "smart" {
+function resolveInitialTab(value: string | string[] | undefined): "saved" | "mine" | "smart" {
   const raw = Array.isArray(value) ? value[0] : value;
-  return raw === "smart" ? "smart" : "saved";
+  return raw === "smart" || raw === "mine" ? raw : "saved";
 }
 
 async function ListsPageWithResolvedParams({

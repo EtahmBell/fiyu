@@ -2209,6 +2209,19 @@ def test_api_explicitly_projects_result_ready_without_map_readiness(my_pick_api)
     assert payload["result_ready"] is True
     assert payload["fiyu_score"] == 65.11
     assert payload["map_ready"] is False
+    assert datetime.fromisoformat(payload["featured_until"]) - datetime.fromisoformat(
+        payload["resolved_at"]
+    ) == timedelta(hours=72)
+
+
+def test_my_pick_feature_window_uses_account_delivery_for_reused_ready_work():
+    account_row = {"created_at": "2026-10-10T12:00:00+00:00"}
+    older_ready_work = {"resolved_at": "2026-10-01T08:00:00+00:00"}
+
+    assert api._my_pick_featured_until(account_row, older_ready_work) == (
+        "2026-10-13T12:00:00+00:00"
+    )
+    assert api._my_pick_featured_until(account_row, {"resolved_at": None}) is None
 
 def test_shared_worker_completion_projects_to_both_waiting_users(my_pick_api):
     client, _user_ids, rows = my_pick_api

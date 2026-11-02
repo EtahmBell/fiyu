@@ -6,8 +6,8 @@ export function ListTabs({
   activeTab,
   onChange,
 }: {
-  activeTab: "saved" | "smart";
-  onChange(tab: "saved" | "smart"): void;
+  activeTab: "saved" | "mine" | "smart";
+  onChange(tab: "saved" | "mine" | "smart"): void;
 }) {
   return (
     <div className="mb-4 border-b border-line">
@@ -32,6 +32,22 @@ export function ListTabs({
               activeTab === "saved" ? "opacity-100" : "opacity-0",
             )}
           />
+        </button>
+
+        <button
+          type="button"
+          role="tab"
+          id="lists-tab-mine"
+          aria-selected={activeTab === "mine"}
+          aria-controls="lists-panel-mine"
+          onClick={() => onChange("mine")}
+          className={cn(
+            "relative inline-flex min-h-11 items-center text-sm font-medium text-ink-muted transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-600",
+            activeTab === "mine" ? "text-plum" : "hover:text-ink",
+          )}
+        >
+          Mine
+          <span aria-hidden="true" className={cn("pointer-events-none absolute -bottom-px left-0 h-0.5 w-full rounded-full bg-plum transition-opacity", activeTab === "mine" ? "opacity-100" : "opacity-0")} />
         </button>
 
         <button

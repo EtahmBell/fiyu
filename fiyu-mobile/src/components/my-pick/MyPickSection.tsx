@@ -1,5 +1,5 @@
 import type { MyPick, MyPickQuota } from "@fiyu/contracts";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { useMyPickResources } from "@/api/queries";
@@ -9,13 +9,16 @@ import { ScoreMark } from "@/components/restaurant/ScoreMark";
 import { useRestaurantRelationships } from "@/components/restaurant/useRestaurantRelationships";
 import { colors, fontFamilies, radii, spacing } from "@/design";
 import { persistentStorage } from "@/storage/persistentStorage";
+import {
+  isMyPickHomepageVisible,
+  isMyPickResultReady,
+  nextMyPickExpiry,
+} from "@/lib/myPickLifecycle";
 import { MyPickComposer } from "./MyPickComposer";
 
 const PENDING = new Set<MyPick["status"]>(["pending", "resolving_identity", "researching"]);
 
-export function isMyPickResultReady(item: MyPick): boolean {
-  return item.result_ready || (item.fiyu_score !== null && item.score_version !== null);
-}
+export { isMyPickResultReady } from "@/lib/myPickLifecycle";
 
 function safeName(item: MyPick): string {
   return item.name_en?.trim() || item.name_ja?.trim() || "Your Pick";
@@ -49,12 +52,19 @@ export function MyPickSection({ initialMyPickId, onOpenRestaurant }: { initialMy
   const relationships = useRestaurantRelationships();
   const [composerOpen, setComposerOpen] = useState(false);
   const [visitTarget, setVisitTarget] = useState<MyPick | null>(null);
-  const allItems = resources.picks.data ?? [];
-  const recent = allItems.slice(0, 3);
-  const linked = initialMyPickId ? allItems.find((item) => item.my_pick_id === initialMyPickId) : undefined;
+  const [lifecycleNow, setLifecycleNow] = useState(() => Date.now());
+  const allItems = useMemo(() => resources.picks.data ?? [], [resources.picks.data]);
+  const recent = allItems.filter((item) => isMyPickHomepageVisible(item, lifecycleNow)).slice(0, 3);
+  const linked = initialMyPickId ? allItems.find((item) => item.my_pick_id === initialMyPickId && isMyPickHomepageVisible(item, lifecycleNow)) : undefined;
   const items = linked && !recent.some((item) => item.my_pick_id === linked.my_pick_id) ? [linked, ...recent.slice(0, 2)] : recent;
   const quota = resources.quota.data ?? null;
   const footer = <Footer quota={quota} onSubmit={() => setComposerOpen(true)} />;
+  useEffect(() => {
+    const expiry = nextMyPickExpiry(allItems, lifecycleNow);
+    if (expiry === null) return;
+    const timer = setTimeout(() => setLifecycleNow(Date.now()), Math.min(expiry - lifecycleNow + 50, 2_147_483_647));
+    return () => clearTimeout(timer);
+  }, [allItems, lifecycleNow]);
   return <View style={styles.section} testID="my-pick-section">
     {items.length === 0 && !resources.picks.isLoading ? <Pressable accessibilityRole="button" onPress={() => setComposerOpen(true)} style={styles.entry}><Text style={styles.entryTitle}>Try My Pick</Text><Text style={styles.copy}>Give Fiyu a restaurant and we’ll score it.</Text><Text style={styles.entryAction}>Submit a restaurant →</Text></Pressable> : null}
     {items.map((item, index) => <View key={item.my_pick_id} style={index > 0 ? styles.cardSpacing : undefined}>{PENDING.has(item.status) ? <PendingCard item={item} footer={index === 0 ? footer : undefined} /> : isMyPickResultReady(item) ? <ReadyCard item={item} footer={index === 0 ? footer : undefined} saved={item.place_id ? relationships.savedIds.has(item.place_id) : false} visited={item.place_id ? relationships.visitsByPlace.has(item.place_id) : false} onOpenRestaurant={onOpenRestaurant} onSave={() => { if (item.is_public && item.place_id) relationships.toggleSaved(item.place_id); }} onLog={() => { if (item.is_public && item.place_id) setVisitTarget(item); }} /> : <StatusCard item={item} footer={index === 0 ? footer : undefined} />}</View>)}

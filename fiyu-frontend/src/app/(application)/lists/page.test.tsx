@@ -43,6 +43,7 @@ const smartApi = vi.hoisted(() => ({
   fetchRestaurants: vi.fn(),
   fetchDefaultListSmartViews: vi.fn(),
   fetchDefaultListSmartView: vi.fn(),
+  fetchMyPicks: vi.fn(),
 }));
 
 vi.mock("@/lib/lists/useDefaultList", () => ({
@@ -59,6 +60,7 @@ vi.mock("@/lib/api/client", () => ({
   fetchRestaurants: smartApi.fetchRestaurants,
   fetchDefaultListSmartViews: smartApi.fetchDefaultListSmartViews,
   fetchDefaultListSmartView: smartApi.fetchDefaultListSmartView,
+  fetchMyPicks: smartApi.fetchMyPicks,
 }));
 
 vi.mock("@/components/restaurant/RestaurantPhoto", () => ({
@@ -86,6 +88,7 @@ beforeEach(() => {
   smartApi.fetchRestaurants.mockReset();
   smartApi.fetchDefaultListSmartViews.mockReset();
   smartApi.fetchDefaultListSmartView.mockReset();
+  smartApi.fetchMyPicks.mockReset().mockResolvedValue([]);
   smartApi.fetchRestaurants.mockResolvedValue({ restaurants: [], rejected: [] });
   smartApi.fetchDefaultListSmartViews.mockResolvedValue({
     city_id: "tokyo",
@@ -167,6 +170,25 @@ describe("lists page", () => {
     expect(
       screen.getByText("Your saved places, reorganized for different ways of exploring Tokyo."),
     ).toBeTruthy();
+  });
+
+  it("keeps completed public and private My Picks in Mine newest first", async () => {
+    const basePick = {
+      my_pick_id: "10000000-0000-4000-8000-000000000001", provider: "google", external_place_id: "one", display_name_hint: null, user_query_hint: null, user_name_hint: null, user_address_hint: null, status: "ready", status_message: "Ready", failure_code: null, created_at: "2026-10-01T00:00:00Z", updated_at: "2026-10-01T01:00:00Z", resolved_at: "2026-10-01T01:00:00Z", featured_until: "2026-10-04T01:00:00Z", place_id: "public-one", name_ja: null, name_en: "Older Public", primary_category: "Izakaya", display_area: "Koenji", fiyu_score: 80, score_version: "quality-v4-production-1", result_ready: true, map_ready: true, latitude: 35.7, longitude: 139.6, location_precision: "poi", is_public: true, recommendation_review_status: "approved",
+    } as const;
+    smartApi.fetchMyPicks.mockResolvedValue([
+      basePick,
+      { ...basePick, my_pick_id: "10000000-0000-4000-8000-000000000002", place_id: "private-two", name_en: "Newest Private", is_public: false, featured_until: "2026-10-05T01:00:00Z" },
+    ]);
+    render(<ListsPage searchParams={{ tab: "mine" }} />);
+
+    expect(await screen.findByRole("heading", { name: "Newest Private" })).toBeTruthy();
+    const cards = screen.getAllByTestId("mine-restaurant-card");
+    expect(cards[0].textContent).toContain("Newest Private");
+    expect(cards[1].textContent).toContain("Older Public");
+    expect(screen.getByText("Private result · visible only to you")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "View restaurant →" }).getAttribute("href")).toBe("/restaurants/public-one");
+    expect(screen.queryByRole("button", { name: /Remove restaurant from saved/i })).toBeNull();
   });
 
   it("renders saved restaurants newest first", () => {

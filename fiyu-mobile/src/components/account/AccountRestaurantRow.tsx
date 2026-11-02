@@ -9,16 +9,17 @@ export function restaurantTitle(restaurant: SavedRestaurantSummary): string {
   return restaurant.name_ja?.trim() || restaurant.name_en?.trim() || "Unnamed restaurant";
 }
 
-export function AccountRestaurantRow({ restaurant, detail, onOpen, onRemove, removePending = false }: { restaurant: SavedRestaurantSummary; detail?: string | null; onOpen(): void; onRemove?: () => void; removePending?: boolean }) {
+export function AccountRestaurantRow({ restaurant, detail, onOpen, onRemove, removePending = false }: { restaurant: SavedRestaurantSummary; detail?: string | null; onOpen?: () => void; onRemove?: () => void; removePending?: boolean }) {
   const title = restaurantTitle(restaurant);
   const english = restaurant.name_en?.trim();
   const subtitle = english && english !== title ? english : null;
   const metadata = [restaurant.display_area || restaurant.neighborhood, restaurant.primary_category].filter(Boolean).join(" · ");
-  return <View style={styles.card} accessibilityLabel={`${title}${detail ? `, ${detail}` : ""}`}>
-    <Pressable accessibilityRole="button" accessibilityLabel={`Open ${title}`} onPress={onOpen} style={styles.open}>
+  const content = <>
       <View style={styles.identity}><Text numberOfLines={2} style={styles.title}>{title}</Text>{subtitle ? <Text numberOfLines={1} style={styles.subtitle}>{subtitle}</Text> : null}{metadata ? <Text numberOfLines={1} style={styles.metadata}>{metadata}</Text> : null}{detail ? <Text numberOfLines={2} style={styles.detail}>{detail}</Text> : null}</View>
       <ScoreMark score={restaurant.fiyu_score} />
-    </Pressable>
+    </>;
+  return <View style={styles.card} accessibilityLabel={`${title}${detail ? `, ${detail}` : ""}`}>
+    {onOpen ? <Pressable accessibilityRole="button" accessibilityLabel={`Open ${title}`} onPress={onOpen} style={styles.open}>{content}</Pressable> : <View style={styles.open}>{content}</View>}
     {onRemove ? <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${title} from Saved`} disabled={removePending} onPress={onRemove} hitSlop={8} style={styles.remove}><Ionicons name="bookmark" size={19} color={colors.lavender[700]} /><Text style={styles.removeText}>{removePending ? "Removing…" : "Saved"}</Text></Pressable> : null}
   </View>;
 }

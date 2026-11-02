@@ -2,7 +2,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-libra
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { router } from "expo-router";
 
-import { fetchDefaultList, fetchSmartViews, removeFromDefaultList } from "@/api/client";
+import { fetchDefaultList, fetchMyPicks, fetchSmartViews, removeFromDefaultList } from "@/api/client";
 import ListsScreen from "@/app/(tabs)/lists";
 
 jest.mock("expo-router", () => ({ router: { push: jest.fn(), navigate: jest.fn() } }));
@@ -10,6 +10,7 @@ jest.mock("@expo/vector-icons", () => ({ Ionicons: () => null }));
 jest.mock("@/api/client", () => ({
   fetchDefaultList: jest.fn(),
   fetchSmartViews: jest.fn(),
+  fetchMyPicks: jest.fn(),
   removeFromDefaultList: jest.fn(),
 }));
 
@@ -36,6 +37,7 @@ describe("Lists screen", () => {
     jest.clearAllMocks();
     jest.mocked(fetchDefaultList).mockResolvedValue({ ...listMeta, item_count: 1, items: [{ place_id: restaurant.place_id, added_at: "2026-10-25T00:00:00Z", restaurant }] });
     jest.mocked(fetchSmartViews).mockResolvedValue({ city_id: "tokyo", generated_at: "2026-10-25T00:00:00Z", views: [{ key: "recently_saved", label: "Recently saved", description: "Your newest saves.", tier: "free", locked: false, available: true, item_count: 1, required_capability: null, unavailable_reason: null, collection_type: null }] });
+    jest.mocked(fetchMyPicks).mockResolvedValue([]);
   });
 
   it("loads the canonical Saved list, navigates by place id, and removes through the shared mutation", async () => {
@@ -55,6 +57,23 @@ describe("Lists screen", () => {
     expect(await screen.findByText("Recently saved")).toBeTruthy();
     await act(async () => fireEvent.press(screen.getByLabelText("Open Recently saved")));
     expect(router.push).toHaveBeenCalledWith({ pathname: "/lists/smart/[viewKey]", params: { viewKey: "recently_saved" } });
+  });
+
+  it("shows completed My Picks in Mine newest first and never opens private results publicly", async () => {
+    const basePick = {
+      my_pick_id: "10000000-0000-4000-8000-000000000001", provider: "google", external_place_id: "one", display_name_hint: null, user_query_hint: null, user_name_hint: null, user_address_hint: null, status: "ready", status_message: "Ready", failure_code: null, created_at: "2026-10-01T00:00:00Z", updated_at: "2026-10-01T01:00:00Z", resolved_at: "2026-10-01T01:00:00Z", featured_until: "2026-10-04T01:00:00Z", place_id: "public-one", name_ja: null, name_en: "Older Public", primary_category: "Izakaya", display_area: "Koenji", fiyu_score: 80, score_version: "quality-v4-production-1", result_ready: true, map_ready: true, latitude: 35.7, longitude: 139.6, location_precision: "poi", is_public: true, recommendation_review_status: "approved",
+    } as const;
+    jest.mocked(fetchMyPicks).mockResolvedValue([
+      basePick,
+      { ...basePick, my_pick_id: "10000000-0000-4000-8000-000000000002", place_id: "private-two", name_en: "Newest Private", is_public: false, featured_until: "2026-10-05T01:00:00Z" },
+    ]);
+    await render(wrapper(<ListsScreen />));
+    await act(async () => fireEvent.press(screen.getByText("Mine")));
+    expect(await screen.findByText("Newest Private")).toBeTruthy();
+    expect(screen.getByText("Older Public")).toBeTruthy();
+    expect(screen.queryByLabelText("Open Newest Private")).toBeNull();
+    await act(async () => fireEvent.press(screen.getByLabelText("Open Older Public")));
+    expect(router.push).toHaveBeenCalledWith({ pathname: "/restaurants/[placeId]", params: { placeId: "public-one" } });
   });
 
   it("keeps the empty and network states distinct", async () => {

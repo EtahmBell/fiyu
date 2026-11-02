@@ -134,6 +134,7 @@ load_dotenv(BACKEND_ROOT / ".env")
 DB_PATH = Path(os.getenv("FIYU_DB_PATH", "data/fiyu.db"))
 MY_PICK_SUGGESTION_RATE_LIMIT = 12
 MY_PICK_SUGGESTION_WINDOW_SECONDS = 60.0
+MY_PICK_FEATURED_DURATION = timedelta(hours=72)
 _my_pick_suggestion_requests: dict[str, list[float]] = {}
 _my_pick_suggestion_rate_lock = threading.Lock()
 
@@ -930,6 +931,7 @@ class MyPickResponse(BaseModel):
     created_at: str
     updated_at: str
     resolved_at: str | None = None
+    featured_until: str | None = None
     place_id: str | None = None
     name_ja: str | None = None
     name_en: str | None = None
@@ -2396,8 +2398,29 @@ def _my_pick_response(account_row: dict[str, Any]) -> MyPickResponse:
             if work and work.get("resolved_at")
             else None
         ),
+        featured_until=_my_pick_featured_until(account_row, work),
         **canonical,
     )
+
+
+def _my_pick_featured_until(
+    account_row: dict[str, Any], work: dict[str, Any] | None
+) -> str | None:
+    """Return the account-visible My Pick deadline without adding stored state.
+
+    Canonical work can predate a later account submission that reuses it.  In
+    that case the user receives the already-ready result at submission time,
+    so the later of canonical resolution and account creation is the delivery
+    anchor.  The deadline affects Picks presentation only; history and Map
+    membership continue to use their durable account/canonical records.
+    """
+
+    resolved_at = _parse_pick_datetime(work.get("resolved_at") if work else None)
+    if resolved_at is None:
+        return None
+    created_at = _parse_pick_datetime(account_row.get("created_at"))
+    delivered_at = max(resolved_at, created_at) if created_at else resolved_at
+    return (delivered_at + MY_PICK_FEATURED_DURATION).isoformat()
 
 
 def _sync_my_pick_projection(work: dict[str, Any]) -> None:
