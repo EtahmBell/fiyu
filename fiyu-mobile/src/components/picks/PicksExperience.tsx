@@ -1,7 +1,7 @@
 import type { DailyPickAssignmentResponse, PublicRestaurant } from "@fiyu/contracts";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Animated, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
+import { Animated, FlatList, Platform, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
 import Svg, { Path, Rect } from "react-native-svg";
 
 import {
@@ -231,9 +231,22 @@ function RecentDiscoveriesSection({ personalized, recent, savedIds, visitsByPlac
   </View>;
 }
 
+type DecorativeSvgAccessibilityProps = {
+  "aria-hidden"?: true;
+  accessibilityElementsHidden?: true;
+  focusable: false;
+  importantForAccessibility?: "no-hide-descendants";
+};
+
+export function decorativeSvgAccessibilityProps(platform: string): DecorativeSvgAccessibilityProps {
+  return platform === "web"
+    ? { "aria-hidden": true, focusable: false }
+    : { accessibilityElementsHidden: true, importantForAccessibility: "no-hide-descendants", focusable: false };
+}
+
 export function RecentDiscoveriesEmptyState() {
   return <View style={styles.emptyDiscoveries}>
-    <Svg testID="recent-discoveries-icon" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" width={64} height={34} viewBox="0 0 64 34">
+    <Svg testID="recent-discoveries-icon" {...decorativeSvgAccessibilityProps(Platform.OS)} width={64} height={34} viewBox="0 0 64 34">
       <Path d="M3 29.5h58M8 29V17h9v12M19 29V13h10v16M31 29V8h11v21M44 29V16h9v13M25 13V8h4v5M34 8V4h5v4" fill="none" stroke="#4D435A" strokeWidth={1.25} strokeLinecap="round" strokeLinejoin="round" />
       <Rect x={12} y={20} width={2} height={2} fill="#9589DF" />
       <Rect x={35} y={12} width={2} height={2} fill="#9589DF" />
