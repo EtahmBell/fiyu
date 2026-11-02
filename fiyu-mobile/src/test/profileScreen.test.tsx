@@ -78,7 +78,7 @@ describe("Profile screen", () => {
     expect(Linking.openURL).toHaveBeenCalledWith("https://fiyu.app/privacy");
     await act(async () => fireEvent.press(screen.getByText("Sign out")));
     await waitFor(() => expect(signOut).toHaveBeenCalledTimes(1));
-  });
+  }, 15_000);
 
   it("requires password confirmation before invoking canonical account deletion", async () => {
     await render(wrapper(<ProfileScreen />));

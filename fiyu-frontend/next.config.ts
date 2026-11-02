@@ -1,5 +1,4 @@
 import type { NextConfig } from "next";
-import path from "node:path";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
 const supabaseStoragePattern = supabaseUrl
@@ -15,10 +14,6 @@ const supabaseStoragePattern = supabaseUrl
   : null;
 
 const nextConfig: NextConfig = {
-  transpilePackages: ["@fiyu/contracts"],
-  turbopack: {
-    root: path.resolve(__dirname, ".."),
-  },
   images: {
     remotePatterns: supabaseStoragePattern ? [supabaseStoragePattern] : [],
   },

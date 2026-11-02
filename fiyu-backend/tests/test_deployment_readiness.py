@@ -60,6 +60,12 @@ def test_production_cors_is_env_driven_and_fails_closed_without_configuration(mo
             "GET",
             "authorization",
         ),
+        (
+            "/profiles/me/map-restaurants",
+            "https://fiyu.app",
+            "GET",
+            "authorization",
+        ),
     ),
 )
 def test_configured_origins_pass_cors_preflight(
