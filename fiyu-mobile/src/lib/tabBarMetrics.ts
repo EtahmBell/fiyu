@@ -1,4 +1,4 @@
 export function bottomTabMetrics(bottomInset: number) {
-  const paddingBottom = Math.max(bottomInset, 8);
-  return { height: 64 + paddingBottom, paddingTop: 7, paddingBottom } as const;
+  const paddingBottom = Math.max(bottomInset, 6);
+  return { height: 74 + paddingBottom, paddingTop: 6, paddingBottom } as const;
 }

@@ -8,7 +8,10 @@ describe("Picks home presentation", () => {
     const view = await render(<RecentDiscoveriesEmptyState />);
     expect(view.getByText("No recent discoveries")).toBeTruthy();
     expect(view.getByText("Revealed restaurants remain here for 72 hours.")).toBeTruthy();
-    expect(JSON.stringify(view.toJSON())).toContain("RNSVGSvgView");
+    const tree = JSON.stringify(view.toJSON());
+    expect(tree).toContain("RNSVGSvgView");
+    expect(tree).toContain("M20 96h120");
+    expect(tree).toContain("M74 78 69 94h10Z");
   });
 
   it("uses DOM-safe decorative SVG semantics on web", () => {

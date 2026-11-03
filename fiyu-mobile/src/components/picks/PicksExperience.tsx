@@ -2,7 +2,7 @@ import type { DailyPickAssignmentResponse, PublicRestaurant } from "@fiyu/contra
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Animated, FlatList, Platform, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
-import Svg, { Path, Rect } from "react-native-svg";
+import Svg, { Path } from "react-native-svg";
 
 import {
   assignDailyPicks,
@@ -234,16 +234,16 @@ function RecentDiscoveriesSection({ personalized, recent, savedIds, visitsByPlac
 
 export function RecentDiscoveriesEmptyState() {
   return <View style={styles.emptyDiscoveries}>
-    <Svg testID="recent-discoveries-icon" {...decorativeSvgAccessibilityProps(Platform.OS)} width={76} height={42} viewBox="0 0 76 42">
-      <Path d="M3 37.5h70M8 37V23h10v14M18 37V18h12v19M30 37V13h17v24M47 37V21h11v16M58 37V26h10v11" fill="none" stroke="#4D435A" strokeWidth={1.2} strokeLinecap="round" strokeLinejoin="round" />
-      <Path d="M22 18v-5h5v5M35 13V8h7v5M50 21v-4h5v4" fill="none" stroke="#7D70B7" strokeWidth={1.1} strokeLinecap="round" strokeLinejoin="round" />
-      <Rect x={11} y={27} width={2} height={2} fill="#9589DF" />
-      <Rect x={22} y={23} width={2} height={2} fill="#9589DF" />
-      <Rect x={27} y={23} width={2} height={2} fill="#9589DF" />
-      <Rect x={35} y={18} width={2} height={2} fill="#9589DF" />
-      <Rect x={41} y={18} width={2} height={2} fill="#9589DF" />
-      <Rect x={51} y={26} width={2} height={2} fill="#9589DF" />
-      <Rect x={62} y={30} width={2} height={2} fill="#9589DF" />
+    <Svg testID="recent-discoveries-icon" {...decorativeSvgAccessibilityProps(Platform.OS)} width={80} height={56} viewBox="0 0 160 120">
+      <Path d="M20 96h120" fill="none" stroke={colors.plum} strokeWidth={2.25} strokeLinecap="round" />
+      <Path d="M24 96V70h16v26M40 96V62h20v34M60 96V74h14v22" fill={colors.lavender[100]} fillOpacity={0.3} stroke={colors.plum} strokeWidth={2} strokeLinejoin="round" />
+      <Path d="M78 96V64h14v32M92 96V58h18v38M110 96V68h12v28M122 96V72h14v24" fill={colors.lavender[100]} fillOpacity={0.24} stroke={colors.plum} strokeWidth={2} strokeLinejoin="round" />
+      <Path d="M46 62h8M96 58h7M126 72h5" fill="none" stroke={colors.plum} strokeWidth={1.5} strokeLinecap="round" opacity={0.62} />
+      <Path d="M82 74h5M82 82h5M98 68h6M98 76h6" fill="none" stroke={colors.plum} strokeWidth={1.25} strokeLinecap="round" opacity={0.4} />
+      <Path d="M74 96V78" fill="none" stroke={colors.plum} strokeWidth={2} />
+      <Path d="M74 78 69 94h10Z" fill={colors.lavender[100]} fillOpacity={0.34} stroke={colors.plum} strokeWidth={2} strokeLinejoin="round" />
+      <Path d="M74 70 70.5 78h7Z" fill="none" stroke={colors.plum} strokeWidth={2} strokeLinejoin="round" />
+      <Path d="M70.5 86h7" fill="none" stroke={colors.plum} strokeWidth={1.25} strokeLinecap="round" opacity={0.72} />
     </Svg>
     <Text style={styles.emptyTitle}>No recent discoveries</Text>
     <Text style={styles.emptyCopy}>Revealed restaurants remain here for 72 hours.</Text>
