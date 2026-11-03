@@ -1,18 +1,25 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
-import { StyleSheet, View } from "react-native";
+import { Platform, Pressable, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Svg, { Path } from "react-native-svg";
 
 import { colors, fontFamilies } from "@/design";
 import { bottomTabMetrics } from "@/lib/tabBarMetrics";
+import { decorativeSvgAccessibilityProps } from "@/lib/svgAccessibility";
 
 const icons = {
-  picks: ["sparkles-outline", "sparkles"],
   lists: ["list-outline", "list"],
   log: ["add-circle-outline", "add-circle"],
   map: ["map-outline", "map"],
   profile: ["person-outline", "person"],
 } as const;
+
+function PicksTabIcon({ color, size }: { color: string; size: number }) {
+  return <Svg {...decorativeSvgAccessibilityProps(Platform.OS)} width={size + 4} height={size} viewBox="0 0 28 24">
+    <Path d="M14 2.5 16.5 9 20 12l-3.5 3L14 21.5 11.5 15 8 12l3.5-3L14 2.5ZM4 5.5 5 8l2.5 1L5 10l-1 2.5L3 10 .5 9 3 8l1-2.5Zm20 0L25 8l2.5 1L25 10l-1 2.5L23 10l-2.5-1L23 8l1-2.5Z" fill={color} />
+  </Svg>;
+}
 
 export default function TabLayout() {
   const insets = useSafeAreaInsets();
@@ -27,18 +34,17 @@ export default function TabLayout() {
       tabBarItemStyle: { paddingVertical: 1 },
       tabBarLabelStyle: { marginTop: 2, fontFamily: fontFamilies.bodyMedium, fontSize: 11 },
     }}>
-      {(Object.keys(icons) as (keyof typeof icons)[]).map((name) => (
+      {(["picks", ...Object.keys(icons)] as ("picks" | keyof typeof icons)[]).map((name) => (
         <Tabs.Screen
           key={name}
           name={name}
           options={{
             title: name === "picks" ? "Picks" : name.charAt(0).toUpperCase() + name.slice(1),
             tabBarAccessibilityLabel: name === "log" ? "Log a visit" : undefined,
-            tabBarIcon: ({ color, focused, size }) => name === "log" ? (
-              <View style={[styles.logIcon, focused && styles.logIconFocused]}>
-                <Ionicons name="add" color={color as string} size={size} />
-              </View>
-            ) : <Ionicons name={icons[name][focused ? 1 : 0]} color={color as string} size={size} />,
+            tabBarButton: name === "log" ? ({ ref: _ref, style, accessibilityState, ...props }) => <Pressable {...props} accessibilityState={accessibilityState} style={({ pressed }) => [style, styles.logTabButton, accessibilityState?.selected && styles.logTabButtonFocused, pressed && styles.logTabButtonPressed]} /> : undefined,
+            tabBarIcon: ({ color, focused, size }) => name === "picks"
+              ? <PicksTabIcon color={color as string} size={size} />
+              : <Ionicons name={name === "log" ? "add" : icons[name][focused ? 1 : 0]} color={color as string} size={size} />,
           }}
         />
       ))}
@@ -47,6 +53,7 @@ export default function TabLayout() {
 }
 
 const styles = StyleSheet.create({
-  logIcon: { width: 44, height: 40, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.line, borderRadius: 12, backgroundColor: colors.lavender[50] },
-  logIconFocused: { borderColor: colors.lavender[200], backgroundColor: colors.lavender[100] },
+  logTabButton: { marginHorizontal: 4, marginVertical: 3, borderRadius: 12 },
+  logTabButtonFocused: { backgroundColor: colors.lavender[100] },
+  logTabButtonPressed: { opacity: 0.8 },
 });

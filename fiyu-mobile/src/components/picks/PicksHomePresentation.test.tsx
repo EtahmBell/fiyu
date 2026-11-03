@@ -1,6 +1,7 @@
 import { render } from "@testing-library/react-native";
 
-import { decorativeSvgAccessibilityProps, RecentDiscoveriesEmptyState } from "./PicksExperience";
+import { decorativeSvgAccessibilityProps } from "@/lib/svgAccessibility";
+import { RecentDiscoveriesEmptyState } from "./PicksExperience";
 
 describe("Picks home presentation", () => {
   it("keeps the Recent Discoveries empty state visible with its editorial illustration and copy", async () => {

@@ -18,6 +18,7 @@ import { TogetherEntry } from "@/components/together/TogetherEntry";
 import { colors, fontFamilies, radii, spacing } from "@/design";
 import { recentDiscoveries } from "@/lib/picks";
 import { restaurantName } from "@/lib/presentation";
+import { decorativeSvgAccessibilityProps } from "@/lib/svgAccessibility";
 import { ConcealedPickCard, RevealedPickCard } from "./PickCard";
 import { PicksHeader } from "./PicksHeader";
 import { PersonalizedPickModal } from "./PersonalizedPickModal";
@@ -186,7 +187,7 @@ export function PicksExperience({ onOpenRestaurant, onOpenTogether, onOpenTogeth
         renderItem={({ item }) => renderRestaurant(item)}
         contentContainerStyle={styles.list}
         refreshControl={<RefreshControl refreshing={resources.active.isRefetching} onRefresh={() => void refresh()} tintColor={colors.lavender[600]} />}
-        ListHeaderComponent={<View><View style={styles.eyebrowRow}><View style={styles.eyebrowLine} /><Text style={styles.eyebrow}>TODAY</Text></View><View style={styles.headingRow}><Text style={styles.heading}>Today’s Fiyu Picks</Text><Text style={styles.frequency}>3 PICKS{"\n"}<Text style={styles.frequencyDaily}>Daily</Text></Text></View><View style={styles.headingRule}><View style={styles.headingAccent} /></View><View style={styles.headerMeta}>{resources.location.data?.discovery_label ? <Text numberOfLines={1} style={styles.location}>{resources.location.data.discovery_label}</Text> : <Text style={styles.location}>Near you</Text>}{active ? <Pressable accessibilityRole="button" disabled={reveal.isPending || unrevealed.length === 0} onPress={() => void revealAll()} style={styles.revealAll}><Text style={styles.revealAllText}>{unrevealed.length === 0 ? "All Picks revealed" : reveal.isPending ? "Revealing…" : "Reveal all →"}</Text></Pressable> : null}</View>{(loading && !active) || finding ? <FindingState label={searchLabel} /> : null}{primaryError && !finding ? <View style={styles.status}><Text style={styles.error}>Your Picks could not connect.</Text><Pressable onPress={() => void resources.active.refetch()} style={styles.retryButton}><Text style={styles.retryButtonText}>Try again</Text></Pressable></View> : null}{!loading && !finding && !primaryError && !active ? <View style={styles.ctaWrap}><Pressable accessibilityRole="button" disabled={assign.isPending} onPress={() => void beginAssignment()} style={styles.button}><Text style={styles.buttonText}>Find today’s restaurants</Text></Pressable></View> : null}{actionError || relationships.saveError || relationships.visitError ? <Text accessibilityRole="alert" style={styles.error}>{actionError ?? relationships.saveError ?? relationships.visitError}</Text> : null}</View>}
+        ListHeaderComponent={<View><View style={styles.eyebrowRow}><View style={styles.eyebrowLine} /><Text style={styles.eyebrow}>TODAY</Text></View><View style={styles.headingRow}><Text style={styles.heading}>Today’s Fiyu Picks</Text><Text style={styles.frequency}>3 PICKS{"\n"}<Text style={styles.frequencyDaily}>Daily</Text></Text></View><View style={styles.headerMeta}>{resources.location.data?.discovery_label ? <Text numberOfLines={1} style={styles.location}>{resources.location.data.discovery_label}</Text> : <Text style={styles.location}>Near you</Text>}{active ? <Pressable accessibilityRole="button" disabled={reveal.isPending || unrevealed.length === 0} onPress={() => void revealAll()} style={styles.revealAll}><Text style={styles.revealAllText}>{unrevealed.length === 0 ? "All Picks revealed" : reveal.isPending ? "Revealing…" : "Reveal all →"}</Text></Pressable> : null}</View><View style={styles.headingRule}><View style={styles.headingAccent} /></View>{(loading && !active) || finding ? <FindingState label={searchLabel} /> : null}{primaryError && !finding ? <View style={styles.status}><Text style={styles.error}>Your Picks could not connect.</Text><Pressable onPress={() => void resources.active.refetch()} style={styles.retryButton}><Text style={styles.retryButtonText}>Try again</Text></Pressable></View> : null}{!loading && !finding && !primaryError && !active ? <View style={styles.ctaWrap}><Pressable accessibilityRole="button" disabled={assign.isPending} onPress={() => void beginAssignment()} style={styles.button}><Text style={styles.buttonText}>Find today’s restaurants</Text></Pressable></View> : null}{actionError || relationships.saveError || relationships.visitError ? <Text accessibilityRole="alert" style={styles.error}>{actionError ?? relationships.saveError ?? relationships.visitError}</Text> : null}</View>}
         ListFooterComponent={<View style={styles.bottomSpace} />}
       />
       <PersonalizedPickModal visible={personalizedVisible} pending={personalizedSelect.isPending || personalizedDismiss.isPending} error={personalizedSelect.error ? message(personalizedSelect.error, "Try again.") : null} onChoose={(position) => { const id = resources.personalized.data?.event_id; if (id && !personalizedSelect.isPending) personalizedSelect.mutate({ eventId: id, position }); }} onDismiss={() => { const id = resources.personalized.data?.event_id; if (id && !personalizedDismiss.isPending) personalizedDismiss.mutate(id); }} />
@@ -231,26 +232,18 @@ function RecentDiscoveriesSection({ personalized, recent, savedIds, visitsByPlac
   </View>;
 }
 
-type DecorativeSvgAccessibilityProps = {
-  "aria-hidden"?: true;
-  accessibilityElementsHidden?: true;
-  focusable: false;
-  importantForAccessibility?: "no-hide-descendants";
-};
-
-export function decorativeSvgAccessibilityProps(platform: string): DecorativeSvgAccessibilityProps {
-  return platform === "web"
-    ? { "aria-hidden": true, focusable: false }
-    : { accessibilityElementsHidden: true, importantForAccessibility: "no-hide-descendants", focusable: false };
-}
-
 export function RecentDiscoveriesEmptyState() {
   return <View style={styles.emptyDiscoveries}>
-    <Svg testID="recent-discoveries-icon" {...decorativeSvgAccessibilityProps(Platform.OS)} width={64} height={34} viewBox="0 0 64 34">
-      <Path d="M3 29.5h58M8 29V17h9v12M19 29V13h10v16M31 29V8h11v21M44 29V16h9v13M25 13V8h4v5M34 8V4h5v4" fill="none" stroke="#4D435A" strokeWidth={1.25} strokeLinecap="round" strokeLinejoin="round" />
-      <Rect x={12} y={20} width={2} height={2} fill="#9589DF" />
-      <Rect x={35} y={12} width={2} height={2} fill="#9589DF" />
-      <Rect x={47} y={20} width={2} height={2} fill="#9589DF" />
+    <Svg testID="recent-discoveries-icon" {...decorativeSvgAccessibilityProps(Platform.OS)} width={76} height={42} viewBox="0 0 76 42">
+      <Path d="M3 37.5h70M8 37V23h10v14M18 37V18h12v19M30 37V13h17v24M47 37V21h11v16M58 37V26h10v11" fill="none" stroke="#4D435A" strokeWidth={1.2} strokeLinecap="round" strokeLinejoin="round" />
+      <Path d="M22 18v-5h5v5M35 13V8h7v5M50 21v-4h5v4" fill="none" stroke="#7D70B7" strokeWidth={1.1} strokeLinecap="round" strokeLinejoin="round" />
+      <Rect x={11} y={27} width={2} height={2} fill="#9589DF" />
+      <Rect x={22} y={23} width={2} height={2} fill="#9589DF" />
+      <Rect x={27} y={23} width={2} height={2} fill="#9589DF" />
+      <Rect x={35} y={18} width={2} height={2} fill="#9589DF" />
+      <Rect x={41} y={18} width={2} height={2} fill="#9589DF" />
+      <Rect x={51} y={26} width={2} height={2} fill="#9589DF" />
+      <Rect x={62} y={30} width={2} height={2} fill="#9589DF" />
     </Svg>
     <Text style={styles.emptyTitle}>No recent discoveries</Text>
     <Text style={styles.emptyCopy}>Revealed restaurants remain here for 72 hours.</Text>
@@ -267,7 +260,7 @@ const styles = StyleSheet.create({
   heading: { flex: 1, color: colors.ink, fontFamily: fontFamilies.display, fontSize: 34, lineHeight: 38 },
   frequency: { color: colors.inkMuted, fontFamily: fontFamilies.bodySemiBold, fontSize: 9, lineHeight: 16, letterSpacing: 1, textAlign: "right" },
   frequencyDaily: { color: colors.inkBody, fontSize: 12, letterSpacing: 0 },
-  headingRule: { height: 1, marginTop: spacing[2], backgroundColor: colors.line },
+  headingRule: { height: 1, backgroundColor: colors.line },
   headingAccent: { width: 40, height: 2, backgroundColor: colors.lavender[500] },
   location: { color: colors.inkMuted, fontFamily: fontFamilies.body, fontSize: 13 },
   headerMeta: { minHeight: 42, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing[3] },
