@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { PicksTabIcon } from "@/components/navigation/PicksTabIcon";
 import { colors, fontFamilies } from "@/design";
-import { bottomTabMetrics } from "@/lib/tabBarMetrics";
+import { bottomTabMetrics, LOG_TAB_BUTTON_GEOMETRY } from "@/lib/tabBarMetrics";
 
 const icons = {
   lists: ["list-outline", "list"],
@@ -34,7 +34,7 @@ export default function TabLayout() {
           options={{
             title: name === "picks" ? "Picks" : name.charAt(0).toUpperCase() + name.slice(1),
             tabBarAccessibilityLabel: name === "log" ? "Log a visit" : undefined,
-            tabBarButton: name === "log" ? ({ ref: _ref, style, accessibilityState, ...props }) => <Pressable {...props} accessibilityState={accessibilityState} style={({ pressed }) => [style, styles.logTabButton, accessibilityState?.selected && styles.logTabButtonFocused, pressed && styles.logTabButtonPressed]} /> : undefined,
+            tabBarButton: name === "log" ? ({ ref: _ref, style, "aria-selected": selected, ...props }) => <Pressable {...props} aria-selected={selected} style={({ pressed }) => [style, styles.logTabButton, selected && styles.logTabButtonFocused, pressed && styles.logTabButtonPressed]} /> : undefined,
             tabBarIcon: ({ color, focused, size }) => name === "picks"
               ? <PicksTabIcon color={color as string} focused={focused} size={size} />
               : <Ionicons name={name === "log" ? "add" : icons[name][focused ? 1 : 0]} color={color as string} size={size} />,
@@ -46,7 +46,7 @@ export default function TabLayout() {
 }
 
 const styles = StyleSheet.create({
-  logTabButton: { marginHorizontal: 10, marginVertical: 5, borderRadius: 12 },
+  logTabButton: LOG_TAB_BUTTON_GEOMETRY,
   logTabButtonFocused: { backgroundColor: colors.lavender[100] },
   logTabButtonPressed: { opacity: 0.8 },
 });
