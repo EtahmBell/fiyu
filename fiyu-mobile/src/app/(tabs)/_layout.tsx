@@ -46,7 +46,7 @@ export default function TabLayout() {
 }
 
 const styles = StyleSheet.create({
-  logTabButton: LOG_TAB_BUTTON_GEOMETRY,
-  logTabButtonFocused: { backgroundColor: colors.lavender[100] },
+  logTabButton: { ...LOG_TAB_BUTTON_GEOMETRY, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.lavender[50] },
+  logTabButtonFocused: { borderColor: colors.lavender[200], backgroundColor: colors.lavender[100] },
   logTabButtonPressed: { opacity: 0.8 },
 });
