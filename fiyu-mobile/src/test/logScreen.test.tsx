@@ -8,6 +8,7 @@ import { deleteRestaurantVisit, fetchRestaurantLog, updateRestaurantVisit } from
 import LogScreen from "@/app/(tabs)/log";
 
 jest.mock("expo-router", () => ({ router: { push: jest.fn() } }));
+jest.mock("@expo/vector-icons", () => ({ Ionicons: () => null }));
 jest.mock("@/api/client", () => ({
   fetchRestaurantLog: jest.fn(),
   updateRestaurantVisit: jest.fn(),

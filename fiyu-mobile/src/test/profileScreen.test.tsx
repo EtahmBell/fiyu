@@ -17,6 +17,7 @@ import { useAuth } from "@/auth/AuthProvider";
 import { chooseAndUploadAvatar } from "@/profile/avatar";
 
 jest.mock("expo-linking", () => ({ openURL: jest.fn() }));
+jest.mock("expo-router", () => ({ router: { push: jest.fn() } }));
 jest.mock("@expo/vector-icons", () => ({ Ionicons: () => null }));
 jest.mock("@/auth/AuthProvider", () => ({ useAuth: jest.fn() }));
 jest.mock("@/profile/avatar", () => ({ chooseAndUploadAvatar: jest.fn(), removeAvatar: jest.fn() }));

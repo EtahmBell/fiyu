@@ -2,6 +2,7 @@ import type { DeveloperStatus, MyPick, UserProfile } from "@fiyu/contracts";
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import * as Linking from "expo-linking";
+import { router } from "expo-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, type ComponentProps, type ReactNode } from "react";
 import { Alert, KeyboardAvoidingView, Modal, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
@@ -9,6 +10,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { hardResetDeveloperMyPick, processDeveloperMyPick, updateDiscoveryLocation, updateProfile } from "@/api/client";
 import { picksKeys, useMyPickResources, useProfileResources } from "@/api/queries";
 import { useAuth } from "@/auth/AuthProvider";
+import { AppHeader } from "@/components/navigation/AppHeader";
 import { colors, fontFamilies, radii, spacing } from "@/design";
 import { canProcessMyPick, isDeveloperAuthorized } from "@/lib/account/presentation";
 import { chooseAndUploadAvatar, removeAvatar } from "@/profile/avatar";
@@ -17,7 +19,7 @@ export default function ProfileScreen() {
   const auth = useAuth(); const queryClient = useQueryClient(); const resources = useProfileResources(); const [deleteOpen, setDeleteOpen] = useState(false); const profile = resources.profile.data;
   const refresh = () => void Promise.all([resources.profile.refetch(), resources.location.refetch(), resources.anchors.refetch(), resources.developer.refetch()]);
   const signOut = async () => { await auth.signOut(); queryClient.clear(); };
-  return <SafeAreaView edges={["top"]} style={s.safe}><ScrollView automaticallyAdjustKeyboardInsets keyboardShouldPersistTaps="handled" contentContainerStyle={s.content} refreshControl={<RefreshControl refreshing={resources.profile.isRefetching} onRefresh={refresh} tintColor={colors.lavender[600]} />}><Text style={s.eyebrow}>YOUR FIYU</Text><Text style={s.heading}>Profile</Text>
+  return <SafeAreaView edges={["top"]} style={s.safe}><AppHeader onOpenMenu={() => router.push("/profile")} /><ScrollView automaticallyAdjustKeyboardInsets keyboardShouldPersistTaps="handled" contentContainerStyle={s.content} refreshControl={<RefreshControl refreshing={resources.profile.isRefetching} onRefresh={refresh} tintColor={colors.lavender[600]} />}><Text style={s.eyebrow}>YOUR FIYU</Text><Text style={s.heading}>Profile</Text>
     {resources.profile.isLoading ? <Text style={s.status}>Loading your profile…</Text> : resources.profile.isError && !profile ? <StateError onRetry={refresh} /> : profile ? <><ProfileForm key={profile.updated_at} profile={profile} /><DiscoverySection /><Section title="Notifications"><Text style={s.copy}>Daily Picks and account updates currently appear in-app. Email and native push delivery are not active yet.</Text><Text style={s.badge}>IN APP</Text></Section><Section title="Privacy"><Text style={s.copy}>Your visit history, ratings, and private notes remain account-private. Fiyu does not continuously track device location.</Text></Section><DeveloperSection status={resources.developer.data} /><Section title="About Fiyu"><ExternalLink label="Privacy Policy" url="https://fiyu.app/privacy" /><ExternalLink label="Terms of Service" url="https://fiyu.app/terms" /><Text style={s.copy}>Help and direct support are not yet available in-app.</Text></Section><Section title="Account"><Text style={s.accountLabel}>Signed in as</Text><Text style={s.email}>{auth.session?.email || "Fiyu account"}</Text><Pressable accessibilityRole="button" onPress={() => void signOut()} style={s.secondary}><Text style={s.secondaryText}>Sign out</Text></Pressable><View style={s.danger}><Text style={s.accountLabel}>Danger zone</Text><Text style={s.copy}>Permanently delete your Fiyu account and associated personal data.</Text><Pressable accessibilityRole="button" accessibilityLabel="Delete account" onPress={() => setDeleteOpen(true)} style={s.deleteButton}><Text style={s.deleteText}>Delete account</Text></Pressable></View></Section></> : null}
   </ScrollView><DeleteAccountModal open={deleteOpen} onClose={() => setDeleteOpen(false)} onDeleted={() => queryClient.clear()} /></SafeAreaView>;
 }
