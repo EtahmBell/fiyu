@@ -1,5 +1,5 @@
 import { project, TOKYO_BOUNDS, VIEWBOX_HEIGHT, VIEWBOX_WIDTH } from "./projection";
-import { IDENTITY_VIEW, MAX_SCALE, normalizeView, panBy, pinchView, viewBoxFor, zoomAt } from "./viewport";
+import { fitToPoints, IDENTITY_VIEW, MAX_SCALE, MIN_SCALE, normalizeView, panBy, pinchView, viewBoxFor, zoomAt } from "./viewport";
 
 describe("native map camera", () => {
   it("projects Tokyo bounds onto the canonical viewbox", () => {
@@ -15,5 +15,11 @@ describe("native map camera", () => {
     const view = pinchView(IDENTITY_VIEW, { x: 500, y: 500 }, 100, { x: 500, y: 500 }, 200);
     expect(view).toEqual({ x: -500, y: -500, k: 2 });
     expect(viewBoxFor(view)).toBe("250 250 500 513");
+  });
+  it("ports the web result-fit camera and exact scale limits", () => {
+    expect(MIN_SCALE).toBe(1);
+    expect(MAX_SCALE).toBe(4);
+    expect(fitToPoints([])).toEqual(IDENTITY_VIEW);
+    expect(fitToPoints([{ x: 400, y: 400 }, { x: 600, y: 600 }])).toEqual({ x: -1000, y: -987, k: 3 });
   });
 });

@@ -1,4 +1,4 @@
-import { clusterMarkers, spiderfyMarkers } from "./clustering";
+import { clusterMarkers, planClusterExpansion, spiderfyMarkers } from "./clustering";
 
 const input = (id: string, x: number, y: number) => ({ id, point: { x, y }, item: id });
 describe("native map clustering", () => {
@@ -17,5 +17,9 @@ describe("native map clustering", () => {
     const leaves = spiderfyMarkers(rows, 4);
     expect(leaves.map((leaf) => leaf.id)).toEqual(["a", "b"]);
     expect(new Set(leaves.map((leaf) => `${leaf.point.x}:${leaf.point.y}`)).size).toBe(2);
+  });
+  it("zooms distinct clusters to a stable level and reserves spiderfy for collisions", () => {
+    expect(planClusterExpansion([input("a", 10, 10), input("b", 45, 10)], 1)).toMatchObject({ mode: "separable" });
+    expect(planClusterExpansion([input("a", 10, 10), input("b", 10, 10)], 1)).toEqual({ mode: "spiderfy", targetScale: 4 });
   });
 });

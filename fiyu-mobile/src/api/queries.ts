@@ -170,7 +170,6 @@ export function useMapRestaurants() {
     queryKey: picksKeys.map,
     queryFn: fetchAuthenticatedMapRestaurants,
     refetchOnWindowFocus: true,
-    refetchInterval: 60_000,
   });
 }
 
