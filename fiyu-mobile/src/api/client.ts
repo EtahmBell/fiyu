@@ -27,6 +27,7 @@ import {
   restaurantPath,
   restaurantVisitListSchema,
   restaurantVisitSchema,
+  seenRestaurantsResponseSchema,
   smartViewCatalogResponseSchema,
   smartViewResponseSchema,
   togetherInviteCreatedSchema,
@@ -198,6 +199,11 @@ export async function removeFromDefaultList(cityId: string, placeId: string): Pr
 
 export async function fetchRestaurantLog(): Promise<RestaurantVisit[]> {
   return transport.requestJson(paths.log, restaurantVisitListSchema, { headers: await identityHeaders() });
+}
+
+export async function fetchSeenRestaurantIds(): Promise<string[]> {
+  const response = await transport.requestJson(paths.seenRestaurants, seenRestaurantsResponseSchema, { headers: await identityHeaders() });
+  return response.place_ids;
 }
 
 export function updateRestaurantVisit(visitId: string, input: { visited_at?: string; rating?: 1 | 2 | 3 | 4 | 5; private_note?: string | null }): Promise<RestaurantVisit> {

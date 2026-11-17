@@ -5,9 +5,9 @@ import { router } from "expo-router";
 import { Alert } from "react-native";
 
 import { deleteRestaurantVisit, fetchRestaurantLog, updateRestaurantVisit } from "@/api/client";
-import LogScreen from "@/app/(tabs)/log";
+import LogScreen from "@/app/(tabs)/log/history";
 
-jest.mock("expo-router", () => ({ router: { push: jest.fn() } }));
+jest.mock("expo-router", () => ({ router: { push: jest.fn(), replace: jest.fn() } }));
 jest.mock("@expo/vector-icons", () => ({ Ionicons: () => null }));
 jest.mock("@/api/client", () => ({
   fetchRestaurantLog: jest.fn(),

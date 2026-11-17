@@ -34,6 +34,7 @@ export const paths = {
   myPickPlaceSuggestions: "/my-picks/place-suggestions",
   log: "/log",
   logVisit: (visitId: string) => `/log/${encodeURIComponent(visitId)}`,
+  seenRestaurants: "/seen/restaurants",
   defaultList: "/lists/default",
   defaultListItems: "/lists/default/items",
   defaultListSmartViews: "/lists/default/smart-views",
